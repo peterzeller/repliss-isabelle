@@ -137,7 +137,16 @@ definition invContext where
       \<rparr>"
 
   
-  
+lemma invariantContext_eqI: "\<lbrakk>
+i_calls x = i_calls y;
+i_happensBefore x = i_happensBefore y;
+i_visibleCalls x = i_visibleCalls y;
+i_callOrigin x = i_callOrigin y;
+i_knownIds x = i_knownIds y;
+i_invocationOp x = i_invocationOp y;
+i_invocationRes x = i_invocationRes y
+\<rbrakk> \<Longrightarrow> x = (y::invariantContext)"
+by auto
 
 
 (*
@@ -531,7 +540,7 @@ apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
 done
 
 lemma precondition_pull:
-"precondition (s, APull txs) C = (\<exists>ls f ls' vis. localState C s \<triangleq> ls \<and> currentTransaction C s = None \<and> visibleCalls C s \<triangleq> vis \<and> (\<forall>txn\<in>txs. transactionStatus C txn \<triangleq> Commited))"
+"precondition (s, APull txs) C = (\<exists>ls vis. localState C s \<triangleq> ls \<and> currentTransaction C s = None \<and> visibleCalls C s \<triangleq> vis \<and> (\<forall>txn\<in>txs. transactionStatus C txn \<triangleq> Commited))"
 apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
 done
 
@@ -569,9 +578,263 @@ shows
     "localState A sb = localState B sb"
  and "currentProc A sb = currentProc B sb"
  and "currentTransaction A sb = currentTransaction B sb"
+ and "visibleCalls A sb = visibleCalls B sb"
+ and "invocationOp A sb = invocationOp B sb"
+ and "invocationRes A sb = invocationRes B sb"
+ and "knownIds A = knownIds B"
 apply (case_tac a)
 using exec apply (auto simp add: differentSessions[symmetric] elim!: step_elims)
 done
+
+lemma getContext_updateLocal[simp]:
+"getContext (A\<lparr>localState := x\<rparr>) s = getContext A s"
+apply (auto simp add: getContext_def split: option.splits)
+done
+
+lemma getContext_currentTransaction[simp]:
+"getContext (A\<lparr>currentTransaction := x\<rparr>) s = getContext A s"
+apply (auto simp add: getContext_def split: option.splits)
+done
+
+lemma getContext_transactionStatus[simp]:
+"getContext (A\<lparr>transactionStatus := x\<rparr>) s = getContext A s"
+apply (auto simp add: getContext_def split: option.splits)
+done
+
+lemma getContext_happensBefore:
+"getContext (A\<lparr>happensBefore := hb\<rparr>) s = (
+    case visibleCalls A s of 
+      None \<Rightarrow> emptyOperationContext 
+    | Some vis \<Rightarrow> \<lparr>calls = calls A |` vis, happensBefore = hb |r vis\<rparr>)"
+apply (auto simp add: getContext_def split: option.splits)
+done
+
+lemma getContext_invocationOp[simp]:
+"getContext (A\<lparr>invocationOp := x\<rparr>) s = getContext A s"
+apply (auto simp add: getContext_def split: option.splits)
+done
+
+lemma getContext_visibleCalls_other[simp]:
+"s\<noteq>sa \<Longrightarrow> visibleCalls A = Vis \<Longrightarrow> getContext (A\<lparr>visibleCalls := Vis(sa := x)\<rparr>) s = getContext A s"
+apply (auto simp add: getContext_def split: option.splits)
+done
+
+lemma getContext_visibleCalls_other2[simp]:
+"sa\<noteq>s \<Longrightarrow> getContext (A\<lparr>visibleCalls := (visibleCalls A)(sa := x)\<rparr>) s = getContext A s"
+apply (auto simp add: getContext_def split: option.splits)
+done
+
+lemma getContext_currentProc[simp]:
+"getContext (A\<lparr>currentProc := x\<rparr>) s = getContext A s"
+apply (auto simp add: getContext_def split: option.splits)
+done
+
+-- "getContext is not changed by actions in other transactions"
+lemma unchangedInTransaction_getContext:
+assumes differentSessions[simp]: "sa \<noteq> sb"
+    and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
+    and exec: "A ~~ (sa, a) \<leadsto> B"
+    and visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
+shows
+    "getContext A sb = getContext B sb"
+proof (cases a)
+  case ALocal
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (ANewId x2)
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (ABeginAtomic x3)
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case AEndAtomic
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (ADbOp callId operation args res)
+  from this
+  obtain ls f ls' vis 
+    where 1: "localState A sa \<triangleq> ls"
+      and 2: "currentProc A sa \<triangleq> f"
+      and 3: "f ls = DbOperation operation args ls'"
+      and 4: "querySpec (prog A) operation args (getContext A sa) res"
+      and 5: "visibleCalls A sa \<triangleq> vis"
+      and 6: "B = A\<lparr>localState := localState A(sa \<mapsto> ls' res), calls := calls A(callId \<mapsto> Call operation args res), callOrigin := callOrigin A(callId \<mapsto> tx), visibleCalls := visibleCalls A(sa \<mapsto> {callId} \<union> vis),
+                happensBefore := happensBefore A \<union> vis \<times> {callId}\<rparr>"
+    apply atomize_elim
+    using exec apply (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+    done
+  have case1: "getContext B sb = getContext A sb" if "visibleCalls A sb = None"
+    apply (auto simp add: that getContext_def split: option.splits)
+    using aIsInTransaction differentSessions exec that unchangedInTransaction(4) by fastforce+
+    
+  have case2: "getContext B sb = getContext A sb" if visi_def[simp]: "visibleCalls A sb \<triangleq> visi" for visi
+  proof -
+    from visi_def
+    have [simp]: "visibleCalls B sb \<triangleq> visi"
+      using aIsInTransaction differentSessions exec unchangedInTransaction(4) by fastforce
+      
+    hence "visi \<subseteq> dom (calls A)"  
+      using visibleCalls_inv  using visi_def by blast 
+    show "getContext B sb = getContext A sb"
+      apply (simp add:  getContext_def split: option.splits)
+      proof
+        have "(calls B |` visi) c = (calls A |` visi) c" for c
+          apply (auto simp add: restrict_map_def 6)
+          by (smt ADbOp \<open>visi \<subseteq> dom (calls A)\<close> contra_subsetD exec step_elim_ADbOp)
+          
+        thus "calls B |` visi = calls A |` visi" ..
+      next
+        show "happensBefore B |r visi = happensBefore A |r visi"
+          apply (auto simp add: restrict_relation_def 6)
+          by (smt ADbOp \<open>visi \<subseteq> dom (calls A)\<close> contra_subsetD exec step_elim_ADbOp)
+      qed    
+    qed 
+  from case1 case2 show ?thesis by force
+next
+  case (APull x6)
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (AInvoc x71 x72)
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (AReturn x8)
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case AFail
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (AInvcheck x10)
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+qed
+
+
+lemma invContext_updateLocal[simp]:
+"invContext (A\<lparr>localState := x\<rparr>) s = invContext A s"
+apply (auto simp add: invContext_def commitedCalls_def split: option.splits)
+done
+
+lemma invContext_currentTransaction[simp]:
+"invContext (A\<lparr>currentTransaction := x\<rparr>)s = invContext A s"
+apply (auto simp add: invContext_def commitedCalls_def split: option.splits)
+done
+
+
+lemma invContext_visibleCalls_other[simp]:
+"s\<noteq>sa \<Longrightarrow> visibleCalls A = Vis \<Longrightarrow> invContext (A\<lparr>visibleCalls := Vis(sa := x)\<rparr>) s = invContext A s"
+apply (auto simp add: invContext_def  commitedCalls_def split: option.splits)
+done
+
+lemma invContext_currentProc[simp]:
+"invContext (A\<lparr>currentProc := x\<rparr>) s = invContext A s"
+apply (auto simp add: invContext_def  commitedCalls_def split: option.splits)
+done
+
+
+-- "invcontext is not changed by actions in other transactions"
+lemma unchangedInTransaction_getInvContext:
+assumes differentSessions[simp]: "sa \<noteq> sb"
+    and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
+    and aIsInInvoc: "localState A sa \<triangleq> lsa"
+    and txUncommited[simp]: "transactionStatus A tx \<triangleq> Uncommited" 
+    and aIsNotCommit: "a \<noteq> AEndAtomic"
+    and exec: "A ~~ (sa, a) \<leadsto> B"
+    and visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
+    and origin_inv: "dom (callOrigin A) = dom (calls A)"
+shows
+    "invContext A sb = invContext B sb"
+proof (cases a)
+  case ALocal
+  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (ANewId x2)
+  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (ABeginAtomic x3)
+  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case AEndAtomic
+  then show ?thesis
+    using aIsNotCommit by blast  
+next
+  case (ADbOp callId operation args res)
+  with exec obtain ls f ls' vis
+       where 1: "a = ADbOp callId operation args res"
+         and B_def: "B = A\<lparr>localState := localState A(sa \<mapsto> ls' res), 
+                calls := calls A(callId \<mapsto> Call operation args res), callOrigin := callOrigin A(callId \<mapsto> tx), visibleCalls := visibleCalls A(sa \<mapsto> {callId} \<union> vis),
+                happensBefore := happensBefore A \<union> vis \<times> {callId}\<rparr>"
+         and 3: "localState A sa \<triangleq> ls"
+         and 4: "currentProc A sa \<triangleq> f"
+         and 5: "f ls = DbOperation operation args ls'"
+         and 6: "querySpec (prog A) operation args (getContext A sa) res"
+         and 7: "visibleCalls A sa \<triangleq> vis"
+         and 8: "callId \<notin> dom (calls A)"
+         apply atomize_elim
+        using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+  have commitedSame: "commitedCalls B = commitedCalls A"        
+    apply (auto simp add: commitedCalls_def B_def)
+    using "8" origin_inv by auto
+  
+  have commitedCallsSame: "\<And>x. x \<in> commitedCalls A \<Longrightarrow> calls A x = calls B x"
+    apply (auto simp add: B_def)
+    using "8" commitedCalls_def origin_inv by fastforce
+  
+  have [simp]: "callId \<notin> commitedCalls A"
+    by (smt "8" commitedCalls_def domI mem_Collect_eq origin_inv) 
+    
+        
+  show ?thesis 
+    proof (rule invariantContext_eqI)
+      show "i_calls (invContext A sb) = i_calls (invContext B sb)"
+        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        done
+      show "i_happensBefore (invContext A sb) = i_happensBefore (invContext B sb)"
+        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: restrict_relation_def B_def)
+        done
+        
+      show "i_visibleCalls (invContext A sb) = i_visibleCalls (invContext B sb)"
+        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: B_def differentSessions[symmetric] split: if_splits option.splits)
+        done
+      show "i_callOrigin (invContext A sb) = i_callOrigin (invContext B sb)"
+        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: B_def)
+        done
+        
+      show "i_knownIds (invContext A sb) = i_knownIds (invContext B sb)"
+        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: B_def)
+        done
+      show "i_invocationOp (invContext A sb) = i_invocationOp (invContext B sb)"
+        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: B_def)
+        done
+      show "i_invocationRes (invContext A sb) = i_invocationRes (invContext B sb)"
+        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: B_def)
+        done
+    qed
+    
+  
+next
+  case (APull x6)
+  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (AInvoc x71 x72)
+  then show ?thesis  using exec 
+    by (auto simp add: aIsInTransaction aIsInInvoc differentSessions[symmetric] elim!: step_elims split: option.splits)
+    
+next
+  case (AReturn x8)
+  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case AFail
+  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+next
+  case (AInvcheck x10)
+  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
+qed
+
 
 lemma generatedIds_mono:
 "\<lbrakk>A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> generatedIds A \<subseteq> generatedIds B"
@@ -589,11 +852,35 @@ apply (erule step.cases)
 apply (auto split: if_splits)
 done
 
+lemma transactionStatus_mono2:
+"\<lbrakk>transactionStatus B tx \<triangleq> Commited; A ~~ a \<leadsto> B; snd a\<noteq>AEndAtomic\<rbrakk> \<Longrightarrow> transactionStatus A tx \<triangleq> Commited"
+apply (erule step.cases)
+apply (auto split: if_splits)
+done
+
+
+lemma calls_mono:
+"\<lbrakk>calls B tx = None; A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> calls A tx = None"
+apply (erule step.cases)
+apply (auto split: if_splits)
+done
+
+lemma prog_inv:
+"\<lbrakk>A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> prog B = prog A"
+apply (erule step.cases)
+apply (auto split: if_splits)
+done
+
 lemma commutativePreservesPrecondition:
 assumes differentSessions[simp]: "sa \<noteq> sb"
     and preconditionHolds: "precondition (sb,b) B"
     and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
+    and txIsUncommited: "transactionStatus A tx \<triangleq> Uncommited"
+    and aIsInLocal: "localState A sa \<triangleq> lsa"
+    and aIsNotCommit: "a \<noteq> AEndAtomic"
     and exec: "A ~~ (sa, a) \<leadsto> B"
+    and visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
+    and origin_inv: "dom (callOrigin A) = dom (calls A)"
 shows "precondition (sb,b) A"
 proof (cases b)
   case ALocal
@@ -630,29 +917,74 @@ next
   then show ?thesis
     by (metis aIsInTransaction differentSessions exec preconditionHolds precondition_endAtomic unchangedInTransaction(1) unchangedInTransaction(2) unchangedInTransaction(3))
 next
-  case (ADbOp x51 x52 x53 x54)
-  then show ?thesis  sorry
+  case (ADbOp callId operation args res)
+  with preconditionHolds obtain ls f ls' vis t 
+      where 1: "calls B callId = None"
+        and 2: "localState B sb \<triangleq> ls"
+        and 3: "currentProc B sb \<triangleq> f"
+        and 4: "f ls = DbOperation operation args ls'"
+        and 5: "currentTransaction B sb \<triangleq> t"
+        and 6: "querySpec (prog B) operation args (getContext B sb) res"
+        and 7: "visibleCalls B sb \<triangleq> vis"
+    by (auto simp add: precondition_dbop)
+  moreover have "calls A callId = None"
+    using "1" calls_mono exec by blast   
+  moreover have "prog B = prog A"
+    using exec prog_inv by auto  
+  moreover have "getContext B sb = getContext A sb"
+    by (metis aIsInTransaction differentSessions exec unchangedInTransaction_getContext visibleCalls_inv) 
+  ultimately show ?thesis  using unchangedInTransaction
+    by (smt ADbOp aIsInTransaction differentSessions exec precondition_dbop)
+    
 next
-  case (APull x6)
-  then show ?thesis  sorry
+  case (APull txns) 
+  with preconditionHolds obtain ls vis
+      where 1: "localState B sb \<triangleq> ls"
+      and 2: "currentTransaction B sb = None"
+      and 3: "visibleCalls B sb \<triangleq> vis"
+      and 4: "\<forall>txn\<in>txns. transactionStatus B txn \<triangleq> Commited"
+    by (auto simp add: precondition_pull)
+  
+  then show ?thesis
+    by (metis APull aIsInTransaction aIsNotCommit differentSessions exec precondition_pull snd_conv transactionStatus_mono2 unchangedInTransaction(1) unchangedInTransaction(3) unchangedInTransaction(4))  
 next
-  case (AInvoc x71 x72)
-  then show ?thesis  sorry
+  case (AInvoc procName args)
+  with preconditionHolds obtain initialState impl
+      where "sb \<notin> dom (invocationOp B)"
+      and "localState B sb = None"
+      and "procedure (prog B) procName args \<triangleq> (initialState, impl)"
+      and "uniqueIdsInList args \<subseteq> knownIds B"
+    by (auto simp add: precondition_invoc)
+  moreover have "sb \<notin> dom (invocationOp A)"
+    by (metis \<open>sb \<notin> dom (invocationOp B)\<close> aIsInTransaction differentSessions dom_def exec mem_Collect_eq unchangedInTransaction(5))  
+    
+  ultimately show ?thesis using unchangedInTransaction
+    by (metis (mono_tags, lifting) AInvoc aIsInTransaction differentSessions exec precondition_invoc prog_inv) 
 next
   case (AReturn x8)
   then show ?thesis
     by (metis aIsInTransaction differentSessions exec preconditionHolds precondition_return unchangedInTransaction(1) unchangedInTransaction(2) unchangedInTransaction(3)) 
 next
   case AFail
-  then show ?thesis sorry
+  then show ?thesis
+    using precondition_fail by blast 
 next
-  case (AInvcheck x10)
-  then show ?thesis sorry
+  case (AInvcheck b)
+  with preconditionHolds obtain vis 
+     where 1: "currentTransaction B sb = None"
+       and 2: "visibleCalls B sb \<triangleq> vis"
+       and 3: "invariant (prog B) (invContext B sb) = b"
+    by (auto simp add: precondition_invcheck)
+  
+    
+  moreover have "invContext A sb = invContext B sb"
+    using unchangedInTransaction_getInvContext aIsInLocal aIsInTransaction aIsNotCommit differentSessions exec origin_inv txIsUncommited visibleCalls_inv by blast 
+
+    ultimately show ?thesis  using unchangedInTransaction
+    by (metis AInvcheck aIsInTransaction differentSessions exec precondition_invcheck prog_inv)
+    
 qed
 
-
-apply (case_tac a)
-using exec apply (auto simp add: aIsInTransaction elim!: step_elims)
 
 
 lemma swapCommutative:
