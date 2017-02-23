@@ -985,6 +985,77 @@ next
     
 qed
 
+
+lemma commutativePreservesPrecondition_rev:
+assumes preconditionHolds: "precondition (sb,b) A"
+    and differentSessions[simp]: "sa \<noteq> sb"
+    and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
+    and txIsUncommited: "transactionStatus A tx \<triangleq> Uncommited"
+    and aIsInLocal: "localState A sa \<triangleq> lsa"
+    and aIsNotCommit: "a \<noteq> AEndAtomic"
+    and exec: "A ~~ (sa, a) \<leadsto> B"
+    and visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
+    and origin_inv: "dom (callOrigin A) = dom (calls A)"
+shows "precondition (sb,b) B"
+proof (cases b)
+  case ALocal
+  then show ?thesis
+    by (metis aIsInTransaction differentSessions exec preconditionHolds precondition_alocal unchangedInTransaction(1) unchangedInTransaction(2)) 
+next
+  case (ANewId x2)
+  then show ?thesis sorry
+next
+  case (ABeginAtomic x3)
+  then show ?thesis sorry
+next
+  case AEndAtomic
+  then show ?thesis
+    by (metis aIsInTransaction differentSessions exec preconditionHolds precondition_endAtomic unchangedInTransaction(1) unchangedInTransaction(2) unchangedInTransaction(3)) 
+next
+  case (ADbOp x51 x52 x53 x54)
+  then show ?thesis sorry
+next
+  case (APull x6)
+  then show ?thesis 
+     sorry
+next
+  case (AInvoc x71 x72)
+  then show ?thesis 
+    sorry
+next
+  case (AReturn x8)
+  then show ?thesis
+    by (metis (full_types) aIsInTransaction differentSessions exec preconditionHolds precondition_return unchangedInTransaction(1) unchangedInTransaction(2) unchangedInTransaction(3)) 
+    
+next
+  case AFail
+  then show ?thesis
+    by (simp add: precondition_fail) 
+next
+  case (AInvcheck x10)
+  then show ?thesis
+  proof - (* hammered *)
+    obtain CC :: "state \<Rightarrow> bool \<Rightarrow> session \<Rightarrow> callId set" where
+      "\<forall>x0 x1 x2. (\<exists>v3. currentTransaction x0 x2 = None \<and> visibleCalls x0 x2 \<triangleq> v3 \<and> invariant (prog x0) (invContext x0 x2) = x1) = (currentTransaction x0 x2 = None \<and> visibleCalls x0 x2 \<triangleq> CC x0 x1 x2 \<and> invariant (prog x0) (invContext x0 x2) = x1)"
+      by moura
+    then have f1: "\<forall>s b z. (\<not> precondition (s, AInvcheck b) z \<or> currentTransaction z s = None \<and> visibleCalls z s \<triangleq> CC z b s \<and> (\<not> invariant (prog z) (invContext z s)) \<noteq> b) \<and> (precondition (s, AInvcheck b) z \<or> (\<forall>C. currentTransaction z s \<noteq> None \<or> visibleCalls z s \<noteq> Some C \<or> (\<not> invariant (prog z) (invContext z s)) = b))"
+      by (metis precondition_invcheck)
+    then have f2: "currentTransaction A sb = None \<and> visibleCalls A sb \<triangleq> CC A x10 sb \<and> (\<not> invariant (prog A) (invContext A sb)) \<noteq> x10"
+      using AInvcheck preconditionHolds by blast
+    then have f3: "currentTransaction B sb = None"
+    using aIsInTransaction differentSessions exec unchangedInTransaction(3) by auto
+  have f4: "visibleCalls B sb \<triangleq> CC A x10 sb"
+    using f2 aIsInTransaction differentSessions exec unchangedInTransaction(4) by auto
+  have "invContext A sb = invContext B sb"
+    by (meson aIsInLocal aIsInTransaction aIsNotCommit differentSessions exec origin_inv txIsUncommited unchangedInTransaction_getInvContext visibleCalls_inv)
+  then have "invariant (prog A) (invContext A sb) = invariant (prog B) (invContext B sb)"
+    using exec prog_inv by force
+  then show ?thesis
+    using f4 f3 f2 f1 AInvcheck by blast
+qed
+    
+qed  
+  
 lemma 
 assumes order1: "\<And>B1 B2. \<lbrakk>A ~~ (sa,a) \<leadsto> B1; B1 ~~ (sb,b) \<leadsto> C1; A ~~ (sb,b) \<leadsto> B2; B2 ~~ (sa,a) \<leadsto> C2\<rbrakk> \<Longrightarrow> C1 = C2" 
  and a1: "sa \<noteq> sb"
