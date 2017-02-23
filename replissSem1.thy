@@ -1,10 +1,16 @@
 theory replissSem1
 imports Main
   "~~/src/HOL/Library/LaTeXsugar"
-(*  "~/work/afp/thys/Proof_Strategy_Language/PSL" *)
+  "~~/src/HOL/Library/Multiset"
+  "~/work/afp/thys/Proof_Strategy_Language/PSL" 
 begin
 
+strategy Hammers =  RepeatN ( Ors [Hammer, Defer]  )
+
 abbreviation todo ("???") where "??? \<equiv> undefined"
+
+abbreviation eqsome :: "'a option \<Rightarrow> 'a \<Rightarrow> bool" (infixr "\<triangleq>" 69) where
+ "x \<triangleq> y \<equiv> x = Some y"
 
 typedecl session
 typedecl localState
@@ -44,24 +50,32 @@ record operationContext =
   calls :: "callId \<rightharpoonup> call"
   happensBefore :: "callId rel"
 
+record invariantContext = 
+  i_calls :: "callId \<rightharpoonup> call"
+  i_happensBefore :: "callId rel"
+  i_visibleCalls :: "callId set"
+  i_callOrigin :: "callId \<rightharpoonup> txid"
+  i_knownIds :: "uniqueId set"
+  i_invocationOp :: "session \<rightharpoonup> (procedureName \<times> any list)"
+  i_invocationRes :: "session \<rightharpoonup> any"
+
 record prog =
   querySpec :: "operation \<Rightarrow> any list \<Rightarrow> operationContext \<Rightarrow> any \<Rightarrow> bool"
   procedure :: "procedureName \<Rightarrow> any list \<rightharpoonup> (localState \<times> procedureImpl)"
-
-
+  invariant :: "invariantContext \<Rightarrow> bool"
 
 record state = operationContext +
   prog :: prog
-  localState :: "session \<rightharpoonup> localState"
-  currentProc :: "session \<rightharpoonup> procedureImpl"
-  visibleCalls :: "session \<rightharpoonup> callId set"
-  currentTransaction :: "session \<rightharpoonup> txid"
-  transactionStatus :: "txid \<rightharpoonup> transactionStatus"
   callOrigin :: "callId \<rightharpoonup> txid"
   generatedIds :: "uniqueId set"
   knownIds :: "uniqueId set"
   invocationOp :: "session \<rightharpoonup> (procedureName \<times> any list)"
   invocationRes :: "session \<rightharpoonup> any"
+  localState :: "session \<rightharpoonup> localState"
+  currentProc :: "session \<rightharpoonup> procedureImpl"
+  visibleCalls :: "session \<rightharpoonup> callId set"
+  currentTransaction :: "session \<rightharpoonup> txid"
+  transactionStatus :: "txid \<rightharpoonup> transactionStatus"
 
 lemma state_ext: "((x::state) = y) \<longleftrightarrow> (
     calls x = calls y
@@ -98,13 +112,33 @@ definition "getContext" where
       \<rparr>
   )"
 
-definition restrictMap :: "'a set \<Rightarrow> ('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b)" where
-"restrictMap S m = (\<lambda>x. if x\<in>S then m x else None)"
+abbreviation "emptyInvariantContext \<equiv> \<lparr>
+        i_calls = empty,
+        i_happensBefore = {},
+        i_visibleCalls = {},
+        i_callOrigin  = empty,
+        i_knownIds = {},
+        i_invocationOp = empty,
+        i_invocationRes = empty
+\<rparr>"
+
+
+definition "commitedCalls state \<equiv> {c | c tx. callOrigin state c \<triangleq> tx \<and> transactionStatus state tx \<triangleq> Commited }"
+
+definition invContext where
+"invContext state s = \<lparr>
+        i_calls = calls state |` commitedCalls state , 
+        i_happensBefore = happensBefore state |r commitedCalls state , 
+        i_visibleCalls = case visibleCalls state s of None \<Rightarrow> {} | Some vis \<Rightarrow> vis,
+        i_callOrigin  = callOrigin state |` commitedCalls state,
+        i_knownIds = knownIds state,
+        i_invocationOp = invocationOp state,
+        i_invocationRes = invocationRes state
+      \<rparr>"
 
   
   
-abbreviation eqsome :: "'a option \<Rightarrow> 'a \<Rightarrow> bool" (infixr "\<triangleq>" 69) where
- "x \<triangleq> y \<equiv> x = Some y"
+
 
 (*
 abbreviation isUndef :: "'a option \<Rightarrow> bool" ("_ = \<bottom>" [0]60) where
@@ -172,6 +206,7 @@ datatype action =
   | AInvoc procedureName "any list"
   | AReturn any
   | AFail  
+  | AInvcheck bool
 
 inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
@@ -237,9 +272,7 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
    f ls = Return res;
-   currentTransaction C s = None;
-   querySpec (prog C) Op args (getContext C s)  res;
-   visibleCalls C s \<triangleq> vis
+   currentTransaction C s = None
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AReturn res) \<leadsto> (C\<lparr>localState := (localState C)(s := None),
                  currentProc := (currentProc C)(s := None),
                  visibleCalls := (visibleCalls C)(s := None),
@@ -248,6 +281,34 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
   "      C ~~ (s, AFail) \<leadsto> (C\<lparr>localState := (localState C)(s := None),
                  currentProc := (currentProc C)(s := None),
                  visibleCalls := (visibleCalls C)(s := None) \<rparr>)"                  
+| invCheck:
+  "\<lbrakk>currentTransaction C s = None;
+   visibleCalls C s \<triangleq> vis;
+   invariant (prog C) (invContext C s) = res
+   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto> C"   
+
+inductive_cases step_elim_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
+inductive_cases step_elim_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
+inductive_cases step_elim_ABeginAtomic: "A ~~ (s, ABeginAtomic t) \<leadsto> B "
+inductive_cases step_elim_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
+inductive_cases step_elim_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
+inductive_cases step_elim_APull: "A ~~ (s, APull txns) \<leadsto> B "
+inductive_cases step_elim_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
+inductive_cases step_elim_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
+inductive_cases step_elim_AFail: "A ~~ (s, AFail) \<leadsto> B "
+inductive_cases step_elim_AInvcheck: "A ~~ (s, b) \<leadsto> B "
+
+lemmas step_elims = 
+  step_elim_ALocal
+  step_elim_ANewId
+  step_elim_ABeginAtomic
+  step_elim_AEndAtomic
+  step_elim_ADbOp
+  step_elim_APull
+  step_elim_AInvoc
+  step_elim_AReturn
+  step_elim_AFail
+  step_elim_AInvcheck
 
 inductive steps :: "state \<Rightarrow> (session \<times> action) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
   steps_refl:
@@ -281,6 +342,366 @@ next
     by (metis snoc_eq_iff_butlast stepDeterministic steps.cases) 
 qed
 
+definition initialState :: "prog \<Rightarrow> state" where
+"initialState program \<equiv> \<lparr>
+  calls = empty,
+  happensBefore = {},
+  prog = program,
+  callOrigin = empty,
+  generatedIds = {},
+  knownIds = {},
+  invocationOp = empty,
+  invocationRes = empty,
+  localState = empty,
+  currentProc = empty,
+  visibleCalls = empty,
+  currentTransaction = empty,
+  transactionStatus = empty
+\<rparr>"
 
+type_synonym trace = "(session\<times>action) list"
+
+definition traceCorrect where
+"traceCorrect program trace \<equiv> (\<forall>s. (s, AInvcheck False) \<notin> set trace) \<and> (\<exists>s. initialState program ~~ trace \<leadsto>* s)"
+
+definition programCorrect where
+"programCorrect program \<equiv> (\<forall>trace s. (initialState program ~~ trace \<leadsto>* s) \<longrightarrow> traceCorrect program trace)"
+
+definition "isABeginAtomic action = (case action of ABeginAtomic x \<Rightarrow> True | _ \<Rightarrow> False)"
+
+(*
+ splits a trace into three parts
+  
+1. part until first (s, EndAtomic) on different sessions
+2. part until and including (s, EndAtomic); same session
+3. rest
+*)
+fun splitTrace :: "session \<Rightarrow> trace \<Rightarrow> (trace \<times> trace \<times> trace)" where
+  "splitTrace s [] = ([],[],[])"
+| "splitTrace s ((sa, a)#tr) = (
+    if s = sa then
+      if a = AEndAtomic then
+        ([], [(sa,a)], tr)
+      else
+        let (h, c, t) = splitTrace s tr in
+        (h, (sa,a)#c, t)
+    else
+      let (h, c, t) = splitTrace s tr in
+      ((sa,a)#h, c, t)
+  )"
+
+
+
+lemma splitTrace_complete: 
+"splitTrace s tr = (h,c,t) \<Longrightarrow> mset tr= mset h + mset c + mset t"
+apply (induct arbitrary: h c t rule: splitTrace.induct)
+apply (auto split: if_splits prod.splits)
+done
+
+lemma splitTrace_len[simp]: 
+assumes a: "splitTrace s tr = (h,c,t)"
+shows "length h \<le> length tr"
+  and "length c \<le> length tr"
+  and "length t \<le> length tr"
+using a apply (induct arbitrary: h c t rule: splitTrace.induct)
+apply (auto simp add: le_SucI split: if_splits prod.splits)
+done
+
+lemma splitTrace_len2[simp]: 
+assumes a: "(h,c,t) = splitTrace s tr"
+shows "length h \<le> length tr"
+  and "length c \<le> length tr"
+  and "length t \<le> length tr"
+using a by (metis splitTrace_len)+ 
+
+declare splitTrace.simps[simp del]
+
+
+fun compactTrace :: "session \<Rightarrow> trace \<Rightarrow> trace" where
+  compactTrace_empty:
+  "compactTrace s [] = []"
+| compactTrace_step:
+  "compactTrace s ((sa, a)#tr) = (
+    if s = sa \<and> isABeginAtomic a then
+      let (h, c, t) = splitTrace s tr in
+      h @ (sa,a)#c @ compactTrace s t
+    else
+      (sa, a) # compactTrace s tr
+  )"
+
+
+lemma compactTrace_complete: 
+"mset (compactTrace s tr) = mset tr"
+apply (induct rule: compactTrace.induct)
+apply (auto simp add: splitTrace_complete split: prod.splits)
+done
+
+declare compactTrace_step[simp del]
+
+(*
+theorem compactTrace_preservesSemantic:
+shows "(s_init ~~ tr \<leadsto>* C) \<longleftrightarrow> (s_init ~~ compactTrace s tr \<leadsto>* C)"
+proof (induct tr arbitrary: C rule: compactTrace.induct)
+  case (1 s)
+  then show ?case by simp
+next
+  case (2 s sa a tr)
+(*
+    \<lbrakk>s = sa \<and> isABeginAtomic a; ?x = splitTrace s tr; (?xa, ?y) = ?x; (?xb, ?ya) = ?y\<rbrakk> \<Longrightarrow> s_init ~~ ?ya \<leadsto>* ?C = s_init ~~ compactTrace s ?ya \<leadsto>* ?C
+    \<not> (s = sa \<and> isABeginAtomic a) \<Longrightarrow> s_init ~~ tr \<leadsto>* ?C = s_init ~~ compactTrace s tr \<leadsto>* ?C
+*)
+  show ?case 
+    apply auto
+  sorry
+qed
+*)  
+
+lemma steps_appendBack:
+"(A ~~ tr @ [a] \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ tr \<leadsto>* B) \<and> (B ~~ a \<leadsto> C))"
+apply auto
+apply (metis snoc_eq_iff_butlast steps.cases)
+using steps_step by blast
+
+
+lemma steps_append: 
+"(A ~~ tra@trb \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ tra \<leadsto>* B) \<and> (B ~~ trb \<leadsto>* C))"
+proof (induct trb arbitrary: C rule: rev_induct)
+  case Nil
+  then show ?case 
+    apply simp
+    by (metis snoc_eq_iff_butlast steps.cases steps_refl)
+next
+  case (snoc a trb)
+  show ?case
+    by (metis (no_types, lifting) append_assoc snoc.hyps steps_appendBack) 
+qed
+
+lemma steps_single[simp]: "(A ~~ [a] \<leadsto>* B) \<longleftrightarrow> (A ~~ a \<leadsto> B)"
+by (metis append_Nil steps_appendBack steps_refl traceDeterministic)
+
+lemma steps_empty[simp]: "(A ~~ [] \<leadsto>* B) \<longleftrightarrow> (A = B)"
+  using steps_refl traceDeterministic by blast
+
+
+lemma steps_appendFront:
+"(A ~~ a# tr \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ a \<leadsto> B) \<and> (B ~~ tr \<leadsto>* C))"
+proof -
+  have "(A ~~ a# tr \<leadsto>* C) 
+                     = (A ~~ [a]@tr \<leadsto>* C)" by simp
+  moreover have "... = (\<exists>B. (A ~~ [a] \<leadsto>* B) \<and> (B ~~ tr \<leadsto>* C))" by (rule steps_append)
+  moreover have "... = (\<exists>B. (A ~~ a \<leadsto> B) \<and> (B ~~ tr \<leadsto>* C))" by (simp add: steps_single)
+  ultimately show ?thesis by simp
+qed  
+
+definition "precondition a C \<equiv> \<exists>C'. C ~~ a \<leadsto> C'"
+
+lemma usePrecondition: "precondition a C \<Longrightarrow> \<exists>C'. C ~~ a \<leadsto> C'"
+apply (simp add: precondition_def)
+done
+
+lemma precondition_alocal:
+"precondition (s, ALocal) C = (\<exists>ls f ls'. localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = LocalStep ls')"
+apply (auto simp add: precondition_def intro: step.intros elim: step_elims)
+done
+
+lemma precondition_newid:
+"precondition (s, ANewId uid) C = (\<exists>ls f ls'. localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = NewId ls' \<and> uid \<notin> generatedIds C)"
+apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+done
+
+lemma precondition_beginAtomic:
+"precondition (s, ABeginAtomic tx) C = (\<exists>ls f ls'. localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = BeginAtomic ls' \<and> currentTransaction C s = None \<and> transactionStatus C tx = None)"
+apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+done
+
+lemma precondition_endAtomic:
+"precondition (s, AEndAtomic) C = (\<exists>ls f ls'. localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = EndAtomic ls' \<and> currentTransaction C s \<noteq> None)"
+apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+done
+
+lemma precondition_invoc:
+"precondition (s, AInvoc procName args) C = (\<exists>initialState impl. s \<notin> dom (invocationOp C) \<and> localState C s = None \<and> procedure (prog C) procName args \<triangleq> (initialState, impl) \<and> uniqueIdsInList args \<subseteq> knownIds C)"
+apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+done
+
+lemma precondition_dbop:
+"precondition (s, ADbOp c operation args res) C = (\<exists>ls f ls' t vis. calls C c = None \<and> localState C s \<triangleq> ls 
+    \<and> currentProc C s \<triangleq> f \<and> f ls = DbOperation operation args ls' \<and> currentTransaction C s \<triangleq> t \<and> querySpec (prog C) operation args (getContext C s) res \<and> visibleCalls C s \<triangleq> vis)"
+apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+done
+
+lemma precondition_pull:
+"precondition (s, APull txs) C = (\<exists>ls f ls' vis. localState C s \<triangleq> ls \<and> currentTransaction C s = None \<and> visibleCalls C s \<triangleq> vis \<and> (\<forall>txn\<in>txs. transactionStatus C txn \<triangleq> Commited))"
+apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+done
+
+
+lemma precondition_return:
+"precondition (s, AReturn res) C = (\<exists>ls f. localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = Return res \<and> currentTransaction C s = None)"
+apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+done
+
+lemma precondition_fail:
+"precondition (s, AFail) C = True" (* failures occur anywhere and anytime ;) *)
+apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+done
+
+lemma precondition_invcheck:
+"precondition (s, AInvcheck b) C = (\<exists>vis. currentTransaction C s = None \<and> visibleCalls C s \<triangleq> vis \<and> invariant (prog C) (invContext C s) = b)"
+apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+done
+
+(*
+  | AInvcheck bool
+*)
+
+
+
+lemma step_existsH:
+"\<lbrakk>precondition a A; \<And>B. A ~~ a \<leadsto> B \<Longrightarrow> P B \<rbrakk> \<Longrightarrow> \<exists>B. (A ~~ a \<leadsto> B) \<and> P B"
+  using usePrecondition by blast
+
+lemma unchangedInTransaction:
+assumes differentSessions[simp]: "sa \<noteq> sb"
+    and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
+    and exec: "A ~~ (sa, a) \<leadsto> B"
+shows
+    "localState A sb = localState B sb"
+ and "currentProc A sb = currentProc B sb"
+ and "currentTransaction A sb = currentTransaction B sb"
+apply (case_tac a)
+using exec apply (auto simp add: differentSessions[symmetric] elim!: step_elims)
+done
+
+lemma generatedIds_mono:
+"\<lbrakk>A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> generatedIds A \<subseteq> generatedIds B"
+apply (erule step.cases, auto)
+done
+
+lemma generatedIds_mono2:
+"\<lbrakk>x\<in>generatedIds A; A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> x\<in>generatedIds B"
+  using generatedIds_mono by blast
+
+
+lemma transactionStatus_mono:
+"\<lbrakk>transactionStatus B tx = None; A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> transactionStatus A tx = None"
+apply (erule step.cases)
+apply (auto split: if_splits)
+done
+
+lemma commutativePreservesPrecondition:
+assumes differentSessions[simp]: "sa \<noteq> sb"
+    and preconditionHolds: "precondition (sb,b) B"
+    and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
+    and exec: "A ~~ (sa, a) \<leadsto> B"
+shows "precondition (sb,b) A"
+proof (cases b)
+  case ALocal
+  show ?thesis using precondition_alocal unchangedInTransaction
+    by (metis ALocal aIsInTransaction differentSessions exec preconditionHolds) 
+    
+next
+  case (ANewId x2)
+  with preconditionHolds
+  obtain ls f ls' 
+    where 1: "localState B sb \<triangleq> ls" 
+      and 2: "currentProc B sb \<triangleq> f" 
+      and 3: "x2 \<notin> generatedIds B" 
+      and 4: "f ls = NewId ls'"
+    by (auto simp add: precondition_newid)
+  have 5: "x2 \<notin> generatedIds A"
+    using 3 exec generatedIds_mono2 by blast
+  thus ?thesis
+    by (metis "1" "2" "4" ANewId aIsInTransaction differentSessions exec precondition_newid unchangedInTransaction(1) unchangedInTransaction(2)) 
+next
+  case (ABeginAtomic tx)
+  with preconditionHolds obtain ls f ls' 
+      where 1: "localState B sb \<triangleq> ls"
+        and 2: "currentProc B sb \<triangleq> f"
+        and 3: "f ls = BeginAtomic ls'"
+        and 4: "currentTransaction B sb = None"
+        and 5: "transactionStatus B tx = None"
+    by (auto simp add: precondition_beginAtomic)
+  moreover have "transactionStatus A tx = None" using transactionStatus_mono 5 exec by blast 
+  ultimately show ?thesis using unchangedInTransaction
+    by (metis ABeginAtomic aIsInTransaction differentSessions exec precondition_beginAtomic) 
+next
+  case AEndAtomic
+  then show ?thesis
+    by (metis aIsInTransaction differentSessions exec preconditionHolds precondition_endAtomic unchangedInTransaction(1) unchangedInTransaction(2) unchangedInTransaction(3))
+next
+  case (ADbOp x51 x52 x53 x54)
+  then show ?thesis  sorry
+next
+  case (APull x6)
+  then show ?thesis  sorry
+next
+  case (AInvoc x71 x72)
+  then show ?thesis  sorry
+next
+  case (AReturn x8)
+  then show ?thesis
+    by (metis aIsInTransaction differentSessions exec preconditionHolds precondition_return unchangedInTransaction(1) unchangedInTransaction(2) unchangedInTransaction(3)) 
+next
+  case AFail
+  then show ?thesis sorry
+next
+  case (AInvcheck x10)
+  then show ?thesis sorry
+qed
+
+
+apply (case_tac a)
+using exec apply (auto simp add: aIsInTransaction elim!: step_elims)
+
+
+lemma swapCommutative:
+assumes differentSessions[simp]: "sa \<noteq> sb"
+   and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
+shows "(A ~~ [(sa,a),(sb,b)] \<leadsto>* C) \<longleftrightarrow> (A ~~ [(sb,b),(sa,a)] \<leadsto>* C)"
+proof -
+  have differentSessions2[simp]: "sb \<noteq> sa"
+    using differentSessions by blast 
+  show "?thesis"
+    apply (case_tac a; case_tac b)
+    apply (auto simp add: steps_appendFront elim!: step_elims)[1]
+    apply (rule step_existsH)
+    
+
+
+
+
+lemma one_compaction_step:
+assumes splitTrace: "tr = (s, ABeginAtomic tx) # txa @ x # rest" 
+    and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
+    and xOutside: "fst x \<noteq> s"
+shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ x # (s, ABeginAtomic tx) # txa @ rest \<leadsto>* C)"
+using splitTrace txaInTx xOutside proof (induct txa arbitrary: x rest rule: rev_induct)
+  case Nil
+  hence tr_def: "tr = (s, ABeginAtomic tx) # x # rest" by simp
+  show ?case
+  proof 
+    assume a1: "s_init ~~ tr \<leadsto>* C"
+    with tr_def
+    obtain C1 C2 where
+          "s_init ~~ (s, ABeginAtomic tx) \<leadsto> C1"
+      and "C1 ~~ x \<leadsto> C2"
+      and "C2 ~~ rest \<leadsto>* C"
+      using steps_append steps_appendFront by auto
+    
+    
+  
+    show "s_init ~~ x # (s, ABeginAtomic tx) # [] @ rest \<leadsto>* C"
+
+   sorry
+next
+  case (snoc x xs)
+  then show ?case sorry
+qed
+
+lemma one_compaction_step:
+assumes splitTrace: "tr = tr1 @ [(s, ABeginAtomic tx)] @ txa @ [x] @ rest" 
+    and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
+shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr1 @ [x] @ [(s, ABeginAtomic tx)] @ txa @ rest \<leadsto>* C)"
 
 end
