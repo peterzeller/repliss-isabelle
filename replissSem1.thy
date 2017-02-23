@@ -872,8 +872,8 @@ apply (auto split: if_splits)
 done
 
 lemma commutativePreservesPrecondition:
-assumes differentSessions[simp]: "sa \<noteq> sb"
-    and preconditionHolds: "precondition (sb,b) B"
+assumes preconditionHolds: "precondition (sb,b) B"
+    and differentSessions[simp]: "sa \<noteq> sb"
     and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
     and txIsUncommited: "transactionStatus A tx \<triangleq> Uncommited"
     and aIsInLocal: "localState A sa \<triangleq> lsa"
@@ -985,7 +985,39 @@ next
     
 qed
 
+lemma 
+assumes order1: "\<And>B1 B2. \<lbrakk>A ~~ (sa,a) \<leadsto> B1; B1 ~~ (sb,b) \<leadsto> C1; A ~~ (sb,b) \<leadsto> B2; B2 ~~ (sa,a) \<leadsto> C2\<rbrakk> \<Longrightarrow> C1 = C2" 
+ and a1: "sa \<noteq> sb"
+ and a2: "currentTransaction A sa \<triangleq> tx"
+ and a3: "transactionStatus A tx \<triangleq> Uncommited"
+ and a4: "localState A sa \<triangleq> lsa"
+ and a5: "a \<noteq> AEndAtomic"
+ and a6: "A ~~ (sa, a) \<leadsto> B"
+ and a7: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
+ and a8: "dom (callOrigin A) = dom (calls A)"
+shows "(A ~~ [(sa,a),(sb,b)] \<leadsto>* C) \<longleftrightarrow> (A ~~ [(sb,b),(sa,a)] \<leadsto>* C)"
+proof (auto simp add: steps_appendFront)
+  fix B
+  assume a0: "A ~~ (sa, a) \<leadsto> B"
+     and a1: "B ~~ (sb, b) \<leadsto> C"
 
+  from a1
+  have "precondition (sb, b) B"
+    using precondition_def by blast
+  with commutativePreservesPrecondition
+  have "precondition (sb, b) A"
+    using a0 a2 a3 a4 a5 a7 a8 assms(2) by blast
+    
+  thus "\<exists>B. (A ~~ (sb, b) \<leadsto> B) \<and> (B ~~ (sa, a) \<leadsto> C)"
+    apply (rule step_existsH)
+    (*
+    what we need here is the other direction as well: preconditions are preserved when moving something into a transaction
+    
+    alternatively I could also just prove one direction first
+    *)
+    
+    
+find_theorems "precondition"
 
 lemma swapCommutative:
 assumes differentSessions[simp]: "sa \<noteq> sb"
