@@ -631,15 +631,52 @@ definition commutativeS :: "state \<Rightarrow> session \<times> action \<Righta
 "commutativeS s a b \<equiv> (\<forall>t. ((s ~~ [a,b] \<leadsto>*  t) \<longleftrightarrow> (s ~~ [b,a] \<leadsto>* t)))"
 
 
-
-
-
-
 definition "precondition a C \<equiv> \<exists>C'. C ~~ a \<leadsto> C'"
 
 lemma usePrecondition: "precondition a C \<Longrightarrow> \<exists>C'. C ~~ a \<leadsto> C'"
 apply (simp add: precondition_def)
 done
+
+lemma usePrecondition2: "precondition a C \<Longrightarrow> (\<And>C'. C ~~ a \<leadsto> C' \<Longrightarrow> P C') \<Longrightarrow> \<exists>C'. (C ~~ a \<leadsto> C') \<and> P C'"
+  using usePrecondition by blast
+
+
+lemma existsAndH: "P x \<Longrightarrow> Q x \<Longrightarrow>   \<exists>x. P x \<and> Q x"
+by auto
+
+lemma preconditionI[simp]: "\<lbrakk>s ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> precondition a s"
+by (auto simp add: precondition_def)
+
+lemma show_commutativeS[case_names preAB preBA commute ]: 
+assumes a1:  "\<And>s1 s2. \<lbrakk>s ~~ a \<leadsto> s1; s1 ~~ b \<leadsto> s2\<rbrakk> \<Longrightarrow> \<exists>s1. (s ~~ b \<leadsto> s1) \<and> (\<exists>s2. s1 ~~ a \<leadsto> s2)" 
+    and a2:  "\<And>s1 s2. \<lbrakk>s ~~ b \<leadsto> s1; s1 ~~ a \<leadsto> s2\<rbrakk> \<Longrightarrow> \<exists>s1. (s ~~ a \<leadsto> s1) \<and> (\<exists>s2. s1 ~~ b \<leadsto> s2)" 
+    and a4:  "\<And>s1 s2 s1' s2'. \<lbrakk>s ~~ a \<leadsto> s1; s1 ~~ b \<leadsto> s2; s ~~ b \<leadsto> s1'; s1' ~~ a \<leadsto> s2'\<rbrakk> \<Longrightarrow> s2 = s2'"
+shows "commutativeS s a b"
+apply (auto simp add: commutativeS_def  steps_appendFront)
+  using a1 a4 apply blast
+  using a2 a4 by blast
+
+lemma show_commutativeS_pres[case_names preBfront preAfront preAback preBback commute ]: 
+assumes a1:  "\<And>s1. \<lbrakk>s ~~ a \<leadsto> s1; precondition b s1\<rbrakk> \<Longrightarrow> precondition b s"
+    and a1': "\<And>s1. \<lbrakk>s ~~ b \<leadsto> s1; precondition a s1\<rbrakk> \<Longrightarrow> precondition a s"
+    and a2:  "\<And>s1. \<lbrakk>s ~~ b \<leadsto> s1; precondition a s\<rbrakk> \<Longrightarrow> precondition a s1"
+    and a2': "\<And>s1. \<lbrakk>s ~~ a \<leadsto> s1; precondition b s\<rbrakk> \<Longrightarrow> precondition b s1"
+    and a4:  "\<And>s1 s2 s1' s2'. \<lbrakk>s ~~ a \<leadsto> s1; s1 ~~ b \<leadsto> s2; s ~~ b \<leadsto> s1'; s1' ~~ a \<leadsto> s2'\<rbrakk> \<Longrightarrow> s2 = s2'"
+shows "commutativeS s a b"
+apply (auto simp add: commutativeS_def precondition_def steps_appendFront)
+apply (rule usePrecondition2)
+  using a1 precondition_def apply blast 
+  apply (frule a2)
+  apply simp
+  using a4 usePrecondition apply blast
+apply (rule usePrecondition2)
+  using a1' precondition_def apply blast 
+  apply (frule a2')
+  apply simp
+  using a4 usePrecondition apply blast 
+done  
+
+
 
 lemma precondition_alocal:
 "precondition (s, ALocal) C = (\<exists>ls f ls'. localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = LocalStep ls')"
@@ -1004,6 +1041,22 @@ apply (erule step.cases)
 apply (auto split: if_splits)
 done
 
+lemma getContext_unchanged[simp]:
+    "getContext (C\<lparr>invocationRes := x1\<rparr>) s = getContext C s"
+and "getContext (C\<lparr>callOrigin := x2\<rparr>) s = getContext C s"
+and "getContext (C\<lparr>generatedIds := x3\<rparr>) s = getContext C s"
+and "getContext (C\<lparr>knownIds := x4\<rparr>) s = getContext C s"
+and "getContext (C\<lparr>invocationOp := x5\<rparr>) s = getContext C s"
+and "getContext (C\<lparr>invocationRes := x6\<rparr>) s = getContext C s"
+and "getContext (C\<lparr>localState := x7\<rparr>) s = getContext C s"
+and "getContext (C\<lparr>currentProc := x8\<rparr>) s = getContext C s"
+and "getContext (C\<lparr>currentTransaction := x9\<rparr>) s = getContext C s"
+and "getContext (C\<lparr>transactionStatus := x10\<rparr>) s = getContext C s"
+apply (auto simp add: getContext_def split: option.splits)
+done
+
+
+
 lemma commutativePreservesPrecondition:
 assumes preconditionHolds: "precondition (sb,b) B"
     and differentSessions[simp]: "sa \<noteq> sb"
@@ -1012,9 +1065,18 @@ assumes preconditionHolds: "precondition (sb,b) B"
     and aIsInLocal: "localState A sa \<triangleq> lsa"
     and aIsNotCommit: "a \<noteq> AEndAtomic"
     and exec: "A ~~ (sa, a) \<leadsto> B"
-    and visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
-    and origin_inv: "dom (callOrigin A) = dom (calls A)"
+    and wellFormed: "state_wellFormed A"
 shows "precondition (sb,b) A"
+proof -
+  
+  have origin_inv: "dom (callOrigin A) = dom (calls A)"
+    by (simp add: wellFormed wellFormed_callOrigin_dom)
+  
+  have visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
+    by (simp add: wellFormed wellFormed_visibleCallsSubsetCalls_h(2))
+  
+
+show ?thesis
 proof (cases b)
   case ALocal
   show ?thesis using precondition_alocal unchangedInTransaction
@@ -1117,15 +1179,11 @@ next
     by (metis AInvcheck aIsInTransaction differentSessions exec precondition_invcheck prog_inv)
     
 qed
+qed
 
 
 
-lemma commutative_ALocal_ALocal:
-assumes a1: "sa \<noteq> sb"
-shows "commutativeS S (sa, ALocal) (sb, ALocal)"
-by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)
-
-lemma commutative_ALocal_other:
+lemma commutative_ALocal_other[simp]:
 assumes a1: "sa \<noteq> sb"
 shows "commutativeS S (sa, ALocal) (sb, a)"
 apply (case_tac a)
@@ -1133,12 +1191,79 @@ apply (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_
 done
 
 
-lemma commutative_other_ALocal:
+lemma commutative_other_ALocal[simp]:
 assumes a1: "sa \<noteq> sb"
 shows "commutativeS S (sa, a) (sb, ALocal)"
 apply (case_tac a)
 apply (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)
 done
+
+lemma commutative_Dbop_other:
+assumes a1[simp]: "sa \<noteq> sb"
+shows "commutativeS S (sa, ADbOp c operation args res) (sb, a)"
+proof (cases a)
+  case ALocal
+  then show ?thesis by simp
+next
+  case (ANewId x2)
+  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
+next
+  case (ABeginAtomic x3)
+  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
+next
+  case AEndAtomic
+  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
+next
+  case AFail
+  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)
+next
+  case (AInvoc p a)
+  show ?thesis 
+    proof (induct rule: show_commutativeS_pres)
+      case (preBfront s1)
+      then show ?case 
+        by (auto simp add: AInvoc precondition_invoc step_simps split: if_splits)
+    next
+      case (preAfront s1)
+      then show ?case 
+        by (auto simp add: AInvoc precondition_dbop step_simps)
+    next
+      case (preAback s1)
+      then show ?case 
+        by (auto simp add: AInvoc precondition_dbop step_simps)
+    next
+      case (preBback s1)
+      then show ?case 
+        by (auto simp add: AInvoc precondition_invoc step_simps)
+    next
+      case (commute s1 s2 s1' s2')
+      then show ?case 
+        by (auto simp add: AInvoc commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
+    qed
+    
+next
+  case (AReturn x8)
+  then show ?thesis 
+    apply simp
+    apply (rule show_commutativeS_pres)
+    apply (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
+    done
+    
+next
+  case (AInvcheck x10)
+  then show ?thesis 
+    apply simp
+    apply (rule show_commutativeS_pres)
+    apply (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
+    sorry
+next
+  case (ADbOp c operation args res)
+  then show ?thesis 
+    apply (auto simp add: commutativeS_def steps_appendFront)  
+next
+  case (APull x6)
+  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)    
+qed
 
 
 
