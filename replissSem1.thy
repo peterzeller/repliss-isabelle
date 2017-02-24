@@ -199,6 +199,16 @@ apply (subst dc_def2)
 apply auto
 by (metis case_prodI fst_conv image_iff member_filter)
 
+lemma downwardsClosure_subset:
+"S \<down> R \<subseteq> S \<union> fst ` R"
+apply (auto simp add: dc_def3)
+using image_iff tranclD by fastforce
+
+lemma downwardsClosure_subset2:
+"x \<in> S \<down> R \<Longrightarrow> x \<in> S \<union> fst ` R"
+  by (meson downwardsClosure_subset subsetCE)
+
+
   
 (* example *)  
 lemma "{5::int, 9} \<down> {(3,5),(2,3),(4,9)} = {2,3,4,5,9}"
@@ -295,6 +305,29 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
    visibleCalls C s \<triangleq> vis;
    invariant (prog C) (invContext C s) = res
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto> C"   
+
+inductive_simps step_simp_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
+inductive_simps step_simp_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
+inductive_simps step_simp_ABeginAtomic: "A ~~ (s, ABeginAtomic t) \<leadsto> B "
+inductive_simps step_simp_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
+inductive_simps step_simp_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
+inductive_simps step_simp_APull: "A ~~ (s, APull txns) \<leadsto> B "
+inductive_simps step_simp_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
+inductive_simps step_simp_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
+inductive_simps step_simp_AFail: "A ~~ (s, AFail) \<leadsto> B "
+inductive_simps step_simp_AInvcheck: "A ~~ (s, b) \<leadsto> B "
+
+lemmas step_simps = 
+  step_simp_ALocal
+  step_simp_ANewId
+  step_simp_ABeginAtomic
+  step_simp_AEndAtomic
+  step_simp_ADbOp
+  step_simp_APull
+  step_simp_AInvoc
+  step_simp_AReturn
+  step_simp_AFail
+  step_simp_AInvcheck
 
 inductive_cases step_elim_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
 inductive_cases step_elim_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
@@ -501,6 +534,106 @@ proof -
   moreover have "... = (\<exists>B. (A ~~ a \<leadsto> B) \<and> (B ~~ tr \<leadsto>* C))" by (simp add: steps_single)
   ultimately show ?thesis by simp
 qed  
+
+
+definition state_wellFormed :: "state \<Rightarrow> bool" where
+"state_wellFormed state \<equiv> \<exists>tr. initialState (prog state) ~~ tr \<leadsto>* state"
+
+lemma step_prog_invariant:
+"S ~~ tr \<leadsto>* S' \<Longrightarrow> prog S' = prog S"
+apply (induct rule: steps.induct)
+apply auto
+apply (erule step.cases)
+apply auto
+done
+
+thm full_nat_induct
+
+lemma wellFormed_induct[consumes 1]:
+"\<lbrakk>state_wellFormed s; P (initialState (prog s)); \<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s\<rbrakk> \<Longrightarrow> P s\<rbrakk> \<Longrightarrow> P s"
+proof (auto simp add: state_wellFormed_def)
+  fix tr
+  assume a1: "P (initialState (prog s))"
+  assume a2: "\<And>t a b s. \<lbrakk>\<exists>tr. initialState (prog t) ~~ tr \<leadsto>* t; P t; t ~~ (a, b) \<leadsto> s\<rbrakk> \<Longrightarrow> P s"
+  assume a3: "initialState (prog s) ~~ tr \<leadsto>* s" 
+  have "\<lbrakk>S ~~ tr \<leadsto>* s; P (initialState (prog s)); S = initialState (prog s); \<And>t a b. \<lbrakk>\<exists>tr. initialState (prog t) ~~ tr \<leadsto>* t; P t; t ~~ (a, b) \<leadsto> s\<rbrakk> \<Longrightarrow> P s\<rbrakk> \<Longrightarrow> P s" for S tr s
+    proof (induct rule: steps.induct)
+      case (steps_refl S)                        
+      then show ?case by simp
+    next
+      case (steps_step S tr S' a S'')
+      have "P S'"
+        apply (rule steps_step(2))
+        using initialState_def step_prog_invariant steps_step.hyps(1) steps_step.prems(1) steps_step.prems(2) apply auto[1]
+        using initialState_def step_prog_invariant steps_step.hyps(1) steps_step.prems(2) apply auto[1]
+        using a2 by blast
+      then show ?case
+        by (metis local.steps_step(3) local.steps_step(5) local.steps_step(6) prod.collapse step_prog_invariant steps.steps_step steps_step.hyps(1)) 
+    qed
+  thus ?thesis
+    using a1 a2 a3 by blast
+qed
+
+
+lemma wellFormed_callOrigin_dom:
+assumes a1: "state_wellFormed S"
+shows "dom (callOrigin S) = dom (calls S)"
+using a1 apply (induct rule: wellFormed_induct)
+apply (simp add: initialState_def)
+apply (erule step.cases)
+apply (auto split: if_splits)
+  apply blast
+  by blast
+
+
+
+lemma wellFormed_visibleCallsSubsetCalls_h:
+assumes a1: "state_wellFormed S"
+shows "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
+   and "\<And>vis s. visibleCalls S s \<triangleq> vis \<Longrightarrow> state_wellFormed S \<Longrightarrow> vis \<subseteq> dom (calls S)" 
+using a1 apply (induct rule: wellFormed_induct)
+apply (simp add: initialState_def)
+apply (simp add: initialState_def)
+apply (erule step.cases)
+apply (auto split: if_splits)
+  apply blast
+  apply blast
+apply (erule step.cases)
+apply (auto split: if_splits)
+  apply blast
+  apply blast
+  apply blast
+  apply blast
+  apply blast
+  apply blast
+  apply blast
+  using wellFormed_callOrigin_dom downwardsClosure_subset2 apply fastforce
+  apply blast
+  apply blast
+  apply blast
+  apply blast
+  apply blast
+done  
+  
+
+    
+lemma wellFormed_visibleCallsSubsetCalls:
+assumes a1: "state_wellFormed A"
+    and a2: "visibleCalls A s \<triangleq> vis"
+shows "vis \<subseteq> dom (calls A)"
+  using a1 a2 wellFormed_visibleCallsSubsetCalls_h(2) by auto
+
+
+
+
+
+definition commutativeS :: "state \<Rightarrow> session \<times> action \<Rightarrow> session \<times> action \<Rightarrow> bool" where
+"commutativeS s a b \<equiv> (\<forall>t. ((s ~~ [a,b] \<leadsto>*  t) \<longleftrightarrow> (s ~~ [b,a] \<leadsto>* t)))"
+
+
+
+
+
 
 definition "precondition a C \<equiv> \<exists>C'. C ~~ a \<leadsto> C'"
 
@@ -984,6 +1117,29 @@ next
     by (metis AInvcheck aIsInTransaction differentSessions exec precondition_invcheck prog_inv)
     
 qed
+
+
+
+lemma commutative_ALocal_ALocal:
+assumes a1: "sa \<noteq> sb"
+shows "commutativeS S (sa, ALocal) (sb, ALocal)"
+by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)
+
+lemma commutative_ALocal_other:
+assumes a1: "sa \<noteq> sb"
+shows "commutativeS S (sa, ALocal) (sb, a)"
+apply (case_tac a)
+apply (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)
+done
+
+
+lemma commutative_other_ALocal:
+assumes a1: "sa \<noteq> sb"
+shows "commutativeS S (sa, a) (sb, ALocal)"
+apply (case_tac a)
+apply (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)
+done
+
 
 
 lemma commutativePreservesPrecondition_rev:
