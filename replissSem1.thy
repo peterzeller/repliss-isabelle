@@ -12,6 +12,9 @@ abbreviation todo ("???") where "??? \<equiv> undefined"
 abbreviation eqsome :: "'a option \<Rightarrow> 'a \<Rightarrow> bool" (infixr "\<triangleq>" 69) where
  "x \<triangleq> y \<equiv> x = Some y"
 
+abbreviation orElse :: "'a option \<Rightarrow> 'a \<Rightarrow> 'a" (infixr "orElse" 70) where
+"x orElse y \<equiv> case x of Some a \<Rightarrow> a | None \<Rightarrow> y"
+ 
 typedecl session
 typedecl localState
 typedecl uniqueId
@@ -609,6 +612,9 @@ apply (auto split: if_splits)
   apply blast
   by blast
 
+lemma wellFormed_callOrigin_dom2[simp]: 
+"\<lbrakk>calls S c = None; state_wellFormed S\<rbrakk> \<Longrightarrow>  callOrigin S c = None"
+  using wellFormed_callOrigin_dom by force
 
 
 lemma wellFormed_visibleCallsSubsetCalls_h:
@@ -1030,27 +1036,12 @@ done
 
 
 
-lemma commitedCalls_unchanged_callOrigin:
-assumes a1: "transactionStatus S t \<triangleq> Uncommited"
-    and a2: "X = callOrigin S"
-    and a3: "calls S c = None"
-    and a4: "state_wellFormed S"
-shows "commitedCalls (S\<lparr>callOrigin := X(c \<mapsto> t)\<rparr>) = commitedCalls S"
-proof -
-  from a3 a4
-  have origin[simp]: "callOrigin S c = None"
-    using wellFormed_callOrigin_dom by force
-  
-  
-  show "?thesis"
-    by (auto simp add: a1 a2 commitedCallsH_def split: option.splits)
-qed      
-  
-lemma commitedCalls_unchanged_callOrigin2[simp]:
-assumes a1: "statuses t \<triangleq> Uncommited"
-    and a3: "X c = None"
-shows "commitedCallsH (X(c \<mapsto> t)) statuses = commitedCallsH X statuses" 
-using a1 a3 by (auto simp add: commitedCallsH_def)
+lemma commitedCalls_unchanged_callOrigin[simp]:
+assumes a1: "ts t \<triangleq> Uncommited"
+    and a2: "co c = None"
+shows "commitedCallsH (co(c \<mapsto> t)) ts = commitedCallsH co ts"
+using a1 a2 by (auto simp add: commitedCallsH_def)
+
   
 lemma commutativePreservesPrecondition:
 assumes preconditionHolds: "precondition (sb,b) B"
@@ -1201,105 +1192,50 @@ happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
 
 
 *)
-lemma invContext_unchanged_localState[simp]:
-shows "invContext (S\<lparr> localState := X \<rparr>) s
-     = invContext S s"  
-  by (auto simp add: invContext_def) 
   
 lemma invContext_unchanged_happensBefore[simp]:
-assumes a1: "hbOld = happensBefore S"
-    and a2: "calls S c = None"
-    and a3: "state_wellFormed S" 
-shows "invContext (S\<lparr> happensBefore := hbOld \<union> vis \<times> {c} \<rparr>) s
-     = invContext S s"
-using a1 apply (auto simp add: invContext_def)  
-  apply (auto simp add: restrict_relation_def)
-  by (smt a2 a3 commitedCalls_def domIff mem_Collect_eq option.simps(3) wellFormed_callOrigin_dom)
+assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
+shows "invContextH co ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs s
+    = invContextH co ts hbOld cs ki io ir vcs s"
+apply (simp add: invContextH_def)
+using assms apply (auto simp add: restrict_relation_def commitedCallsH_def)
+done  
+
+lemma invContext_unchanged_happensBefore2[simp]:
+assumes "co c = None"
+shows "invContextH co ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs s
+    = invContextH co ts hbOld cs ki io ir vcs s"
+apply (simp add: invContextH_def)
+using assms apply (auto simp add: restrict_relation_def commitedCallsH_def)
+done  
 
 lemma commitedCalls_uncommitedNotIn:
 assumes "callOrigin S c \<triangleq> t"
    and "transactionStatus S t \<triangleq> Uncommited"
 shows  "c \<notin> commitedCalls S"
-using assms by (auto simp add: commitedCalls_def)
+using assms by (auto simp add: commitedCallsH_def)
     
-lemma invContext_unchanged_happensBefore2[simp]:
-assumes a1: "hbOld = happensBefore S"
-    and a2: "callOrigin S c \<triangleq> t"
-    and a4: "transactionStatus S t \<triangleq> Uncommited"
-shows "invContext (S\<lparr> happensBefore := hbOld \<union> vis \<times> {c} \<rparr>) s
-     = invContext S s"
-using a1 apply (auto simp add: invContext_def)  
-  apply (auto simp add: restrict_relation_def)
-  using a2 a4 commitedCalls_uncommitedNotIn by blast
-    
-lemma invContext_changeVisibleCalls:
-shows "invContext (S\<lparr> visibleCalls := X \<rparr>) s
-     = (invContext S s)\<lparr>i_visibleCalls := case X s of None \<Rightarrow> {} | Some vis \<Rightarrow> vis\<rparr>"
-by (auto simp add: invContext_def split: option.splits)  
+   
+find_consts "'a \<Rightarrow> 'a option \<Rightarrow> 'a"
 
-lemma invContext_unchanged_visibleCalls[simp]:
-assumes "X s = visibleCalls S s"
-shows "invContext (S\<lparr> visibleCalls := X \<rparr>) s
-     = (invContext S s)"
-using assms by (auto simp add: invContext_def split: option.splits) 
-  
+lemma invContext_changeVisibleCalls[simp]:
+shows "i_visibleCalls (invContextH co ts hbOld cs ki io ir vcs s)
+     = vcs orElse {}"
+by (auto simp add: invContextH_def split: option.splits)  
+
+
 lemma wellFormed_commitedCallsExist:
 assumes a1: "calls S c = None"
     and a2: "state_wellFormed S"
 shows "c \<notin> commitedCalls S"
 using a1 a2
-  by (smt commitedCalls_def domIff mem_Collect_eq option.simps(3) wellFormed_callOrigin_dom) 
+  by (smt commitedCallsH_def domIff mem_Collect_eq option.simps(3) wellFormed_callOrigin_dom) 
     
-lemma invContext_unchanged_callOrigin:
-assumes a1: "transactionStatus S t \<triangleq> Uncommited"
-    and a2: "X = callOrigin S"
-    and a3: "calls S c = None"
-    and a4: "state_wellFormed S"
-shows "invContext (S\<lparr> callOrigin := X(c \<mapsto> t) \<rparr>) s
-     = (invContext S s)"
-apply (auto simp add: invContext_def split: option.splits)
-apply (auto simp add: a1 a2 a3 a4 commitedCalls_unchanged_callOrigin)
-using a3 a4 wellFormed_commitedCallsExist by blast 
-
-lemma noOrigin_notCommited[simp]:
+lemma noOrigin_notCommited:
   "callOrigin S c = None \<Longrightarrow> c \<notin> commitedCalls S"  
-by (auto simp add: commitedCalls_def)
-  
-lemma invContext_unchanged_callOrigin2:
-assumes a1: "transactionStatus S t \<triangleq> Uncommited"
-    and a2: "X = callOrigin S"
-    and a4: "callOrigin S c = None"
-shows "invContext (S\<lparr> callOrigin := X(c \<mapsto> t) \<rparr>) s
-     = (invContext S s)"
-apply (auto simp add: invContext_def split: option.splits)
-apply (simp add: a1 a2  a4)
-apply (simp add: a1 a2  a4)
-apply (simp add: a1 a2  a4)
-apply (subst (asm) commitedCalls_unchanged_callOrigin2)
-apply (simp add: a1)
-apply (simp add: a2)
-apply (simp add: a4)
-using a4 noOrigin_notCommited apply blast
-apply (simp add: a1 a2  a4)+
-done
+by (auto simp add: commitedCallsH_def)
   
 
-lemma commitedCalls_unchanged_calls[simp]:
-shows "commitedCalls (S\<lparr>calls := X(c \<mapsto> Y)\<rparr>)
-    =  commitedCalls S"
-apply (auto simp add: commitedCalls_def)
-done
-  
-  
-lemma invContext_unchanged_calls[simp]:
-assumes a2: "X = calls S"
-    and a3: "calls S c = None"
-    and a4: "state_wellFormed S"
-shows "invContext (S\<lparr> calls := X(c \<mapsto> Y) \<rparr>) s
-     = (invContext S s)"
-apply (auto simp add: invContext_def split: option.splits)
-apply (auto simp add: a2)
-using a3 a4 wellFormed_commitedCallsExist by blast  
   
     
 lemma commutative_ALocal_other[simp]:
@@ -1317,51 +1253,39 @@ apply (case_tac a)
 apply (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)
 done
   
-lemma commitedCalls_update1:
-"\<lbrakk>
-currentTransaction S sa \<triangleq> t;
-state_wellFormed S; 
-calls S c = None
-\<rbrakk> \<Longrightarrow>
-     commitedCalls
-           (S\<lparr>localState := localState S(sa \<mapsto> ls' res), 
-              calls := calls S(c \<mapsto> Call operation args res),
-              callOrigin := callOrigin S(c \<mapsto> t)\<rparr>)
-    = commitedCalls S"
-apply (auto simp add: commitedCalls_def)
-using wellFormed_callOrigin_dom by force
+lemma commitedCallsH_notin[simp]:
+assumes "co c = None"
+shows "c \<notin> commitedCallsH co ts"
+  by (simp add: assms commitedCallsH_def)
+                                                     
+lemma commitedCallsH_in:
+shows "(c \<in> commitedCallsH co ts) \<longleftrightarrow> (case co c of None \<Rightarrow> False | Some t \<Rightarrow> ts t \<triangleq> Commited) "
+  by (auto simp add: commitedCallsH_def split: option.splits)
     
+lemma invContextH_update_callOrigin[simp]:
+assumes "co c = None" and "ts t \<triangleq> Uncommited"
+shows "invContextH (co(c \<mapsto> t)) ts hb cs ki io ir vis s =
+       invContextH co ts hb cs ki io ir vis s"
+using assms by (auto simp add: invContextH_def)
 
-lemma 
-"\<lbrakk>a = AInvcheck True; 
-currentTransaction S sb = None; 
-visibleCalls S sb \<triangleq> visa; 
-localState S sa \<triangleq> ls;
-currentProc S sa \<triangleq> f; 
-f ls = DbOperation operation args ls'; 
-currentTransaction S sa \<triangleq> t;
-querySpec (prog S) operation args (getContext S sa) res; 
-visibleCalls S sa \<triangleq> vis; 
-state_wellFormed S;
-sb\<noteq>sa;
-calls S c = None
-\<rbrakk> \<Longrightarrow> invContext
+lemma invContextH_update_calls[simp]:
+assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
+shows "invContextH co ts hb (cs(c \<mapsto> newCall)) ki io ir vis s =
+       invContextH co ts hb cs ki io ir vis s"
+using assms by (auto simp add: invContextH_def commitedCallsH_in)
+
+lemma test:
+assumes a7: "currentTransaction S sa \<triangleq> t"
+assumes a10: "state_wellFormed S"
+assumes a11: "sb\<noteq>sa"
+assumes a12: "calls S c = None"
+shows "invContext
            (S\<lparr>localState := localState S(sa \<mapsto> ls' res), calls := calls S(c \<mapsto> Call operation args res),
                 callOrigin := callOrigin S(c \<mapsto> t), visibleCalls := visibleCalls S(sa \<mapsto> {c} \<union> vis),
                 happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
            sb
   = invContext (S::state) sb"
-apply (auto simp add: invContext_def )
-apply (auto simp add: commitedCalls_update1)[1]
-  using wellFormed_commitedCallsExist apply blast
-  using commitedCalls_update1 wellFormed_commitedCallsExist apply blast
-  using commitedCalls_update1 wellFormed_commitedCallsExist apply blast
-    using commitedCalls_update1 wellFormed_commitedCallsExist apply blast
-    apply (simp add: commitedCalls_update1)
-    
-    thm commitedCalls_unchanged_callOrigin2
-find_theorems "commitedCalls ?S - {?c}"
-    
+  using assms by auto
 
 lemma commutative_Dbop_other:
 assumes a1[simp]: "sa \<noteq> sb"
