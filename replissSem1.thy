@@ -103,14 +103,20 @@ term restrict_map
 
 abbreviation "emptyOperationContext \<equiv> \<lparr> calls = empty, happensBefore = {}\<rparr>"
 
-definition "getContext" where
-"getContext state s = (case visibleCalls state s of
+  
+  
+definition "getContextH" where
+"getContextH state_calls state_happensBefore state_vis = (case state_vis of
       None \<Rightarrow> emptyOperationContext
     | Some vis => \<lparr>
-        calls = calls state |` vis,
-        happensBefore = happensBefore state |r vis
+        calls = state_calls |` vis,
+        happensBefore = state_happensBefore |r vis
       \<rparr>
   )"
+
+abbreviation 
+"getContext state s
+ \<equiv> getContextH (calls state) (happensBefore state) (visibleCalls state s) "
 
 abbreviation "emptyInvariantContext \<equiv> \<lparr>
         i_calls = empty,
@@ -123,18 +129,36 @@ abbreviation "emptyInvariantContext \<equiv> \<lparr>
 \<rparr>"
 
 
-definition "commitedCalls state \<equiv> {c | c tx. callOrigin state c \<triangleq> tx \<and> transactionStatus state tx \<triangleq> Commited }"
+definition "commitedCallsH state_callOrigin state_transactionStatus \<equiv> 
+   {c | c tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Commited }"
 
-definition invContext where
-"invContext state s = \<lparr>
-        i_calls = calls state |` commitedCalls state , 
-        i_happensBefore = happensBefore state |r commitedCalls state , 
-        i_visibleCalls = case visibleCalls state s of None \<Rightarrow> {} | Some vis \<Rightarrow> vis,
-        i_callOrigin  = callOrigin state |` commitedCalls state,
-        i_knownIds = knownIds state,
-        i_invocationOp = invocationOp state,
-        i_invocationRes = invocationRes state
+abbreviation commitedCalls :: "state \<Rightarrow> callId set" where
+"commitedCalls state \<equiv> commitedCallsH (callOrigin state) (transactionStatus state)"
+  
+definition invContextH  where
+"invContextH state_callOrigin state_transactionStatus state_happensBefore 
+   state_calls state_knownIds state_invocationOp state_invocationRes vis s = \<lparr>
+        i_calls = state_calls |` commitedCallsH state_callOrigin state_transactionStatus , 
+        i_happensBefore = state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus , 
+        i_visibleCalls = (case vis of None \<Rightarrow> {} | Some vis \<Rightarrow> vis),
+        i_callOrigin  = state_callOrigin |` commitedCallsH state_callOrigin state_transactionStatus,
+        i_knownIds = state_knownIds,
+        i_invocationOp = state_invocationOp,
+        i_invocationRes = state_invocationRes
       \<rparr>"
+
+abbreviation invContext where
+"invContext state s \<equiv>
+  invContextH
+  (callOrigin state)
+  (transactionStatus state)
+  (happensBefore state)
+  (calls state)
+  (knownIds state)
+  (invocationOp state)
+  (invocationRes state)
+  (visibleCalls state s)
+  s"
 
   
 lemma invariantContext_eqI: "\<lbrakk>
@@ -771,47 +795,13 @@ apply (case_tac a)
 using exec apply (auto simp add: differentSessions[symmetric] elim!: step_elims)
 done
 
-lemma getContext_updateLocal[simp]:
-"getContext (A\<lparr>localState := x\<rparr>) s = getContext A s"
-apply (auto simp add: getContext_def split: option.splits)
-done
-
-lemma getContext_currentTransaction[simp]:
-"getContext (A\<lparr>currentTransaction := x\<rparr>) s = getContext A s"
-apply (auto simp add: getContext_def split: option.splits)
-done
-
-lemma getContext_transactionStatus[simp]:
-"getContext (A\<lparr>transactionStatus := x\<rparr>) s = getContext A s"
-apply (auto simp add: getContext_def split: option.splits)
-done
 
 lemma getContext_happensBefore:
 "getContext (A\<lparr>happensBefore := hb\<rparr>) s = (
     case visibleCalls A s of 
       None \<Rightarrow> emptyOperationContext 
     | Some vis \<Rightarrow> \<lparr>calls = calls A |` vis, happensBefore = hb |r vis\<rparr>)"
-apply (auto simp add: getContext_def split: option.splits)
-done
-
-lemma getContext_invocationOp[simp]:
-"getContext (A\<lparr>invocationOp := x\<rparr>) s = getContext A s"
-apply (auto simp add: getContext_def split: option.splits)
-done
-
-lemma getContext_visibleCalls_other[simp]:
-"s\<noteq>sa \<Longrightarrow> visibleCalls A = Vis \<Longrightarrow> getContext (A\<lparr>visibleCalls := Vis(sa := x)\<rparr>) s = getContext A s"
-apply (auto simp add: getContext_def split: option.splits)
-done
-
-lemma getContext_visibleCalls_other2[simp]:
-"sa\<noteq>s \<Longrightarrow> getContext (A\<lparr>visibleCalls := (visibleCalls A)(sa := x)\<rparr>) s = getContext A s"
-apply (auto simp add: getContext_def split: option.splits)
-done
-
-lemma getContext_currentProc[simp]:
-"getContext (A\<lparr>currentProc := x\<rparr>) s = getContext A s"
-apply (auto simp add: getContext_def split: option.splits)
+apply (auto simp add: getContextH_def split: option.splits)
 done
 
 -- "getContext is not changed by actions in other transactions"
@@ -849,7 +839,7 @@ next
     using exec apply (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
     done
   have case1: "getContext B sb = getContext A sb" if "visibleCalls A sb = None"
-    apply (auto simp add: that getContext_def split: option.splits)
+    apply (auto simp add: that getContextH_def split: option.splits)
     using aIsInTransaction differentSessions exec that unchangedInTransaction(4) by fastforce+
     
   have case2: "getContext B sb = getContext A sb" if visi_def[simp]: "visibleCalls A sb \<triangleq> visi" for visi
@@ -861,7 +851,7 @@ next
     hence "visi \<subseteq> dom (calls A)"  
       using visibleCalls_inv  using visi_def by blast 
     show "getContext B sb = getContext A sb"
-      apply (simp add:  getContext_def split: option.splits)
+      apply (simp add:  getContextH_def split: option.splits)
       proof
         have "(calls B |` visi) c = (calls A |` visi) c" for c
           apply (auto simp add: restrict_map_def 6)
@@ -874,7 +864,7 @@ next
           by (smt ADbOp \<open>visi \<subseteq> dom (calls A)\<close> contra_subsetD exec step_elim_ADbOp)
       qed    
     qed 
-  from case1 case2 show ?thesis by force
+  from case1 case2 show ?thesis by fastforce 
 next
   case (APull x6)
   then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
@@ -893,26 +883,6 @@ next
 qed
 
 
-lemma invContext_updateLocal[simp]:
-"invContext (A\<lparr>localState := x\<rparr>) s = invContext A s"
-apply (auto simp add: invContext_def commitedCalls_def split: option.splits)
-done
-
-lemma invContext_currentTransaction[simp]:
-"invContext (A\<lparr>currentTransaction := x\<rparr>)s = invContext A s"
-apply (auto simp add: invContext_def commitedCalls_def split: option.splits)
-done
-
-
-lemma invContext_visibleCalls_other[simp]:
-"s\<noteq>sa \<Longrightarrow> visibleCalls A = Vis \<Longrightarrow> invContext (A\<lparr>visibleCalls := Vis(sa := x)\<rparr>) s = invContext A s"
-apply (auto simp add: invContext_def  commitedCalls_def split: option.splits)
-done
-
-lemma invContext_currentProc[simp]:
-"invContext (A\<lparr>currentProc := x\<rparr>) s = invContext A s"
-apply (auto simp add: invContext_def  commitedCalls_def split: option.splits)
-done
 
 
 -- "invcontext is not changed by actions in other transactions"
@@ -956,46 +926,47 @@ next
          apply atomize_elim
         using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
   have commitedSame: "commitedCalls B = commitedCalls A"        
-    apply (auto simp add: commitedCalls_def B_def)
+    apply (auto simp add: commitedCallsH_def  B_def)
     using "8" origin_inv by auto
   
   have commitedCallsSame: "\<And>x. x \<in> commitedCalls A \<Longrightarrow> calls A x = calls B x"
     apply (auto simp add: B_def)
-    using "8" commitedCalls_def origin_inv by fastforce
+    using "8" commitedCallsH_def origin_inv
+    by (smt domI mem_Collect_eq) 
   
   have [simp]: "callId \<notin> commitedCalls A"
-    by (smt "8" commitedCalls_def domI mem_Collect_eq origin_inv) 
+    by (smt "8" commitedCallsH_def domI mem_Collect_eq origin_inv) 
     
         
   show ?thesis 
     proof (rule invariantContext_eqI)
       show "i_calls (invContext A sb) = i_calls (invContext B sb)"
-        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         done
       show "i_happensBefore (invContext A sb) = i_happensBefore (invContext B sb)"
-        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         apply (auto simp add: restrict_relation_def B_def)
         done
         
       show "i_visibleCalls (invContext A sb) = i_visibleCalls (invContext B sb)"
-        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         apply (auto simp add: B_def differentSessions[symmetric] split: if_splits option.splits)
         done
       show "i_callOrigin (invContext A sb) = i_callOrigin (invContext B sb)"
-        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         apply (auto simp add: B_def)
         done
         
       show "i_knownIds (invContext A sb) = i_knownIds (invContext B sb)"
-        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         apply (auto simp add: B_def)
         done
       show "i_invocationOp (invContext A sb) = i_invocationOp (invContext B sb)"
-        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         apply (auto simp add: B_def)
         done
       show "i_invocationRes (invContext A sb) = i_invocationRes (invContext B sb)"
-        apply (auto simp add: invContext_def commitedSame commitedCallsSame restrict_map_def)
+        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         apply (auto simp add: B_def)
         done
     qed
@@ -1056,33 +1027,7 @@ apply (erule step.cases)
 apply (auto split: if_splits)
 done
 
-lemma getContext_unchanged[simp]:
-shows  "getContext (C\<lparr>invocationRes := x1\<rparr>) s = getContext C s"
-and "getContext (C\<lparr>callOrigin := x2\<rparr>) s = getContext C s"
-and "getContext (C\<lparr>generatedIds := x3\<rparr>) s = getContext C s"
-and "getContext (C\<lparr>knownIds := x4\<rparr>) s = getContext C s"
-and "getContext (C\<lparr>invocationOp := x5\<rparr>) s = getContext C s"
-and "getContext (C\<lparr>invocationRes := x6\<rparr>) s = getContext C s"
-and "getContext (C\<lparr>localState := x7\<rparr>) s = getContext C s"
-and "getContext (C\<lparr>currentProc := x8\<rparr>) s = getContext C s"
-and "getContext (C\<lparr>currentTransaction := x9\<rparr>) s = getContext C s"
-and "getContext (C\<lparr>transactionStatus := x10\<rparr>) s = getContext C s"
-apply (auto simp add: getContext_def split: option.splits)
-done
 
-lemma commitedCalls_unchanged[simp]:
-shows  "commitedCalls (C\<lparr>invocationRes := x1\<rparr>) = commitedCalls C"
-and "commitedCalls (C\<lparr>generatedIds := x3\<rparr>) = commitedCalls C"
-and "commitedCalls (C\<lparr>knownIds := x4\<rparr>) = commitedCalls C"
-and "commitedCalls (C\<lparr>invocationOp := x5\<rparr>) = commitedCalls C"
-and "commitedCalls (C\<lparr>invocationRes := x6\<rparr>) = commitedCalls C"
-and "commitedCalls (C\<lparr>localState := x7\<rparr>) = commitedCalls C"
-and "commitedCalls (C\<lparr>currentProc := x8\<rparr>) = commitedCalls C"
-and "commitedCalls (C\<lparr>currentTransaction := x9\<rparr>) = commitedCalls C"
-and "commitedCalls (C\<lparr>happensBefore := x10\<rparr>) = commitedCalls C"
-and "commitedCalls (C\<lparr>visibleCalls := x11\<rparr>) = commitedCalls C"
-apply (auto simp add: commitedCalls_def split: option.splits)
-done  
 
 
 lemma commitedCalls_unchanged_callOrigin:
@@ -1098,15 +1043,14 @@ proof -
   
   
   show "?thesis"
-    by (auto simp add: a1 a2 commitedCalls_def split: option.splits)
+    by (auto simp add: a1 a2 commitedCallsH_def split: option.splits)
 qed      
   
 lemma commitedCalls_unchanged_callOrigin2[simp]:
-assumes a1: "transactionStatus S t \<triangleq> Uncommited"
-    and a2: "X = callOrigin S"
-    and a3: "callOrigin S c = None"
-shows "commitedCalls (S\<lparr>callOrigin := X(c \<mapsto> t)\<rparr>) = commitedCalls S"  
-using a1 a2 a3 by (auto simp add: commitedCalls_def)
+assumes a1: "statuses t \<triangleq> Uncommited"
+    and a3: "X c = None"
+shows "commitedCallsH (X(c \<mapsto> t)) statuses = commitedCallsH X statuses" 
+using a1 a3 by (auto simp add: commitedCallsH_def)
   
 lemma commutativePreservesPrecondition:
 assumes preconditionHolds: "precondition (sb,b) B"
