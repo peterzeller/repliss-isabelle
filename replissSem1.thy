@@ -185,6 +185,25 @@ abbreviation isUndef :: "'a option \<Rightarrow> bool" ("_ = \<bottom>" [0]60) w
 
 abbreviation "commitedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Commited }"
   
+find_consts "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a set"
+
+definition downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100)  where 
+"S \<down> R \<equiv> S \<union> {x | x y . (x,y)\<in>R \<and> y\<in>S}"
+
+lemma downwardsClosure_in:
+"x \<in> S \<down> R \<longleftrightarrow> (x\<in>S \<or> (\<exists>y\<in>S. (x,y)\<in>R))"
+by (auto simp add: downwardsClosure_def)
+
+lemma downwardsClosure_subset:
+"S \<down> R \<subseteq> S \<union> fst ` R"
+apply (auto simp add: downwardsClosure_in)
+using image_iff tranclD by fastforce
+
+lemma downwardsClosure_subset2:
+"x \<in> S \<down> R \<Longrightarrow> x \<in> S \<union> fst ` R"
+  by (meson downwardsClosure_subset subsetCE)
+
+(*
 inductive_set downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100) for S R  where 
  downwardsClosure_refl[simp]: 
  "x\<in>S \<Longrightarrow> x \<in> S\<down>R"
@@ -241,6 +260,7 @@ lemma downwardsClosure_subset2:
 lemma "{5::int, 9} \<down> {(3,5),(2,3),(4,9)} = {2,3,4,5,9}"
 apply eval
 done
+*)
 
 datatype action =
     ALocal
@@ -254,6 +274,16 @@ datatype action =
   | AFail  
   | AInvcheck bool
 
+definition callsInTransactionH where
+"callsInTransactionH origins txns  \<equiv> {c. \<exists>txn\<in>txns. origins c \<triangleq> txn }"
+
+lemma callsInTransactionH_contains:
+"c\<in>callsInTransactionH origins txns \<longleftrightarrow> (case origins c of Some txn \<Rightarrow>  txn \<in> txns | None \<Rightarrow> False)"
+by (auto simp add: callsInTransactionH_def split: option.splits)
+
+abbreviation 
+"callsInTransaction S txns \<equiv> callsInTransactionH (callOrigin S) txns"
+  
 inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
   "\<lbrakk>localState C s \<triangleq> ls; 
@@ -265,7 +295,8 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
    currentProc C s \<triangleq> f; 
    f ls = NewId ls';
    uid \<notin> generatedIds C
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls' uid) \<rparr>)"   
+   \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls' uid), 
+                                   generatedIds := generatedIds C \<union> {uid} \<rparr>)"   
 | beginAtomic: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -303,7 +334,7 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
    (* choose a set of commited transactions to pull in*)
    \<forall>txn\<in>newTxns. transactionStatus C txn \<triangleq> Commited;
    (* pull in calls from the transactions and their dependencies *)
-   newCalls = {c. \<exists>txn\<in>newTxns. callOrigin C c \<triangleq> txn }\<down>happensBefore C
+   newCalls = callsInTransaction C newTxns \<down> happensBefore C
    \<rbrakk> \<Longrightarrow>  C ~~ (s, APull newTxns) \<leadsto> (C\<lparr> visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> newCalls)\<rparr>)"                         
 | invocation:
   "\<lbrakk>localState C s = None;
@@ -343,6 +374,8 @@ inductive_simps step_simp_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
 inductive_simps step_simp_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_simps step_simp_AFail: "A ~~ (s, AFail) \<leadsto> B "
 inductive_simps step_simp_AInvcheck: "A ~~ (s, b) \<leadsto> B "
+
+thm step_simp_APull
 
 lemmas step_simps = 
   step_simp_ALocal
@@ -637,7 +670,8 @@ apply (auto split: if_splits)
   apply blast
   apply blast
   apply blast
-  using wellFormed_callOrigin_dom downwardsClosure_subset2 apply fastforce
+  apply (auto simp add: callsInTransactionH_contains downwardsClosure_in split: option.splits)[1]
+  apply (metis not_None_eq wellFormed_callOrigin_dom2)
   apply blast
   apply blast
   apply blast
@@ -721,6 +755,70 @@ apply (rule usePrecondition2)
   using a4 usePrecondition apply blast 
 done  
 
+definition differentIds :: "(session \<times> action) \<Rightarrow> (session \<times> action) \<Rightarrow> bool" where
+"differentIds a b \<equiv> case (a,b) of
+   ((s1, ANewId u1), (s2, ANewId u2)) \<Rightarrow> (u1 \<noteq> u2)
+ | ((s1, ABeginAtomic u1), (s2, ABeginAtomic u2)) \<Rightarrow> (u1 \<noteq> u2)
+ | ((s1, ADbOp u1 o1 a1 r1), (s2, ADbOp u2 o2 a2 r2)) \<Rightarrow> (u1 \<noteq> u2)
+ | _ \<Rightarrow> True"
+ 
+lemma differentIds_newId[simp]:
+"differentIds (s1, ANewId u1) (s2, ANewId u2) \<longleftrightarrow> (u1 \<noteq> u2)"
+by (simp add: differentIds_def)
+
+lemma differentIds_beginAtomic[simp]:
+"differentIds (s1, ABeginAtomic u1) (s2, ABeginAtomic u2) \<longleftrightarrow> (u1 \<noteq> u2)"
+by (simp add: differentIds_def)
+
+lemma differentIds_dbop[simp]:
+"differentIds (s1, ADbOp u1 o1 a1 r1) (s2, ADbOp u2 o2 a2 r2) \<longleftrightarrow> (u1 \<noteq> u2)"
+by (simp add: differentIds_def)
+
+lemma steps_to_differentIds: 
+assumes step1: "s ~~ (sa,a) \<leadsto> B" and step2: "B ~~ (sb,b) \<leadsto> t"
+shows "differentIds (sa,a) (sb,b)"
+apply (cases a; cases b)
+apply (auto simp add: differentIds_def)
+using step1 step2 apply (auto simp add: step_simps split: if_splits)
+done
+
+lemma steps_to_differentIds2: 
+assumes step1: "s ~~ a \<leadsto> B" and step2: "B ~~ b \<leadsto> t"
+shows "differentIds a b"
+  by (metis prod.swap_def step1 step2 steps_to_differentIds swap_swap)
+
+lemma differentIds_commute: 
+shows "differentIds a b = differentIds b a"
+by (auto simp add: differentIds_def split: action.splits)
+  
+
+lemma show_commutativeS_pres2[case_names preBfront preAfront preAback preBback commute ]: 
+assumes a1:  "\<And>s1. \<lbrakk>s ~~ a \<leadsto> s1; precondition b s1; differentIds a b\<rbrakk> \<Longrightarrow> precondition b s"
+    and a1': "\<And>s1. \<lbrakk>s ~~ b \<leadsto> s1; precondition a s1; differentIds a b\<rbrakk> \<Longrightarrow> precondition a s"
+    and a2:  "\<And>s1. \<lbrakk>s ~~ b \<leadsto> s1; precondition a s; differentIds a b\<rbrakk> \<Longrightarrow> precondition a s1"
+    and a2': "\<And>s1. \<lbrakk>s ~~ a \<leadsto> s1; precondition b s; differentIds a b\<rbrakk> \<Longrightarrow> precondition b s1"
+    and a4:  "\<And>s1 s2 s1' s2'. \<lbrakk>s ~~ a \<leadsto> s1; s1 ~~ b \<leadsto> s2; s ~~ b \<leadsto> s1'; s1' ~~ a \<leadsto> s2'\<rbrakk> \<Longrightarrow> s2 = s2'"
+shows "commutativeS s a b"
+proof (auto simp add: commutativeS_def precondition_def steps_appendFront)
+  fix t B
+  assume step1: "s ~~ a \<leadsto> B" and step2: "B ~~ b \<leadsto> t"
+  
+  hence dIds: "differentIds a b"
+    using steps_to_differentIds2 by auto
+  
+  show "\<exists>B. (s ~~ b \<leadsto> B) \<and> (B ~~ a \<leadsto> t)"
+    by (metis a1 a2 a4 dIds preconditionI step1 step2 usePrecondition)
+next   
+  fix t B
+  assume step1: "s ~~ b \<leadsto> B" and step2: "B ~~ a \<leadsto> t"
+  
+  hence dIds: "differentIds a b"
+    using steps_to_differentIds2
+    using differentIds_commute by blast 
+  
+  show "\<exists>B. (s ~~ a \<leadsto> B) \<and> (B ~~ b \<leadsto> t)"
+    by (metis a1' a2' a4 dIds preconditionI step1 step2 usePrecondition)
+qed  
 
 
 lemma precondition_alocal:
@@ -1287,8 +1385,30 @@ shows "invContext
   = invContext (S::state) sb"
   using assms by auto
 
+lemma getContextH_visUpdate[simp]:
+assumes "c \<notin> vis"
+shows "getContextH cs (hb \<union> v \<times> {c}) (Some vis)
+     = getContextH cs hb (Some vis)"
+using assms by (auto simp add: getContextH_def restrict_relation_def split: option.splits)
+
+lemma getContextH_callsUpdate[simp]:
+assumes "c \<notin> vis"
+shows "getContextH (cs(c\<mapsto>newCall)) hb (Some vis)
+     = getContextH cs hb (Some vis)"
+using assms by (auto simp add: getContextH_def split: option.splits)
+
+lemma wellFormed_visibleCallsSubsetCalls2: "\<lbrakk> 
+      visibleCalls S sb \<triangleq> visa; 
+      calls S c = None;
+      state_wellFormed S
+    \<rbrakk> \<Longrightarrow> c\<notin>visa"
+by (meson domIff set_mp wellFormed_visibleCallsSubsetCalls_h(2))
+
+
+  
 lemma commutative_Dbop_other:
 assumes a1[simp]: "sa \<noteq> sb"
+    and a2: "state_wellFormed S"
 shows "commutativeS S (sa, ADbOp c operation args res) (sb, a)"
 proof (cases a)
   case ALocal
@@ -1304,7 +1424,7 @@ next
   then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
 next
   case AFail
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)
+  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront  a1[symmetric]  step_simps fun_upd_twist)
 next
   case (AInvoc p a)
   show ?thesis 
@@ -1340,18 +1460,69 @@ next
     
 next
   case (AInvcheck x10)
-  then show ?thesis 
+  with a2 show ?thesis 
     apply simp
     apply (rule show_commutativeS_pres)
     apply (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
-    sorry
+    done
 next
-  case (ADbOp c operation args res)
+  case (ADbOp c' operation' args' res')
+  with a2 show ?thesis 
+    apply simp
+    apply (rule show_commutativeS_pres2)
+    apply (auto simp add: precondition_dbop)
+    apply (auto simp add: a1[symmetric] step_simps wellFormed_visibleCallsSubsetCalls2  split: if_splits)
+    apply (auto simp add: state_ext)
+    done
+    
+        
+next
+  case (APull txns)
   then show ?thesis 
-    apply (auto simp add: commutativeS_def steps_appendFront)  
-next
-  case (APull x6)
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)    
+    apply simp
+    apply (rule show_commutativeS_pres2)
+    apply (auto simp add: precondition_dbop precondition_pull)
+    apply (auto simp add: a1[symmetric] step_simps wellFormed_visibleCallsSubsetCalls2  split: if_splits)[12]
+    proof -
+      fix s1 s2 s1' s2'
+      assume b1: "a = APull txns"
+         and step1: "S ~~ (sa, ADbOp c operation args res) \<leadsto> s1"
+         and step2: "s1 ~~ (sb, APull txns) \<leadsto> s2"
+         and step3: "S ~~ (sb, APull txns) \<leadsto> s1'"
+         and step4: "s1' ~~ (sa, ADbOp c operation args res) \<leadsto> s2'"
+      show "s2 = s2'"
+    
+      proof (subst state_ext; intro conjI)
+        have "visibleCalls s2 
+        = visibleCalls S(
+                  sa \<mapsto> {c} \<union> visa, 
+                  sb \<mapsto> vis \<union> callsInTransactionH (callOrigin S(c \<mapsto> t)) txns \<down> (happensBefore S \<union> visa \<times> {c}))" (* TODO
+                  this expression should simplify to the removed update
+                  *)
+         if "visibleCalls S sa \<triangleq> visa" 
+         and "visibleCalls S sb \<triangleq> vis"
+         and "currentTransaction S sa \<triangleq> t"
+          for vis visa t
+        using that step1 step2 by (auto simp add: step_simps split: if_splits)
+        
+        
+        have "visibleCalls s2 = visibleCalls S(
+            sa \<mapsto> {c} \<union> visa, 
+            sb \<mapsto> vis \<union> {ca. ((ca = c \<longrightarrow> t \<in> txns) \<and> (ca = c \<or> (\<exists>txn\<in>txns. callOrigin S ca \<triangleq> txn)))} \<down>
+               (happensBefore S \<union> visa \<times> {c}))"
+               if "visibleCalls S sa \<triangleq> visa" 
+               and "visibleCalls S sb \<triangleq> vis"
+               and "currentTransaction S sa \<triangleq> t"
+               for visa vis t
+          using step1 step2  apply (auto simp add: step_simps split: if_splits)
+      thm step_simps
+    
+    apply (auto simp add: step_simps split: if_splits)
+    
+    apply (auto simp add: )
+    done
+  
+  by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)    
 qed
 
 
