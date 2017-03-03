@@ -597,6 +597,26 @@ qed
 definition state_wellFormed :: "state \<Rightarrow> bool" where
 "state_wellFormed state \<equiv> \<exists>tr. initialState (prog state) ~~ tr \<leadsto>* state"
 
+lemma state_wellFormed_combine:
+assumes wf: "state_wellFormed S"
+and steps: "S ~~ tr \<leadsto>* S'"
+shows "state_wellFormed S'"
+proof -
+  from steps 
+  have "prog S' = prog S"
+    by (induct rule: steps.induct, auto simp add: step_simps)
+
+ from wf obtain tr1 where "initialState (prog S) ~~ tr1 \<leadsto>* S"
+   using state_wellFormed_def by blast 
+ with steps
+ have "initialState (prog S) ~~ tr1@tr \<leadsto>* S'"
+   using steps_append by blast
+ with `prog S' = prog S`
+ have "initialState (prog S') ~~ tr1@tr \<leadsto>* S'" by simp
+ thus "state_wellFormed S'"
+  using state_wellFormed_def by auto 
+qed  
+
 lemma step_prog_invariant:
 "S ~~ tr \<leadsto>* S' \<Longrightarrow> prog S' = prog S"
 apply (induct rule: steps.induct)

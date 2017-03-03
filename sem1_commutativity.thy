@@ -684,6 +684,20 @@ shows "invContextH co ts hb (cs(c \<mapsto> newCall)) ki io ir vis s =
        invContextH co ts hb cs ki io ir vis s"
 using assms by (auto simp add: invContextH_def commitedCallsH_in)
 
+lemma commitedCallsH_update_uncommited[simp]:
+assumes "ts t = None"
+shows "commitedCallsH co (ts(t \<mapsto> Uncommited))
+     = commitedCallsH co ts"
+using assms apply (auto simp add: commitedCallsH_def)
+  by force
+
+
+lemma invContextH_update_txstatus[simp]:
+assumes "ts t = None"
+shows "invContextH co (ts(t\<mapsto>Uncommited)) hb cs ki io ir vis s =
+       invContextH co ts hb cs ki io ir vis s"
+using assms by (auto simp add: invContextH_def)
+
 lemma test:
 assumes a7: "currentTransaction S sa \<triangleq> t"
 assumes a10: "state_wellFormed S"
@@ -951,7 +965,235 @@ proof (rule useCommutativeS)
     qed
 qed
 
+lemma move_transaction2:
+assumes a_is_in_transaction: "currentTransaction S (fst a) \<triangleq> t"
+  and b_is_a_different_session[simp]: "fst a \<noteq> fst b"
+  and not_endAtomic: "snd a \<noteq> AEndAtomic"
+  and wf[simp]: "state_wellFormed S"
+shows "(S ~~ a#b#xs \<leadsto>* T) 
+   \<longleftrightarrow> (S ~~ b#a#xs \<leadsto>* T)"
+proof -
+  have "(S ~~ a#b#xs \<leadsto>* T) \<longleftrightarrow> (\<exists>S'. (S ~~ [a,b] \<leadsto>* S') \<and> (S' ~~ xs \<leadsto>* T))"
+    using steps_appendFront by auto
+  moreover have "... \<longleftrightarrow> (\<exists>S'. (S ~~ [b,a] \<leadsto>* S') \<and> (S' ~~ xs \<leadsto>* T))"
+    by (metis a_is_in_transaction b_is_a_different_session local.wf move_transaction not_endAtomic prod.collapse)
+  moreover have "... \<longleftrightarrow> (S ~~ b#a#xs \<leadsto>* T)" 
+    using steps_appendFront by auto
+  ultimately show ?thesis
+    by blast 
+qed   
+
+lemma commutative_beginAtomic_other[simp]:
+assumes a1[simp]: "sa \<noteq> sb"
+    and a2: "state_wellFormed S"
+shows "commutativeS S (sa, ABeginAtomic t) (sb, a)"
+proof (cases a)
+  case ALocal
+  then show ?thesis
+    by simp 
+next
+  case (ANewId x2)
+  then show ?thesis
+    using a1 a2 commutativeS_switchArgs commutative_newId_other by presburger
+next
+  case (ABeginAtomic x3)
+  then show ?thesis 
+   by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
+next
+  case AEndAtomic
+  then show ?thesis 
+    by (auto simp add: a2 commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute split: if_splits)
+next
+  case (ADbOp x51 x52 x53 x54)
+  then show ?thesis
+    using a1 a2 commutativeS_switchArgs commutative_Dbop_other by presburger 
+next
+  case (APull x6)
+  then show ?thesis 
+  by (auto simp add: a2 commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute,
+    auto, smt mem_Collect_eq option.inject subsetCE transactionStatus.distinct(1))
+next
+  case (AInvoc x71 x72)
+  then show ?thesis by (auto simp add: a2 commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute split: if_splits)
+next
+  case (AReturn x8)
+  then show ?thesis by (auto simp add: a2 commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute split: if_splits)
+next
+  case AFail
+  then show ?thesis
+    using a1 a2 commutativeS_switchArgs commutative_fail_other by presburger 
+next
+  case (AInvcheck x10)
+  then show ?thesis 
+    by (auto simp add: a2 commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute split: if_splits)
+qed
+
+
+
+lemma move_outside_transaction:
+assumes b_is_a_different_session[simp]: "sa \<noteq> sb"
+  and wf[simp]: "state_wellFormed S"
+shows "(S ~~ [(sa,ABeginAtomic t),(sb,b)] \<leadsto>* T) 
+   \<longleftrightarrow> (S ~~ [(sb,b),(sa,ABeginAtomic t)] \<leadsto>* T)"
+  by (simp add: useCommutativeS)
+  
+ 
+
+
 (* todo and now move everything out of transactions ... *)
+
+lemma show_programCorrect_noTransactionInterleaving:
+assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s \<rbrakk> \<Longrightarrow> traceCorrect program trace"
+shows "programCorrect program"
+  by (simp add: assms programCorrect_def)
+
+lemma currentTransaction_unchangedInternalSteps:
+assumes "S ~~ tr \<leadsto>* S'"
+  and "\<And>a.  a \<in> set tr \<Longrightarrow> snd a \<noteq> AEndAtomic"
+  and "\<And>a tx.  a \<in> set tr \<Longrightarrow> snd a \<noteq> ABeginAtomic tx"
+shows "currentTransaction S' s = currentTransaction S s"  
+using assms proof (induct rule: steps.induct)
+  case (steps_refl S)
+  then show ?case by auto
+next
+  case (steps_step S tr S' a S'')
+  then show ?case 
+  proof (cases "snd a")
+    case ALocal
+    then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
+  next
+    case (ANewId x2)
+    then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
+  next
+    case (ABeginAtomic x3)
+    then show ?thesis using steps_step by auto 
+  next
+    case AEndAtomic
+    then show ?thesis using steps_step by auto
+  next
+    case (ADbOp x51 x52 x53 x54)
+    then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
+  next
+    case (APull x6)
+    then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
+  next
+    case (AInvoc x71 x72)
+    then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
+  next
+    case (AReturn x8)
+    then show ?thesis using steps_step by (case_tac a, case_tac "currentTransaction S s", auto elim: step_elims)
+  next
+  case AFail
+    then show ?thesis using steps_step by (case_tac a, case_tac "currentTransaction S s", auto elim: step_elims)
+  next
+    case (AInvcheck x10)
+    then show ?thesis using steps_step by (case_tac a, case_tac "currentTransaction S s", auto elim: step_elims)
+  qed
+qed
+
+  
+lemma 
+assumes "s_init ~~ (s, ABeginAtomic tx) # as \<leadsto>* S'"
+  and "\<And>st at.  (st, at) \<in> set (as @ [a]) \<Longrightarrow> st = s \<and> at \<noteq> AEndAtomic"
+shows "currentTransaction S' (fst a) \<triangleq> tx"
+(* TODO this is a more convenient method of the one above*)
+oops
+  
+  
+lemma one_compaction_step:
+assumes splitTrace: "tr = (s, ABeginAtomic tx) # txa @ x # rest" 
+    and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
+    and xOutside: "fst x \<noteq> s"
+    and wf: "state_wellFormed s_init"
+shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ x # (s, ABeginAtomic tx) # txa @ rest \<leadsto>* C)"
+using splitTrace txaInTx xOutside proof (induct txa arbitrary: tr x rest rule: rev_induct)
+  case Nil
+  
+  have "(s_init ~~ tr \<leadsto>* C) 
+      = (s_init ~~ (s, ABeginAtomic tx) # x # rest \<leadsto>* C)" 
+    using Nil by simp
+  moreover have "... = (\<exists>S'. (s_init ~~ [(s, ABeginAtomic tx), x] \<leadsto>* S') \<and> (S' ~~ rest \<leadsto>* C))"
+    by (auto simp add: steps_appendFront)
+  moreover have "... = (\<exists>S'. (s_init ~~ [x, (s, ABeginAtomic tx)] \<leadsto>* S') \<and> (S' ~~ rest \<leadsto>* C))"
+    by (metis Nil.prems(3) commutative_beginAtomic_other local.wf prod.collapse useCommutativeS)  
+  moreover have "... = ( s_init ~~ x # (s, ABeginAtomic tx) # [] @ rest \<leadsto>* C)"
+    by (auto simp add: steps_appendFront)
+    
+  ultimately show ?case by auto
+next
+  case (snoc a as)
+  
+  have "(s_init ~~ x # (s, ABeginAtomic tx) # (as @ [a]) @ rest \<leadsto>* C)
+      = (s_init ~~ x # (s, ABeginAtomic tx) # as @ ([a] @ rest) \<leadsto>* C)"
+      by simp
+  moreover have "... = (s_init ~~ (s, ABeginAtomic tx) # as @ [x] @ ([a] @ rest) \<leadsto>* C)"
+    using snoc.hyps  by (metis append_Cons append_Nil butlast_snoc in_set_butlastD snoc.prems(2) snoc.prems(3))
+  moreover have "... = (s_init ~~ (s, ABeginAtomic tx) # as @ x # a # rest \<leadsto>* C)"
+    by simp
+  moreover have "... = (\<exists>S'. (s_init ~~ (s, ABeginAtomic tx) # as \<leadsto>* S') \<and> (S' ~~  x # a # rest \<leadsto>* C))"
+    by (auto simp add:  steps_append steps_appendFront)
+  moreover have "... = (\<exists>S'. (s_init ~~ (s, ABeginAtomic tx) # as \<leadsto>* S') \<and> (S' ~~  a # x # rest \<leadsto>* C))" (is ?eq1)
+    proof -
+      have "(S' ~~ x # a # rest \<leadsto>* C)
+        \<longleftrightarrow> (S' ~~ a # x # rest \<leadsto>* C)" 
+        if "(s_init ~~ (s, ABeginAtomic tx) # as \<leadsto>* S')"
+        for S'
+        proof (rule move_transaction2[symmetric])
+          have [simp]: "fst a = s" using snoc
+            by (metis list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1) 
+          show "currentTransaction S' (fst a) \<triangleq> tx" 
+            using that snoc(3) 
+            apply (induct as rule: rev_induct)
+            apply (auto simp add: steps_append steps_appendFront step_simps)
+            (* TODO use the lemma above instead *)
+            sorry
+          show "fst a \<noteq> fst x"
+            using snoc
+            by (metis list.set_intros(1) rotate1.simps(2) set_rotate1 surjective_pairing) 
+          show "snd a \<noteq> AEndAtomic"
+            using snoc 
+            by (metis list.set_intros(1) rotate1.simps(2) set_rotate1 surjective_pairing)  
+          show "state_wellFormed S'"
+            using wf that state_wellFormed_combine by blast 
+        qed
+      thus ?eq1 by blast
+    qed
+    
+  show ?case 
+    
+    apply (auto simp add: steps_appendFront)
+    
+  
+  hence tr_def: "tr = (s, ABeginAtomic tx) # x # rest" by simp
+  show ?case
+  proof 
+    assume a1: "s_init ~~ tr \<leadsto>* C"
+    with tr_def
+    obtain C1 C2 where
+          "s_init ~~ (s, ABeginAtomic tx) \<leadsto> C1"
+      and "C1 ~~ x \<leadsto> C2"
+      and "C2 ~~ rest \<leadsto>* C"
+      using steps_append steps_appendFront by auto
+    
+    
+  
+    show "s_init ~~ x # (s, ABeginAtomic tx) # [] @ rest \<leadsto>* C"
+
+   sorry
+next
+  case (snoc x xs)
+  then show ?case sorry
+qed
+
+lemma one_compaction_step:
+assumes splitTrace: "tr = tr1 @ [(s, ABeginAtomic tx)] @ txa @ [x] @ rest" 
+    and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
+shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr1 @ [x] @ [(s, ABeginAtomic tx)] @ txa @ rest \<leadsto>* C)"
+
+
+lemma show_programCorrect_noTransactionInterleaving:
+assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s (* TODO  add stuff here *) \<rbrakk> \<Longrightarrow> traceCorrect program trace"
+shows "programCorrect program"
 
 
 end
@@ -1080,39 +1322,6 @@ proof -
 
 
 
-
-lemma one_compaction_step:
-assumes splitTrace: "tr = (s, ABeginAtomic tx) # txa @ x # rest" 
-    and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
-    and xOutside: "fst x \<noteq> s"
-shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ x # (s, ABeginAtomic tx) # txa @ rest \<leadsto>* C)"
-using splitTrace txaInTx xOutside proof (induct txa arbitrary: x rest rule: rev_induct)
-  case Nil
-  hence tr_def: "tr = (s, ABeginAtomic tx) # x # rest" by simp
-  show ?case
-  proof 
-    assume a1: "s_init ~~ tr \<leadsto>* C"
-    with tr_def
-    obtain C1 C2 where
-          "s_init ~~ (s, ABeginAtomic tx) \<leadsto> C1"
-      and "C1 ~~ x \<leadsto> C2"
-      and "C2 ~~ rest \<leadsto>* C"
-      using steps_append steps_appendFront by auto
-    
-    
-  
-    show "s_init ~~ x # (s, ABeginAtomic tx) # [] @ rest \<leadsto>* C"
-
-   sorry
-next
-  case (snoc x xs)
-  then show ?case sorry
-qed
-
-lemma one_compaction_step:
-assumes splitTrace: "tr = tr1 @ [(s, ABeginAtomic tx)] @ txa @ [x] @ rest" 
-    and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
-shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr1 @ [x] @ [(s, ABeginAtomic tx)] @ txa @ rest \<leadsto>* C)"
 
 end
 
