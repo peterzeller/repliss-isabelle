@@ -1091,13 +1091,47 @@ next
   qed
 qed
 
-  
-lemma 
-assumes "s_init ~~ (s, ABeginAtomic tx) # as \<leadsto>* S'"
-  and "\<And>st at.  (st, at) \<in> set (as @ [a]) \<Longrightarrow> st = s \<and> at \<noteq> AEndAtomic"
-shows "currentTransaction S' (fst a) \<triangleq> tx"
-(* TODO this is a more convenient method of the one above*)
-oops
+
+
+
+
+
+lemma currentTransaction_unchangedInternalSteps2:
+assumes "S ~~ tr \<leadsto>* S'"
+  and "\<And>a.  a \<in> set tr \<Longrightarrow> snd a \<noteq> AEndAtomic"
+(*  and "\<And>a.  a \<in> set tr \<Longrightarrow> snd a \<noteq> AFail"*)
+  and "currentTransaction S s = Some t"  
+  and wf: "state_wellFormed S"
+shows "currentTransaction S' s = Some t"  and "a \<in> set tr \<Longrightarrow> a \<noteq> (s, ABeginAtomic tx)" 
+using assms apply (induct arbitrary: a tx rule: steps.induct)  
+ using currentTransaction_unchangedInternalSteps by (auto simp add: step_simps split: if_splits, fastforce+)
+
+
+lemma currentTransaction_unchangedInternalSteps3:
+assumes a1: "s_init ~~ (s, ABeginAtomic tx) # as \<leadsto>* S'"
+  and a2: "\<And>st at.  (st, at) \<in> set as \<Longrightarrow> st = s \<and> at \<noteq> AEndAtomic"
+  and wf: "state_wellFormed s_init"
+shows "currentTransaction S' s \<triangleq> tx"
+proof -
+  from a1 
+  obtain S where 1: "s_init ~~ (s, ABeginAtomic tx) \<leadsto> S" and 2: "S ~~ as \<leadsto>* S'"
+    using steps_appendFront by blast
+  from 2
+  show "currentTransaction S' s \<triangleq> tx"
+  proof (rule currentTransaction_unchangedInternalSteps2)
+    from a2
+    show "\<And>a. a \<in> set as \<Longrightarrow> snd a \<noteq> AEndAtomic"
+      by auto    
+    
+    from 1
+    show "currentTransaction S s \<triangleq> tx"
+      by (auto simp add: step_simps)
+
+    from wf 1
+    show "state_wellFormed S"
+      using state_wellFormed_combine steps_refl steps_step by blast
+  qed
+qed
   
   
 lemma one_compaction_step:
@@ -1142,11 +1176,8 @@ next
           have [simp]: "fst a = s" using snoc
             by (metis list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1) 
           show "currentTransaction S' (fst a) \<triangleq> tx" 
-            using that snoc(3) 
-            apply (induct as rule: rev_induct)
-            apply (auto simp add: steps_append steps_appendFront step_simps)
-            (* TODO use the lemma above instead *)
-            sorry
+            using currentTransaction_unchangedInternalSteps3
+            by (metis \<open>fst a = s\<close> butlast_snoc in_set_butlastD local.wf snoc.prems(2) that) 
           show "fst a \<noteq> fst x"
             using snoc
             by (metis list.set_intros(1) rotate1.simps(2) set_rotate1 surjective_pairing) 
@@ -1158,42 +1189,41 @@ next
         qed
       thus ?eq1 by blast
     qed
+  moreover have "... = (s_init ~~ (s, ABeginAtomic tx) # as @ a # x # rest \<leadsto>* C)"  
+    by (auto simp add: steps_append steps_appendFront)
+  moreover have "... = (s_init ~~ (s, ABeginAtomic tx) # (as @ [a]) @ x # rest \<leadsto>* C)"  
+    by auto
+  ultimately show ?case
+    using snoc.prems(1) by blast 
+qed    
     
-  show ?case 
-    
-    apply (auto simp add: steps_appendFront)
-    
-  
-  hence tr_def: "tr = (s, ABeginAtomic tx) # x # rest" by simp
-  show ?case
-  proof 
-    assume a1: "s_init ~~ tr \<leadsto>* C"
-    with tr_def
-    obtain C1 C2 where
-          "s_init ~~ (s, ABeginAtomic tx) \<leadsto> C1"
-      and "C1 ~~ x \<leadsto> C2"
-      and "C2 ~~ rest \<leadsto>* C"
-      using steps_append steps_appendFront by auto
-    
-    
-  
-    show "s_init ~~ x # (s, ABeginAtomic tx) # [] @ rest \<leadsto>* C"
-
-   sorry
-next
-  case (snoc x xs)
-  then show ?case sorry
-qed
-
+(*
 lemma one_compaction_step:
 assumes splitTrace: "tr = tr1 @ [(s, ABeginAtomic tx)] @ txa @ [x] @ rest" 
     and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
 shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr1 @ [x] @ [(s, ABeginAtomic tx)] @ txa @ rest \<leadsto>* C)"
+*)
+
+(* TODO now we need to show, that we can move all actions out of transactions*)
 
 
 lemma show_programCorrect_noTransactionInterleaving:
 assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s (* TODO  add stuff here *) \<rbrakk> \<Longrightarrow> traceCorrect program trace"
 shows "programCorrect program"
+(*
+idea: to show program correct, we have to show it for ALL cases
+
+let tr be some trace such that program executes trace to s
+
+then there is a reshuffling of the trace, were transactions are not interleaved, but the trace and final state are still the same
+
+this is the assumption
+
+q.e.d
+
+
+*)
+
 
 
 end
