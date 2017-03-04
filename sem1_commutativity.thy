@@ -1385,8 +1385,95 @@ qed
 lemma LeastI2:
 "\<lbrakk>x = (LEAST x::nat. P x); P y\<rbrakk> \<Longrightarrow> P x"
   by (simp add: LeastI)
+  
+lemma append_eq_conv_conj2: 
+  "(xs = ys @ zs) \<longleftrightarrow> (take (length ys) xs = ys \<and> (drop (length ys) xs) = zs)"  for xs ys zs
+  by (metis append_eq_conv_conj)
 
 
+lemma cons_eq_conv_conj: 
+  "(xs = y # ys) \<longleftrightarrow> (xs \<noteq> [] \<and> y = hd xs \<and> ys = tl xs)"  for xs ys zs
+  by force
+  
+lemma hd_drop_conv_nth2:  "\<lbrakk>i<length xs; a = hd (drop i xs)\<rbrakk> \<Longrightarrow> xs ! i = a"
+  by (simp add: hd_drop_conv_nth)      
+  
+lemma eq_tl: "\<lbrakk>xs \<noteq> []; \<And>a as. xs = a#as \<Longrightarrow> drop i ys = as\<rbrakk> \<Longrightarrow> drop i ys = tl xs"
+by (case_tac xs, auto)
+
+lemma split_trace_min_i:
+assumes min_i_def: "min_i = (LEAST i. i < length tr \<and> sessionsInTransaction tr i - {fst (tr ! i)} \<noteq> {})"
+  and i1: "i < length tr"
+  and i2: "sessionsInTransaction tr i - {fst (tr ! i)} \<noteq> {}"
+shows "\<exists>trStart s tx txa rest.
+       tr = trStart @ (s, ABeginAtomic tx) # txa @ tr!min_i # rest 
+     \<and> length (trStart @ (s, ABeginAtomic tx) # txa) = min_i"
+proof -
+  from min_i_def
+  have "min_i < length tr \<and> sessionsInTransaction tr min_i - {fst (tr ! min_i)} \<noteq> {}"
+    apply (rule LeastI2)
+    using i1 i2 by auto
+  hence min_i1: "min_i < length tr" 
+    and min_i2: "sessionsInTransaction tr min_i - {fst (tr ! min_i)} \<noteq> {}" by auto
+  
+  from min_i2
+  obtain j s tx
+    where j1: "j < length tr"
+      and j2: "j \<le> min_i"
+      and noEndAtomic: "\<forall>k. j < k \<and> k < length tr \<and> k \<le> min_i \<longrightarrow> tr ! k \<noteq> (s, AEndAtomic)"
+      and tr_j: "tr ! j = (s, ABeginAtomic tx)"
+      and otherS: "s \<noteq> fst (tr ! min_i)"
+    by (auto simp add: sessionsInTransaction_def inTransaction_def)
+    
+   obtain trStart where trStart_def: 
+      "trStart = take j tr" by simp
+   
+   obtain txa where txa_def:
+      "txa = take (min_i - j - 1) (drop (Suc j) tr)" by simp
+      
+   obtain rest where rest_def:
+      "rest = drop (Suc min_i) tr" by simp
+      
+   have [simp]: "(min (length tr - Suc j) (min_i - Suc j)) = min_i - Suc j"
+     using min_i1 by linarith
+   
+   have [simp]: "min (length tr) j = j"
+     using j1 by linarith 
+    
+      
+   have "tr = trStart @ (s, ABeginAtomic tx) # txa @ (tr!min_i) # rest"
+     (* this proof should be easier ... *)
+     apply (auto simp add: trStart_def txa_def rest_def append_eq_conv_conj2 cons_eq_conv_conj)
+     using j1 apply auto[1]
+     apply (simp add: hd_drop_conv_nth j1 less_imp_le_nat min.absorb2 tr_j)
+     apply (auto simp add: append_eq_conv_conj)
+     apply (simp add: drop_Suc j1 less_or_eq_imp_le min_absorb2 min_diff min_i1 tl_drop)
+     apply (rule sym)
+     apply (auto simp add: cons_eq_conv_conj)
+     apply (metis Suc_leI j1 j2 le_diff_iff min_i1 not_less order.not_eq_order_implies_strict otherS prod.collapse prod.inject tr_j)
+     apply (smt Suc_diff_Suc add_diff_cancel_left' drop_Suc fst_conv hd_drop_conv_nth j1 j2 leD le_Suc_ex le_diff_iff length_drop less_imp_le_nat min_i1 nth_drop order.not_eq_order_implies_strict otherS tr_j)
+     apply (subst tl_drop)
+     apply (case_tac j)
+     apply auto
+     apply (metis Suc_diff_Suc diff_zero drop_Suc fst_conv j2 le_less otherS tr_j)
+     apply (case_tac nat)
+     apply auto
+     apply (metis (mono_tags, lifting) One_nat_def Suc_diff_Suc diff_zero drop_0 drop_Suc dual_order.order_iff_strict fst_conv j2 less_le_trans less_numeral_extra(1) otherS tr_j)
+     by (smt Suc_diff_Suc add.commute add_diff_cancel_left' drop_Suc drop_drop dual_order.order_iff_strict fst_conv j2 le_Suc_ex otherS tl_drop tr_j)
+     
+     
+   hence "tr = trStart @ (s, ABeginAtomic tx) # txa @ (tr!min_i) # rest
+       \<and> length (trStart @ (s, ABeginAtomic tx) # txa) = min_i"
+       apply auto
+     by (metis One_nat_def Suc_diff_Suc \<open>min (length tr - Suc j) (min_i - Suc j) = min_i - Suc j\<close> \<open>min (length tr) j = j\<close> add.right_neutral add_Suc_right add_diff_cancel_left' diff_diff_left dual_order.order_iff_strict fst_conv j2 le_Suc_ex length_drop length_take otherS trStart_def tr_j txa_def)
+       
+       
+   thus ?thesis
+     by blast
+qed    
+    
+    
+  
 lemma canPackTransactions:
 assumes "initialState program ~~ tr \<leadsto>* S'"
 shows "\<exists>tr'. transactionsArePacked tr' 
@@ -1442,20 +1529,22 @@ proof (induct "transactionsArePackedMeasure tr"  arbitrary: tr S' rule: full_nat
     
       
     
-    from min_i_def
+    (*from min_i_def*)
     obtain trStart txa rest s tx 
-      where "tr = trStart @ (s, ABeginAtomic tx) # txa @ (min_s, min_a) # rest"
-      and "length (trStart @ (s, ABeginAtomic tx) # txa) = min_i"
+      where tr_spit: "tr = trStart @ (s, ABeginAtomic tx) # txa @ (min_s, min_a) # rest"
+       and  tr_split1: "length (trStart @ (s, ABeginAtomic tx) # txa) = min_i"
       apply atomize_elim
+      apply (insert split_trace_min_i[OF min_i_def])
       apply auto
-      apply (frule LeastI2)
-      using i1 i2 apply force
-      apply auto
-      (*
-      TODO need to get this splitting from min_i_def, make a helping lemma
-      *)
-      find_theorems "(LEAST x. ?P x) = ?x \<Longrightarrow> ?P ?x"
+      by (metis Diff_eq_empty_iff i1 i2 min_a_def min_s_def prod.collapse)   
     
+    (* TODO now, we can swap the min_i action before the beginAtomic action
+    while preserving the correctness of the trace...
+    
+    this move also reduces our measure, which is probably the difficult thing to show
+    
+    *)  
+      
     (* "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" *)
     
     then show ?thesis sorry
