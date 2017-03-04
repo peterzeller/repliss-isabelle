@@ -1042,7 +1042,7 @@ shows "(S ~~ [(sa,ABeginAtomic t),(sb,b)] \<leadsto>* T)
 
 (* todo and now move everything out of transactions ... *)
 
-lemma show_programCorrect_noTransactionInterleaving:
+lemma show_programCorrect:
 assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s \<rbrakk> \<Longrightarrow> traceCorrect program trace"
 shows "programCorrect program"
   by (simp add: assms programCorrect_def)
@@ -1196,7 +1196,283 @@ next
   ultimately show ?case
     using snoc.prems(1) by blast 
 qed    
+ 
+
+lemma one_compaction_step2:
+assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" 
+    and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
+    and xOutside: "fst x \<noteq> s"
+    and wf: "state_wellFormed s_init"
+shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ trStart @ x # (s, ABeginAtomic tx) # txa @ rest \<leadsto>* C)"
+  by (smt local.wf one_compaction_step splitTrace state_wellFormed_combine steps_append txaInTx xOutside)
+
+
+text {* between begin and end of a transaction there are no actions from other sessions  *}
+definition transactionsArePacked :: "trace \<Rightarrow> bool" where
+"transactionsArePacked tr \<equiv>
+  \<forall>i k s t. 
+      i<k 
+    \<and> k<length tr 
+    \<and> tr!i = (s, ABeginAtomic t)  
+    \<and> fst (tr!k) \<noteq> s
+    \<longrightarrow>  (\<exists>j. i < j \<and> j < k \<and> tr!j = (s, AEndAtomic))"
+
+text {*
+For termination proofs, we want to measure how far a trace is from being packed.
+For this we take the sum over all actions in the trace and count in how many transactions
+it appears.
+*}
+
+
+(* checks if sessions s is in a transaction at position i in trace tr *)
+definition inTransaction :: "trace \<Rightarrow> nat \<Rightarrow> session \<Rightarrow> bool"  where 
+"inTransaction tr i s \<equiv>
+  \<exists>j. j<length tr \<and> j\<le>i \<and> (\<exists>t. tr!j = (s, ABeginAtomic t))
+     \<and> (\<forall>k. j<k \<and> k < length tr \<and> k\<le>i \<longrightarrow> tr!k \<noteq> (s, AEndAtomic))
+"
+
+(* returns the set of all transactions, which are in a transaction at point i in the trace*)
+definition sessionsInTransaction :: "trace \<Rightarrow> nat \<Rightarrow> session set"  where 
+"sessionsInTransaction tr i \<equiv> {s. inTransaction tr i s}"
+
+(* counts how many concurrent transactions are active *)
+definition transactionsArePackedMeasure :: "trace \<Rightarrow> nat" where
+"transactionsArePackedMeasure tr \<equiv> 
+\<Sum>i\<in>{..<length tr}. card (sessionsInTransaction tr i - {fst (tr!i)})  "
+
+
+lemma inTransactionEmpty[simp]: "\<not>inTransaction [] i s"
+by (auto simp add: inTransaction_def)
+
+lemma sessionsInTransactionEmpty[simp]: 
+"sessionsInTransaction [] i = {}"
+by (simp add: sessionsInTransaction_def)
+
+
+lemma " sessionsInTransaction [(s\<^sub>1, ABeginAtomic t\<^sub>1), (s\<^sub>1, AEndAtomic)] 3 = {}" 
+apply (auto simp add: sessionsInTransaction_def )
+apply (auto simp add: inTransaction_def nth_Cons' split: if_splits)
+done
+
+
+lemma " sessionsInTransaction [(s1, ABeginAtomic t\<^sub>1)] 1= {s1}" 
+apply (auto simp add: sessionsInTransaction_def )
+apply (auto simp add: inTransaction_def nth_Cons' split: if_splits)
+done
+
+lemma " sessionsInTransaction [(s\<^sub>1, ABeginAtomic t\<^sub>1), (s\<^sub>1, AEndAtomic)] 1 = {}" 
+apply (auto simp add: sessionsInTransaction_def )
+apply (auto simp add: inTransaction_def nth_Cons' split: if_splits)
+done
+
+(*
+fun sessionsInTransactionRevAlt :: "trace \<Rightarrow> nat \<Rightarrow> session set"  where
+  "sessionsInTransactionRevAlt [] i = {}"
+| "sessionsInTransactionRevAlt ((s, ABeginAtomic t)#as) i = sessionsInTransactionRevAlt as (i-1) \<union> {s}"
+| "sessionsInTransactionRevAlt as 0 = {}"
+| "sessionsInTransactionRevAlt ((s, AEndAtomic)#as) i = sessionsInTransactionRevAlt as (i-1) - {s}"
+| "sessionsInTransactionRevAlt (a#as) i = sessionsInTransactionRevAlt as (i-1)"
+
+lemma "sessionsInTransactionRevAlt tr i = sessionsInTransaction (rev tr) i"
+apply (induct tr i rule: sessionsInTransactionRevAlt.induct)
+apply auto[1]
+apply auto[1]
+*)
+
+
+lemma sessionsInTransaction_append[simp]:
+"i<length xs \<Longrightarrow> sessionsInTransaction (xs@ys) i = sessionsInTransaction xs i"
+by (auto simp add: nth_append sessionsInTransaction_def inTransaction_def)
+
+lemma sessionsInTransactionEmptySnoc: 
+"sessionsInTransaction (tr@[a]) i = (
+if i\<ge>length tr then
+  if \<exists>t. snd a = ABeginAtomic t then
+       sessionsInTransaction tr (length tr - 1) \<union> {fst a}
+  else if snd a = AEndAtomic then
+       sessionsInTransaction tr (length tr - 1) - {fst a}
+  else 
+       sessionsInTransaction tr (length tr - 1)
+else 
+  sessionsInTransaction tr i)"
+apply (case_tac a)
+apply (auto split: if_splits)
+apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
+apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
+apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
+  apply (metis Nitpick.size_list_simp(2) One_nat_def le_zero_eq length_tl less_Suc_eq_le less_imp_le_nat)
+apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
+  apply (smt Nitpick.size_list_simp(2) One_nat_def le_Suc_eq length_tl lessI less_imp_le_nat less_trans nat_neq_iff zero_order(3))
+apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def  split: if_splits)[1]
+apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def  split: if_splits)[1]
+apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def  split: if_splits)[1]
+apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def  split: if_splits)[1]
+done
+
+
+lemma sessionsInTransaction_finite[simp]:
+"finite (sessionsInTransaction tr i)"
+apply (induct tr arbitrary: i rule: rev_induct)
+apply (auto simp add: sessionsInTransactionEmptySnoc)
+done
+
+
+lemma subset_h1: "X \<subseteq> Y \<Longrightarrow> \<forall>x. x\<in>X \<longrightarrow> x\<in>Y"
+  by blast
+
+lemma transactionsArePackedMeasure_iff:
+"transactionsArePacked tr \<longleftrightarrow> transactionsArePackedMeasure tr = 0"
+apply (auto simp add: transactionsArePacked_def transactionsArePackedMeasure_def )
+apply (auto simp add: sessionsInTransaction_def inTransaction_def)
+  apply (smt dual_order.order_iff_strict fst_conv less_le_trans)
+apply (drule_tac x=k in bspec)
+apply auto
+apply (drule subset_h1, clarsimp)
+apply (drule_tac x=s in spec)
+apply auto
+by (metis antisym_conv2 less_imp_le_nat prod.collapse prod.inject)
+(* TODO nicer proof*)
+
+lemma not_packed_example:
+assumes notPacked: "\<not>transactionsArePacked tr"
+shows "\<exists>i k s t a s'. 
+      tr ! k = (s', a) 
+    \<and> i<k 
+    \<and> k<length tr 
+    \<and> tr!i = (s, ABeginAtomic t)  
+    \<and> s' \<noteq> s
+    \<and>  (\<forall>j. i < j \<and> j < k \<longrightarrow> tr!j \<noteq> (s, AEndAtomic))"
+using assms apply (auto simp add: transactionsArePacked_def)
+  by (metis prod.collapse)
+
+lemma sumExists:
+fixes f :: "'a \<Rightarrow> nat"
+shows "0 < (\<Sum>x\<leftarrow>xs. f x) \<Longrightarrow> \<exists>i<length xs. f (xs!i) > 0"
+by (induct xs, auto, auto)
+
+lemma sumExists2:
+fixes f :: "'a \<Rightarrow> nat"
+assumes "finite S"
+shows "0 < sum f S \<Longrightarrow> \<exists>x\<in>S. f x > 0"
+using assms
+by (meson not_less sum_nonpos) 
+
+lemma not_packed_example2:
+assumes notPacked: "transactionsArePackedMeasure tr > 0"
+shows "\<exists>i s a.
+    i<length tr
+  \<and> tr!i = (s,a)
+  \<and> sessionsInTransaction tr i - {s} \<noteq> {}" (is ?goal)
+proof -
+  from notPacked
+  have "0 < (\<Sum>i<length tr. card (sessionsInTransaction tr i - {fst (tr ! i)}))"
+    by (auto simp add: transactionsArePackedMeasure_def)
+  from this 
+  obtain i 
+    where a: "i < length tr" 
+      and b: "card (sessionsInTransaction tr i - {fst (tr ! i)}) > 0"
+    by (meson lessThan_iff not_less sum_nonpos)
+  
+  from b 
+  have "sessionsInTransaction tr i - {fst (tr!i)} \<noteq> {}"
+    by fastforce
+  
+  thus ?thesis
+    by (metis a prod.collapse)
+qed  
+
+
+lemma LeastI2:
+"\<lbrakk>x = (LEAST x::nat. P x); P y\<rbrakk> \<Longrightarrow> P x"
+  by (simp add: LeastI)
+
+
+lemma canPackTransactions:
+assumes "initialState program ~~ tr \<leadsto>* S'"
+shows "\<exists>tr'. transactionsArePacked tr' 
+        \<and> (initialState program ~~ tr' \<leadsto>* S') 
+        \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
+using assms
+proof (induct "transactionsArePackedMeasure tr"  arbitrary: tr S' rule: full_nat_induct )
+  case 1
+  
+  hence tr_steps: "initialState program ~~ tr \<leadsto>* S'" ..
+  
+  from 1
+  have inductionHypothesis:
+   "\<exists>tr'. transactionsArePacked tr' 
+      \<and> (initialState program ~~ tr' \<leadsto>* S) 
+      \<and> traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr'"
+      if "transactionsArePackedMeasure tr' < transactionsArePackedMeasure tr"
+      and "initialState program ~~ tr' \<leadsto>* S"
+      for tr' S
+    using Suc_leI that by blast
     
+  
+  show ?case
+  proof (cases "transactionsArePackedMeasure tr")
+    case 0
+    text "If the measure is zero, transactions are already packed"
+    hence "transactionsArePacked tr"
+      by (simp add: transactionsArePackedMeasure_iff)
+    thus ?thesis
+      using tr_steps by blast
+  next
+    case (Suc n)
+    
+    text {*
+      We can find the smallest i, such that the action is concurrent to another transaction
+    *}
+    from Suc
+    obtain i 
+      where i1: "i<length tr"
+        and i2: "sessionsInTransaction tr i - {fst (tr!i)} \<noteq> {}"
+      using not_packed_example2 by force
+    
+    obtain min_i
+        where min_i_def: "min_i = (LEAST i. i<length tr \<and> sessionsInTransaction tr i - {fst (tr!i)} \<noteq> {})"
+      by blast
+      
+    (*use one_compaction_step on min_i*)
+    thm one_compaction_step2
+      
+    obtain min_s where min_s_def: "min_s = fst (tr!min_i)" by simp
+    obtain min_a where min_a_def: "min_a = snd (tr!min_i)" by simp
+    
+    
+      
+    
+    from min_i_def
+    obtain trStart txa rest s tx 
+      where "tr = trStart @ (s, ABeginAtomic tx) # txa @ (min_s, min_a) # rest"
+      and "length (trStart @ (s, ABeginAtomic tx) # txa) = min_i"
+      apply atomize_elim
+      apply auto
+      apply (frule LeastI2)
+      using i1 i2 apply force
+      apply auto
+      (*
+      TODO need to get this splitting from min_i_def, make a helping lemma
+      *)
+      find_theorems "(LEAST x. ?P x) = ?x \<Longrightarrow> ?P ?x"
+    
+    (* "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" *)
+    
+    then show ?thesis sorry
+  qed
+qed  
+
+
+
+(*
+lemma move_out_of_transaction:
+assumes splitTrace: "tr = (s, ABeginAtomic tx) # txa @ x # rest" 
+    and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
+    and xOutside: "fst x \<noteq> s"
+    and wf: "state_wellFormed s_init"
+shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ x # (s, ABeginAtomic tx) # txa @ rest \<leadsto>* C)"
+*)
+
 (*
 lemma one_compaction_step:
 assumes splitTrace: "tr = tr1 @ [(s, ABeginAtomic tx)] @ txa @ [x] @ rest" 
@@ -1206,23 +1482,30 @@ shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr1 @ [x] 
 
 (* TODO now we need to show, that we can move all actions out of transactions*)
 
-
-lemma show_programCorrect_noTransactionInterleaving:
-assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s (* TODO  add stuff here *) \<rbrakk> \<Longrightarrow> traceCorrect program trace"
+theorem show_programCorrect_noTransactionInterleaving:
+assumes packedTracesCorrect: 
+  "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; transactionsArePacked trace\<rbrakk> \<Longrightarrow> traceCorrect program trace"
 shows "programCorrect program"
-(*
-idea: to show program correct, we have to show it for ALL cases
-
-let tr be some trace such that program executes trace to s
-
-then there is a reshuffling of the trace, were transactions are not interleaved, but the trace and final state are still the same
-
-this is the assumption
-
-q.e.d
-
-
-*)
+proof (rule show_programCorrect) 
+  text "Let tr be some trace such that program executes trace to s."
+  fix tr s
+  assume "initialState program ~~ tr \<leadsto>* s"
+  
+  text "Then there is a reshuffling of the trace, where transactions are not interleaved, but the final state is still the same."
+  then obtain tr'  
+    where "initialState program ~~ tr' \<leadsto>* s" 
+      and "transactionsArePacked tr'"
+      and "traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr"
+    using canPackTransactions by blast
+  
+  text "According to the assumption those traces are correct"
+  with packedTracesCorrect
+  have "traceCorrect program tr'"  
+    by simp
+  
+  with `traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr`
+  show "traceCorrect program tr" ..
+qed  
 
 
 
