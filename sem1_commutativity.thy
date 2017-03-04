@@ -1206,6 +1206,14 @@ assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest"
 shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ trStart @ x # (s, ABeginAtomic tx) # txa @ rest \<leadsto>* C)"
   by (smt local.wf one_compaction_step splitTrace state_wellFormed_combine steps_append txaInTx xOutside)
 
+lemma one_compaction_step3:
+assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" 
+    and splitTrace': "tr' = trStart @ x # (s, ABeginAtomic tx) # txa @ rest"
+    and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic"
+    and xOutside: "fst x \<noteq> s"
+    and wf: "state_wellFormed s_init"
+shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr' \<leadsto>* C)"
+  using local.wf one_compaction_step2 splitTrace splitTrace' txaInTx xOutside by blast
 
 text {* between begin and end of a transaction there are no actions from other sessions  *}
 definition transactionsArePacked :: "trace \<Rightarrow> bool" where
@@ -1407,7 +1415,9 @@ assumes min_i_def: "min_i = (LEAST i. i < length tr \<and> sessionsInTransaction
   and i2: "sessionsInTransaction tr i - {fst (tr ! i)} \<noteq> {}"
 shows "\<exists>trStart s tx txa rest.
        tr = trStart @ (s, ABeginAtomic tx) # txa @ tr!min_i # rest 
-     \<and> length (trStart @ (s, ABeginAtomic tx) # txa) = min_i"
+     \<and> length (trStart @ (s, ABeginAtomic tx) # txa) = min_i
+     \<and> (\<forall>a \<in> set txa. fst a = s \<and> snd a \<noteq> AEndAtomic)
+     \<and> (s \<noteq> fst (tr!min_i))"
 proof -
   from min_i_def
   have "min_i < length tr \<and> sessionsInTransaction tr min_i - {fst (tr ! min_i)} \<noteq> {}"
@@ -1434,13 +1444,22 @@ proof -
    obtain rest where rest_def:
       "rest = drop (Suc min_i) tr" by simp
       
-   have [simp]: "(min (length tr - Suc j) (min_i - Suc j)) = min_i - Suc j"
+   have min_simp1[simp]: "(min (length tr - Suc j) (min_i - Suc j)) = min_i - Suc j"
      using min_i1 by linarith
    
-   have [simp]: "min (length tr) j = j"
+   have min_simp2[simp]: "min (length tr) j = j"
      using j1 by linarith 
     
-      
+   have arith_simp[simp]: "i < min_i - Suc j \<Longrightarrow> Suc j + i \<le> length tr" for i
+     using min_simp1 by linarith
+    
+   have arith_simp2[simp]: "i < min_i - Suc j \<Longrightarrow> Suc (j + i) \<le> length tr" for i
+     using arith_simp by auto
+    
+  
+    
+    
+     
    have "tr = trStart @ (s, ABeginAtomic tx) # txa @ (tr!min_i) # rest"
      (* this proof should be easier ... *)
      apply (auto simp add: trStart_def txa_def rest_def append_eq_conv_conj2 cons_eq_conv_conj)
@@ -1466,13 +1485,90 @@ proof -
        \<and> length (trStart @ (s, ABeginAtomic tx) # txa) = min_i"
        apply auto
      by (metis One_nat_def Suc_diff_Suc \<open>min (length tr - Suc j) (min_i - Suc j) = min_i - Suc j\<close> \<open>min (length tr) j = j\<close> add.right_neutral add_Suc_right add_diff_cancel_left' diff_diff_left dual_order.order_iff_strict fst_conv j2 le_Suc_ex length_drop length_take otherS trStart_def tr_j txa_def)
-       
-       
-   thus ?thesis
+   
+     
+    
+   moreover have isFirst: "\<forall>a \<in> set txa. fst a = s \<and> snd a \<noteq> AEndAtomic"
+    proof (rule ccontr)
+      assume "\<not> (\<forall>a\<in>set txa. fst a = s \<and> snd a \<noteq> AEndAtomic)"
+      from this obtain otherI 
+        where otherI1: "otherI < length txa"
+          and otherI2: "fst (txa ! otherI) \<noteq> s \<or> snd (txa ! otherI) = AEndAtomic"
+        by (metis in_set_conv_nth)
+      
+      have [simp]: "otherI < min_i - Suc j"
+        using otherI1 txa_def by auto
+        
+      
+        
+      { (* First consider the case where we have an earlier AEndAtomic for s *)
+        assume "(txa ! otherI) = (s, AEndAtomic)"
+        with noEndAtomic
+        have "False"
+          apply (auto simp add: txa_def )
+          using \<open>otherI < min_i - Suc j\<close> less_imp_le_nat min_i1 by auto
+      }
+      note case_endAtomic = this
+      
+      { (* Next, we consider the case where txa contains an action from a different session*)
+        assume differentSession: "fst (txa ! otherI) \<noteq> s"
+        
+        define s' where s'_def: "s' = fst (txa ! otherI)"
+        hence differentSession2: "s' \<noteq> s"
+          by (simp add: differentSession) 
+        
+        define min_i' where min_i'_def: "min_i' = otherI + length trStart + 1"
+        
+        have [simp]: "fst (tr ! min_i') = s'"
+          by (smt Suc_eq_plus1 \<open>otherI < min_i - Suc j\<close> add.assoc add.commute arith_simp diff_Suc_eq_diff_pred diff_commute length_take min_i'_def min_simp2 nth_drop nth_take s'_def trStart_def txa_def)
+          
+          
+        
+        have other_least_1: "min_i' < length tr"
+          using min_i'_def \<open>otherI < min_i - Suc j\<close> less_diff_conv min_i1 trStart_def by auto
+        
+        have "s \<in> sessionsInTransaction tr min_i'"
+          apply (auto simp add: sessionsInTransaction_def inTransaction_def)
+          apply (rule_tac x="length (trStart)" in exI)
+          apply auto
+          apply (simp add: j1 trStart_def)
+          apply (simp add: \<open>min_i' \<equiv> otherI + length trStart + 1\<close>)
+          apply (simp add: trStart_def tr_j)
+          by (metis One_nat_def \<open>otherI < min_i - Suc j\<close> add.right_neutral add_Suc_right dual_order.trans length_take less_diff_conv less_or_eq_imp_le min_i'_def min_simp2 noEndAtomic trStart_def)
+          
+        hence "s \<in> (sessionsInTransaction tr min_i' - {fst (tr ! min_i')})"
+          using differentSession2  by auto
+          
+        hence other_least_2: "sessionsInTransaction tr min_i' - {fst (tr ! min_i')} \<noteq> {}"
+          by auto 
+        
+        have other_least_3: "min_i' < min_i"
+          using \<open>min_i' \<equiv> otherI + length trStart + 1\<close> \<open>otherI < min_i - Suc j\<close> less_diff_conv trStart_def by auto
+          
+          
+        from other_least_1 other_least_2 other_least_3 min_i_def
+        have False
+          using not_less_Least by blast
+      }
+      with case_endAtomic
+      show False
+        by (metis otherI2 surjective_pairing)
+    qed    
+   moreover have "s \<noteq> fst (tr!min_i)"
+     by (simp add: otherS)
+    
+   ultimately
+   show ?thesis
      by blast
 qed    
     
     
+lemma show_traceCorrect_same:
+assumes sameTraceContent: "set tr = set tr'"
+   and sameExecutions: "\<And>S. (initialState program ~~ tr \<leadsto>* S) \<longleftrightarrow> (initialState program ~~ tr' \<leadsto>* S)"
+shows "traceCorrect program tr' = traceCorrect program tr"
+using assms by (auto simp add: traceCorrect_def)
+
   
 lemma canPackTransactions:
 assumes "initialState program ~~ tr \<leadsto>* S'"
@@ -1531,23 +1627,65 @@ proof (induct "transactionsArePackedMeasure tr"  arbitrary: tr S' rule: full_nat
     
     (*from min_i_def*)
     obtain trStart txa rest s tx 
-      where tr_spit: "tr = trStart @ (s, ABeginAtomic tx) # txa @ (min_s, min_a) # rest"
-       and  tr_split1: "length (trStart @ (s, ABeginAtomic tx) # txa) = min_i"
+      where tr_split: "tr = trStart @ (s, ABeginAtomic tx) # txa @ (min_s, min_a) # rest"
+        and tr_split1: "length (trStart @ (s, ABeginAtomic tx) # txa) = min_i"
+        and tr_split2: "(\<forall>a \<in> set txa. fst a = s \<and> snd a \<noteq> AEndAtomic)"
+        and tr_split3: "s \<noteq> fst (tr ! min_i)"
       apply atomize_elim
       apply (insert split_trace_min_i[OF min_i_def])
       apply auto
       by (metis Diff_eq_empty_iff i1 i2 min_a_def min_s_def prod.collapse)   
+   
+    have "min_s \<noteq> s"
+      using min_s_def tr_split3 by auto
+      
+      
+      
+    obtain tr' where tr'_def:
+      "tr' = trStart @ (min_s, min_a) # (s, ABeginAtomic tx) # txa @ rest" by simp
     
-    (* TODO now, we can swap the min_i action before the beginAtomic action
-    while preserving the correctness of the trace...
+    from tr_split2
+    have tr_split2': "\<And>st at. (st, at) \<in> set txa \<Longrightarrow> st = s \<and> at \<noteq> AEndAtomic"
+      by auto
+      
+    (* now, we can swap the min_i action before the beginAtomic action *)
+    have tr'_steps_eq: "(initialState program ~~ tr \<leadsto>* S') \<longleftrightarrow> (initialState program ~~ tr' \<leadsto>* S')"
+      using tr_split tr'_def tr_split2' proof (rule one_compaction_step3)
+        show "\<And>st at. (st, at) \<in> set txa \<Longrightarrow> (st, at) \<in> set txa"
+          by simp
+        show "fst (min_s, min_a) \<noteq> s"
+          by (simp add: \<open>min_s \<noteq> s\<close>)
+        show "state_wellFormed (initialState program)"
+          by simp
+      qed
+    hence tr'_steps: "initialState program ~~ tr' \<leadsto>* S'"
+      using tr_steps by auto
+      
+      
+    (* 
+    the above preserves  the correctness of the trace...
+    *) 
+    have preservesCorrectness: "traceCorrect program tr' = traceCorrect program tr"
+      proof (rule show_traceCorrect_same)
+        show "set tr = set tr'"
+          by (auto simp add: tr'_def tr_split )
+        show "\<And>S. (initialState program ~~ tr \<leadsto>* S) \<longleftrightarrow> (initialState program ~~ tr' \<leadsto>* S)"
+          using tr'_steps_eq tr_steps traceDeterministic by blast
+      qed  
+      
     
+    (*
     this move also reduces our measure, which is probably the difficult thing to show
-    
     *)  
+    have measureDecreased: "transactionsArePackedMeasure tr' < transactionsArePackedMeasure tr"
+      sorry
+    
       
     (* "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" *)
     
-    then show ?thesis sorry
+    then show ?thesis 
+      using measureDecreased 
+      by (meson "1.hyps" Suc_leI preservesCorrectness tr'_steps)
   qed
 qed  
 

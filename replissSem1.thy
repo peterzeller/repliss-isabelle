@@ -597,6 +597,10 @@ qed
 definition state_wellFormed :: "state \<Rightarrow> bool" where
 "state_wellFormed state \<equiv> \<exists>tr. initialState (prog state) ~~ tr \<leadsto>* state"
 
+lemma state_wellFormed_init[simp]:
+"state_wellFormed (initialState program)"
+  by (metis initialState_def state.simps(1) state_wellFormed_def steps_refl)
+
 lemma state_wellFormed_combine:
 assumes wf: "state_wellFormed S"
 and steps: "S ~~ tr \<leadsto>* S'"
