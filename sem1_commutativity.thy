@@ -1569,6 +1569,33 @@ assumes sameTraceContent: "set tr = set tr'"
 shows "traceCorrect program tr' = traceCorrect program tr"
 using assms by (auto simp add: traceCorrect_def)
 
+
+lemma sumSplit:
+fixes f :: "nat \<Rightarrow> nat"
+shows "(\<Sum>i<x+y . f i) = (\<Sum>i<x . f i) + (\<Sum>i<y . f (x+i))"
+by (induct y, auto)
+
+lemma transactionsArePackedMeasure_append:
+"transactionsArePackedMeasure (xs@ys) = 
+   (\<Sum>i<length xs. card (sessionsInTransaction xs i - {fst (xs ! i)})) 
+ + (\<Sum>i<length ys. card (sessionsInTransaction (xs@ys) (length xs + i) - {fst (ys ! i)}))"
+proof -
+  have "transactionsArePackedMeasure (xs@ys)
+    = (\<Sum>i<length xs + length ys. card (sessionsInTransaction (xs @ ys) i - {fst ((xs @ ys) ! i)}))" 
+    by (auto simp add: transactionsArePackedMeasure_def)
+  moreover have "... =  
+          (\<Sum>i<length xs. card (sessionsInTransaction (xs @ ys) i - {fst ((xs @ ys) ! i)}))
+        + (\<Sum>i<length ys. card (sessionsInTransaction (xs @ ys) (length xs + i) - {fst ((xs @ ys) ! (length xs + i))}))"
+      using sumSplit by auto
+  moreover have "... = 
+          (\<Sum>i<length xs. card (sessionsInTransaction xs i - {fst (xs ! i)}))
+        + (\<Sum>i<length ys. card (sessionsInTransaction (xs @ ys) (length xs + i) - {fst (ys ! i)}))"
+    apply auto
+    by (metis (no_types, lifting) lessThan_iff nth_append sum.cong)
+  ultimately show ?thesis by simp
+qed  
+
+ 
   
 lemma canPackTransactions:
 assumes "initialState program ~~ tr \<leadsto>* S'"
@@ -1678,8 +1705,21 @@ proof (induct "transactionsArePackedMeasure tr"  arbitrary: tr S' rule: full_nat
     this move also reduces our measure, which is probably the difficult thing to show
     *)  
     have measureDecreased: "transactionsArePackedMeasure tr' < transactionsArePackedMeasure tr"
-      sorry
-    
+    proof -
+      thm  transactionsArePackedMeasure_append
+      have "transactionsArePackedMeasure tr
+         = transactionsArePackedMeasure (trStart @ (s, ABeginAtomic tx) # txa @ (min_s, min_a) # rest)"
+        by (simp add: tr_split)
+      
+      moreover have "...
+         = (\<Sum>i < length trStart. card (sessionsInTransaction trStart i - {fst (trStart ! i)}))
+          + (\<Sum>i < 2 + length txa  + length rest.
+              card (sessionsInTransaction (trStart @ (s, ABeginAtomic tx) # txa @ (min_s, min_a) # rest)
+                     (length trStart + i) -
+                    {fst (((s, ABeginAtomic tx) # txa @ (min_s, min_a) # rest) ! i)}))"
+         by (simp add: transactionsArePackedMeasure_append)
+      
+      
       
     (* "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" *)
     
