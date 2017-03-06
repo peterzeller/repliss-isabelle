@@ -1974,11 +1974,24 @@ assumes "i\<ge>length xs"
 shows "(xs@zs)!i = (ys@zs)!i"
 using assms by (auto simp add: nth_append)
 
-
+(*TODO we can drop uncommited transaction, without changing the correctness of a trace, 
+ however this will not end in the same state anymore (maybe in the same invcontext)
+ 
+ TODO therefore, I can also simplify the definition of packedness
+ *)
 lemma canPackOneTransaction:
 assumes "initialState program ~~ tr \<leadsto>* S'"
-shows "\<exists>tr'. transactionIsPacked tr' tx 
-        \<and> (\<forall>t. transactionIsPacked tr t \<longrightarrow> transactionIsPacked tr' t)
+    and "beginAtomic < length tr"
+    and "tr ! beginAtomic = (c, ABeginAtomic tx)"
+    and "endAtomic < length tr"
+    and "tr ! endAtomic = (c, AEndAtomic) "
+    and "\<And>i. \<lbrakk>beginAtomic<i; i<endAtomic\<rbrakk> \<Longrightarrow> tr ! i \<noteq> (c, AEndAtomic)"
+    and "tr = trStart @ (c, ABeginAtomic tx) # insideTx @ (c, AEndAtomic) # trRest"
+    and "tr' = trStart @ insideTxOther @  (c, ABeginAtomic tx) # insideTxSame @ (c, AEndAtomic) # trRest"
+     (* NOTE from this assumption, we can later show that everything that was already packed is still packed *)
+    and "insideTxOther = filter (\<lambda>a. fst a \<noteq> c) insideTx"
+    and "insideTxSame = filter (\<lambda>a. fst a = c) insideTx"
+shows "transactionIsPacked tr' tx 
         \<and> (initialState program ~~ tr' \<leadsto>* S') 
         \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
 using assms
