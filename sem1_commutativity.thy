@@ -1239,6 +1239,180 @@ lemma transactionIsPackedMeasure_zero_iff:
   "transactionIsPackedMeasure tr tx = 0 \<longleftrightarrow>  transactionIsPacked tr tx" 
 by (auto simp add: transactionIsPackedMeasure_def transactionIsPacked_def)
 
+(* this is an alternative definition, which might be easier to work with in some cases *)
+definition transactionIsPackedAlt :: "trace \<Rightarrow> txid \<Rightarrow> bool" where
+"transactionIsPackedAlt tr tx \<equiv> 
+  if \<exists>i s. i < length tr \<and> tr!i = (s, ABeginAtomic tx) then
+    \<exists>i s end. 
+         i < length tr 
+        \<and> tr!i = (s, ABeginAtomic tx)
+        \<and> end > i  
+        \<and> (end < length tr \<and> tr!end = (s, AEndAtomic) \<or> end = length tr)  
+        \<and> (\<forall>j. i\<le>j \<and> j< end \<longrightarrow> fst (tr!j) = s) 
+  else
+    True
+  "  
+
+lemma transactionIsPackedAlt_eq:
+assumes uniqueTxs: "\<And>i j s s'. \<lbrakk>i<length tr; j<length tr; tr!i = (s, ABeginAtomic tx); tr!j = (s', ABeginAtomic tx)\<rbrakk> \<Longrightarrow> i = j"
+shows "transactionIsPackedAlt tr tx = transactionIsPacked tr tx"
+proof (auto simp add: transactionIsPackedAlt_def )
+  fix i s ia sa
+  assume a0: "i < length tr"
+     and a1: "tr ! i = (s, ABeginAtomic tx)"
+     and a2: "ia < length tr"
+     and a3: "tr ! ia = (sa, ABeginAtomic tx)"
+     and a4: "\<forall>j. ia \<le> j \<and> j < length tr \<longrightarrow> fst (tr ! j) = sa"
+  
+  with uniqueTxs have [simp]: "ia = i"
+    by blast   
+  hence [simp]: "sa = s"
+    using a1 a3 by auto  
+  hence a4': "\<And>j. i \<le> j \<Longrightarrow> j < length tr \<Longrightarrow> fst (tr ! j) = s"  
+    using a4 by auto
+     
+  show "transactionIsPacked tr tx"
+  
+  proof (auto simp add: transactionIsPacked_def indexInOtherTransaction_def, rename_tac i' s')
+    fix k i' s'
+    assume b0: "k < length tr"
+       and b1: "i' < k"
+       and b2: "tr ! i' = (s', ABeginAtomic tx)"
+       and b3: "\<forall>j>i'. j < k \<longrightarrow> tr ! j \<noteq> (s', AEndAtomic)"
+    
+    from uniqueTxs have [simp]: "i' = i"
+      using a0 a1 b0 b1 b2 by auto 
+      
+    hence [simp]: "s' = s"
+      using a1 b2 by auto
+       
+    show "fst (tr ! k) = s'"
+      apply (simp, rule a4')
+      using \<open>i' = i\<close> b1 less_imp_le_nat apply blast
+      by (simp add: b0) 
+  qed
+next
+  fix i s
+  assume a0: "i < length tr"
+     and a1: "tr ! i = (s, ABeginAtomic tx)"
+     and a2: "transactionIsPacked tr tx"
+  
+  from a2
+  have a2': "fst (tr ! k) = s \<or> (\<exists>j<k. i < j \<and> tr ! j = (s, AEndAtomic))" 
+    if "k<length tr" "i<k"
+    for k
+    apply (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
+    using a1 that(1) that(2) by blast
+    
+    
+     
+  show "\<exists>i<length tr. \<exists>s. tr ! i = (s, ABeginAtomic tx) \<and> (\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> fst (tr ! j) = s))"
+  proof (rule_tac x=i in exI, (auto simp add: a0))
+    show "\<exists>s. tr ! i = (s, ABeginAtomic tx) \<and> (\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> fst (tr ! j) = s))"
+    proof (rule_tac x=s in exI, safe)
+      show "tr ! i = (s, ABeginAtomic tx)"
+        by (simp add: a1) 
+      define endPos where "endPos = (if \<exists>j. i<j \<and> j<length tr \<and> tr!j = (s, AEndAtomic) then LEAST j. i<j \<and> j<length tr \<and> tr!j = (s, AEndAtomic) else length tr)"
+      show "\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> fst (tr ! j) = s) "
+      proof (rule_tac x="endPos" in exI, (auto simp add: endPos_def))
+        show "\<And>j. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic); (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) \<noteq> length tr\<rbrakk> \<Longrightarrow> (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) < length tr"
+          by (smt less_trans neqE not_less_Least)
+        show "\<And>j. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic); (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) \<noteq> length tr\<rbrakk> \<Longrightarrow> tr ! (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) = (s, AEndAtomic)"
+          by (smt LeastI)
+        show "\<And>j ja. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic); i \<le> ja; ja < (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic))\<rbrakk> \<Longrightarrow> fst (tr ! ja) = s"
+          by (smt a1 a2' dual_order.strict_trans fst_conv neqE not_le not_less_Least)
+        show "\<And>j. \<lbrakk>\<forall>j<length tr. i < j \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic); i \<le> j; j < length tr\<rbrakk> \<Longrightarrow> fst (tr ! j) = s"
+          by (metis a1 a2' dual_order.strict_trans fst_conv le_eq_less_or_eq)
+        show "\<And>j. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic)\<rbrakk> \<Longrightarrow> i < (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic))"
+          by (metis (mono_tags, lifting) LeastI_ex)
+        show "\<forall>j<length tr. i < j \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic) \<Longrightarrow> i < length tr"
+          using a0 by blast  
+      qed
+    qed
+  qed  
+next
+  show "\<forall>i<length tr. \<forall>s. tr ! i \<noteq> (s, ABeginAtomic tx) \<Longrightarrow> transactionIsPacked tr tx"
+   by (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
+next
+  fix i s ia sa ende
+  assume a0: "i < length tr"
+     and a1: "tr ! i = (s, ABeginAtomic tx)"
+     and a3: "tr ! ia = (sa, ABeginAtomic tx)"
+     and a7: "ia < ende"
+     and a4: "\<forall>j. ia \<le> j \<and> j < ende \<longrightarrow> fst (tr ! j) = sa"
+     and a5: "ende < length tr"
+     and a6: "tr ! ende = (sa, AEndAtomic)"
+  
+  have a2: "ia < length tr"
+    using a5 a7 less_trans by blast
+    
+     
+  with uniqueTxs have [simp]: "ia = i"
+    using a0 a1 a3 by blast
+    
+  hence [simp]: "sa = s"
+    using a1 a3 by auto     
+  
+  have a4': "fst (tr ! j) = s" if "i \<le> j" and "j < ende" for j
+    by (auto simp add: that a4)  
+    
+    
+  show "transactionIsPacked tr tx"
+    proof (auto simp add: transactionIsPacked_def indexInOtherTransaction_def, rename_tac i' s')
+      fix k i' s'
+      assume b0: "k < length tr"
+         and b1: "i' < k"
+         and b2: "tr ! i' = (s', ABeginAtomic tx)"
+         and b3: "\<forall>j>i'. j < k \<longrightarrow> tr ! j \<noteq> (s', AEndAtomic)"
+      
+      have " i' < length tr"
+        using b0 b1 order.strict_trans by blast 
+      
+         
+      hence [simp]: "i' = i"
+      using uniqueTxs b2 a1 a0 by blast 
+        
+      hence [simp]: "s' = s"
+        using a1 b2 by auto
+         
+      have b3': "\<forall>j>i. j < k \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic)"
+        using b3 by simp      
+      have "fst (tr ! k) = s"
+        proof (cases "k < ende")
+        case True
+          show ?thesis
+          proof (rule a4')
+            show "i \<le> k"
+              using \<open>i' = i\<close> b1 dual_order.strict_implies_order by blast 
+            show "k < ende" using True .
+          qed
+        next case False
+          hence "k \<ge> ende" by simp
+          show ?thesis
+          proof (cases "k = ende")
+            case True
+            then show ?thesis
+              by (simp add: a6) 
+          next
+            case False
+            hence "k > ende"
+              by (simp add: \<open>ende \<le> k\<close> dual_order.strict_iff_order) 
+            from b3' have "ende>i \<and> ende < k \<longrightarrow> tr ! ende \<noteq> (s, AEndAtomic)"
+              by blast
+            with `k > ende` have "tr ! ende \<noteq> (s, AEndAtomic)"
+              using \<open>ia = i\<close> a7 by blast
+              
+            then show ?thesis
+              by (simp add: a6) 
+          qed
+        qed      
+    thus "fst (tr ! k) = s'" by simp
+  qed
+qed
+
+  
+  
+
 find_theorems "finite _" "_ \<subseteq> _"
 
 find_theorems "card _ = 0"
@@ -1945,6 +2119,14 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr rule: nat_less_i
     from tr_split2
     have tr_split2': "\<And>st at. (st, at) \<in> set txa \<Longrightarrow> st = s \<and> at \<noteq> AEndAtomic"
       by auto
+    
+    have tr'_sameSet: "set tr' = set tr" 
+      apply (auto simp add: tr_split2 tr'_def kmin_length min_a_def min_s_def)
+      apply (auto simp add: tr_split)
+      using min_a_def min_s_def tr_split apply fastforce
+      using min_a_def min_s_def tr_split by force
+      
+      
       
     (* now, we can swap the min_i action before the beginAtomic action *)
     have tr'_steps_eq: "(initialState program ~~ tr \<leadsto>* S') \<longleftrightarrow> (initialState program ~~ tr' \<leadsto>* S')"
@@ -2245,14 +2427,103 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr rule: nat_less_i
         by simp
     qed
     (* "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" *)
-    
-    have keepPackedTransactions: 
-      "(\<forall>t. transactionIsPacked tr t \<longrightarrow> transactionIsPacked tr' t)"
-      sorry
-    
     from `initialState program ~~ tr \<leadsto>* S'`
-    have "initialState program ~~ tr' \<leadsto>* S'"
+    have steps_tr': "initialState program ~~ tr' \<leadsto>* S'"
+      using tr'_steps_eq by blast
+      
+    have keepPackedTransactionsAlt: 
+      "(\<forall>t. transactionIsPackedAlt tr t \<longrightarrow> transactionIsPackedAlt tr' t)"
+      proof auto
+        fix t
+        assume packedInTr: "transactionIsPackedAlt tr t"
+        thus "transactionIsPackedAlt tr' t"
+        proof (cases "\<exists>i s. i < length tr \<and> tr!i = (s, ABeginAtomic t)")
+          case False (* no transaction t exists in trace*)
+          hence "(s, ABeginAtomic t) \<notin> set tr" for s
+            by (simp add: in_set_conv_nth)
+          hence "(s, ABeginAtomic t) \<notin> set tr'" for s
+            using tr'_sameSet by simp
+          thus ?thesis
+            apply (auto simp add: transactionIsPackedAlt_def )
+            using nth_mem by fastforce
+        next
+          case True (* there is a transaction t *)
+          from this obtain i s'
+            where "i < length tr"
+            and "tr!i = (s', ABeginAtomic t)"
+            by blast
+          
+          with packedInTr 
+            obtain i' s'' ende 
+              where b1: "i' < length tr"
+              and b2: "tr ! i' = (s'', ABeginAtomic t)"
+              and b3: "i' < ende"
+              and b4: "(ende < length tr \<and> tr ! ende = (s'', AEndAtomic) \<or> ende = length tr)"
+              and b5: "(\<forall>j. i' \<le> j \<and> j < ende \<longrightarrow> fst (tr ! j) = s'')"
+            by (auto simp add: transactionIsPackedAlt_def split: if_splits)
+          have [simp]: "i' = i"
+            using "1"(2) \<open>i < length tr\<close> \<open>i' < length tr\<close> \<open>tr ! i = (s', ABeginAtomic t)\<close> \<open>tr ! i' = (s'', ABeginAtomic t)\<close> transactionIdsUnique by auto
+          have [simp]: "s'' = s'"
+            using \<open>tr ! i = (s', ABeginAtomic t)\<close> \<open>tr ! i' = (s'', ABeginAtomic t)\<close> by auto 
+            
+          from b1 b2 b3 b4 b5
+          have b1': "i < length tr"
+            and b2': "tr ! i = (s', ABeginAtomic t)"
+            and b3': "i < ende"
+            and b4': "(ende < length tr \<and> tr ! ende = (s', AEndAtomic) \<or> ende = length tr)"
+            and b5': "(\<forall>j. i \<le> j \<and> j < ende \<longrightarrow> fst (tr ! j) = s'')"
+            by auto  
+          
+          have "t \<noteq> tx"
+            by (metis (no_types, lifting) Pair_inject \<open>\<And>thesis. (\<And>i' s'' ende. \<lbrakk>i' < length tr; tr ! i' = (s'', ABeginAtomic t); i' < ende; ende < length tr \<and> tr ! ende = (s'', AEndAtomic) \<or> ende = length tr; \<forall>j. i' \<le> j \<and> j < ende \<longrightarrow> fst (tr ! j) = s''\<rbrakk> \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> add_leE beginAtomicPos_def dual_order.strict_trans endAtomicPos2 kmin_before_endAtomic kmin_inTx kmin_least kmin_length length_append linorder_neqE_nat tr_beginAtomicPos tr_beginAtomicPos_unique tr_split1 tr_split3)  
+            
+          (* TODO *)
+          
+          (* this transaction must either be in trStart, txa, or rest  *)
+          (* since these parts are not changed, transactions are still packed *)
+          {
+            assume "i < length trStart"
+            
+            (*then there must be some corresponding endAtomic in trStart, because afterwards the new transaction is starting *)
+            
+          }
+          {
+            (* case i in txa *)
+            (* then it must belong to session s  *)
+            (* but then there cannot be a beginAtomic here *)
+          }
+          {
+            (* case i is exactly the action we are trying to move forward ... *)
+            (* then our approach does not work ... *)
+            (* we only recover packedness, when all actions are moved out of the transaction *)
+            (* maybe instead of promising packedness, we can promise that the sequence stays in tact if we ignore all but the one transaction *)
+          }
+          {
+            (* case i in rest *)
+            
+            (* this part is unchanged, so should be easy to prove ... *)
+            
+          }
+          
+          
+          
+          then show ?thesis sorry
+        qed
+        
+          
+          
       sorry
+      qed
+    hence keepPackedTransactions: 
+      "(\<forall>t. transactionIsPacked tr t \<longrightarrow> transactionIsPacked tr' t)"
+      apply (subst (asm) transactionIsPackedAlt_eq)
+      using tr_steps transactionIdsUnique apply blast 
+      apply (subst (asm) transactionIsPackedAlt_eq)
+      using transactionIdsUnique steps_tr' apply blast
+      by simp
+      
+      
+    
     
     from inductionHypothesis  
     have 
