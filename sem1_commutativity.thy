@@ -1974,8 +1974,21 @@ assumes "i\<ge>length xs"
 shows "(xs@zs)!i = (ys@zs)!i"
 using assms by (auto simp add: nth_append)
 
+lemma nth_append_second:
+"i \<ge> length xs \<Longrightarrow> (xs@ys)!i = ys!(i - length xs)"
+by (auto simp add:  nth_append split: if_splits)
+
+lemma nth_cons_tail:
+"i > 0 \<Longrightarrow> (x#xs)!i = xs!(i - 1)"
+by (auto simp add:  nth_Cons split: nat.splits)
+
+lemma nth_append_first:
+"i < length xs \<Longrightarrow> (xs@ys)!i = xs!i"
+by (auto simp add:  nth_append split: if_splits)
+
 (*TODO we can drop uncommited transaction, without changing the correctness of a trace, 
  however this will not end in the same state anymore (maybe in the same invcontext)
+
  
  TODO therefore, I can also simplify the definition of packedness
  *)
@@ -1984,8 +1997,10 @@ assumes "initialState program ~~ tr \<leadsto>* S'"
     and "beginAtomic < length tr"
     and "tr ! beginAtomic = (c, ABeginAtomic tx)"
     and "endAtomic < length tr"
+    and "beginAtomic < endAtomic"
     and "tr ! endAtomic = (c, AEndAtomic) "
     and "\<And>i. \<lbrakk>beginAtomic<i; i<endAtomic\<rbrakk> \<Longrightarrow> tr ! i \<noteq> (c, AEndAtomic)"
+    and "length insideTx = endAtomic - beginAtomic - 1"
     and "tr = trStart @ (c, ABeginAtomic tx) # insideTx @ (c, AEndAtomic) # trRest"
     and "tr' = trStart @ insideTxOther @  (c, ABeginAtomic tx) # insideTxSame @ (c, AEndAtomic) # trRest"
      (* NOTE from this assumption, we can later show that everything that was already packed is still packed *)
@@ -1995,9 +2010,77 @@ shows "transactionIsPacked tr' tx
         \<and> (initialState program ~~ tr' \<leadsto>* S') 
         \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
 using assms
-proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr rule: nat_less_induct )
+proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr' beginAtomic insideTx insideTxOther insideTxSame rule: nat_less_induct )
   case 1
+  fix tr tr' beginAtomic insideTx insideTxOther insideTxSame
+  assume inductionHypothesis: 
+    "\<forall>m<transactionIsPackedMeasure tr tx.
+       \<forall>x. m = transactionIsPackedMeasure x tx \<longrightarrow>
+           (initialState program ~~ x \<leadsto>* S') \<longrightarrow>
+           (\<forall>xa xb. xb < length x \<longrightarrow>
+                    x ! xb = (c, ABeginAtomic tx) \<longrightarrow>
+                    endAtomic < length x \<longrightarrow>
+                    xb < endAtomic \<longrightarrow>
+                    x ! endAtomic = (c, AEndAtomic) \<longrightarrow>
+                    (\<forall>xa>xb. xa < endAtomic \<longrightarrow> x ! xa \<noteq> (c, AEndAtomic)) \<longrightarrow>
+                    (\<forall>xc. length xc = endAtomic - xb - 1 \<longrightarrow>
+                          x = trStart @ (c, ABeginAtomic tx) # xc @ (c, AEndAtomic) # trRest \<longrightarrow>
+                          (\<forall>xb xd. xa = trStart @ xb @ (c, ABeginAtomic tx) # xd @ (c, AEndAtomic) # trRest \<longrightarrow>
+                                   xb = [a\<leftarrow>xc . fst a \<noteq> c] \<longrightarrow> xd = [a\<leftarrow>xc . fst a = c] \<longrightarrow> transactionIsPacked xa tx \<and> (initialState program ~~ xa \<leadsto>* S') \<and> traceCorrect program xa = traceCorrect program x)))"
+   and tr_steps: "initialState program ~~ tr \<leadsto>* S'"
+   and beginAtomic_len: "beginAtomic < length tr"
+   and tr_beginAtomic: "tr ! beginAtomic = (c, ABeginAtomic tx)"
+   and endAtomic_len: "endAtomic < length tr"
+   and beginBeforeEnd: "beginAtomic < endAtomic"
+   and tr_endAtomic: "tr ! endAtomic = (c, AEndAtomic)"
+   and noEndAtomicInTx: "\<And>i. \<lbrakk>beginAtomic < i; i < endAtomic\<rbrakk> \<Longrightarrow> tr ! i \<noteq> (c, AEndAtomic)"
+   and insideTx_len: "length insideTx = endAtomic - beginAtomic - 1"
+   and tr_split: "tr = trStart @ (c, ABeginAtomic tx) # insideTx @ (c, AEndAtomic) # trRest"
+   and tr'_split: "tr' = trStart @ insideTxOther @ (c, ABeginAtomic tx) # insideTxSame @ (c, AEndAtomic) # trRest"
+   and insideTxOther_def: "insideTxOther = [a\<leftarrow>insideTx . fst a \<noteq> c]"
+   and insideTxSame_def: "insideTxSame = [a\<leftarrow>insideTx . fst a = c]"
   
+  have beginAtomicUnique: "i = beginAtomic" if "tr!i = (c', ABeginAtomic tx)" and "i<length tr"  for i c'
+    using transactionIdsUnique that beginAtomic_len tr_beginAtomic tr_steps by blast 
+   
+  have trStart_len: "length trStart = beginAtomic"
+    using tr_beginAtomic apply (auto simp add: tr_split)
+    using beginAtomic_len tr_split tr_steps transactionIdsUnique by auto 
+  
+  
+  
+  have insideTx_noEnd: "insideTx ! i \<noteq> (c, AEndAtomic)" if "i < length insideTx" for i
+  proof -
+    have "tr ! (beginAtomic + 1 + i) \<noteq> (c, AEndAtomic)"
+    using noEndAtomicInTx insideTx_len that by auto 
+    thus ?thesis
+      apply (simp add: tr_split)
+      by (simp add: nth_append that trStart_len)
+  qed   
+  
+  
+  
+  have trRest_len: "length trRest = length tr - endAtomic - 1"
+  proof -
+    have "length tr - endAtomic - 1 = (Suc (length trStart + (length insideTx + length trRest))) - endAtomic"
+      by (auto simp add: tr_split)
+    moreover have "... = 1 + length trStart + length insideTx + length trRest - endAtomic"
+      by simp
+    moreover have "... = 1 + length trStart + (endAtomic - beginAtomic - 1) + length trRest - endAtomic" 
+      by (simp add: insideTx_len)
+    moreover have "... = length trStart + (endAtomic - beginAtomic) + length trRest - endAtomic"
+      using beginBeforeEnd by auto 
+    moreover have "... = length trStart + endAtomic + length trRest - endAtomic - beginAtomic"  
+      by (simp add: beginBeforeEnd order_less_imp_le trStart_len)
+    moreover have "... = length trStart + length trRest - beginAtomic"
+      by simp
+    moreover have "... = length trRest"   
+      by (simp add: trStart_len)
+    ultimately show ?thesis
+      by linarith    
+  qed  
+  
+(*
   hence tr_steps: "initialState program ~~ tr \<leadsto>* S'" ..
   
   from 1
@@ -2013,17 +2096,56 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr rule: nat_less_i
     apply (drule_tac x="transactionIsPackedMeasure tr' tx" in spec)
     apply (simp add: that)
     done
-      
+*)      
     
   
-  show ?case
+  show "transactionIsPacked tr' tx \<and> (initialState program ~~ tr' \<leadsto>* S') \<and> traceCorrect program tr' = traceCorrect program tr"
   proof (cases "transactionIsPackedMeasure tr tx")
     case 0
     text "If the measure is zero, transaction is already packed"
     hence "transactionIsPacked tr tx"
       by (simp add: transactionIsPackedMeasure_zero_iff)
+      
+    hence "fst a = c" if  "a \<in> set insideTx" for a
+    proof -
+      from that obtain ii where "insideTx ! ii = a" and "ii < length insideTx" 
+        by (auto simp add: in_set_conv_nth)
+      thm tr_split
+      define i where i_def: "i = ii + 1 + length trStart"
+      from i_def
+      have [simp]: "beginAtomic < i"
+          and "i < endAtomic"
+          and "tr!i = a"
+        apply (auto simp add: tr_split)
+        apply (simp add: trStart_len)
+        using \<open>ii < length insideTx\<close> insideTx_len trStart_len apply linarith
+        apply (auto simp add: nth_append nth_Cons split: nat.splits)
+        using \<open>insideTx ! ii = a\<close> apply blast
+        using \<open>ii < length insideTx\<close> apply blast
+        using \<open>ii < length insideTx\<close> by blast
+      have [simp]: "i < length tr"
+        using \<open>i < endAtomic\<close> dual_order.strict_trans endAtomic_len by blast 
+        
+      assume "transactionIsPacked tr tx"
+      hence "\<not> indexInOtherTransaction tr tx i"
+        by (simp add: transactionIsPacked_def)
+      hence "c = fst a"
+        apply (auto simp add: indexInOtherTransaction_def)
+        apply (drule_tac x=beginAtomic in spec)
+        apply auto
+        apply (drule_tac x=c in spec)
+        apply auto
+        apply (simp add: tr_beginAtomic)
+        apply (simp add: `tr!i = a`)
+        using \<open>i < endAtomic\<close> dual_order.strict_trans noEndAtomicInTx by blast
+      thus "fst a = c" by simp
+    qed  
+          
+    hence "tr' = tr"  
+      by (auto simp add: tr'_split tr_split insideTxOther_def insideTxSame_def)
+      
     thus ?thesis
-      using tr_steps by blast
+      using \<open>transactionIsPacked tr tx\<close> tr_steps by auto
   next
     case (Suc n)
     
