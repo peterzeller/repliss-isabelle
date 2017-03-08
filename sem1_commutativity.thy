@@ -3084,11 +3084,12 @@ assumes steps: "initialState program ~~ tr \<leadsto>* S'"
 shows "\<exists>tr'. transactionIsPacked tr' tx 
         \<and> (initialState program ~~ tr' \<leadsto>* S') 
         \<and> (\<forall>t. transactionIsPacked tr t \<longrightarrow>  transactionIsPacked tr' t)
+        \<and> (\<forall>tx. transactionIsClosed tr' tx)
         \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
 proof (cases "transactionIsPacked tr tx")
   case True
   with steps
-  show ?thesis by blast
+  show ?thesis using transactionIsClosed by blast
 next
   case False
   hence notPacked: "\<not> transactionIsPacked tr tx" .
@@ -3192,6 +3193,18 @@ next
   
   have tr'_same_end2: "tr'!i = tr!i" if "i\<ge>endAtomic" for i
     using antisym_conv2 that tr'_same_end tr'_same_endAtomic by auto  
+    
+  from transactionIsClosed
+  have transactionIsClosed': "transactionIsClosed tr' tx" for tx
+    apply (insert transactionIsClosed[where tx=tx])
+    (*apply (auto simp add:  tr'_def a8 nth_append nth_Cons' split: if_splits)*)
+    apply (subst transactionIsClosed_def)
+    apply clarsimp
+    apply (subst (asm) tr'_def) back
+    apply (auto simp add: nth_append nth_Cons' split: if_splits)
+    sorry (* TODO prove this *)
+    (* hint: maybe first prove, that no actions are lost and order is maintained between tr' and tr for actions on the same session *)
+    
     
     
   have "transactionIsPacked tr' t" if packedBefore: "transactionIsPacked tr t" for t
@@ -3432,10 +3445,102 @@ next
   qed
     
   then show ?thesis
-    using tr'1 tr'2 tr'3 by blast 
+    using tr'1 tr'2 tr'3 transactionIsClosed' by blast 
 qed
-        
+
+find_theorems List.map_filter
+
+lemma notPacked_finite:
+  "finite {tx. \<not> transactionIsPacked tr tx}"
+proof (rule finite_subset)
+  show "{tx. \<not> transactionIsPacked tr tx} \<subseteq> {tx | c tx. (c, ABeginAtomic tx) \<in> set tr}"
+    using notPackedExists by auto
+    
+  define P :: "(session\<times>action) \<Rightarrow> txid option" where "P = (\<lambda>x. case x of (c, ABeginAtomic tx) \<Rightarrow> Some tx | _ \<Rightarrow> None)"
   
+  have P1: "P (c, ABeginAtomic tx) = Some tx" for c tx by (auto simp add: P_def)
+  have P2: "P a = None" if "\<forall>c tx. a \<noteq> (c, ABeginAtomic tx)" for a 
+    using that by (auto simp add: P_def split: prod.splits action.splits)
+  
+  
+  have alt: 
+     "{tx | c tx. (c, ABeginAtomic tx) \<in> set tr}
+    = set (List.map_filter P tr)"
+  proof (induct tr)
+    case Nil
+    then show ?case by (auto simp add: map_filter_simps)
+  next
+    case (Cons a tr)
+    thm Cons.hyps
+    
+    have "set (List.map_filter P (a # tr)) 
+        = set (List.map_filter P tr) \<union> (case P a of None \<Rightarrow> {} | Some tx \<Rightarrow> {tx})"
+        by (auto simp add: map_filter_simps split: option.splits)
+    moreover have "... = {tx | c tx. (c, ABeginAtomic tx) \<in> set tr} \<union> (case P a of None \<Rightarrow> {} | Some tx \<Rightarrow> {tx})"
+      by (subst Cons.hyps, simp)
+    moreover have "... = {tx | c tx. (c, ABeginAtomic tx) \<in> set (a#tr)}"
+      apply auto
+      apply (metis P1 P2 equals0D option.case_eq_if option.collapse option.inject singletonD)
+      by (simp add: P1)
+      
+      
+    ultimately show ?case by force
+  qed
+  thus "finite {tx | c tx. (c, ABeginAtomic tx) \<in> set tr}" by force
+qed    
+
+
+lemma canPackAllClosedTransactions:
+assumes steps: "initialState program ~~ tr \<leadsto>* S'"
+  and transactionIsClosed: "\<And>tx. transactionIsClosed tr tx"
+shows "\<exists>tr'. (\<forall>tx. transactionIsPacked tr' tx)
+        \<and> (initialState program ~~ tr' \<leadsto>* S') 
+        \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
+using assms proof (induct "card {tx. \<not>transactionIsPacked tr tx}" arbitrary: tr rule: nat_less_induct)
+
+  case 1
+    fix tr
+  assume a0: "\<forall>m<card {tx. \<not> transactionIsPacked tr tx}.
+              \<forall>x. m = card {tx. \<not> transactionIsPacked x tx} \<longrightarrow>
+                  initialState program ~~ x \<leadsto>* S' \<longrightarrow> All (transactionIsClosed x) \<longrightarrow> (\<exists>tr'. All (transactionIsPacked tr') \<and> initialState program ~~ tr' \<leadsto>* S' \<and> traceCorrect program tr' = traceCorrect program x)"
+     and a1: "initialState program ~~ tr \<leadsto>* S'"
+     and a2: "\<And>x. transactionIsClosed tr x"
+
+  show "\<exists>tr'. All (transactionIsPacked tr') \<and> (initialState program ~~ tr' \<leadsto>* S') \<and> traceCorrect program tr' = traceCorrect program tr"
+  proof (cases "card {tx. \<not>transactionIsPacked tr tx}")
+    case 0
+    hence "\<forall>tx. transactionIsPacked tr tx"
+      using notPacked_finite by auto
+      
+    then show ?thesis
+      using a1 by blast 
+    
+  next
+    case (Suc n)
+    from this obtain tx where tx_notPacked: "\<not> transactionIsPacked tr tx"
+      by fastforce 
+    
+    thm canPackOneTransaction2
+    from canPackOneTransaction2 obtain tr'
+      where tr1: "transactionIsPacked tr' tx"
+        and tr2: "(initialState program ~~ tr' \<leadsto>* S')"
+        and tr3: "(\<forall>t. transactionIsPacked tr t \<longrightarrow> transactionIsPacked tr' t) "
+        and tr4: "traceCorrect program tr' = traceCorrect program tr"
+        and tr5: "\<forall>tx. transactionIsClosed tr' tx"
+      using a1 a2 by blast
+      
+    have "{tx. \<not>transactionIsPacked tr' tx} \<subset> {tx. \<not>transactionIsPacked tr tx}"
+      using tr3 tr1 tx_notPacked by auto
+    hence cardReduced: "card {tx. \<not>transactionIsPacked tr' tx} < card {tx. \<not>transactionIsPacked tr tx}"
+      by (simp add: notPacked_finite psubset_card_mono)
+      
+    then show ?thesis
+      using a0 tr2 tr4 tr5 by blast 
+      
+  qed
+qed
+  
+
 lemma canPackTransactions:
 assumes "initialState program ~~ tr \<leadsto>* S'"
 shows "\<exists>tr'. transactionsArePacked tr' 
