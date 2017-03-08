@@ -3274,59 +3274,165 @@ next
         by (smt One_nat_def Suc_diff_Suc Suc_less_SucD \<open>endAtomic' < endAtomic\<close> \<open>endAtomic'2 \<equiv> endAtomic' - beginAtomic - 1\<close> a7 add_diff_inverse_nat b2 diff_zero dual_order.strict_trans l1 minus_nat.simps(2) nat_add_left_cancel_less order.asym)
         
       have [simp]: "insideTx ! beginAtomic'2 = (s', ABeginAtomic t)"
-        
-        sorry
+        using b4 beginAtomic'2_def trStart_len apply (auto simp add: a8 nth_append nth_Cons' split: if_splits)
+        using l1 not_less_iff_gr_or_eq trStart_len apply blast
+        using \<open>beginAtomic'2 < length insideTx\<close> by blast
+      have [simp]: "insideTx ! endAtomic'2 = (s', AEndAtomic)"
+        using b5 endAtomic'2_def trStart_len apply (auto simp add: a8 nth_append nth_Cons' split: if_splits)
+        using b2 l1 order.strict_trans apply blast
+        using \<open>endAtomic'2 < length insideTx\<close> by blast
+         
+      
         
       obtain f
         where f_mono: "strict_mono f"
         and  f_exists: "\<And>i. \<lbrakk>i<length insideTx; fst (insideTx ! i) \<noteq> s\<rbrakk> \<Longrightarrow> \<exists>j<length insideTxOther. f j = i \<and> insideTxOther ! j = insideTx ! i"
-        and f_map: "\<And>i. \<lbrakk>i<length insideTxOther; f i < length insideTx\<rbrakk> \<Longrightarrow>  insideTxOther ! i = insideTx ! f i"
+        and f_map: "\<And>i. \<lbrakk>i<length insideTxOther\<rbrakk> \<Longrightarrow>  insideTxOther ! i = insideTx ! f i"
+        and f_map2: "\<And>i. \<lbrakk>i<length insideTxOther\<rbrakk> \<Longrightarrow>  f i < length insideTx"
         using filter_injection[OF insideTxOther_def]
         by blast 
         
       obtain beginAtomic'3 
-        where "beginAtomic'3 < length insideTxOther"
-          and "f beginAtomic'3 = beginAtomic'2"
-          using f_exists[OF `beginAtomic'2 < length insideTx`] 
-          
-          
-            
-      define endAtomic'3 where "endAtomic'3 = f endAtomic'2 + beginAtomic"  
+        where beginAtomic'3a: "beginAtomic'3 < length insideTxOther"
+          and beginAtomic'3b: "f beginAtomic'3 = beginAtomic'2"
+          using f_exists[OF `beginAtomic'2 < length insideTx`] \<open>s \<noteq> s'\<close> by auto 
+
+      obtain endAtomic'3 
+        where endAtomic'3a: "endAtomic'3 < length insideTxOther"
+          and endAtomic'3b: "f endAtomic'3 = endAtomic'2"
+          using f_exists[OF `endAtomic'2 < length insideTx`] \<open>s \<noteq> s'\<close> by auto           
         
       have "transactionIsPacked tr' t"
       proof (rule transactionIsPacked_show)
         show "initialState program ~~ tr' \<leadsto>* S'" using tr'2 .
-        show "beginAtomic'3 < endAtomic'3" 
-          using endAtomic'3_def beginAtomic'3_def beginAtomic'2_def endAtomic'2_def f_mono begin_before_end2
-          using add_less_mono1 strict_mono_def by blast 
+        show "beginAtomic'3 + beginAtomic < endAtomic'3 + beginAtomic"
+          using add_strict_right_mono beginAtomic'3b begin_before_end2 endAtomic'3b f_mono strict_mono_less by blast
         have beginAtomic'2_inisdeTx: "insideTx ! beginAtomic'2 = (s', ABeginAtomic t)"
           using b4 
           apply (auto simp add: a8 beginAtomic'2_def nth_append nth_Cons' trStart_len split: if_splits)
           using l1 not_less_iff_gr_or_eq trStart_len apply blast
           using a7 l2 by linarith
-        hence beginAtomic'3_insideTx: "insideTxOther ! f beginAtomic'2 = (s', ABeginAtomic t)"  
-          
+        hence beginAtomic'3_insideTx: "insideTxOther ! beginAtomic'3 = (s', ABeginAtomic t)"
+          by (simp add: \<open>beginAtomic'2 < length insideTx\<close> beginAtomic'3a beginAtomic'3b f_map)  
           
         have endAtomic'2_insideTx: "insideTx ! endAtomic'2 = (s', AEndAtomic)"
           using b5
           apply (auto simp add: a8 endAtomic'2_def nth_append nth_Cons' trStart_len split: if_splits)
           using b2 l1 less_trans apply blast
           using \<open>endAtomic' < endAtomic\<close> a7 by linarith
+        hence endAtomic'3_insideTx: "insideTxOther ! endAtomic'3 = (s', AEndAtomic)"
+          by (simp add: \<open>endAtomic'2 < length insideTx\<close> endAtomic'3a endAtomic'3b f_map)
           
-        show "tr' ! beginAtomic'3 = (s', ABeginAtomic t)"
-          using beginAtomic'2_inisdeTx f_map 
-          find_theorems beginAtomic'
+          
+        show "tr' ! (beginAtomic'3 + beginAtomic) = (s', ABeginAtomic t)"
+          using beginAtomic'3_insideTx  by (auto simp add: tr'_def nth_append nth_Cons' trStart_len beginAtomic'3a)
+        show "endAtomic'3 + beginAtomic < length tr'"
+          apply (auto simp add: tr'_def trStart_len )
+          using endAtomic'3a by presburger
+        show "tr' ! (endAtomic'3 + beginAtomic) = (s', AEndAtomic)"
+          using endAtomic'3_insideTx by (auto simp add: tr'_def nth_append nth_Cons' trStart_len endAtomic'3a)
+         
+        have h1: "fst x \<noteq> s" if "x\<in>set insideTxOther" for x
+          using that by (auto simp add: insideTxOther_def)
+          
+        have h2: "fst (insideTxOther ! i) = s'" if " beginAtomic'3 \<le> i" and "i \<le> endAtomic'3" for i
+        proof (rule ccontr)
+          assume a: "fst (insideTxOther ! i) \<noteq> s'"
+          
+          have i_insideTxOther: "i < length insideTxOther"
+            using endAtomic'3a le_less_trans that(2) by blast
+          hence "insideTxOther ! i = insideTx ! f i"
+            using f_map by blast
+
+            
+          with a
+          have "fst (insideTx ! f i) \<noteq> s'"
+            by simp
+          hence c1: "fst (tr ! (f i + 1 + beginAtomic)) \<noteq> s'"
+            apply (auto simp add: a8 nth_append nth_Cons' trStart_len split: if_splits)
+            using \<open>i < length insideTxOther\<close> f_map2 by auto
+            
+          have c2: "f i + 1 + beginAtomic > beginAtomic'"
+            by (smt One_nat_def Suc_diff_Suc \<open>fst (insideTx ! f i) \<noteq> s'\<close> add.commute add.left_commute add.right_neutral 
+                add_Suc_right add_diff_inverse_nat add_le_cancel_left beginAtomic'2_def beginAtomic'2_inisdeTx 
+                beginAtomic'3b diff_Suc_1 diff_diff_left f_mono fst_conv l1 leD leI le_add_diff_inverse le_less 
+                less_Suc_eq_0_disj not_add_less2 order.asym strict_mono_less_eq that(1))
+
+          find_theorems i
+          {
+            assume "i < endAtomic'3"
+            
+            hence c3: "f i + 1 + beginAtomic < endAtomic'"
+              by (metis endAtomic'2_def endAtomic'3b f_mono less_diff_conv strict_mono_def)
+              
+            with c1 c2 
+            have False
+              using b6 less_or_eq_imp_le by blast 
+          }
+          moreover
+          {
+            assume "i = endAtomic'3"
+            hence c3: "f i + 1 + beginAtomic = endAtomic'"
+              using \<open>insideTxOther ! i = insideTx ! f i\<close> a endAtomic'3b by auto
+            with c1 c2   
+            have False
+              by (simp add: b5)
+          }
+          ultimately show False
+            using le_eq_less_or_eq that(2) by blast   
+        qed  
+          
+          
+        
+        show "\<forall>i. beginAtomic'3 + beginAtomic \<le> i \<and> i \<le> endAtomic'3 + beginAtomic \<longrightarrow> fst (tr' ! i) = s'"
+          apply (auto simp add: tr'_def )
+          apply (subst nth_append_second)
+          apply (simp add: trStart_len)
+          apply (subst nth_append_first)
+          apply (simp add: trStart_len)
+          using endAtomic'3a apply auto[1]
+          apply (simp add: trStart_len)
+          by (simp add: h2)
+          
+      qed
     }
-    
-    (* TODO other cases ... idea is always that it is in a continous sequence in tr and thus it is the same for tr'*)  
-    
+    moreover
+    {
+      assume l1: "beginAtomic' = endAtomic "
+      hence False
+        using a5 b4 by auto
+      hence "transactionIsPacked tr' t"
+        by simp
+    }
+    moreover
+    {
+      assume l1: "beginAtomic' > endAtomic "
+      hence l2: "endAtomic' > endAtomic"
+        using b2 dual_order.strict_trans by blast
+      
+      
+      have "transactionIsPacked tr' t"
+      proof (rule transactionIsPacked_show)
+        show "initialState program ~~ tr' \<leadsto>* S'" using tr'2 .
+        show "beginAtomic' < endAtomic'" using b2 .
+        show "tr' ! beginAtomic' = (s', ABeginAtomic t)"
+          by (simp add: tr'_same_end l1 b4)
+        show "endAtomic' < length tr'"
+          using a8 b3 insideTx_len tr'_def by auto
+        show "tr' ! endAtomic' = (s', AEndAtomic) "
+          by (simp add: tr'_same_end l2 b5)
+        show "\<forall>i. beginAtomic' \<le> i \<and> i \<le> endAtomic' \<longrightarrow> fst (tr' ! i) = s'"
+          using b6 l1 tr'_same_end by auto
+      qed    
+    }
     ultimately show "transactionIsPacked tr' t"
+      by linarith
       
       
   qed
-  
     
-  then show ?thesis sorry
+  then show ?thesis
+    using tr'1 tr'2 tr'3 by blast 
 qed
         
   
@@ -3457,8 +3563,9 @@ proof (induct "transactionsArePackedMeasure tr"  arbitrary: tr S' rule: full_nat
     (* "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" *)
     
     then show ?thesis 
-      using measureDecreased 
-      by (meson "1.hyps" Suc_leI preservesCorrectness tr'_steps)
+      (*using measureDecreased 
+      by (meson "1.hyps" Suc_leI preservesCorrectness tr'_steps)*)
+      sorry
   qed
 qed  
 
@@ -3496,7 +3603,8 @@ proof (rule show_programCorrect)
     where "initialState program ~~ tr' \<leadsto>* s" 
       and "transactionsArePacked tr'"
       and "traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr"
-    using canPackTransactions by blast
+    (*using canPackTransactions by blast*)
+    sorry
   
   text "According to the assumption those traces are correct"
   with packedTracesCorrect
