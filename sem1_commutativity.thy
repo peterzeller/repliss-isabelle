@@ -1288,6 +1288,14 @@ apply (auto simp add: step_simps Pair_inject  less_Suc_eq nth_append  )
 apply (metis beginAtomicInTrace_to_transactionStatus domIff nth_mem)
 by (metis beginAtomicInTrace_to_transactionStatus domIff nth_mem)
 
+lemma transactionIdsUnique2:
+assumes "S ~~ tr \<leadsto>* S'" 
+   and "(s, ABeginAtomic tx)\<in>set tr" 
+   and "(s', ABeginAtomic tx)\<in>set tr" 
+shows "s' = s"
+  by (metis Pair_inject assms(1) assms(2) assms(3) in_set_conv_nth transactionIdsUnique)
+
+
 lemma currentTransaction:
 assumes steps: "S ~~ tr \<leadsto>* S'"
    and "i < length tr"
@@ -2878,6 +2886,32 @@ definition transactionIsClosed :: "trace \<Rightarrow> txid \<Rightarrow> bool" 
 "transactionIsClosed tr tx \<equiv>
   \<forall>i s. i<length tr \<and> tr!i = (s, ABeginAtomic tx) \<longrightarrow> (\<exists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic))"
 
+fun transactionIsClosedFun where 
+  empty: 
+  "transactionIsClosedFun [] tx = True" 
+| beginAtomic:
+  "transactionIsClosedFun ((s, ABeginAtomic tx')#tr) tx = (
+            if tx' = tx then (s, AEndAtomic) \<in> set tr \<and> transactionIsClosedFun tr tx
+            else transactionIsClosedFun tr tx)"
+| other:
+  "transactionIsClosedFun (_#tr) tx = transactionIsClosedFun tr tx"
+    
+lemma transactionIsClosed_def2:
+"transactionIsClosed tr tx \<longleftrightarrow> 
+ (\<forall>i s. i<length tr \<and> tr!i = (s, ABeginAtomic tx) \<longrightarrow> (s, AEndAtomic)\<in>set (drop (Suc i) tr))"
+apply (auto simp add: transactionIsClosed_def in_set_conv_nth)
+  apply (smt Suc_leI add.commute add_diff_cancel_left' append_take_drop_id le_Suc_ex length_take less_SucE less_diff_conv min.absorb2 not_less_iff_gr_or_eq nth_append)
+  by (smt Groups.add_ac(3) Suc_eq_plus1 add.commute less_add_same_cancel1 less_diff_conv less_imp_le_nat not_less_eq nth_drop zero_order(3))
+
+ 
+
+lemma transactionIsClosed_fun_eq: "transactionIsClosed tr tx \<longleftrightarrow> transactionIsClosedFun tr tx"
+apply (induct tr tx rule: transactionIsClosedFun.induct)
+apply auto
+apply (simp add: transactionIsClosed_def)
+apply (auto simp add: transactionIsClosed_def2 nth_Cons'  split: if_splits)
+by (metis Suc_pred diff_Suc_less dual_order.strict_trans less_SucE)+
+  
 declare [[show_question_marks = false]]  
   
 lemma notPackedExists:
@@ -3077,6 +3111,53 @@ proof (auto simp add: assms)
   qed
 qed
 
+lemma show_transactionIsClosed2:
+assumes "\<And>i s. \<lbrakk>i<length tr; tr!i = (s, ABeginAtomic tx)\<rbrakk> \<Longrightarrow> (s, AEndAtomic)\<in>set (drop (Suc i) tr)"
+shows "transactionIsClosed tr tx"
+using assms apply (auto simp add: transactionIsClosed_def)
+apply (drule_tac x=i in meta_spec)
+apply (drule_tac x=s in meta_spec)
+apply auto
+apply (auto simp add: in_set_conv_nth )
+using less_diff_conv by fastforce
+
+lemma show_transactionIsClosed:
+assumes "\<And>i s. \<lbrakk>i<length tr; tr!i = (s, ABeginAtomic tx)\<rbrakk> \<Longrightarrow> \<exists>j. i<j \<and>  j<length tr \<and> tr!j = (s, AEndAtomic)"
+shows "transactionIsClosed tr tx"
+using assms by (auto simp add: transactionIsClosed_def)
+
+lemma use_transactionIsClosed:
+assumes "transactionIsClosed tr tx"
+  and "i < length tr"
+  and "tr!i = (s, ABeginAtomic tx)"
+shows "\<exists>j. i<j \<and> j<length tr \<and> tr!j = (s, AEndAtomic)"
+  using assms(1) assms(2) assms(3) transactionIsClosed_def by blast
+
+lemma transactionIsClosed_cons:
+"transactionIsClosed (a#tr) tx \<longleftrightarrow>
+  (case a of 
+    (s, ABeginAtomic tx') \<Rightarrow> 
+      if tx' = tx then (s, AEndAtomic) \<in> set tr \<and> transactionIsClosed tr tx
+      else transactionIsClosed tr tx
+    | _ \<Rightarrow> transactionIsClosed tr tx)"
+apply (subst transactionIsClosed_fun_eq)
+by (auto simp add: transactionIsClosed_fun_eq split: action.splits)
+
+  
+lemma transactionIsClosed_filter_simp:
+assumes a: "\<And>s'. (s', ABeginAtomic tx)\<in>set tr \<Longrightarrow> s' = s"
+shows "(transactionIsClosed [a\<leftarrow>tr . fst a = s] tx) \<longleftrightarrow> transactionIsClosed tr tx"
+apply (unfold transactionIsClosed_fun_eq)
+using a proof (induct rule: transactionIsClosedFun.induct)
+  case (1 tx)
+  then show ?case by auto
+next
+  case (2 s tx' tr tx)
+  show ?case by (auto simp add: 2)
+qed (auto)    
+
+
+
 
 lemma canPackOneTransaction2:
 assumes steps: "initialState program ~~ tr \<leadsto>* S'"
@@ -3193,19 +3274,45 @@ next
   
   have tr'_same_end2: "tr'!i = tr!i" if "i\<ge>endAtomic" for i
     using antisym_conv2 that tr'_same_end tr'_same_endAtomic by auto  
+  
     
-  from transactionIsClosed
+  have tr_filtered_same: "[a\<leftarrow>tr' . fst a = ses] = [a\<leftarrow>tr . fst a = ses]" for ses
+    apply (auto simp add: a8 tr'_def insideTxOther_def insideTxSame_def)
+    by metis
+  
+    
+  
   have transactionIsClosed': "transactionIsClosed tr' tx" for tx
-    apply (insert transactionIsClosed[where tx=tx])
-    (*apply (auto simp add:  tr'_def a8 nth_append nth_Cons' split: if_splits)*)
-    apply (subst transactionIsClosed_def)
-    apply clarsimp
-    apply (subst (asm) tr'_def) back
-    apply (auto simp add: nth_append nth_Cons' split: if_splits)
-    sorry (* TODO prove this *)
-    (* hint: maybe first prove, that no actions are lost and order is maintained between tr' and tr for actions on the same session *)
+  proof - 
+    { 
+      fix ses
+      assume hasBegin': "(ses, ABeginAtomic tx)\<in>set tr'"
+      hence hasBegin: "(ses, ABeginAtomic tx)\<in>set tr"
+        by (simp add: tr'_sameSet)
+        
+      
+      have "transactionIsClosed [a\<leftarrow>tr . fst a = ses] tx"
+      proof (rule transactionIsClosed_filter_simp[THEN iffD2]) 
+        show "transactionIsClosed tr tx" using transactionIsClosed .
+        show "\<And>s'. (s', ABeginAtomic tx) \<in> set tr \<Longrightarrow> s' = ses"
+          using hasBegin steps transactionIdsUnique2 by blast 
+      qed    
+      
+      hence h: "transactionIsClosed [a\<leftarrow>tr' . fst a = ses] tx"
+        by (simp add: tr_filtered_same)
+      
+      have "transactionIsClosed tr' tx"
+      proof (rule transactionIsClosed_filter_simp[THEN iffD1])
+        show "transactionIsClosed [a\<leftarrow>tr' . fst a = ses] tx" using h .
+        show "\<And>s'. (s', ABeginAtomic tx) \<in> set tr' \<Longrightarrow> s' = ses"
+          using hasBegin steps tr'_sameSet transactionIdsUnique2 by blast
+      qed    
+    }
+    thus "transactionIsClosed tr' tx"
+      using nth_mem transactionIsClosed_def2 by fastforce
+  qed  
     
-    
+  
     
   have "transactionIsPacked tr' t" if packedBefore: "transactionIsPacked tr t" for t
   proof (cases "\<exists>s'. (s', ABeginAtomic t) \<in> set tr")
