@@ -3609,7 +3609,7 @@ using assms proof (induct "card {tx. \<not>transactionIsPacked tr tx}" arbitrary
     fix tr
   assume a0: "\<forall>m<card {tx. \<not> transactionIsPacked tr tx}.
               \<forall>x. m = card {tx. \<not> transactionIsPacked x tx} \<longrightarrow>
-                  initialState program ~~ x \<leadsto>* S' \<longrightarrow> All (transactionIsClosed x) \<longrightarrow> (\<exists>tr'. All (transactionIsPacked tr') \<and> initialState program ~~ tr' \<leadsto>* S' \<and> traceCorrect program tr' = traceCorrect program x)"
+                  (initialState program ~~ x \<leadsto>* S') \<longrightarrow> All (transactionIsClosed x) \<longrightarrow> (\<exists>tr'. All (transactionIsPacked tr') \<and> (initialState program ~~ tr' \<leadsto>* S') \<and> traceCorrect program tr' = traceCorrect program x)"
      and a1: "initialState program ~~ tr \<leadsto>* S'"
      and a2: "\<And>x. transactionIsClosed tr x"
 
