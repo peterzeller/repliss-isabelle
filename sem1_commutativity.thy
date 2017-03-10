@@ -3647,7 +3647,7 @@ using assms proof (induct "card {tx. \<not>transactionIsPacked tr tx}" arbitrary
   qed
 qed
   
-
+(*
 lemma canPackTransactions:
 assumes "initialState program ~~ tr \<leadsto>* S'"
 shows "\<exists>tr'. transactionsArePacked tr' 
@@ -3780,7 +3780,7 @@ proof (induct "transactionsArePackedMeasure tr"  arbitrary: tr S' rule: full_nat
       sorry
   qed
 qed  
-
+*)
 
 
 (*
