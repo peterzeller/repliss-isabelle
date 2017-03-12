@@ -3646,7 +3646,19 @@ using assms proof (induct "card {tx. \<not>transactionIsPacked tr tx}" arbitrary
       
   qed
 qed
-  
+
+
+(*
+  if there are unclosed transactions, we can just ignore them without affecting the correctness of the code
+*)
+lemma canCloseTransactions:
+assumes steps: "initialState program ~~ tr \<leadsto>* S'"
+shows "\<exists>tr'. (\<forall>tx. transactionIsClosed tr tx)
+        \<and> (initialState program ~~ tr' \<leadsto>* S') 
+        \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
+
+        
+
 (*
 lemma canPackTransactions:
 assumes "initialState program ~~ tr \<leadsto>* S'"
