@@ -66,19 +66,22 @@ record prog =
   procedure :: "procedureName \<Rightarrow> any list \<rightharpoonup> (localState \<times> procedureImpl)"
   invariant :: "invariantContext \<Rightarrow> bool"
 
-record state = operationContext +
+record distributed_state = operationContext +
   prog :: prog
   callOrigin :: "callId \<rightharpoonup> txid"
   generatedIds :: "uniqueId set"
   knownIds :: "uniqueId set"
   invocationOp :: "session \<rightharpoonup> (procedureName \<times> any list)"
   invocationRes :: "session \<rightharpoonup> any"
+  transactionStatus :: "txid \<rightharpoonup> transactionStatus"
+
+record state = distributed_state + 
   localState :: "session \<rightharpoonup> localState"
   currentProc :: "session \<rightharpoonup> procedureImpl"
   visibleCalls :: "session \<rightharpoonup> callId set"
   currentTransaction :: "session \<rightharpoonup> txid"
-  transactionStatus :: "txid \<rightharpoonup> transactionStatus"
-
+  
+  
 lemma state_ext: "((x::state) = y) \<longleftrightarrow> (
     calls x = calls y
   \<and> happensBefore x = happensBefore y
@@ -454,11 +457,11 @@ definition initialState :: "prog \<Rightarrow> state" where
   knownIds = {},
   invocationOp = empty,
   invocationRes = empty,
+  transactionStatus = empty,
   localState = empty,
   currentProc = empty,
   visibleCalls = empty,
-  currentTransaction = empty,
-  transactionStatus = empty
+  currentTransaction = empty
 \<rparr>"
 
 type_synonym trace = "(session\<times>action) list"
@@ -599,7 +602,7 @@ definition state_wellFormed :: "state \<Rightarrow> bool" where
 
 lemma state_wellFormed_init[simp]:
 "state_wellFormed (initialState program)"
-  by (metis initialState_def state.simps(1) state_wellFormed_def steps_refl)
+  by (metis distributed_state.select_convs(1) initialState_def state_wellFormed_def steps_refl)
 
 lemma state_wellFormed_combine:
 assumes wf: "state_wellFormed S"
