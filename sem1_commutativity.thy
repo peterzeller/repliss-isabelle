@@ -3648,15 +3648,63 @@ using assms proof (induct "card {tx. \<not>transactionIsPacked tr tx}" arbitrary
 qed
 
 
+lemma card_zero:
+assumes "finite S"
+and "0 = card S"
+shows "S = {}"
+using assms(1) assms(2) by auto
+
+
 (*
   if there are unclosed transactions, we can just ignore them without affecting the correctness of the code
 *)
 lemma canCloseTransactions:
 assumes steps: "initialState program ~~ tr \<leadsto>* S'"
 shows "\<exists>tr'. (\<forall>tx. transactionIsClosed tr tx)
-        \<and> (initialState program ~~ tr' \<leadsto>* S') 
+        (*\<and> (initialState program ~~ tr' \<leadsto>* S') *)
         \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
+proof (induct "card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}")
+  case 0
+  
+  have "finite {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}"
+    by (rule finite_subset[where B="{(i,j). i<length tr \<and> j<length tr}"], auto)
+  
+  with 0
+  have "\<exists>j>i. j < length tr \<and> tr ! j = (s, AEndAtomic)" 
+    if "i < length tr" and "tr ! i = (s, ABeginAtomic tx)"
+    for i s tx
+    using that
+    by (auto, blast)
+    
+  hence "transactionIsClosed tr tx" for tx
+    by (auto simp add: transactionIsClosed_def)
+  thus ?thesis
+    using steps by blast
+    
+next
+  case (Suc x)
+  
+  from this obtain i j where "i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
+    
+    
+  
+  (* take the latest action not in a closed transaction  *)
+  define lastI where "lastI \<equiv> GREATEST i. i<length tr \<and> (\<exists>s tx. tr!i = (s, ABeginAtomic tx) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
+  
+  (*the new trace is the old trace with this action removed*)
+  define newTrace where "newTrace \<equiv> take lastI tr @ drop (Suc lastI) tr"
+  
+  (* new trace has one less problematic action: *)
+  have "card {i. i<length tr \<and> (\<exists>s tx. tr!i = (s, ABeginAtomic tx) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}
+      = Suc (card {i. i<length newTrace \<and> (\<exists>s tx. newTrace!i = (s, ABeginAtomic tx) \<and> (\<nexists>j. j>i \<and> j<length newTrace \<and> newTrace!j = (s, AEndAtomic)))})"
+    apply auto    
+      
+      
+  
+  then show ?case sorry
+qed
 
+        
         
 
 (*
@@ -3827,6 +3875,7 @@ proof (rule show_programCorrect)
     where "initialState program ~~ tr' \<leadsto>* s" 
       and "transactionsArePacked tr'"
       and "traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr"
+     
     (*using canPackTransactions by blast*)
     sorry
   
