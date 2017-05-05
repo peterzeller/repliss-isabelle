@@ -3654,6 +3654,111 @@ and "0 = card S"
 shows "S = {}"
 using assms(1) assms(2) by auto
 
+lemma card_suc_nonempty: "Suc x = card S \<Longrightarrow> \<exists>x. x\<in>S"
+  by (metis card_eq_SucD insertI1)
+
+  
+lemma card_remove_one:
+fixes X::"'a set"
+fixes Y::"'b set"
+assumes fin: "finite X"
+    and "f ` (Y - {missing}) = X"
+    and "(g ` X) \<union> {missing} = Y"
+    and "\<And>a. a\<in>Y - {missing} \<Longrightarrow> g (f a) = a"
+    and "\<And>a. a\<in>X \<Longrightarrow> f (g a) = a"
+shows "card Y = Suc (card X)"
+using assms proof (induct X arbitrary: Y  rule: finite_induct)
+  case empty
+  thus ?case by auto
+next
+  case (insert x F)
+  hence fin: "finite F"
+   and xNotInF: "x \<notin> F"
+   and IH: "\<And>Y. \<lbrakk>f ` (Y - {missing}) = F; g ` F \<union> {missing} = Y; \<And>a. a \<in> Y - {missing} \<Longrightarrow> g (f a) = a; \<And>a. a \<in> F \<Longrightarrow> f (g a) = a\<rbrakk> \<Longrightarrow> card Y = Suc (card F)"
+   and YtoX: "f ` (Y - {missing}) = insert x F"
+   and XtoY: "g ` insert x F \<union> {missing} = Y"
+   and invY: "\<And>a. a \<in> Y - {missing} \<Longrightarrow> g (f a) = a"
+   and invX: "\<And>a. a \<in> insert x F \<Longrightarrow> f (g a) = a"
+   by auto
+  
+  have "g x \<noteq> missing"
+    by (smt Diff_insert_absorb Un_insert_right XtoY YtoX image_iff insertI1 invY mk_disjoint_insert)
+  
+  have "missing \<in> Y"
+    using XtoY by blast
+    
+    
+  define Y' where "Y' \<equiv> Y - {g x}"
+    
+  from YtoX `g x \<noteq> missing`
+  have "f ` (Y' - {missing}) = F"
+    apply (auto simp add: Y'_def)
+    using image_iff insert.prems(2) invX apply auto[1]
+    by (metis (no_types, lifting) Diff_insert Diff_insert2 Diff_insert_absorb image_diff_subset image_empty image_insert insertI1 invX subsetCE xNotInF)
+    
+    
+  moreover have "g ` F \<union> {missing} = Y'" 
+    using XtoY  apply (auto simp add: Y'_def `g x \<noteq> missing`[symmetric] `missing \<in> Y`)
+    by (metis insert_iff invX xNotInF)
+  
+  moreover have  "\<And>a. a \<in> Y' - {missing} \<Longrightarrow> g (f a) = a"
+    using invY Y'_def by blast
+
+  moreover have "\<And>a. a \<in> F \<Longrightarrow> f (g a) = a"
+    by (simp add: invX)
+  
+  ultimately have "card Y' = Suc (card F)" by (rule IH)
+    
+  then have "card Y = Suc (card Y')"
+    apply (auto simp add: Y'_def)
+    using fin insert.prems(2) by force
+  moreover have "... = Suc (Suc (card F))"
+    using \<open>card Y' = Suc (card F)\<close> by blast
+  moreover have "... =  Suc (card (insert x F))"
+    by (simp add: fin xNotInF)
+  ultimately show ?case
+    by linarith 
+qed
+
+definition "skip x i \<equiv> if i < x then i else i - 1"    
+definition "skip_rev x i \<equiv> if i < x then i else i + 1"
+  
+definition removeAt :: "nat \<Rightarrow> 'a list \<Rightarrow> 'a list" where
+"removeAt i l = take i l @ drop (Suc i) l"
+
+(* examples *)
+lemma "removeAt 0 [1,2,3] = [2,3::int]" by eval
+lemma "removeAt 1 [1,2,3] = [1,3::int]" by eval
+
+(*
+IDEA prove general greatest induct on list
+
+if I can always remove the last offender of a property P in a list while maintaining property Q,
+then there is a list with property Q \<and> P if there is a list with Q
+*)
+lemma removeLastOffender_induct:
+assumes listWithP: "P l"
+   and canAlwaysRemoveLastQ: "\<And>l i. \<lbrakk>Q l i; i<length l; \<And>j. \<lbrakk>j>i; j<length l\<rbrakk> \<Longrightarrow> \<not>Q l j  \<rbrakk> \<Longrightarrow> P (removeAt i l) \<and> (\<forall>j. j\<ge>i \<and> j < length l - 1 \<longrightarrow> \<not>Q (removeAt i l) j)"
+   and P_prefix: "\<And>l n. P l \<Longrightarrow> P (take n l)"
+shows "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)"
+using listWithP proof (induct l rule: rev_induct)
+  case Nil
+  then show ?case
+    by auto 
+next
+  case (snoc x xs)
+  {
+    assume "Q (xs @ [x]) (length xs)"
+    
+    hence "P (removeAt (length xs) (xs @ [x])) \<and> (\<forall>j. j\<ge>(length xs) \<and> j < length (xs @ [x]) - 1 \<longrightarrow> \<not>Q (removeAt (length xs) (xs @ [x])) j)"
+      by (rule canAlwaysRemoveLastQ, auto)
+      
+    hence "P xs" and "(\<forall>j. j\<ge>(length xs) \<and> j < length (xs @ [x]) - 1 \<longrightarrow> \<not>Q (removeAt (length xs) (xs @ [x])) j)"
+  }
+  
+  then show ?case sorry
+qed
+
 
 (*
   if there are unclosed transactions, we can just ignore them without affecting the correctness of the code
@@ -3683,22 +3788,33 @@ proof (induct "card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a 
     
 next
   case (Suc x)
+  hence a1: "x = card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))} \<Longrightarrow>
+    \<exists>tr'. (\<forall>a. transactionIsClosed tr a) \<and> traceCorrect program tr' = traceCorrect program tr"
+  and a2: "Suc x = card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}"
+    by auto
   
-  from this obtain i j where "i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
-    
+  
+  from card_suc_nonempty[OF a2]
+  obtain i j where "i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
+    by auto
     
   
   (* take the latest action not in a closed transaction  *)
-  define lastI where "lastI \<equiv> GREATEST i. i<length tr \<and> (\<exists>s tx. tr!i = (s, ABeginAtomic tx) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
+  define lastJ where "lastJ \<equiv> GREATEST j. \<exists>i. i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
   
   (*the new trace is the old trace with this action removed*)
-  define newTrace where "newTrace \<equiv> take lastI tr @ drop (Suc lastI) tr"
+  define newTrace where "newTrace \<equiv> take lastJ tr @ drop (Suc lastJ) tr"
   
   (* new trace has one less problematic action: *)
-  have "card {i. i<length tr \<and> (\<exists>s tx. tr!i = (s, ABeginAtomic tx) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}
-      = Suc (card {i. i<length newTrace \<and> (\<exists>s tx. newTrace!i = (s, ABeginAtomic tx) \<and> (\<nexists>j. j>i \<and> j<length newTrace \<and> newTrace!j = (s, AEndAtomic)))})"
-    apply auto    
+  have "card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}
+      = Suc (card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . newTrace!i = (s, ABeginAtomic tx) \<and> newTrace!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length newTrace \<and> newTrace!j = (s, AEndAtomic)))})"
+    proof (rule card_remove_one[where f="\<lambda>(i,j). (skip lastJ i, skip lastJ j)" 
+                                  and g="\<lambda>(i,j)i. (skip_rev lastJ i, skip_rev lastJ j)"
+                                  and missing="lastJ"])
+      show "finite {i. i < length newTrace \<and> (\<exists>s tx. newTrace ! i = (s, ABeginAtomic tx) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
+        by auto                                
       
+      show "(\<lambda>i. if i < lastJ then i else i - 1) ` ({i. i < length tr \<and> (\<exists>s tx. tr ! i = (s, ABeginAtomic tx) \<and> \<not> (\<exists>j>i. j < length tr \<and> tr ! j = (s, AEndAtomic)))} - {missing}) =    {i. i < length newTrace \<and> (\<exists>s tx. newTrace ! i = (s, ABeginAtomic tx) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
       
   
   then show ?case sorry
