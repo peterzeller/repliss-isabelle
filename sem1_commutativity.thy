@@ -3844,7 +3844,11 @@ next
   obtain lastI lastJ 
     where "lastI\<le> lastJ \<and> lastJ<length tr \<and> (\<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
     and "\<And>i j. \<lbrakk>lastI\<le> lastJ; lastJ<length tr; \<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic))\<rbrakk> \<Longrightarrow> j \<le> lastJ"
-    using i_j_def apply auto 
+    apply (atomize_elim)
+    apply auto
+    using existsGreates_pair 
+    apply (rule existsGreates_pair)
+    using i_j_def existsGreates_pair  
   
   (*the new trace is the old trace with this action removed*)
   define newTrace where "newTrace \<equiv> take lastJ tr @ drop (Suc lastJ) tr"
