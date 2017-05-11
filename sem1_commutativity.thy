@@ -3739,7 +3739,7 @@ then there is a list with property Q \<and> P if there is a list with Q
 lemma removeLastOffender_induct:
 assumes listWithP: "P l"
    and canAlwaysRemoveLastQ: "\<And>l i. \<lbrakk>Q l i; i<length l; \<And>j. \<lbrakk>j>i; j<length l\<rbrakk> \<Longrightarrow> \<not>Q l j  \<rbrakk> \<Longrightarrow> P (removeAt i l) \<and> (\<forall>j. j\<ge>i \<and> j < length l - 1 \<longrightarrow> \<not>Q (removeAt i l) j)"
-   and P_prefix: "\<And>l n. P l \<Longrightarrow> P (take n l)"
+   (*and P_prefix: "\<And>l n. P l \<Longrightarrow> P (take n l)"  this makes no sense, could just choose l = []*)
 shows "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)"
 using listWithP proof (induct l rule: rev_induct)
   case Nil
@@ -3747,18 +3747,57 @@ using listWithP proof (induct l rule: rev_induct)
     by auto 
 next
   case (snoc x xs)
+  assume a1: "P xs \<Longrightarrow> \<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)"
+  assume a2: "P (xs @ [x])"
   {
     assume "Q (xs @ [x]) (length xs)"
     
-    hence "P (removeAt (length xs) (xs @ [x])) \<and> (\<forall>j. j\<ge>(length xs) \<and> j < length (xs @ [x]) - 1 \<longrightarrow> \<not>Q (removeAt (length xs) (xs @ [x])) j)"
+    hence a: "P (removeAt (length xs) (xs @ [x])) \<and> (\<forall>j. j\<ge>(length xs) \<and> j < length (xs @ [x]) - 1 \<longrightarrow> \<not>Q (removeAt (length xs) (xs @ [x])) j)"
       by (rule canAlwaysRemoveLastQ, auto)
       
+    
     hence "P xs" and "(\<forall>j. j\<ge>(length xs) \<and> j < length (xs @ [x]) - 1 \<longrightarrow> \<not>Q (removeAt (length xs) (xs @ [x])) j)"
+      (* by (metis P_prefix butlast_conv_take butlast_snoc snoc.prems, auto) *)
+      sorry
+    
+    hence "\<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)"
+      using snoc.hyps by blast 
   }
-  
-  then show ?case sorry
-qed
+  moreover
+  {
+    
+  }
+  ultimately show "\<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)"
+oops
 
+lemma existsGreates_pair:
+fixes i :: nat
+fixes j:: nat
+assumes example: "P i j"
+    and bound: "\<And>i j. P i j \<Longrightarrow> j < upper_bound"
+shows "\<exists>i j. P i j \<and> (\<forall>i' j'. P i' j' \<longrightarrow> j' \<le> j)"
+proof -
+  define maxJ where "maxJ \<equiv> GREATEST j. \<exists>i. P i j"
+  
+  have "\<exists>i. P i maxJ"
+  unfolding maxJ_def proof (rule GreatestI)
+    show "\<exists>i. P i j" using example by blast
+    show "\<forall>j. (\<exists>i. P i j) \<longrightarrow> j < upper_bound" using bound by blast
+  qed
+  
+  from this
+  obtain maxI where p1: "P maxI maxJ"
+    by blast
+    
+  have p2: "j' \<le> maxJ" if "P i' j'" for i' j'
+  unfolding maxJ_def proof (rule Greatest_le)
+    show "\<exists>i. P i j'" using that by blast
+    show "\<forall>y. (\<exists>i. P i y) \<longrightarrow> y < upper_bound" using bound by blast
+  qed
+  from p1 p2 show ?thesis by blast
+qed  
+    
+  
 
 (*
   if there are unclosed transactions, we can just ignore them without affecting the correctness of the code
@@ -3795,12 +3834,17 @@ next
   
   
   from card_suc_nonempty[OF a2]
-  obtain i j where "i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
+  obtain i j where i_j_def: "i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
     by auto
     
   
   (* take the latest action not in a closed transaction  *)
-  define lastJ where "lastJ \<equiv> GREATEST j. \<exists>i. i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
+(*  define lastJ where "lastJ \<equiv> GREATEST j. \<exists>i. i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"*)
+  
+  obtain lastI lastJ 
+    where "lastI\<le> lastJ \<and> lastJ<length tr \<and> (\<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
+    and "\<And>i j. \<lbrakk>lastI\<le> lastJ; lastJ<length tr; \<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic))\<rbrakk> \<Longrightarrow> j \<le> lastJ"
+    using i_j_def apply auto 
   
   (*the new trace is the old trace with this action removed*)
   define newTrace where "newTrace \<equiv> take lastJ tr @ drop (Suc lastJ) tr"
@@ -3809,7 +3853,7 @@ next
   have "card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}
       = Suc (card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . newTrace!i = (s, ABeginAtomic tx) \<and> newTrace!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length newTrace \<and> newTrace!j = (s, AEndAtomic)))})"
     proof (rule card_remove_one[where f="\<lambda>(i,j). (skip lastJ i, skip lastJ j)" 
-                                  and g="\<lambda>(i,j)i. (skip_rev lastJ i, skip_rev lastJ j)"
+                                  and g="\<lambda>(i,j). (skip_rev lastJ i, skip_rev lastJ j)"
                                   and missing="lastJ"])
       show "finite {i. i < length newTrace \<and> (\<exists>s tx. newTrace ! i = (s, ABeginAtomic tx) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
         by auto                                
