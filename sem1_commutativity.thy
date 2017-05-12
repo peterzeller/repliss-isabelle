@@ -3726,6 +3726,14 @@ definition "skip_rev x i \<equiv> if i < x then i else i + 1"
 definition removeAt :: "nat \<Rightarrow> 'a list \<Rightarrow> 'a list" where
 "removeAt i l = take i l @ drop (Suc i) l"
 
+
+
+lemma removeAt_nth: 
+assumes "j < length l - 1"
+shows "(removeAt i l) ! j = (if j<i then l!j else l!Suc j)"
+using assms by (auto simp add: removeAt_def nth_append min_def)
+
+
 (* examples *)
 lemma "removeAt 0 [1,2,3] = [2,3::int]" by eval
 lemma "removeAt 1 [1,2,3] = [1,3::int]" by eval
@@ -3757,8 +3765,7 @@ next
       
     
     hence "P xs" and "(\<forall>j. j\<ge>(length xs) \<and> j < length (xs @ [x]) - 1 \<longrightarrow> \<not>Q (removeAt (length xs) (xs @ [x])) j)"
-      (* by (metis P_prefix butlast_conv_take butlast_snoc snoc.prems, auto) *)
-      sorry
+      by (auto simp add: removeAt_def)
     
     hence "\<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)"
       using snoc.hyps by blast 
@@ -3842,26 +3849,32 @@ next
 (*  define lastJ where "lastJ \<equiv> GREATEST j. \<exists>i. i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"*)
   
   obtain lastI lastJ 
-    where "lastI\<le> lastJ \<and> lastJ<length tr \<and> (\<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
-    and "\<And>i j. \<lbrakk>lastI\<le> lastJ; lastJ<length tr; \<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic))\<rbrakk> \<Longrightarrow> j \<le> lastJ"
+    where lastI_lastJ_def: "lastI\<le> lastJ \<and> lastJ<length tr \<and> (\<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
+    (*and "\<And>i j. \<lbrakk>lastI\<le> lastJ; lastJ<length tr; \<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic))\<rbrakk> \<Longrightarrow> j \<le> lastJ"*)
+    and lastJ_greatest: "\<forall>i j. (i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))) \<longrightarrow> j \<le> lastJ"
     apply (atomize_elim)
-    apply auto
-    using existsGreates_pair 
-    apply (rule existsGreates_pair)
-    using i_j_def existsGreates_pair  
+    apply (rule existsGreates_pair[where i=i and j=j])
+    apply (auto simp add: i_j_def)
+    using i_j_def by auto
+    
   
   (*the new trace is the old trace with this action removed*)
-  define newTrace where "newTrace \<equiv> take lastJ tr @ drop (Suc lastJ) tr"
+  define newTrace where (*"newTrace \<equiv> take lastJ tr @ drop (Suc lastJ) tr"*)
+    "newTrace \<equiv> removeAt lastJ tr"
   
   (* new trace has one less problematic action: *)
   have "card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}
       = Suc (card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . newTrace!i = (s, ABeginAtomic tx) \<and> newTrace!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length newTrace \<and> newTrace!j = (s, AEndAtomic)))})"
     proof (rule card_remove_one[where f="\<lambda>(i,j). (skip lastJ i, skip lastJ j)" 
                                   and g="\<lambda>(i,j). (skip_rev lastJ i, skip_rev lastJ j)"
-                                  and missing="lastJ"])
-      show "finite {i. i < length newTrace \<and> (\<exists>s tx. newTrace ! i = (s, ABeginAtomic tx) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
-        by auto                                
+                                  and missing="(lastI, lastJ)"])
+      show "finite {(i, j). i \<le> j \<and> j < length tr \<and> (\<exists>s tx a. newTrace ! i = (s, ABeginAtomic tx) \<and> newTrace ! j = (s, a) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
+        by (rule finite_subset[where B="{(i,j). i<length tr \<and> j<length tr}"], auto)
       
+      show " (\<lambda>(i, j). (skip lastJ i, skip lastJ j)) ` ({(i, j). i \<le> j \<and> j < length tr \<and> (\<exists>s tx a. tr ! i = (s, ABeginAtomic tx) \<and> tr ! j = (s, a) \<and> \<not> (\<exists>j>i. j < length tr \<and> tr ! j = (s, AEndAtomic)))} - {(lastI, lastJ)}) 
+       = {(i, j). i \<le> j \<and> j < length tr \<and> (\<exists>s tx a. newTrace ! i = (s, ABeginAtomic tx) \<and> newTrace ! j = (s, a) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
+        apply (auto simp add: skip_def newTrace_def)
+       
       show "(\<lambda>i. if i < lastJ then i else i - 1) ` ({i. i < length tr \<and> (\<exists>s tx. tr ! i = (s, ABeginAtomic tx) \<and> \<not> (\<exists>j>i. j < length tr \<and> tr ! j = (s, AEndAtomic)))} - {missing}) =    {i. i < length newTrace \<and> (\<exists>s tx. newTrace ! i = (s, ABeginAtomic tx) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
       
   
