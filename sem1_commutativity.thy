@@ -2887,6 +2887,17 @@ definition transactionIsClosed :: "trace \<Rightarrow> txid \<Rightarrow> bool" 
 "transactionIsClosed tr tx \<equiv>
   \<forall>i s. i<length tr \<and> tr!i = (s, ABeginAtomic tx) \<longrightarrow> (\<exists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic))"
 
+
+definition actionInOpenTransaction where
+"actionInOpenTransaction tx  tr i \<equiv> 
+  \<forall>s a. tr!i = (s,a) 
+    \<longrightarrow> (\<exists>k. k\<le>i \<and> tr!k = (s, ABeginAtomic tx) \<and> (\<forall>j. j>k \<and> j<length tr \<longrightarrow> tr!j \<noteq> (s, AEndAtomic)))"
+  
+lemma transactionIsClosed_def2:
+shows "transactionIsClosed tr tx \<longleftrightarrow> (\<forall>i. i<length tr \<longrightarrow> \<not>actionInOpenTransaction  tx tr i)"
+  by (auto simp add: transactionIsClosed_def actionInOpenTransaction_def)
+  
+  
 fun transactionIsClosedFun where 
   empty: 
   "transactionIsClosedFun [] tx = True" 
@@ -2897,7 +2908,8 @@ fun transactionIsClosedFun where
 | other:
   "transactionIsClosedFun (_#tr) tx = transactionIsClosedFun tr tx"
     
-lemma transactionIsClosed_def2:
+  
+lemma transactionIsClosed_def3:
 "transactionIsClosed tr tx \<longleftrightarrow> 
  (\<forall>i s. i<length tr \<and> tr!i = (s, ABeginAtomic tx) \<longrightarrow> (s, AEndAtomic)\<in>set (drop (Suc i) tr))"
 apply (auto simp add: transactionIsClosed_def in_set_conv_nth)
@@ -2910,7 +2922,7 @@ lemma transactionIsClosed_fun_eq: "transactionIsClosed tr tx \<longleftrightarro
 apply (induct tr tx rule: transactionIsClosedFun.induct)
 apply auto
 apply (simp add: transactionIsClosed_def)
-apply (auto simp add: transactionIsClosed_def2 nth_Cons'  split: if_splits)
+apply (auto simp add: transactionIsClosed_def3 nth_Cons'  split: if_splits)
 by (metis Suc_pred diff_Suc_less dual_order.strict_trans less_SucE)+
   
 declare [[show_question_marks = false]]  
@@ -3310,7 +3322,7 @@ next
       qed    
     }
     thus "transactionIsClosed tr' tx"
-      using nth_mem transactionIsClosed_def2 by fastforce
+      using nth_mem transactionIsClosed_def3 by fastforce
   qed  
     
   
@@ -3854,103 +3866,18 @@ using listWithP proof (induct "GREATEST i. i\<le>length l \<and> (i=0 \<or> Q l 
   ultimately show ?case by blast
 qed  
   
-  
-(*
-IDEA prove general greatest induct on list
-
-if I can always remove the last offender of a property P in a list while maintaining property Q,
-then there is a list with property Q \<and> P if there is a list with Q
-*)
-lemma removeLastOffender_induct:
+lemma removeLastQ_induct:
 assumes listWithP: "P l"
-   and canAlwaysRemoveLastQ: "\<And>l i. \<lbrakk>Q l i; i<length l; \<And>j. \<lbrakk>j>i; j<length l\<rbrakk> \<Longrightarrow> \<not>Q l j  \<rbrakk> \<Longrightarrow> P (removeAt i l) \<and> (\<forall>j. j\<ge>i \<and> j < length l - 1 \<longrightarrow> \<not>Q (removeAt i l) j)"
-   and Q_dependsOnPrefix: "\<And>l l' i. \<lbrakk>i<length l; i<length l'; \<And>j. j\<le>i \<Longrightarrow> l!j = l'!j \<rbrakk> \<Longrightarrow> Q l i \<longleftrightarrow> Q l' i"
+   and canAlwaysRemoveLastQ: "\<And>l i. \<lbrakk>\<not>Q l i; i<length l; \<And>j. \<lbrakk>j>i; j<length l\<rbrakk> \<Longrightarrow> Q l j  \<rbrakk> \<Longrightarrow> P (removeAt i l) \<and> (\<forall>j. j\<ge>i \<and> j < length l - 1 \<longrightarrow> Q (removeAt i l) j)"
    (*and P_prefix: "\<And>l n. P l \<Longrightarrow> P (take n l)"  this makes no sense, could just choose l = []*)
-shows "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)"
-using listWithP proof (induct "card {i. i<length l \<and> Q l i}" arbitrary: l rule: less_induct)
-  case less
-  hence IH: "\<And>l'. \<lbrakk>card {i. i < length l' \<and> Q l' i} < card {i. i < length l \<and> Q l i}; P l'\<rbrakk> \<Longrightarrow> \<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)" by simp
+shows "\<exists>l. P l \<and> (\<forall>i<length l. Q l i)"
+proof -
+  have "\<exists>l. P l \<and> (\<forall>i<length l. \<not>\<not>Q l i)"
+    using listWithP apply (rule removeLastOffender_induct)
+    using canAlwaysRemoveLastQ by blast
+  thus ?thesis by simp
+qed  
   
-  {
-    assume "card {i. i < length l \<and> Q l i} = 0"
-    hence "\<not>Q l i" if "i < length l" for i
-      using that by (auto simp add: card_eq_0_iff)
-    hence "P l \<and> (\<forall>i<length l. \<not>Q l i)"
-      using less.prems by blast
-    hence "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)" ..
-  }
-  moreover
-  {
-    assume "card {i. i < length l \<and> Q l i} \<noteq> 0"
-    hence "\<exists>i. i < length l \<and> Q l i"
-      by simp 
-    from this obtain i
-      where i1: "i < length l"
-        and i2: "Q l i"
-        and i_greatest: "\<forall>j. j<length l \<and> Q l j \<longrightarrow> j \<le> i"
-      apply (atomize_elim)
-      apply (rule_tac x="GREATEST i. i<length l \<and> Q l i" in exI)
-      apply (auto)
-      apply (metis (no_types, lifting) GreatestI)
-      apply (metis (no_types, lifting) GreatestI)
-      by (metis (no_types, lifting) Greatest_le)
-    
-    have l_removed: "P (removeAt i l) \<and> (\<forall>j. j\<ge>i \<and> j < length l - 1 \<longrightarrow> \<not>Q (removeAt i l) j)"
-    using i2 i1 proof (rule canAlwaysRemoveLastQ)
-      show "\<And>j. \<lbrakk>i < j; j < length l\<rbrakk> \<Longrightarrow> \<not> Q l j"
-        using i_greatest leD by blast
-    qed    
-    
-    have "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)"
-    proof (rule IH)
-      show "P (removeAt i l)" using l_removed by simp
-      show "card {j. j < length (removeAt i l) \<and> Q (removeAt i l) j} < card {i. i < length l \<and> Q l i}"
-      proof (rule psubset_card_mono)
-        show "finite {i. i < length l \<and> Q l i}" by force
-        show "{j. j < length (removeAt i l) \<and> Q (removeAt i l) j} \<subset> {i. i < length l \<and> Q l i}"
-        proof
-          show "{j. j < length (removeAt i l) \<and> Q (removeAt i l) j} \<subseteq> {i. i < length l \<and> Q l i}"
-          proof (auto)
-            fix x
-            assume a1: "x < length (removeAt i l)"
-            assume a2: "Q (removeAt i l) x"
-            
-            from a1
-            show "x < length l" by (simp add: removeAt_def)
-              
-            show "Q l x"
-            proof (cases "x < i")
-              case True
-              
-              show "Q l x"
-              proof (subst Q_dependsOnPrefix[OF `x < length l` a1])
-                show "\<And>j. j \<le> x \<Longrightarrow> l ! j = removeAt i l ! j"
-                  using `x < i` \<open>x < length l\<close> by (auto simp add: removeAt_def nth_append)
-                show "Q (removeAt i l) x" using a2 .
-              qed    
-            next
-              case False
-              
-              with i_greatest
-              show "Q l x"
-                by (metis (no_types, lifting) a1 a2 add_Suc_right diff_Suc_1 i1 id_take_nth_drop l_removed le_less_linear length_Cons length_append removeAt_def)
-            qed
-          qed    
-          show "{j. j < length (removeAt i l) \<and> Q (removeAt i l) j} \<noteq> {i. i < length l \<and> Q l i}"
-          proof (rule show_sets_unequal)
-            show "i \<in> {i. i < length l \<and> Q l i}"
-              by (auto simp add: i1 i2)
-            show "i \<notin> {j. j < length (removeAt i l) \<and> Q (removeAt i l) j}"
-              apply auto
-              by (metis (no_types, lifting) add_Suc_right diff_Suc_1 i1 i2 i_greatest id_take_nth_drop l_removed length_Cons length_append removeAt_def)
-          qed    
-        qed
-      qed  
-    qed
-  }
-  ultimately show ?case by blast
-qed
-
 
 
 lemma existsGreates_pair:
@@ -3980,92 +3907,90 @@ proof -
   from p1 p2 show ?thesis by blast
 qed  
     
-  
 
+lemma removeAt_nth2: "\<lbrakk>i \<le> j; j < length tr - Suc 0\<rbrakk> \<Longrightarrow> removeAt i tr ! j = tr ! Suc j"
+  by (simp add: removeAt_nth)
+
+  
+  
+thm removeLastOffender_induct[where 
+         P="\<lambda>t. traceCorrect program t \<longleftrightarrow> traceCorrect program tr"
+     and Q="\<lambda>t i. (\<forall>tx. actionInOpenTransaction tx t i)"]
+
+lemma canCloseTransactions_h:
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+shows "\<exists>tr'. 
+        ((traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr) \<and> (\<exists>S'. initialState program ~~ tr' \<leadsto>* S'))
+        \<and> (\<forall>i<length tr'. \<not> (\<exists>tx. actionInOpenTransaction tx tr' i))"
+proof (rule removeLastOffender_induct; (intro conjI)?)
+  show "traceCorrect program tr = traceCorrect program tr" ..
+  show "\<exists>S'. initialState program ~~ tr \<leadsto>* S'" using steps ..
+  
+  fix tr'::trace 
+  fix i::nat
+  
+  assume a1: "\<exists>tx. actionInOpenTransaction tx tr' i"
+     and a2: "i < length tr'"
+     and a3: "\<And>j. \<lbrakk>i < j; j < length tr'\<rbrakk> \<Longrightarrow> \<not> (\<exists>tx. actionInOpenTransaction tx tr' j)"
+     
+  from a1 obtain tx where a1': "actionInOpenTransaction tx tr' i" ..
+  
+  
+  show g1: "\<exists>S'. initialState program ~~ removeAt i tr' \<leadsto>* S'"
+    text {*
+      Since i is the last action in an open transaction, it cannot affect the execution of others
+    *}
+    sorry
+
+  show "traceCorrect program (removeAt i tr') \<longleftrightarrow> traceCorrect program tr" 
+    text {*
+     1. Since i is in a transaction it cannot be an invariant check.
+     2. trace can be executed (see g1 above)
+    *}
+    sorry
+  
+  
+    
+  from a3 have a3': "\<And>j tx s a k. \<lbrakk>i < j; j < length tr'; tr' ! j = (s, a); tr' ! k = (s, ABeginAtomic tx); k \<le> j\<rbrakk> \<Longrightarrow> (\<exists>j>k. j < length tr' \<and> tr' ! j = (s, AEndAtomic))"
+    apply (auto simp add: actionInOpenTransaction_def)
+    by fastforce
+  
+    
+  show "(\<forall>j. i \<le> j \<and> j < length tr' - 1 \<longrightarrow> \<not> (\<exists>tx. actionInOpenTransaction tx (removeAt i tr') j))"
+    text {*
+      have to consider a lot of different cases, most are by solved by a3'
+    *}
+    sorry
+    
+
+qed  
 (*
   if there are unclosed transactions, we can just ignore them without affecting the correctness of the code
 *)
 lemma canCloseTransactions:
-assumes steps: "initialState program ~~ tr \<leadsto>* S'"
-shows "\<exists>tr'. (\<forall>tx. transactionIsClosed tr tx)
-        (*\<and> (initialState program ~~ tr' \<leadsto>* S') *)
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+shows "\<exists>tr' S'. (\<forall>tx. transactionIsClosed tr' tx)
+        \<and> (initialState program ~~ tr' \<leadsto>* S') 
         \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
-apply (unfold transactionIsClosed_def)
-thm removeLastOffender_induct[where 
-         P="\<lambda>t. traceCorrect program t \<longleftrightarrow> traceCorrect program tr"
-     and Q="\<lambda>t i. ??? t i"]
-proof (rule removeLastOffender_induct)
-        
-(* old attempt        
-proof (induct "card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}")
-  case 0
+unfolding transactionIsClosed_def2
+using canCloseTransactions_h[OF steps]
+  by auto 
+
+lemma transactionsArePacked_def2:
+shows "transactionsArePacked tr \<longleftrightarrow> (\<forall>tx. transactionIsPacked tr tx)"
+apply (auto simp add: transactionsArePacked_def transactionIsPacked_def indexInOtherTransaction_def)
+  by blast
+
   
-  have "finite {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}"
-    by (rule finite_subset[where B="{(i,j). i<length tr \<and> j<length tr}"], auto)
   
-  with 0
-  have "\<exists>j>i. j < length tr \<and> tr ! j = (s, AEndAtomic)" 
-    if "i < length tr" and "tr ! i = (s, ABeginAtomic tx)"
-    for i s tx
-    using that
-    by (auto, blast)
+find_theorems transactionIsClosed steps        
+lemma canPackTransactions:
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+shows "\<exists>tr' S'. transactionsArePacked tr' 
+        \<and> (initialState program ~~ tr' \<leadsto>* S')
+        \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
+  using canCloseTransactions canPackAllClosedTransactions steps transactionsArePacked_def2 by blast
     
-  hence "transactionIsClosed tr tx" for tx
-    by (auto simp add: transactionIsClosed_def)
-  thus ?thesis
-    using steps by blast
-    
-next
-  case (Suc x)
-  hence a1: "x = card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))} \<Longrightarrow>
-    \<exists>tr'. (\<forall>a. transactionIsClosed tr a) \<and> traceCorrect program tr' = traceCorrect program tr"
-  and a2: "Suc x = card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}"
-    by auto
-  
-  
-  from card_suc_nonempty[OF a2]
-  obtain i j where i_j_def: "i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
-    by auto
-    
-  
-  (* take the latest action not in a closed transaction  *)
-(*  define lastJ where "lastJ \<equiv> GREATEST j. \<exists>i. i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"*)
-  
-  obtain lastI lastJ 
-    where lastI_lastJ_def: "lastI\<le> lastJ \<and> lastJ<length tr \<and> (\<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))"
-    (*and "\<And>i j. \<lbrakk>lastI\<le> lastJ; lastJ<length tr; \<exists>s tx a . tr!lastI = (s, ABeginAtomic tx) \<and> tr!lastJ = (s, a) \<and> (\<nexists>j. j>lastI \<and> j<length tr \<and> tr!j = (s, AEndAtomic))\<rbrakk> \<Longrightarrow> j \<le> lastJ"*)
-    and lastJ_greatest: "\<forall>i j. (i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))) \<longrightarrow> j \<le> lastJ"
-    apply (atomize_elim)
-    apply (rule existsGreates_pair[where i=i and j=j])
-    apply (auto simp add: i_j_def)
-    using i_j_def by auto
-    
-  
-  (*the new trace is the old trace with this action removed*)
-  define newTrace where (*"newTrace \<equiv> take lastJ tr @ drop (Suc lastJ) tr"*)
-    "newTrace \<equiv> removeAt lastJ tr"
-  
-  (* new trace has one less problematic action: *)
-  have "card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}
-      = Suc (card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . newTrace!i = (s, ABeginAtomic tx) \<and> newTrace!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length newTrace \<and> newTrace!j = (s, AEndAtomic)))})"
-    proof (rule card_remove_one[where f="\<lambda>(i,j). (skip lastJ i, skip lastJ j)" 
-                                  and g="\<lambda>(i,j). (skip_rev lastJ i, skip_rev lastJ j)"
-                                  and missing="(lastI, lastJ)"])
-      show "finite {(i, j). i \<le> j \<and> j < length tr \<and> (\<exists>s tx a. newTrace ! i = (s, ABeginAtomic tx) \<and> newTrace ! j = (s, a) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
-        by (rule finite_subset[where B="{(i,j). i<length tr \<and> j<length tr}"], auto)
-      
-      show " (\<lambda>(i, j). (skip lastJ i, skip lastJ j)) ` ({(i, j). i \<le> j \<and> j < length tr \<and> (\<exists>s tx a. tr ! i = (s, ABeginAtomic tx) \<and> tr ! j = (s, a) \<and> \<not> (\<exists>j>i. j < length tr \<and> tr ! j = (s, AEndAtomic)))} - {(lastI, lastJ)}) 
-       = {(i, j). i \<le> j \<and> j < length tr \<and> (\<exists>s tx a. newTrace ! i = (s, ABeginAtomic tx) \<and> newTrace ! j = (s, a) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
-        apply (auto simp add: skip_def newTrace_def)
-       
-      show "(\<lambda>i. if i < lastJ then i else i - 1) ` ({i. i < length tr \<and> (\<exists>s tx. tr ! i = (s, ABeginAtomic tx) \<and> \<not> (\<exists>j>i. j < length tr \<and> tr ! j = (s, AEndAtomic)))} - {missing}) =    {i. i < length newTrace \<and> (\<exists>s tx. newTrace ! i = (s, ABeginAtomic tx) \<and> \<not> (\<exists>j>i. j < length newTrace \<and> newTrace ! j = (s, AEndAtomic)))}"
-      
-  
-  then show ?case sorry
-qed
-*)
-        
-        
 
 (*
 lemma canPackTransactions:
@@ -4221,6 +4146,9 @@ shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr1 @ [x] 
 
 (* TODO now we need to show, that we can move all actions out of transactions*)
 
+text {*
+ To show that a program is correct, we only have to consider packed transactions
+*}
 theorem show_programCorrect_noTransactionInterleaving:
 assumes packedTracesCorrect: 
   "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; transactionsArePacked trace\<rbrakk> \<Longrightarrow> traceCorrect program trace"
@@ -4231,13 +4159,12 @@ proof (rule show_programCorrect)
   assume "initialState program ~~ tr \<leadsto>* s"
   
   text "Then there is a reshuffling of the trace, where transactions are not interleaved, but the final state is still the same."
-  then obtain tr'  
-    where "initialState program ~~ tr' \<leadsto>* s" 
+  then obtain tr' s'
+    where "initialState program ~~ tr' \<leadsto>* s'" 
       and "transactionsArePacked tr'"
       and "traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr"
      
-    (*using canPackTransactions by blast*)
-    sorry
+    using canPackTransactions by blast
   
   text "According to the assumption those traces are correct"
   with packedTracesCorrect
