@@ -2882,6 +2882,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
   qed
 qed  
 
+
 definition transactionIsClosed :: "trace \<Rightarrow> txid \<Rightarrow> bool" where
 "transactionIsClosed tr tx \<equiv>
   \<forall>i s. i<length tr \<and> tr!i = (s, ABeginAtomic tx) \<longrightarrow> (\<exists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic))"
@@ -3738,6 +3739,38 @@ using assms by (auto simp add: removeAt_def nth_append min_def)
 lemma "removeAt 0 [1,2,3] = [2,3::int]" by eval
 lemma "removeAt 1 [1,2,3] = [1,3::int]" by eval
 
+lemma show_card_smaller:
+assumes "A \<subseteq> B"
+    and "finite B"
+    and "x\<in>B"
+    and "x\<notin>A"
+shows "card A < card B"
+using assms 
+  by (metis le_imp_less_or_eq psubset_card_mono) 
+
+lemma show_sets_unequal:
+assumes "x\<in>B" and "x\<notin>A"
+shows "A \<noteq> B"
+using assms
+  by blast 
+  
+lemma Greatest_stuff:
+fixes a::nat
+assumes greatestIsY: "(GREATEST x. P x) = y"  
+  and someP: "P a" 
+  and bound: "\<And>x. P x \<Longrightarrow> x < bound"
+shows "P y \<and> (\<forall>y'. P y' \<longrightarrow> y' \<le> y)"
+using assms
+  by (metis GreatestI Greatest_le) 
+    
+lemma Greatest_smaller:
+fixes a::nat
+assumes allSmaller: "\<And>i. P i \<Longrightarrow> i < n"
+  and someP: "P a" 
+shows "(GREATEST i. P i) < n"
+  using GreatestI assms by auto
+  
+  
 (*
 IDEA prove general greatest induct on list
 
@@ -3749,33 +3782,176 @@ assumes listWithP: "P l"
    and canAlwaysRemoveLastQ: "\<And>l i. \<lbrakk>Q l i; i<length l; \<And>j. \<lbrakk>j>i; j<length l\<rbrakk> \<Longrightarrow> \<not>Q l j  \<rbrakk> \<Longrightarrow> P (removeAt i l) \<and> (\<forall>j. j\<ge>i \<and> j < length l - 1 \<longrightarrow> \<not>Q (removeAt i l) j)"
    (*and P_prefix: "\<And>l n. P l \<Longrightarrow> P (take n l)"  this makes no sense, could just choose l = []*)
 shows "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)"
-using listWithP proof (induct l rule: rev_induct)
-  case Nil
-  then show ?case
-    by auto 
-next
-  case (snoc x xs)
-  assume a1: "P xs \<Longrightarrow> \<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)"
-  assume a2: "P (xs @ [x])"
+using listWithP proof (induct "GREATEST i. i\<le>length l \<and> (i=0 \<or> Q l (i-1))" arbitrary: l rule: less_induct)
+  case less
+  hence IH: "\<And>l'. \<lbrakk>(GREATEST i. i \<le> length l' \<and> (i = 0 \<or> Q l' (i-1))) < (GREATEST i. i \<le> length l \<and> (i = 0 \<or> Q l (i-1))); P l'\<rbrakk> \<Longrightarrow> \<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)" by simp
+  
   {
-    assume "Q (xs @ [x]) (length xs)"
-    
-    hence a: "P (removeAt (length xs) (xs @ [x])) \<and> (\<forall>j. j\<ge>(length xs) \<and> j < length (xs @ [x]) - 1 \<longrightarrow> \<not>Q (removeAt (length xs) (xs @ [x])) j)"
-      by (rule canAlwaysRemoveLastQ, auto)
+    assume a1: "(GREATEST i. i \<le> length l \<and> (i = 0 \<or> Q l (i-1))) = 0"
+    have f1: "(0 \<le> length l \<and> (0 = 0 \<or> Q l (0 - 1))) \<and> (\<forall>y'. y' \<le> length l \<and> (y' = 0 \<or> Q l (y' - 1)) \<longrightarrow> y' \<le> 0)"
+      using Greatest_stuff[where P="\<lambda>i. i \<le> length l \<and> (i = 0 \<or> Q l (i-1))" and y=0 and a=0 and bound="Suc (length l)"]
+      using a1 le_imp_less_Suc by blast
       
-    
-    hence "P xs" and "(\<forall>j. j\<ge>(length xs) \<and> j < length (xs @ [x]) - 1 \<longrightarrow> \<not>Q (removeAt (length xs) (xs @ [x])) j)"
-      by (auto simp add: removeAt_def)
-    
-    hence "\<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)"
-      using snoc.hyps by blast 
+    hence "\<not>Q l i" if "i < length l" for i
+      using that
+      by (metis Suc_leI Suc_le_lessD diff_Suc_1 not_less0) 
+    hence "P l \<and> (\<forall>i<length l. \<not>Q l i)"
+      using less.prems by blast
+    hence "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)" ..
   }
   moreover
   {
+    assume "(GREATEST i. i \<le> length l \<and> (i = 0 \<or> Q l (i-1))) \<noteq> 0"
+    hence "\<exists>i. i < length l \<and> Q l i"
+      by (smt Greatest_stuff diff_diff_cancel diff_is_0_eq' diff_zero le_trans less_one linorder_neqE_nat nat_le_linear zero_less_diff)
+    from this obtain i
+      where i1: "i < length l"
+        and i2: "Q l i"
+        and i_greatest: "\<forall>j. j<length l \<and> Q l j \<longrightarrow> j \<le> i"
+      apply (atomize_elim)
+      apply (rule_tac x="GREATEST i. i<length l \<and> Q l i" in exI)
+      apply (auto)
+      apply (metis (no_types, lifting) GreatestI)
+      apply (metis (no_types, lifting) GreatestI)
+      by (metis (no_types, lifting) Greatest_le)
     
+    have greatest_i: "(GREATEST i. i \<le> length l \<and> (i = 0 \<or> Q l (i-1))) = Suc i"
+    proof (rule Greatest_equality)
+      show g1: "Suc i \<le> length l \<and> (Suc i = 0 \<or> Q l (Suc i - 1))"
+        using i1 i2  by auto
+      show "\<And>ia. ia \<le> length l \<and> (ia = 0 \<or> Q l (ia - 1)) \<Longrightarrow> ia \<le> Suc i"
+        using i_greatest apply auto
+        by (metis One_nat_def g1 diff_Suc_1 inc_induct le_SucE not_less_eq_eq) 
+    qed
+      
+    have l_removed: "P (removeAt i l) \<and> (\<forall>j. j\<ge>i \<and> j < length l - 1 \<longrightarrow> \<not>Q (removeAt i l) j)"
+    using i2 i1 proof (rule canAlwaysRemoveLastQ)
+      show "\<And>j. \<lbrakk>i < j; j < length l\<rbrakk> \<Longrightarrow> \<not> Q l j"
+        using i_greatest leD by blast
+    qed    
+    
+    have "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)"
+    proof (rule IH)
+      show "P (removeAt i l)" using l_removed by simp
+      
+      from i1 l_removed
+      have "i' < i" if "i' < length (removeAt i l)" and "Q (removeAt i l) i'" for i'
+        using that
+        by (metis (no_types, lifting) Suc_eq_plus1 Suc_mono add_Suc_right id_take_nth_drop leI length_Cons length_append less_diff_conv removeAt_def) 
+      
+      hence h1: "i' < Suc i" if "i' \<le> length (removeAt i l)" and "(i' = 0 \<or> Q (removeAt i l) (i' - 1))" for i'
+        using that
+        by (metis (no_types, lifting) One_nat_def Suc_less_eq Suc_pred dual_order.strict_iff_order le0 le_imp_less_Suc) 
+      
+      hence "(GREATEST i'. i' \<le> length (removeAt i l) \<and> (i' = 0 \<or> Q (removeAt i l) (i' - 1))) < Suc i"
+        by (rule Greatest_smaller; blast)
+  
+        
+      thus "(GREATEST i'. i' \<le> length (removeAt i l) \<and> (i' = 0 \<or> Q (removeAt i l) (i' - 1))) < (GREATEST i. i \<le> length l \<and> (i = 0 \<or> Q l (i-1)))"
+        unfolding greatest_i .
+    qed
   }
-  ultimately show "\<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)"
-oops
+  ultimately show ?case by blast
+qed  
+  
+  
+(*
+IDEA prove general greatest induct on list
+
+if I can always remove the last offender of a property P in a list while maintaining property Q,
+then there is a list with property Q \<and> P if there is a list with Q
+*)
+lemma removeLastOffender_induct:
+assumes listWithP: "P l"
+   and canAlwaysRemoveLastQ: "\<And>l i. \<lbrakk>Q l i; i<length l; \<And>j. \<lbrakk>j>i; j<length l\<rbrakk> \<Longrightarrow> \<not>Q l j  \<rbrakk> \<Longrightarrow> P (removeAt i l) \<and> (\<forall>j. j\<ge>i \<and> j < length l - 1 \<longrightarrow> \<not>Q (removeAt i l) j)"
+   and Q_dependsOnPrefix: "\<And>l l' i. \<lbrakk>i<length l; i<length l'; \<And>j. j\<le>i \<Longrightarrow> l!j = l'!j \<rbrakk> \<Longrightarrow> Q l i \<longleftrightarrow> Q l' i"
+   (*and P_prefix: "\<And>l n. P l \<Longrightarrow> P (take n l)"  this makes no sense, could just choose l = []*)
+shows "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)"
+using listWithP proof (induct "card {i. i<length l \<and> Q l i}" arbitrary: l rule: less_induct)
+  case less
+  hence IH: "\<And>l'. \<lbrakk>card {i. i < length l' \<and> Q l' i} < card {i. i < length l \<and> Q l i}; P l'\<rbrakk> \<Longrightarrow> \<exists>l. P l \<and> (\<forall>i<length l. \<not> Q l i)" by simp
+  
+  {
+    assume "card {i. i < length l \<and> Q l i} = 0"
+    hence "\<not>Q l i" if "i < length l" for i
+      using that by (auto simp add: card_eq_0_iff)
+    hence "P l \<and> (\<forall>i<length l. \<not>Q l i)"
+      using less.prems by blast
+    hence "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)" ..
+  }
+  moreover
+  {
+    assume "card {i. i < length l \<and> Q l i} \<noteq> 0"
+    hence "\<exists>i. i < length l \<and> Q l i"
+      by simp 
+    from this obtain i
+      where i1: "i < length l"
+        and i2: "Q l i"
+        and i_greatest: "\<forall>j. j<length l \<and> Q l j \<longrightarrow> j \<le> i"
+      apply (atomize_elim)
+      apply (rule_tac x="GREATEST i. i<length l \<and> Q l i" in exI)
+      apply (auto)
+      apply (metis (no_types, lifting) GreatestI)
+      apply (metis (no_types, lifting) GreatestI)
+      by (metis (no_types, lifting) Greatest_le)
+    
+    have l_removed: "P (removeAt i l) \<and> (\<forall>j. j\<ge>i \<and> j < length l - 1 \<longrightarrow> \<not>Q (removeAt i l) j)"
+    using i2 i1 proof (rule canAlwaysRemoveLastQ)
+      show "\<And>j. \<lbrakk>i < j; j < length l\<rbrakk> \<Longrightarrow> \<not> Q l j"
+        using i_greatest leD by blast
+    qed    
+    
+    have "\<exists>l. P l \<and> (\<forall>i<length l. \<not>Q l i)"
+    proof (rule IH)
+      show "P (removeAt i l)" using l_removed by simp
+      show "card {j. j < length (removeAt i l) \<and> Q (removeAt i l) j} < card {i. i < length l \<and> Q l i}"
+      proof (rule psubset_card_mono)
+        show "finite {i. i < length l \<and> Q l i}" by force
+        show "{j. j < length (removeAt i l) \<and> Q (removeAt i l) j} \<subset> {i. i < length l \<and> Q l i}"
+        proof
+          show "{j. j < length (removeAt i l) \<and> Q (removeAt i l) j} \<subseteq> {i. i < length l \<and> Q l i}"
+          proof (auto)
+            fix x
+            assume a1: "x < length (removeAt i l)"
+            assume a2: "Q (removeAt i l) x"
+            
+            from a1
+            show "x < length l" by (simp add: removeAt_def)
+              
+            show "Q l x"
+            proof (cases "x < i")
+              case True
+              
+              show "Q l x"
+              proof (subst Q_dependsOnPrefix[OF `x < length l` a1])
+                show "\<And>j. j \<le> x \<Longrightarrow> l ! j = removeAt i l ! j"
+                  using `x < i` \<open>x < length l\<close> by (auto simp add: removeAt_def nth_append)
+                show "Q (removeAt i l) x" using a2 .
+              qed    
+            next
+              case False
+              
+              with i_greatest
+              show "Q l x"
+                by (metis (no_types, lifting) a1 a2 add_Suc_right diff_Suc_1 i1 id_take_nth_drop l_removed le_less_linear length_Cons length_append removeAt_def)
+            qed
+          qed    
+          show "{j. j < length (removeAt i l) \<and> Q (removeAt i l) j} \<noteq> {i. i < length l \<and> Q l i}"
+          proof (rule show_sets_unequal)
+            show "i \<in> {i. i < length l \<and> Q l i}"
+              by (auto simp add: i1 i2)
+            show "i \<notin> {j. j < length (removeAt i l) \<and> Q (removeAt i l) j}"
+              apply auto
+              by (metis (no_types, lifting) add_Suc_right diff_Suc_1 i1 i2 i_greatest id_take_nth_drop l_removed length_Cons length_append removeAt_def)
+          qed    
+        qed
+      qed  
+    qed
+  }
+  ultimately show ?case by blast
+qed
+
+
 
 lemma existsGreates_pair:
 fixes i :: nat
@@ -3814,6 +3990,13 @@ assumes steps: "initialState program ~~ tr \<leadsto>* S'"
 shows "\<exists>tr'. (\<forall>tx. transactionIsClosed tr tx)
         (*\<and> (initialState program ~~ tr' \<leadsto>* S') *)
         \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
+apply (unfold transactionIsClosed_def)
+thm removeLastOffender_induct[where 
+         P="\<lambda>t. traceCorrect program t \<longleftrightarrow> traceCorrect program tr"
+     and Q="\<lambda>t i. ??? t i"]
+proof (rule removeLastOffender_induct)
+        
+(* old attempt        
 proof (induct "card {(i,j). i\<le> j \<and> j<length tr \<and> (\<exists>s tx a . tr!i = (s, ABeginAtomic tx) \<and> tr!j = (s, a) \<and> (\<nexists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic)))}")
   case 0
   
@@ -3880,7 +4063,7 @@ next
   
   then show ?case sorry
 qed
-
+*)
         
         
 
