@@ -121,4 +121,25 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto>\<^sub>S C"   
 *)
   
+inductive steps :: "state \<Rightarrow> session \<times> (action \<times> bool) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
+  steps_refl:
+  "S ~~ (s, []) \<leadsto>\<^sub>S* S"
+| steps_step:
+  "\<lbrakk>S ~~ (s, tr) \<leadsto>\<^sub>S* S'; S' ~~ (s,a) \<leadsto>\<^sub>S S''\<rbrakk> \<Longrightarrow> S ~~ (s, tr@[a]) \<leadsto>\<^sub>S* S''"
+  
+
+definition traceCorrect_s where
+"traceCorrect_s program trace \<equiv> (\<forall>a. (a, False) \<notin> set trace)"
+
+definition programCorrect_s where
+"programCorrect_s program \<equiv> (\<forall>init trace s S. 
+      invariant program (invContext init s) 
+    \<and> prog init = program
+    \<and> (init ~~ (s, trace) \<leadsto>\<^sub>S* S)
+    \<longrightarrow> traceCorrect_s program trace)"
+  
+  
+
+
+
 end
