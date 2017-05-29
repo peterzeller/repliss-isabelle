@@ -121,7 +121,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto>\<^sub>S C"   
 *)
   
-inductive steps :: "state \<Rightarrow> session \<times> (action \<times> bool) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
+inductive steps_s :: "state \<Rightarrow> session \<times> (action \<times> bool) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_refl:
   "S ~~ (s, []) \<leadsto>\<^sub>S* S"
 | steps_step:
