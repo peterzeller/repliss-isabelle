@@ -89,10 +89,23 @@ next
         and ih3: "S''_s = S'"
       using singleSession by auto
         
+    (*with step_s  a1*)
+    from ih1
+    have steps_s: "S ~~ (s, tr'@[(ALocal, True)]) \<leadsto>\<^sub>S* S''"
+    proof (rule steps_s_step)
+      from step_s
+      show "S''_s ~~ (s, ALocal, True) \<leadsto>\<^sub>S S''"
+        using a1 ih3 by blast
+    qed  
       
-    hence "S ~~ (s, tr') \<leadsto>\<^sub>S* S''"
+    show ?thesis 
+    proof (intro exI conjI)
+      show "S ~~ (s, tr'@[(ALocal, True)]) \<leadsto>\<^sub>S* S''" using steps_s .
+      show "S'' = S''" by simp
+      show "(s, AInvcheck False) \<in> set (tr @ [a]) \<longrightarrow> (a_s, False) \<in> set (tr' @ [(ALocal, True)])"
+        using ih2 \<open>a = (s, ALocal)\<close> by simp
+    qed
     
-    then show ?thesis sorry
   next
     case (ANewId x2)
     then show ?thesis sorry

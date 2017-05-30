@@ -122,9 +122,9 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
 *)
   
 inductive steps_s :: "state \<Rightarrow> session \<times> (action \<times> bool) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
-  steps_refl:
+  steps_s_refl:
   "S ~~ (s, []) \<leadsto>\<^sub>S* S"
-| steps_step:
+| steps_s_step:
   "\<lbrakk>S ~~ (s, tr) \<leadsto>\<^sub>S* S'; S' ~~ (s,a) \<leadsto>\<^sub>S S''\<rbrakk> \<Longrightarrow> S ~~ (s, tr@[a]) \<leadsto>\<^sub>S* S''"
   
 
