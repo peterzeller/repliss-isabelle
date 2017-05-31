@@ -34,6 +34,11 @@ fun split_trace :: "trace \<Rightarrow> (session \<times> (action list)) list" w
 
 term steps_s
 
+text {*
+If we have an execution on a a single session starting with state satisfying the invariant, then we can convert 
+this trace to a single-session trace leading to an equivalent state.
+Moreover the new trace contains an invariant violation, if the original trace contained one.
+*}
 lemma 
 fixes tr :: trace
   and s :: session      
@@ -47,7 +52,7 @@ shows "\<exists>tr' S'' a.  (S ~~ (s, tr') \<leadsto>\<^sub>S* S'')
 using steps singleSession proof (induct rule: steps.induct)
   case (steps_refl S)
   then show ?case
-    using steps_s.steps_refl by auto
+    by (meson in_set_member member_rec(2) steps_s_refl)
 next
   case (steps_step S tr S' a S'')
   hence  steps: "S ~~ tr \<leadsto>* S'"
@@ -60,7 +65,11 @@ next
     and  singleSession: "\<And>a'. a' \<in> set (tr @ [a]) \<Longrightarrow> fst a' = s"
     by auto
  
-   
+    from IH obtain tr' S''_s a_s
+      where ih1: "S ~~ (s, tr') \<leadsto>\<^sub>S* S''_s"
+        and ih2: "(s, AInvcheck False) \<in> set tr \<longrightarrow> (a_s, False) \<in> set tr'"
+        and ih3: "S''_s = S'"
+      using singleSession by auto 
     
   show ?case 
   proof (cases "snd a")
@@ -83,11 +92,7 @@ next
     have step_s: "S' ~~ (s,(ALocal,True)) \<leadsto>\<^sub>S S'\<lparr>localState := localState S'(s \<mapsto> ls')\<rparr>"
       by (rule step_s.local)
     
-    from IH obtain tr' S''_s a_s
-      where ih1: "S ~~ (s, tr') \<leadsto>\<^sub>S* S''_s"
-        and ih2: "(s, AInvcheck False) \<in> set tr \<longrightarrow> (a_s, False) \<in> set tr'"
-        and ih3: "S''_s = S'"
-      using singleSession by auto
+
         
     (*with step_s  a1*)
     from ih1
@@ -107,8 +112,43 @@ next
     qed
     
   next
-    case (ANewId x2)
-    then show ?thesis sorry
+    case (ANewId uid)
+    hence [simp]: "a = (s, ANewId uid)"
+      by (simp add: prod_eqI steps_step.prems) 
+    
+    with step
+    have step': "S' ~~ (s, ANewId uid) \<leadsto> S''" by simp
+    
+    from step_elim_ANewId[OF step']
+    obtain ls f ls' 
+       where a1: "S'' = S'\<lparr>localState := localState S'(s \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S')\<rparr>"
+         and a2: "localState S' s \<triangleq> ls"
+         and a3: "currentProc S' s \<triangleq> f"
+         and a4: "f ls = NewId ls'"
+         and a5: "uid \<notin> generatedIds S'"
+       by metis  
+    
+    
+    from a2 a3 a4 a5
+    have step_s: "S' ~~ (s,(ANewId uid,True)) \<leadsto>\<^sub>S S'\<lparr>localState := localState S'(s \<mapsto> ls' uid), generatedIds := generatedIds S' \<union> {uid}\<rparr>"
+      by (rule step_s.newId)
+    
+    from ih1
+    have steps_s: "S ~~ (s, tr'@[(ANewId uid, True)]) \<leadsto>\<^sub>S* S''"
+    proof (rule steps_s_step)
+      from step_s
+      show "S''_s ~~ (s, ANewId uid, True) \<leadsto>\<^sub>S S''"
+        by (simp add: a1 ih3) 
+    qed  
+      
+    show ?thesis 
+    proof (intro exI conjI)
+      show "S ~~ (s, tr'@[(ANewId uid, True)]) \<leadsto>\<^sub>S* S''" using steps_s .
+      show "S'' = S''" by simp
+      show "(s, AInvcheck False) \<in> set (tr @ [a]) \<longrightarrow> (a_s, False) \<in> set (tr' @ [(ANewId uid, True)])"
+        using ih2 by simp
+    qed  
+       
   next
     case (ABeginAtomic x3)
     then show ?thesis sorry
