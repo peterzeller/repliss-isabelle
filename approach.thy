@@ -32,7 +32,11 @@ fun split_trace :: "trace \<Rightarrow> (session \<times> (action list)) list" w
    in (s, a#same) # split_trace rest'
 )"
 
-term steps_s
+
+text {* Function describing that a list is a prefix of another list.  *}
+definition 
+"isPrefix xs ys \<equiv> xs = take (length xs) ys"
+
 
 text {*
 If we have an execution on a a single session starting with state satisfying the invariant, then we can convert 
@@ -45,11 +49,11 @@ fixes tr :: trace
   and S S' :: state
 assumes steps: "S ~~ tr \<leadsto>* S'"
     and singleSession: "\<And>a. a\<in>set tr \<Longrightarrow> fst a = s"
-    and inv: "invariant (prog S) (invContext init s)"
-shows "\<exists>tr' S'' a.  (S ~~ (s, tr') \<leadsto>\<^sub>S* S'') 
-        \<and> ((s, AInvcheck False) \<in> set tr \<longrightarrow>  (a, False)\<in>set tr')
-        \<and> S'' = S'" (* TODO instead S'' = S' maybe some weaker coupling relation here*)
-using steps singleSession proof (induct rule: steps.induct)
+    (* invariant holds on all states in the execution *)
+    and inv: "\<And>s' S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')"
+shows "\<exists>tr'. (S ~~ (s, tr') \<leadsto>\<^sub>S* S') 
+        \<and> (\<forall>a. (a, False)\<notin>set tr')"
+using steps singleSession inv proof (induct rule: steps.induct)
   case (steps_refl S)
   then show ?case
     by (meson in_set_member member_rec(2) steps_s_refl)
@@ -150,7 +154,37 @@ next
     qed  
        
   next
-    case (ABeginAtomic x3)
+    case (ABeginAtomic txId)
+    hence [simp]: "a = (s, ABeginAtomic txId)"
+      by (simp add: prod_eqI steps_step.prems) 
+    
+    with step
+    have step': "S' ~~ (s, ABeginAtomic txId) \<leadsto> S''" by simp
+    
+    from step_elim_ABeginAtomic[OF step']
+    obtain ls f ls' 
+      where a1: "S'' = S'\<lparr>
+                localState := localState S'(s \<mapsto> ls'), 
+                currentTransaction := currentTransaction S'(s \<mapsto> txId), 
+                transactionStatus := transactionStatus S'(txId \<mapsto> Uncommited)\<rparr>"
+        and a2: "localState S' s \<triangleq> ls"
+        and a3: "currentProc S' s \<triangleq> f"
+        and a4: "f ls = BeginAtomic ls'"
+        and a5: "currentTransaction S' s = None"
+        and a6: "transactionStatus S' txId = None"
+      by metis
+    
+    have "invariant (prog S') (invContext S' s')" for s'
+      
+    
+      
+    from a2 a3 a4 a5 a6
+    have step_s: "S' ~~ (s,(ABeginAtomic txId,True)) \<leadsto>\<^sub>S S'\<lparr>
+                localState := localState S'(s \<mapsto> ls'), 
+                currentTransaction := currentTransaction S'(s \<mapsto> txId), 
+                transactionStatus := transactionStatus S'(txId \<mapsto> Uncommited)\<rparr>"
+      proof (rule step_s.beginAtomic)  
+      
     then show ?thesis sorry
   next
     case AEndAtomic
