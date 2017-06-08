@@ -46,9 +46,9 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    (* monotonic growth of invocation result *)
    (* monotonic growth of invocation happens-before *)
    (*  --> no new calls can be added before*)
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t, True) \<leadsto>\<^sub>S (C'\<lparr>localState := (localState C')(s \<mapsto> ls'), 
-                currentTransaction := (currentTransaction C')(s \<mapsto> t),
-                transactionStatus := (transactionStatus C')(t \<mapsto> Uncommited) \<rparr>)"
+   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t, True) \<leadsto>\<^sub>S (C'\<lparr>localState := (localState C)(s \<mapsto> ls'), 
+                currentTransaction := (currentTransaction C)(s \<mapsto> t),
+                transactionStatus := (transactionStatus C)(t \<mapsto> Uncommited) \<rparr>)"
 | endAtomic: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 

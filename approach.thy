@@ -71,7 +71,9 @@ assumes steps: "S ~~ tr \<leadsto>* S'"
     and inv: "\<And>s' S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')"
 shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<forall>a. (a, False)\<notin>set tr')
-        \<and> (if currentTransaction S' s = None then S2 = S' else \<exists>vis'. vis' \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s \<mapsto> vis') \<rparr> )"
+        \<and> (if currentTransaction S' s = None 
+           then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis') \<rparr> 
+           else S2 = S')"
         (* TODO special case for fail, pull (and others?) *)
 using steps S_wellformed singleSession inv proof (induct rule: steps.induct)
   case (steps_refl S)
@@ -84,25 +86,12 @@ using steps S_wellformed singleSession inv proof (induct rule: steps.induct)
       by (simp add: steps_s_refl) 
     show "\<forall>a. (a, False) \<notin> set []"
       by simp
-    show "if currentTransaction S s = None then S = S else \<exists>vis'\<subseteq>visibleCalls S s orElse {}. S = S\<lparr>visibleCalls := visibleCalls S(s \<mapsto> vis')\<rparr>"
+    show "if currentTransaction S s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S s orElse {} \<and> S = S\<lparr>visibleCalls := (visibleCalls S)(s := vis')\<rparr> else S = S"
     proof (subst if_splits, safe)
       fix tx
-      assume a: "currentTransaction S s \<triangleq> tx"
-      hence "visibleCalls S s \<noteq> None"
-        using `state_wellFormed S`
-        by (simp add: state_wellFormed_tx_to_visibleCalls)
-      
-      hence "S = S\<lparr>visibleCalls := visibleCalls S(s \<mapsto> visibleCalls S s orElse {})\<rparr>"
-      proof auto
-        fix vis 
-        assume "visibleCalls S s \<triangleq> vis"
-        hence "visibleCalls S(s \<mapsto> vis) = visibleCalls S"
-          by auto
-        thus "S = S\<lparr>visibleCalls := visibleCalls S(s \<mapsto> vis)\<rparr>"
-          by auto
-      qed
-      thus "\<exists>vis'\<subseteq>visibleCalls S s orElse {}. S = S\<lparr>visibleCalls := visibleCalls S(s \<mapsto> vis')\<rparr>"
-        by blast
+      assume a: "currentTransaction S s = None"
+      show "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S s orElse {} \<and> S = S\<lparr>visibleCalls := (visibleCalls S)(s := vis')\<rparr>"
+        by (rule exI[where x="visibleCalls S s"], auto)
     qed
   qed
 next
@@ -111,13 +100,21 @@ next
     and S_wf: "state_wellFormed S"
     and  IH: "\<lbrakk>state_wellFormed S; \<And>a. a \<in> set tr \<Longrightarrow> fst a = s; 
                \<And>tr' S' s'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')\<rbrakk> 
-               \<Longrightarrow> \<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> (if currentTransaction S' s = None then S2 = S' else \<exists>vis'\<subseteq>visibleCalls S' s orElse {}. S2 = S'\<lparr>visibleCalls := visibleCalls S'(s \<mapsto> vis')\<rparr>)"
+               \<Longrightarrow> \<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
+                   \<and> (\<forall>a. (a, False) \<notin> set tr') 
+                   \<and> (if currentTransaction S' s = None 
+                      then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr> 
+                      else S2 = S')"
     and  step: "S' ~~ a \<leadsto> S''"
     and  singleSession: "\<And>a'. a' \<in> set (tr @ [a]) \<Longrightarrow> fst a' = s"
     and prefix_invariant: "\<And>tr' S' s'.  \<lbrakk>isPrefix tr' (tr @ [a]); S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')"
     by auto
  
-  have "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> (if currentTransaction S' s = None then S2 = S' else \<exists>vis'\<subseteq>visibleCalls S' s orElse {}. S2 = S'\<lparr>visibleCalls := visibleCalls S'(s \<mapsto> vis')\<rparr>)"
+  have "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
+         \<and> (\<forall>a. (a, False) \<notin> set tr') 
+         \<and> (if currentTransaction S' s = None 
+            then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr> 
+            else S2 = S')"
   proof (rule IH)
     show "\<And>a. a \<in> set tr \<Longrightarrow> fst a = s"
       using singleSession by auto
@@ -129,29 +126,61 @@ next
   from this obtain tr' S2
       where ih1: "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
         and ih2: "\<And>a. (a, False) \<notin> set tr'"
-        and ih3: "(if currentTransaction S' s = None then S2 = S' else \<exists>vis'\<subseteq>visibleCalls S' s orElse {}. S2 = S'\<lparr>visibleCalls := visibleCalls S'(s \<mapsto> vis')\<rparr>)"
+        and ih3: "if currentTransaction S' s = None 
+                  then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr> 
+                  else S2 = S'"
       by blast
+  
+  have ih3_noTx: "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>" if "currentTransaction S' s = None"
+    using ih3 that by auto
+  have ih3_tx: "S2 = S'" if "currentTransaction S' s \<triangleq> tx" for tx
+    using ih3 that by auto
+  
+  have S2_calls: "calls S2 = calls S'" using ih3 by (auto split: if_splits)
+  have S2_happensBefore: "happensBefore S2 = happensBefore S'" using ih3 by (auto split: if_splits)
+  have S2_prog: "prog S2 = prog S'" using ih3 by (auto split: if_splits)
+  have S2_localState: "localState S2 = localState S'" using ih3 by (auto split: if_splits)
+  have S2_currentProc: "currentProc S2 = currentProc S'" using ih3 by (auto split: if_splits)
+  have S2_currentTransaction: "currentTransaction S2 = currentTransaction S'" using ih3 by (auto split: if_splits)
+  have S2_transactionStatus: "transactionStatus S2 = transactionStatus S'" using ih3 by (auto split: if_splits)
+  have S2_callOrigin: "callOrigin S2 = callOrigin S'" using ih3 by (auto split: if_splits)
+  have S2_generatedIds: "generatedIds S2 = generatedIds S'" using ih3 by (auto split: if_splits)
+  have S2_knownIds: "knownIds S2 = knownIds S'" using ih3 by (auto split: if_splits)
+  have S2_invocationOp: "invocationOp S2 = invocationOp S'" using ih3 by (auto split: if_splits)
+  have S2_invocationRes: "invocationRes S2 = invocationRes S'" using ih3 by (auto split: if_splits)
+ 
+  note S2_simps = 
+      S2_calls S2_happensBefore S2_prog S2_localState S2_currentProc S2_currentTransaction
+      S2_transactionStatus S2_callOrigin S2_generatedIds S2_knownIds S2_invocationOp S2_invocationRes
   
   have vis_defined: "visibleCalls S' s \<noteq> None" if "currentTransaction S' s \<noteq> None"
     using S_wf state_wellFormed_combine state_wellFormed_tx_to_visibleCalls steps that by auto    
     
   obtain vis'
-     where vis'_sub: "vis'\<subseteq>visibleCalls S' s orElse {}"
-       and vis'_else: "currentTransaction S' s \<noteq> None \<Longrightarrow> vis' = the (visibleCalls S' s)"
-       and S2_vis': "S2 = S'\<lparr>visibleCalls := visibleCalls S'(s \<mapsto> vis')\<rparr>"
-  proof (atomize_elim, cases "visibleCalls S' s")
+     where vis'_sub: "vis' orElse {} \<subseteq>visibleCalls S' s orElse {}"
+       and vis'_else: "currentTransaction S' s \<noteq> None \<Longrightarrow> vis' = visibleCalls S' s"
+       and S2_vis': "S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>"
+  proof (atomize_elim, cases "currentTransaction S' s")
     case None
-    then show " \<exists>vis'\<subseteq>visibleCalls S' s orElse {}. (currentTransaction S' s \<noteq> None \<longrightarrow> vis' = the (visibleCalls S' s)) \<and> S2 = S'\<lparr>visibleCalls := visibleCalls S'(s \<mapsto> vis')\<rparr>"
-      apply (rule_tac x="{}" in exI, cases "visibleCalls S' s", auto)
-      using vis_defined apply auto[1]
-      (* TODO *)
-      
-      
-      
+    hence currentTxNone: "currentTransaction S' s = None" .
+    
+    from ih3_noTx[OF currentTxNone] obtain vis''  
+      where vis''1: "vis'' orElse {} \<subseteq> visibleCalls S' s orElse {}" 
+        and vis''2: "S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis'')\<rparr>"
+      by metis
+    
+    show " \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> (currentTransaction S' s \<noteq> None \<longrightarrow> vis' = visibleCalls S' s) \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>"
+      by (rule_tac x="vis''" in exI, auto simp add: currentTxNone vis''1 vis''2) 
       
   next
-    case (Some a)
-    then show ?thesis sorry
+    case (Some tx)
+    hence currentTxSome: "currentTransaction S' s \<triangleq> tx" .
+    
+    from ih3_tx[OF currentTxSome] have sameStates: "S2 = S'" .
+    
+    
+    show "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> (currentTransaction S' s \<noteq> None \<longrightarrow> vis' = visibleCalls S' s) \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>"
+    by (rule exI[where x="visibleCalls S' s"], auto simp add: sameStates)
   qed   
       
   show ?case 
@@ -171,25 +200,52 @@ next
          and a4: "f ls = LocalStep ls'"
        by metis
     
-    from a2 a3 a4
-    have step_s: "S' ~~ (s,(ALocal,True)) \<leadsto>\<^sub>S S'\<lparr>localState := localState S'(s \<mapsto> ls')\<rparr>"
+    have a2': "localState S2 s \<triangleq> ls" 
+      using a2 ih3 by (auto split: if_splits)
+    have a3': "currentProc S2 s \<triangleq> f" 
+      using a3 ih3 by (auto split: if_splits)
+    from a2' a3' a4
+    have step_s: "S2 ~~ (s,(ALocal,True)) \<leadsto>\<^sub>S S2\<lparr>localState := localState S2(s \<mapsto> ls')\<rparr>"
       by (rule step_s.local)
+      
+    have S''_S2: "S'' = S2\<lparr>localState := localState S2(s \<mapsto> ls'), visibleCalls := visibleCalls S''\<rparr>"  
+      by (auto simp add: state_ext S2_vis' a1)
+   
+    hence S''_S2_a: "S2\<lparr>localState := localState S2(s \<mapsto> ls')\<rparr> = S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"  
+      by (auto simp add: state_ext)
     
     from ih1
-    have steps_s: "S ~~ (s, tr'@[(ALocal, True)]) \<leadsto>\<^sub>S* S''"
+    have steps_s: "S ~~ (s, tr'@[(ALocal, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"
     proof (rule steps_s_step)
       from step_s
-      show "S' ~~ (s, ALocal, True) \<leadsto>\<^sub>S S''"
-        using a1 by blast
+      show "S2 ~~ (s, ALocal, True) \<leadsto>\<^sub>S S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"
+        using a1 S''_S2_a by auto
     qed  
       
     show ?thesis 
     proof (intro exI conjI)
-      show "S ~~ (s, tr'@[(ALocal, True)]) \<leadsto>\<^sub>S* S''" using steps_s .
+      show "S ~~ (s, tr'@[(ALocal, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>" using steps_s .
       show "\<forall>a. (a, False) \<notin> set (tr' @ [(ALocal, True)])"
         by (simp add: ih2) 
+      show "if currentTransaction S'' s = None 
+            then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr>
+            else S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
+      proof auto
+        assume no_tx_S': "currentTransaction S'' s = None"
+        hence no_tx_S': "currentTransaction S' s = None"
+          using a1 by auto
+        from ih3_noTx[OF no_tx_S']  
+        show "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr>"
+          using a1 by auto
+      next
+        fix tx
+        assume tx: "currentTransaction S'' s \<triangleq> tx"
+        hence tx': "currentTransaction S' s \<triangleq> tx" using a1 by auto
+        from ih3_tx[OF tx']
+        show "S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
+          using a1 by auto
+      qed
     qed
-    
   next
     case (ANewId uid)
     hence [simp]: "a = (s, ANewId uid)"
@@ -207,24 +263,49 @@ next
          and a5: "uid \<notin> generatedIds S'"
        by metis  
     
+    have a2':  "localState S2 s \<triangleq> ls" using a2 by (simp add: S2_localState) 
+    have a3':  "currentProc S2 s \<triangleq> f" using a3 by (simp add: S2_currentProc)
+    have a5':  "uid \<notin> generatedIds S2" using a5 by (simp add: S2_generatedIds)
     
-    from a2 a3 a4 a5
-    have step_s: "S' ~~ (s,(ANewId uid,True)) \<leadsto>\<^sub>S S'\<lparr>localState := localState S'(s \<mapsto> ls' uid), generatedIds := generatedIds S' \<union> {uid}\<rparr>"
+    from a2' a3' a4 a5'
+    have step_s: "S2 ~~ (s,(ANewId uid,True)) \<leadsto>\<^sub>S S2\<lparr>localState := localState S2(s \<mapsto> ls' uid), generatedIds := generatedIds S2 \<union> {uid}\<rparr>"
       by (rule step_s.newId)
     
+    have S''_S2: "S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S2\<lparr>localState := localState S2(s \<mapsto> ls' uid), generatedIds := generatedIds S2 \<union> {uid}\<rparr>" 
+      by (auto simp add: a1 S2_simps)
+      
+      
     from ih1
-    have steps_s: "S ~~ (s, tr'@[(ANewId uid, True)]) \<leadsto>\<^sub>S* S''"
+    have steps_s: "S ~~ (s, tr'@[(ANewId uid, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"
     proof (rule steps_s_step)
       from step_s
-      show "S' ~~ (s, ANewId uid, True) \<leadsto>\<^sub>S S''"
-        by (simp add: a1) 
+      show "S2 ~~ (s, ANewId uid, True) \<leadsto>\<^sub>S S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"
+        using S''_S2 by auto
     qed  
       
     show ?thesis 
     proof (intro exI conjI)
-      show "S ~~ (s, tr'@[(ANewId uid, True)]) \<leadsto>\<^sub>S* S''" using steps_s .
+      show "S ~~ (s, tr'@[(ANewId uid, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>" using steps_s .
       show "\<forall>a. (a, False) \<notin> set (tr' @ [(ANewId uid, True)])"
         by (simp add: ih2) 
+      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr>
+            else S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
+        proof auto
+        assume no_tx_S': "currentTransaction S'' s = None"
+        hence no_tx_S': "currentTransaction S' s = None"
+          using a1 by auto
+        from ih3_noTx[OF no_tx_S']  
+        show "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr>"
+          using a1 by auto
+      next
+        fix tx
+        assume tx: "currentTransaction S'' s \<triangleq> tx"
+        hence tx': "currentTransaction S' s \<triangleq> tx" using a1 by auto
+        from ih3_tx[OF tx']
+        show "S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
+          using a1 by auto
+      qed
+        
     qed  
        
   next
@@ -248,29 +329,57 @@ next
         and a6: "transactionStatus S' txId = None"
       by metis
     
+    have a2': "localState S2 s \<triangleq> ls" using a2 S2_simps by auto
+    have a3': "currentProc S2 s \<triangleq> f" using a3 S2_simps by auto 
+    have a5': "currentTransaction S2 s = None" using a5 S2_simps by auto
+    have a6': "transactionStatus S2 txId = None" using a6 S2_simps by auto
+      
     have "invariant (prog S) (invContext S' s')" for s'
     proof (rule prefix_invariant)
       show "S ~~ tr \<leadsto>* S'" using steps .
       show "isPrefix tr (tr @ [a])" by simp
     qed
     
-    hence inv': "invariant (prog S') (invContext S' s')" for s'
-      using step_prog_invariant steps by auto
+    hence inv': "invariant (prog S2) (invContext S' s')" for s'
+      using step_prog_invariant steps S2_simps by auto
+    
       
       
-    from a2 a3 a4 a5 a6 inv'
-    have step_s: "S' ~~ (s,(ABeginAtomic txId,True)) \<leadsto>\<^sub>S S'\<lparr>
+    from a2' a3' a4 a5' a6' inv'
+    have step_s: "S2 ~~ (s,(ABeginAtomic txId,True)) \<leadsto>\<^sub>S S'\<lparr>
+                localState := localState S2(s \<mapsto> ls'), 
+                currentTransaction := currentTransaction S2(s \<mapsto> txId), 
+                transactionStatus := transactionStatus S2(txId \<mapsto> Uncommited)\<rparr>"
+    by (rule step_s.beginAtomic)  
+    
+    moreover have "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
+      using ih1 by auto
+      
+    
+    moreover have "S'' = S'\<lparr>
                 localState := localState S'(s \<mapsto> ls'), 
                 currentTransaction := currentTransaction S'(s \<mapsto> txId), 
                 transactionStatus := transactionStatus S'(txId \<mapsto> Uncommited)\<rparr>"
-    by (rule step_s.beginAtomic)  
+          by (auto simp add: a1)
+    
+    ultimately have steps_S''_s: "S ~~ (s, tr'@[(ABeginAtomic txId,True)]) \<leadsto>\<^sub>S* S''"
+      using S2_currentTransaction S2_localState S2_transactionStatus steps_s_step by auto      
       
-    then show ?thesis
-      by (metis ih1 ih2 a1 insert_iff list.simps(15) prod.inject rotate1.simps(2) set_rotate1 steps_s_step) 
+          
+    show ?thesis
+    proof (intro exI conjI)
+      show "S ~~ (s, tr'@[(ABeginAtomic txId,True)]) \<leadsto>\<^sub>S* S''"
+        using steps_S''_s .
+      show "\<forall>a. (a, False) \<notin> set (tr' @ [(ABeginAtomic txId, True)])"
+        by (simp add: ih2)     
+      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"  
+        by (simp add: a1)
+    qed    
+    
   next
     case AEndAtomic
     hence [simp]: "a = (s, AEndAtomic)"
-      by (simp add: prod.expand steps_step.prems(1)) 
+      by (simp add: local.steps_step(5) prod_eqI)
 
     with step
     have step': "S' ~~ (s, AEndAtomic) \<leadsto> S''" by simp
