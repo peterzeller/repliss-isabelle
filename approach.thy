@@ -52,7 +52,16 @@ shows "visibleCalls S s \<noteq> None"
 
 sorry
   
+ 
+lemma state_wellFormed_ls_to_visibleCalls:     
+assumes "state_wellFormed S"
+and "localState S s = None"
+shows "visibleCalls S s = None"
+
+sorry
   
+
+
 find_theorems "initialState" steps  
   
 text {*
@@ -395,20 +404,39 @@ next
         and a5: "currentTransaction S' s \<triangleq> t"
       by metis  
       
+    have "S2 = S'"
+      using a5 ih3_tx by blast
+      
+      
     (*from a2 a3 a4 a5 *)
     from a2 a3 a4 a5 a1
     have step_s: "S' ~~ (s,(AEndAtomic,True)) \<leadsto>\<^sub>S S''"
     proof (rule step_s.endAtomic)  
       show "True = invariant (prog S') (invContext S' s)"
-        using step_prog_invariant steps steps_step.prems(2) by force
+        using step_prog_invariant steps
+        by (metis (no_types, lifting) isPrefix_appendI steps_step.prems(3)) 
     qed  
+    
+    with `S2 = S'`
+    have "S' ~~ (s,(AEndAtomic,True)) \<leadsto>\<^sub>S S''"
+      by simp
+    
+    hence steps_S''_s: "S ~~ (s, tr'@[(AEndAtomic,True)]) \<leadsto>\<^sub>S* S''"
+      using \<open>S2 = S'\<close> ih1 steps_s_step by blast  
       
-    then show ?thesis
-      by (smt UnE ih1 ih2 empty_set list.set(2) prod.inject set_append singletonD steps_s.intros(2)) 
+      
+    show ?thesis
+    proof (intro exI conjI)
+      show "S ~~ (s, tr'@[(AEndAtomic,True)]) \<leadsto>\<^sub>S* S''" using steps_S''_s.
+      show "\<forall>a. (a, False) \<notin> set (tr' @ [(AEndAtomic, True)])"
+        by (simp add: ih2)
+      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"
+        by (auto simp add: a1)
+    qed
   next
     case (ADbOp cId operation args res)
     hence [simp]: "a = (s, ADbOp cId operation args res)"
-      by (simp add: prod.expand steps_step.prems(1)) 
+      by (simp add: prod.expand steps_step.prems(2)) 
 
     with step
     have step': "S' ~~ (s, ADbOp cId operation args res) \<leadsto> S''" by simp
@@ -428,6 +456,9 @@ next
         and a7: "querySpec (prog S') operation args (getContextH (calls S') (happensBefore S') (Some vis)) res"
         and a8: "visibleCalls S' s \<triangleq> vis"
       by metis  
+     
+    have "S2 = S'"
+      by (simp add: a5 ih3)
       
     from a2 a3 a4 a5 a6 
     have step_s: "S' ~~ (s,(ADbOp cId operation args res,True)) \<leadsto>\<^sub>S S'\<lparr>localState := localState S'(s \<mapsto> ls' res), 
@@ -440,15 +471,114 @@ next
         using a7 by (simp add: a8) 
       show "visibleCalls S' s \<triangleq> vis" using a8 .
     qed  
-    hence "S' ~~ (s,(ADbOp cId operation args res,True)) \<leadsto>\<^sub>S S''"
+    hence step_s': "S' ~~ (s,(ADbOp cId operation args res,True)) \<leadsto>\<^sub>S S''"
       by (simp add: a1)
-    then show ?thesis
-      by (smt UnE ih1 ih2 empty_set list.simps(15) prod.inject set_append singletonD step' step.dbop stepDeterministic step_s.dbop steps_s_step) 
+      
+      
+    show ?thesis
+    proof (intro exI conjI)
+      show "S ~~ (s, tr'@[(ADbOp cId operation args res,True)]) \<leadsto>\<^sub>S* S''" 
+        using step_s' `S2 = S'` ih1 steps_s_step by blast 
+      show "\<forall>a. (a, False) \<notin> set (tr' @ [(ADbOp cId operation args res, True)])"
+        by (simp add: ih2)
+      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"
+        by (auto simp add: a1 a5 state_ext)
+    qed    
+  next    
+    case (APull pulledTxns)
+    hence "a = (s, APull pulledTxns)"
+      by (simp add: prod.expand steps_step.prems(2))
+    
+    with step
+    have step': "S' ~~ (s, APull pulledTxns) \<leadsto> S''" by simp  
+    
+    from step_elim_APull[OF step']  
+    obtain ls vis 
+      where a1: "S'' = S'\<lparr>visibleCalls := visibleCalls S'(s \<mapsto> vis \<union> callsInTransaction S' pulledTxns \<down> happensBefore S')\<rparr>"
+        and a2: "localState S' s \<triangleq> ls"
+        and a3: "currentTransaction S' s = None"
+        and a4: "visibleCalls S' s \<triangleq> vis"
+        and a5: "pulledTxns \<subseteq> commitedTransactions S'"
+      by metis
+      
+      
+    show ?thesis
+    proof (intro exI conjI)
+      text {* we don't execute the pull here but wait until beginAtomic to execute it *}
+      show "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
+        by (simp add: ih1) 
+      show "\<forall>a. (a, False) \<notin> set tr'"
+        by (simp add: ih2)
+      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S2 = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S2 = S''"
+      proof (auto simp add: a3 a1, rule exI[where x="visibleCalls S2 s"], intro conjI)
+        show "S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := visibleCalls S2 s)\<rparr>"
+          by (auto simp add: state_ext S2_simps S2_vis')
+        show "visibleCalls S2 s orElse {} \<subseteq> vis \<union> callsInTransaction S' pulledTxns \<down> happensBefore S'"
+        proof
+          fix x
+          assume a: "x \<in> visibleCalls S2 s orElse {}"
+          hence "x \<in> vis"
+            using S2_vis' a4 vis'_sub by auto 
+          thus "x \<in> vis \<union> callsInTransaction S' pulledTxns \<down> happensBefore S'"
+            by simp
+        qed
+      qed
+    qed
   next
-    case (APull x6)
-    then show ?thesis sorry
-  next
-    case (AInvoc x71 x72)
+    case (AInvoc procName args)
+    hence "a = (s, AInvoc procName args)"
+      by (simp add: prod_eqI steps_step.prems(2))
+    
+    with step
+    have step': "S' ~~ (s, AInvoc procName args) \<leadsto> S''" by simp  
+    
+    from step_elim_AInvoc[OF step'] 
+    obtain initialState impl
+      where a1: "S'' = S'\<lparr>
+                   localState := localState S'(s \<mapsto> initialState), 
+                   currentProc := currentProc S'(s \<mapsto> impl), 
+                   visibleCalls := visibleCalls S'(s \<mapsto> {}), 
+                   invocationOp := invocationOp S'(s \<mapsto> (procName, args))\<rparr>"
+        and a2: "localState S' s = None"
+        and a3: "procedure (prog S') procName args \<triangleq> (initialState, impl)"
+        and a4: "uniqueIdsInList args \<subseteq> knownIds S'"
+        and a5: "invocationOp S' s = None"
+      by metis
+    
+    have inv_S': "invariant (prog S') (invContext S' s)"
+      using step_prog_invariant steps steps_step.prems(3) by force  
+    
+    have vis_None: "visibleCalls S' s = None"
+      using state_wellFormed_ls_to_visibleCalls S_wf a2 state_wellFormed_combine steps by blast 
+    
+    have "visibleCalls S2 s = None \<or> visibleCalls S2 s \<triangleq> {}"
+      using S2_vis' option.sel vis'_sub vis_None by fastforce
+      
+      
+      
+    hence invContextSame: "invContext S2 s =  invContext S' s"
+      by (auto simp add: S2_simps vis_None invContextH_def)
+      
+      
+    have "S2 ~~ (s, (AInvoc procName args, True)) \<leadsto>\<^sub>S S'' "
+    proof (rule step_s.invocation)
+      show "localState S2 s = None"
+        by (simp add: S2_localState a2) 
+      show "procedure (prog S2) procName args \<triangleq> (initialState, impl)"
+        by (simp add: S2_prog a3)
+      show "uniqueIdsInList args \<subseteq> knownIds S2"
+        by (simp add: S2_knownIds a4)
+      show "invocationOp S2 s = None"
+        by (simp add: S2_invocationOp a5)
+      show "S'' = S2\<lparr>localState := localState S2(s \<mapsto> initialState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"
+        by (auto simp add: state_ext S2_simps a1 S2_vis')
+      show "True = invariant (prog S2) (invContext S2 s)"
+        using inv_S'
+        by (simp add: S2_prog invContextSame) 
+    qed
+    
+    
+    
     then show ?thesis sorry
   next
     case (AReturn x8)
