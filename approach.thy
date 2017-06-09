@@ -45,20 +45,54 @@ lemma isPrefix_appendI[simp]:
 "isPrefix xs (xs@ys)"
   by (simp add: isPrefix_def)
 
+  
+lemma state_wellFormed_ls_visibleCalls:     
+assumes "state_wellFormed S"
+shows "localState S s = None \<longleftrightarrow> visibleCalls S s = None"
+using assms apply (induct rule: wellFormed_induct)
+apply (simp add: initialState_def)
+apply (erule step.cases)
+apply (auto split: if_splits)
+done  
+
+lemma state_wellFormed_ls_to_visibleCalls:     
+assumes "state_wellFormed S"
+and "currentTransaction S s \<triangleq> tx"
+shows "localState S s \<noteq> None"
+using assms apply (induct rule: wellFormed_induct)
+apply (simp add: initialState_def)
+apply (erule step.cases)
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+apply (auto split: if_splits)[1]
+done  
+
 lemma state_wellFormed_tx_to_visibleCalls:     
 assumes "state_wellFormed S"
 and "currentTransaction S s \<triangleq> tx"
 shows "visibleCalls S s \<noteq> None"
+using assms apply (induct rule: wellFormed_induct)
+apply (simp add: initialState_def)
+apply (erule step.cases)
+apply (auto split: if_splits)
 
+  apply blast
+  by blast
 sorry
   
- 
-lemma state_wellFormed_ls_to_visibleCalls:     
-assumes "state_wellFormed S"
-and "localState S s = None"
-shows "visibleCalls S s = None"
+find_theorems state_wellFormed
 
-sorry
+ 
+
   
 
 
@@ -76,6 +110,7 @@ fixes tr :: trace
 assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and singleSession: "\<And>a. a\<in>set tr \<Longrightarrow> fst a = s"
+    and noFails: "(s, AFail) \<notin> set tr"
     (* invariant holds on all states in the execution *)
     and inv: "\<And>s' S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')"
 shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
@@ -84,7 +119,7 @@ shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2)
            then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis') \<rparr> 
            else S2 = S')"
         (* TODO special case for fail, pull (and others?) *)
-using steps S_wellformed singleSession inv proof (induct rule: steps.induct)
+using steps S_wellformed singleSession inv noFails proof (induct rule: steps.induct)
   case (steps_refl S)
   
     
@@ -117,6 +152,7 @@ next
     and  step: "S' ~~ a \<leadsto> S''"
     and  singleSession: "\<And>a'. a' \<in> set (tr @ [a]) \<Longrightarrow> fst a' = s"
     and prefix_invariant: "\<And>tr' S' s'.  \<lbrakk>isPrefix tr' (tr @ [a]); S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')"
+    and noFails: "(s, AFail) \<notin> set (tr @ [a])"
     by auto
  
   have "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
@@ -560,7 +596,7 @@ next
       by (auto simp add: S2_simps vis_None invContextH_def)
       
       
-    have "S2 ~~ (s, (AInvoc procName args, True)) \<leadsto>\<^sub>S S'' "
+    have step_s': "S2 ~~ (s, (AInvoc procName args, True)) \<leadsto>\<^sub>S S'' "
     proof (rule step_s.invocation)
       show "localState S2 s = None"
         by (simp add: S2_localState a2) 
@@ -579,20 +615,105 @@ next
     
     
     
-    then show ?thesis sorry
+    show ?thesis 
+    proof (intro exI conjI)
+      show "S ~~ (s, tr'@[(AInvoc procName args, True)]) \<leadsto>\<^sub>S* S''"
+        using step_s'
+        using ih1 steps_s_step by auto 
+      show " \<forall>a. (a, False) \<notin> set (tr' @ [(AInvoc procName args, True)])"
+        by (simp add: ih2)
+      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"
+        apply (auto simp add: a1 state_ext)
+        by force
+    qed    
   next
-    case (AReturn x8)
-    then show ?thesis sorry
+    case (AReturn res)
+    hence "a = (s, AReturn res)"
+      by (simp add: prod_eqI steps_step.prems(2))
+    
+    with step
+    have step': "S' ~~ (s, AReturn res) \<leadsto> S''" by simp  
+    
+    from step_elim_AReturn[OF step']  
+    obtain ls f
+      where a1: "S'' = S'\<lparr>
+                  localState := (localState S')(s := None), 
+                  currentProc := (currentProc S')(s := None), 
+                  visibleCalls := (visibleCalls S')(s := None), 
+                  invocationRes := invocationRes S'(s \<mapsto> res),
+                  knownIds := knownIds S' \<union> uniqueIds res\<rparr>"
+        and a2: "localState S' s \<triangleq> ls"
+        and a3: "currentProc S' s \<triangleq> f"
+        and a4: "f ls = Return res"
+        and a5: "currentTransaction S' s = None"
+      by metis
+    
+    have inv_S': "invariant (prog S') (invContext S' s)"
+      using isPrefix_appendI step_prog_invariant steps steps_step.prems(3) by fastforce  
+      
+    have inv_S'': "invariant (prog S'') (invContext S'' s)"
+      by (metis (no_types, lifting) append_Nil2 isPrefix_appendI local.step prefix_invariant step_prog_invariant steps steps.steps_step)
+      
+    
+      
+    have step_s': "S2 ~~ (s, (AReturn res, True)) \<leadsto>\<^sub>S S'' "
+    proof (rule step_s.return)
+      show "localState S2 s \<triangleq> ls"
+        by (simp add: S2_localState a2)
+      show "currentProc S2 s \<triangleq> f"
+        by (simp add: S2_currentProc a3)
+      show "f ls = Return res"
+        by (simp add: a4)  
+      show "currentTransaction S2 s = None"
+        by (simp add: S2_currentTransaction a5)
+      show "True = invariant (prog S'') (invContext S'' s)" using inv_S''
+        by simp
+      show "S'' = S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S2(s \<mapsto> res), knownIds := knownIds S2 \<union> uniqueIds res\<rparr>"  
+        by (auto simp add: a1 state_ext S2_simps S2_vis')
+    qed    
+    show ?thesis 
+    proof (intro exI conjI)
+      show "S ~~ (s, tr'@[(AReturn res, True)]) \<leadsto>\<^sub>S* S''"    
+        using step_s' ih1 steps_s_step by blast 
+      show "\<forall>a. (a, False) \<notin> set (tr' @ [(AReturn res, True)])"
+        using ih2 by auto
+      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"
+        by auto
+    qed    
   next
     case AFail
-    then show ?thesis sorry
+    hence "a = (s, AFail)"
+      by (simp add: prod_eqI steps_step.prems(2))
+    with noFails have "False"
+      by simp
+    thus ?thesis ..
   next
-    case (AInvcheck x10)
-    then show ?thesis sorry
-  qed
+    case (AInvcheck i)
+    hence "a = (s, AInvcheck i)"
+      by (simp add: prod_eqI steps_step.prems(2))
+   
+    with step
+    have step': "S' ~~ (s, AInvcheck i) \<leadsto> S''" by simp  
     
+    from step_elim_AInvcheck[OF step']
+    obtain vis
+      where a1: "S'' = S'" 
+        and a2: "currentTransaction S' s = None"
+        and a3: "visibleCalls S' s \<triangleq> vis"
+        and a4: "i = invariant (prog S') (invContextH (callOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S') (invocationRes S') (Some vis) s)"
+      by metis
+      
+    text {* invariant checks can be done later *}
     
-  
+    show ?thesis 
+    proof (intro exI conjI)
+      show "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
+        by (simp add: ih1)
+      show "\<forall>a. (a, False) \<notin> set tr'"
+        by (simp add: ih2)
+      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S2 = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S2 = S''"
+        using ih3 by (auto simp add: a1)
+    qed
   qed
 qed
 

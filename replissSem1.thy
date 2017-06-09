@@ -359,6 +359,7 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
                  knownIds := knownIds C \<union> uniqueIds res\<rparr>)"                
 | fail:
   "      C ~~ (s, AFail) \<leadsto> (C\<lparr>localState := (localState C)(s := None),
+                 currentTransaction := (currentTransaction C)(s := None),
                  currentProc := (currentProc C)(s := None),
                  visibleCalls := (visibleCalls C)(s := None) \<rparr>)"                  
 | invCheck:
@@ -401,7 +402,8 @@ inductive_cases step_elim_APull: "A ~~ (s, APull txns) \<leadsto> B "
 inductive_cases step_elim_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
 inductive_cases step_elim_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_cases step_elim_AFail: "A ~~ (s, AFail) \<leadsto> B "
-inductive_cases step_elim_AInvcheck: "A ~~ (s, b) \<leadsto> B "
+inductive_cases step_elim_AInvcheck: "A ~~ (s, AInvcheck i) \<leadsto> B "
+inductive_cases step_elim_general: "A ~~ (s, a) \<leadsto> B "
 
 lemmas step_elims = 
   step_elim_ALocal

@@ -92,7 +92,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
                  currentProc := (currentProc C)(s \<mapsto> impl),
                  visibleCalls := (visibleCalls C)(s \<mapsto> {}),
                  invocationOp := (invocationOp C)(s \<mapsto> (procName, args)) \<rparr>);
-   valid = invariant (prog C) (invContext C s)              
+   valid = invariant (prog C) (invContext C s)  (* TODO check invariant in C' ??? *)            
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvoc procName args, valid) \<leadsto>\<^sub>S C'"       
 (* TODO do we have to consider concurrent actions here? *)                 
 | return:
@@ -105,7 +105,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
                  visibleCalls := (visibleCalls C)(s := None),
                  invocationRes := (invocationRes C)(s \<mapsto> res),
                  knownIds := knownIds C \<union> uniqueIds res\<rparr>);
-   valid = invariant (prog C) (invContext C s)                   
+   valid = invariant (prog C') (invContext C' s)                   
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AReturn res, valid) \<leadsto>\<^sub>S C'"
 (*                  
 | fail:
