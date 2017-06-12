@@ -636,30 +636,49 @@ done
 
 thm full_nat_induct
 
-lemma wellFormed_induct[consumes 1]:
-"\<lbrakk>state_wellFormed s; P (initialState (prog s)); \<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s\<rbrakk> \<Longrightarrow> P s\<rbrakk> \<Longrightarrow> P s"
-proof (auto simp add: state_wellFormed_def)
-  fix tr
-  assume a1: "P (initialState (prog s))"
-  assume a2: "\<And>t a b s. \<lbrakk>\<exists>tr. initialState (prog t) ~~ tr \<leadsto>* t; P t; t ~~ (a, b) \<leadsto> s\<rbrakk> \<Longrightarrow> P s"
-  assume a3: "initialState (prog s) ~~ tr \<leadsto>* s" 
-  have "\<lbrakk>S ~~ tr \<leadsto>* s; P (initialState (prog s)); S = initialState (prog s); \<And>t a b. \<lbrakk>\<exists>tr. initialState (prog t) ~~ tr \<leadsto>* t; P t; t ~~ (a, b) \<leadsto> s\<rbrakk> \<Longrightarrow> P s\<rbrakk> \<Longrightarrow> P s" for S tr s
+
+lemma steps_induct[consumes 1, case_names initial step[steps IH step]]:
+assumes a1: "initialState progr ~~ tr \<leadsto>*  S"
+    and a2: "P [] (initialState progr)"
+    and a3: "\<And>S' tr a S''. \<lbrakk>initialState progr ~~ tr \<leadsto>*  S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr@[a]) S''"
+shows "P tr S"
+proof -
+  have h: "\<lbrakk>S ~~ tr \<leadsto>* s; P [] (initialState progr); S = initialState progr; 
+      \<And>S' tr a S''. \<lbrakk>initialState progr ~~ tr \<leadsto>*  S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr@[a]) S''\<rbrakk> \<Longrightarrow> P tr s" for S tr s
     proof (induct rule: steps.induct)
       case (steps_refl S)                        
       then show ?case by simp
     next
       case (steps_step S tr S' a S'')
-      have "P S'"
+      have "P tr S'"
         apply (rule steps_step(2))
         using initialState_def step_prog_invariant steps_step.hyps(1) steps_step.prems(1) steps_step.prems(2) apply auto[1]
         using initialState_def step_prog_invariant steps_step.hyps(1) steps_step.prems(2) apply auto[1]
-        using a2 by blast
-      then show ?case
-        by (metis local.steps_step(3) local.steps_step(5) local.steps_step(6) prod.collapse step_prog_invariant steps.steps_step steps_step.hyps(1)) 
+        by (simp add: steps_step.prems(3))
+      show ?case
+      proof (rule a3)
+        show "initialState progr ~~ tr \<leadsto>* S'"
+          using steps_step.hyps(1) steps_step.prems(2) by auto
+        show "P tr S'" using `P tr S'` .
+        show "S' ~~ a \<leadsto> S''"
+          by (simp add: steps_step.hyps(3)) 
+      qed
     qed
-  thus ?thesis
-    using a1 a2 a3 by blast
+  show ?thesis
+  using a1 a2
+  proof (rule h)
+    show "initialState progr = initialState progr" ..
+    show "\<And>S' tr a S''. \<lbrakk>initialState progr ~~ tr \<leadsto>* S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr @ [a]) S''"
+      using a3 by auto
+  qed  
 qed
+
+lemma wellFormed_induct[consumes 1]:
+"\<lbrakk>state_wellFormed s; P (initialState (prog s)); \<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s\<rbrakk> \<Longrightarrow> P s\<rbrakk> \<Longrightarrow> P s"
+apply (auto simp add: state_wellFormed_def)
+apply (erule(1) steps_induct)
+by (metis prod.collapse state_wellFormed_def state_wellFormed_init step_prog_invariant steps_append)
+
 
 
 lemma wellFormed_callOrigin_dom:

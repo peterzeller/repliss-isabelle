@@ -2,7 +2,262 @@ theory sem1_commutativity
 imports replissSem1
 begin
 
+lemma iffI2: "\<lbrakk>A \<Longrightarrow> B; \<not>A \<Longrightarrow> \<not>B\<rbrakk> \<Longrightarrow> A \<longleftrightarrow> B"
+by auto
 
+text {*
+ The invocation info is set iff there was an invocation in the trace
+*}
+lemma invation_info_set_iff_invocation_happened:
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+shows "(invocationOp S s = None) \<longleftrightarrow> (\<forall>proc args. (s, AInvoc proc args)\<notin> set tr )"
+  and "\<forall>proc args. (invocationOp S s = Some (proc, args)) \<longleftrightarrow> ((s, AInvoc proc args) \<in> set tr )"
+using steps proof (induct rule: steps_induct)
+  case initial
+  show "(invocationOp (initialState program) s = None) \<longleftrightarrow> (\<forall>proc args. (s, AInvoc proc args) \<notin> set [])"
+    by (auto simp add: initialState_def)
+  show "\<forall>proc args. invocationOp (initialState program) s \<triangleq> (proc, args) = ((s, AInvoc proc args) \<in> set [])"
+    by (auto simp add: initialState_def)
+next
+  case (step S' tr a S'')
+  
+  show "(invocationOp S'' s = None) = (\<forall>proc args. (s, AInvoc proc args) \<notin> set (tr @ [a]))"
+    using `S' ~~ a \<leadsto> S''` apply (induct rule: step.cases)
+    using step.IH(1) by auto
+  
+  show "\<forall>proc args. invocationOp S'' s \<triangleq> (proc, args) = ((s, AInvoc proc args) \<in> set (tr @ [a]))"
+    using `S' ~~ a \<leadsto> S''` apply (induct rule: step.cases)
+    using step.IH(2) by auto
+qed
+
+lemma invocation_ops_if_localstate_nonempty:
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+    and loc: "localState S s \<noteq> None"
+shows "invocationOp S s \<noteq> None" 
+using assms proof (induct arbitrary:   rule: steps_induct)
+  case initial
+  then show ?case
+    by (simp add: initialState_def) 
+next
+  case (step S' tr a S'')
+  
+  show ?case
+  proof (cases "fst a = s")
+    case True
+    from this obtain action where [simp]: "a = (s, action)"
+      using surjective_pairing by blast 
+    show ?thesis 
+    using `S' ~~ a \<leadsto> S''` proof (induct rule: step.cases)
+      case (local C s ls f ls')
+      then show ?case using step.IH by (auto simp add: True)
+    next
+      case (newId C s ls f ls' uid)
+      then show ?case  using step.IH by (auto simp add: True)
+    next
+      case (beginAtomic C s ls f ls' t)
+      then show ?case  using step.IH by (auto simp add: True)
+    next
+      case (endAtomic C s ls f ls' t)
+      then show ?case  using step.IH by (auto simp add: True)
+    next
+      case (dbop C s ls f Op args ls' t c res vis)
+      then show ?case  using step.IH by (auto simp add: True)
+    next
+      case (pull C s ls vis newTxns newCalls)
+      then show ?case  using step.IH by (auto simp add: True)
+    next
+      case (invocation C s procName args initialState impl)
+      then show ?case  using step.IH by (auto simp add: True)
+    next
+      case (return C s ls f res)
+      then show ?case  using step.IH by (auto simp add: True)
+    next
+      case (fail C s')
+      with `localState S'' s \<noteq> None` have False
+        by auto
+      thus ?case ..
+    next
+      case (invCheck C s' vis res)
+      then show ?case  using step.IH
+        using step.prems by blast 
+    qed
+  next
+    case False hence [simp]: "fst a \<noteq> s" .
+    from `S' ~~ a \<leadsto> S''`
+    have "localState S'' s = localState S' s" and "invocationOp S'' s = invocationOp S' s"
+      using False by (induct rule: step.cases, auto)
+    
+    thus ?thesis
+      using step.IH step.prems by auto 
+  qed
+qed
+      
+
+text {*
+ After a fail or return the local state is None
+*}
+lemma everything_starts_with_an_invocation:
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+    and fail_or_return: "tr!i = (s, AFail) \<or> tr!i = (s, AReturn res)"
+    and i_in_range: "i < length tr"
+shows "localState S s = None \<and> invocationOp S s \<noteq> None" 
+using steps fail_or_return i_in_range
+proof (induct rule: steps_induct)
+  case initial
+  then show ?case
+    by simp 
+next
+  case (step S' tr a S'')
+  
+  hence steps'': "initialState program ~~ (tr@[a]) \<leadsto>* S''"
+    using steps_step by blast
+    
+    
+  
+  show ?case 
+  proof (cases "i < length tr")
+    case True
+    hence "tr ! i = (s, AFail) \<or> tr ! i = (s, AReturn res)"
+      using `(tr @ [a]) ! i = (s, AFail) \<or> (tr @ [a]) ! i = (s, AReturn res)`
+      by (auto simp add: nth_append)
+    hence "localState S' s = None"
+      by (simp add: True step.IH) 
+      
+    show ?thesis 
+      using `S' ~~ a \<leadsto> S''` 
+      apply (induct rule: step.cases)
+      using True \<open>tr ! i = (s, AFail) \<or> tr ! i = (s, AReturn res)\<close> step.IH by auto
+  next
+    case False
+    show ?thesis 
+    proof (cases "i = length tr")
+      case True
+      with `(tr @ [a]) ! i = (s, AFail) \<or> (tr @ [a]) ! i = (s, AReturn res)`
+      have cases: "a = (s, AFail) \<or> a = (s, AReturn res)"
+        by simp
+        
+        
+      thus ?thesis 
+      proof 
+        assume "a = (s, AFail)"
+        hence "S' ~~ (s, AFail) \<leadsto> S''"
+          using step.step by auto
+          
+          
+        hence "localState S'' s = None"
+          by (auto simp add: step_simp_AFail)
+          (*
+        hence "invocationOp S'' s \<noteq> None" 
+          using invocation_ops_if_localstate_nonempty[OF steps'']
+          *)
+        
+          
+      
+      using `S' ~~ a \<leadsto> S''` 
+      apply (induct rule: step.cases)
+      using local.cases apply (auto simp add: )
+      
+      using  apply blast
+      
+      
+    next
+      case False
+      with `\<not> (i < length tr)` have "i > length tr" by arith
+      then show ?thesis
+        using step.prems(2) by auto 
+    qed
+    
+    
+    
+  qed
+  
+  proof (induct rule: step.cases)
+    case (local C s ls f ls')
+    then show ?case 
+  next
+    case (newId C s ls f ls' uid)
+    then show ?case sorry
+  next
+    case (beginAtomic C s ls f ls' t)
+    then show ?case sorry
+  next
+    case (endAtomic C s ls f ls' t)
+  then show ?case sorry
+next
+    case (dbop C s ls f Op args ls' t c res vis)
+    then show ?case sorry
+  next
+    case (pull C s ls vis newTxns newCalls)
+    then show ?case sorry
+  next
+    case (invocation C s procName args initialState impl)
+    then show ?case sorry
+  next
+    case (return C s ls f res)
+    then show ?case sorry
+  next
+    case (fail C s)
+    then show ?case sorry
+  next
+    case (invCheck C s vis res)
+  then show ?case sorry
+qed
+    apply auto
+    
+    
+    apply (erule step.cases, auto)
+    apply (metis Pair_inject action.simps(23) less_Suc_eq nth_append nth_append_length)
+    
+qed
+
+
+text {*
+ There can be no action on a session before the invocation:
+*}
+lemma everything_starts_with_an_invocation:
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+ and fail_or_return: "tr!i = (s, AFail) \<or> tr!i = (s, AReturn res)"
+ and i_in_range: "i < length tr"
+shows "\<nexists>j. j>i \<and> j<length tr \<and> fst(tr!j) = s" 
+using steps fail_or_return i_in_range proof (induct rule: steps_induct)
+  case initial
+  then show ?case by auto
+next
+  case (step S' tr a S'')
+  show "\<nexists>j. j>i \<and> j < length (tr @ [a]) \<and> fst ((tr @ [a]) ! j) = s"
+    
+    
+qed
+
+text {*
+After a return or a failure no more actions on the same session are possible.
+*}
+lemma nothing_after_fail_or_return:
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+ and fail_or_return: "tr!i = (s, AFail) \<or> tr!j = (s, AReturn res)"
+shows "\<nexists>j. j>i \<and> fst(tr!j) = s" 
+
+
+
+lemma 
+shows "(\<forall>tr. traceCorrect program tr) 
+  \<longleftrightarrow> (\<forall>tr. (\<nexists>s. (s, AFail) \<in> set tr) \<longrightarrow>  traceCorrect program tr)"
+proof (rule iffI2; clarsimp)
+  fix tr
+  assume "\<not> traceCorrect program tr"
+  
+  text {*
+  Idea: a failed node and a node without progress are not really distinguishable in practice.
+  In our semantics there are two small differences:
+  
+  1) a failed session can be reused
+  2) state is different after failure
+  *}
+  
+  show "\<exists>tr. (\<forall>s. (s, AFail) \<notin> set tr) \<and> \<not> traceCorrect program tr"
+
+qed
+  
 
 definition commutativeS :: "state \<Rightarrow> session \<times> action \<Rightarrow> session \<times> action \<Rightarrow> bool" where
 "commutativeS s a b \<equiv> (\<forall>t. ((s ~~ [a,b] \<leadsto>*  t) \<longleftrightarrow> (s ~~ [b,a] \<leadsto>* t)))"
