@@ -138,27 +138,38 @@ next
         
         
       thus ?thesis 
-      proof 
+      proof (rule; intro conjI)
         assume "a = (s, AFail)"
         hence "S' ~~ (s, AFail) \<leadsto> S''"
           using step.step by auto
           
           
-        hence "localState S'' s = None"
+        thus "localState S'' s = None"
           by (auto simp add: step_simp_AFail)
           (*
         hence "invocationOp S'' s \<noteq> None" 
           using invocation_ops_if_localstate_nonempty[OF steps'']
           *)
-        
           
-      
-      using `S' ~~ a \<leadsto> S''` 
-      apply (induct rule: step.cases)
-      using local.cases apply (auto simp add: )
-      
-      using  apply blast
-      
+        have "localState S' s \<noteq> None"
+        using `S' ~~ (s, AFail) \<leadsto> S''` 
+          by (induct rule: step.cases, auto)
+        
+        hence "invocationOp S' s \<noteq> None"
+          using invocation_ops_if_localstate_nonempty step.steps by blast
+        thus "invocationOp S'' s \<noteq> None"  
+          using `S' ~~ (s, AFail) \<leadsto> S''` invation_info_set_iff_invocation_happened(1) step.steps steps'' by auto 
+      next 
+        assume "a = (s, AReturn res)"
+        hence "S' ~~ (s, AReturn res) \<leadsto> S''"
+          using step.step by auto
+        thus "localState S'' s = None"
+          by (auto simp add: step_simp_AReturn)
+          
+        from `S' ~~ (s, AReturn res) \<leadsto> S''`  
+        show "invocationOp S'' s \<noteq> None"
+          using invocation_ops_if_localstate_nonempty step.steps step_simp_AReturn by auto
+      qed    
       
     next
       case False
@@ -166,55 +177,33 @@ next
       then show ?thesis
         using step.prems(2) by auto 
     qed
-    
-    
-    
   qed
+qed  
   
-  proof (induct rule: step.cases)
-    case (local C s ls f ls')
-    then show ?case 
-  next
-    case (newId C s ls f ls' uid)
-    then show ?case sorry
-  next
-    case (beginAtomic C s ls f ls' t)
-    then show ?case sorry
-  next
-    case (endAtomic C s ls f ls' t)
-  then show ?case sorry
-next
-    case (dbop C s ls f Op args ls' t c res vis)
-    then show ?case sorry
-  next
-    case (pull C s ls vis newTxns newCalls)
-    then show ?case sorry
-  next
-    case (invocation C s procName args initialState impl)
-    then show ?case sorry
-  next
-    case (return C s ls f res)
-    then show ?case sorry
-  next
-    case (fail C s)
-    then show ?case sorry
-  next
-    case (invCheck C s vis res)
-  then show ?case sorry
-qed
-    apply auto
-    
-    
-    apply (erule step.cases, auto)
-    apply (metis Pair_inject action.simps(23) less_Suc_eq nth_append nth_append_length)
-    
-qed
 
+text {*
+ We have visible calls iff we have some local state.
+*}
+lemma visibleCalls_iff_localState:
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+shows "localState S s = None \<longleftrightarrow> visibleCalls S s = None" 
+using steps 
+proof (induct rule: steps_induct)
+  case initial
+  then show ?case
+    by (simp add: initialState_def)
+next
+  case (step S' tr a S'')
+  from `S' ~~ a \<leadsto> S''`
+  show ?case 
+  apply (rule step.cases)
+  using step.IH  by (auto simp add: step)
+qed
 
 text {*
  There can be no action on a session before the invocation:
 *}
-lemma everything_starts_with_an_invocation:
+lemma nothing_after_fail_or_return:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
  and fail_or_return: "tr!i = (s, AFail) \<or> tr!i = (s, AReturn res)"
  and i_in_range: "i < length tr"
@@ -225,10 +214,46 @@ using steps fail_or_return i_in_range proof (induct rule: steps_induct)
 next
   case (step S' tr a S'')
   show "\<nexists>j. j>i \<and> j < length (tr @ [a]) \<and> fst ((tr @ [a]) ! j) = s"
+  proof auto
+    fix j
+    assume a1: "j < Suc (length tr)"
+       and a2: "i < j"
+       and a3: "s = fst ((tr @ [a]) ! j)"
+       
+    have j_def: "j = length tr"
+    proof (rule ccontr)
+      assume "j \<noteq> length tr"
+      hence "j < length tr" using a1 by simp
+      hence "s \<noteq> fst ((tr @ [a]) ! j)"
+        by (metis (no_types, hide_lams) a2 dual_order.strict_trans nth_append step.IH step.prems(1))
+      with a3 show False by simp
+    qed
+    
+    obtain a_op where a_def: "a = (s, a_op)" using j_def a3
+      by (metis nth_append_length prod.collapse) 
     
     
+    
+    from `(tr @ [a]) ! i = (s, AFail) \<or> (tr @ [a]) ! i = (s, AReturn res)`
+    have no_ls: "localState S' s = None" 
+     and op: "invocationOp S' s \<noteq> None"  
+      apply (metis a2 everything_starts_with_an_invocation j_def nth_append step.steps)
+      by (metis a2 everything_starts_with_an_invocation j_def nth_append step.prems(1) step.steps)
+     
+    have fst_a: "fst a = s" using a_def by simp  
+    
+    from `S' ~~ a \<leadsto> S''` a_def
+    have "S' ~~ (s, a_op) \<leadsto> S''" by simp  
+
+    thus False
+      apply (rule step.cases)
+      apply (auto simp add: no_ls a3 op j_def)
+      apply (auto simp add: fst_a no_ls op)
+      using no_ls step.steps visibleCalls_iff_localState by auto
+    qed
 qed
 
+(*
 text {*
 After a return or a failure no more actions on the same session are possible.
 *}
@@ -236,26 +261,232 @@ lemma nothing_after_fail_or_return:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
  and fail_or_return: "tr!i = (s, AFail) \<or> tr!j = (s, AReturn res)"
 shows "\<nexists>j. j>i \<and> fst(tr!j) = s" 
+*)
 
+lemma trace_simulationProof[consumes 1, case_names initial f_empty_to_empty induct_step[coupling steps1 steps2 step]]:
+assumes steps_tr: "init ~~ tr \<leadsto>* S"
+    and P_initial: "P [] [] init init"
+    and f_empty_to_empty: "f [] = []"
+    and induct_step: "\<And>tr a S1 S2 S1'. \<lbrakk>P tr (f tr) S1 S2; init ~~ tr \<leadsto>* S1; init ~~ f tr \<leadsto>* S2; S1 ~~ a \<leadsto> S1'\<rbrakk> 
+      \<Longrightarrow> \<exists>S2'. (init ~~ f (tr@[a]) \<leadsto>* S2') \<and> P (tr@[a]) (f (tr@[a])) S1' S2'"
+shows "\<exists>S'. (init ~~ f tr \<leadsto>* S') \<and>  P tr (f tr) S S'"
+using steps_tr proof (induct rule: steps_induct)
+  case initial
+  show ?case
+    by (simp add: f_empty_to_empty P_initial) 
+next
+  case (step S' tr a S'')
+  from this
+  obtain S1' 
+    where S1'_step: "init ~~ f tr \<leadsto>* S1'" 
+      and S1'_P: "P tr (f tr) S' S1'"
+    by blast
+  
+  from induct_step[OF S1'_P `init ~~ tr \<leadsto>* S'` S1'_step ` S' ~~ a \<leadsto> S''`]  
+  obtain S2' 
+    where S2'_steps: "init ~~ f (tr @ [a]) \<leadsto>* S2'"
+      and S2'_P: "P (tr @ [a]) (f (tr @ [a])) S'' S2'"
+      by blast
+  
+  thus " \<exists>S'. (init ~~ f (tr @ [a]) \<leadsto>* S') \<and> P (tr @ [a]) (f (tr @ [a])) S'' S'"
+    by blast
+qed
+
+
+definition 
+"isAFail a \<equiv> case a of AFail \<Rightarrow> True | _ \<Rightarrow> False"
+
+schematic_goal [simp]: "isAFail (ALocal) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (ANewId u) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (ABeginAtomic t) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AEndAtomic) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (ADbOp c oper args res) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (APull pulled) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AInvoc pname args) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AReturn res) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AFail) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AInvcheck c) = ?x" by (auto simp add: isAFail_def)                            
+
+lemma exI_eq: 
+assumes "P y True"
+shows "\<exists>x. P x (x = y)"
+using assms by (metis (full_types))
 
 
 lemma 
-shows "(\<forall>tr. traceCorrect program tr) 
-  \<longleftrightarrow> (\<forall>tr. (\<nexists>s. (s, AFail) \<in> set tr) \<longrightarrow>  traceCorrect program tr)"
+shows "(\<forall>tr\<in>traces program. traceCorrect tr) 
+  \<longleftrightarrow> (\<forall>tr\<in>traces program. (\<nexists>s. (s, AFail) \<in> set tr) \<longrightarrow>  traceCorrect tr)"
 proof (rule iffI2; clarsimp)
   fix tr
-  assume "\<not> traceCorrect program tr"
+  assume is_trace: "tr \<in> traces program"
+     and tr_fail: "\<not> traceCorrect tr"
+  
+  from this obtain s S' where "(s, AInvcheck False) \<in> set tr" and "initialState program ~~ tr \<leadsto>* S'"
+    by (auto simp add: traceCorrect_def traces_def)  
+    
   
   text {*
   Idea: a failed node and a node without progress are not really distinguishable in practice.
   In our semantics there are two small differences:
   
-  1) a failed session can be reused
-  2) state is different after failure
+  1) state is different after failure
   *}
   
-  show "\<exists>tr. (\<forall>s. (s, AFail) \<notin> set tr) \<and> \<not> traceCorrect program tr"
+  show "\<exists>tr\<in>traces program. (\<forall>s. (s, AFail) \<notin> set tr) \<and> \<not> traceCorrect tr"
+  proof (rule bexI[where x="[x\<leftarrow>tr . \<not>isAFail (snd x)]"], intro conjI allI)
+  
+    show "\<And>s. (s, AFail) \<notin> set [x\<leftarrow>tr . \<not>isAFail (snd x)]"
+      by (auto simp add: isAFail_def)
+      
+    show "\<not> traceCorrect [tr\<leftarrow>tr . \<not> isAFail (snd tr)]"
+      using tr_fail by (auto simp add: traceCorrect_def isAFail_def) 
+    
+    thm state_ext  
+      
+    from `initialState program ~~ tr \<leadsto>* S'`
+    have "\<exists>S''. (initialState program ~~ [tr\<leftarrow>tr . \<not> isAFail (snd tr)] \<leadsto>* S'') 
+        \<and> (
+           calls S'' = calls S'
+         \<and> happensBefore S'' = happensBefore S'
+         \<and> prog S'' = prog S'
+         \<and> transactionStatus S'' = transactionStatus S' 
+         \<and> callOrigin S'' = callOrigin S' 
+         \<and> generatedIds S'' = generatedIds S' 
+         \<and> knownIds S'' = knownIds S' 
+         \<and> invocationOp S'' = invocationOp S' 
+         \<and> invocationRes S'' = invocationRes S'
+         \<and> (\<forall>s. (s, AFail) \<notin> set tr \<longrightarrow> ( 
+             localState S'' s = localState S' s
+           \<and> currentTransaction S'' s = currentTransaction S' s
+           \<and> currentProc S'' s = currentProc S' s
+           \<and> visibleCalls S'' s = visibleCalls S' s 
+         ))
+        )"
+    proof (induct rule: trace_simulationProof)
+      case initial
+        thus ?case by auto
+      next
+        case f_empty_to_empty
+        thus ?case by auto
+      next
+      case (induct_step tr a S1 S2 S1')
+      from steps_append2[OF induct_step.steps2]
+      have [simp]: "(initialState program ~~ [tr\<leftarrow>tr . \<not> isAFail (snd tr)] @ trb \<leadsto>* C) \<longleftrightarrow> (S2 ~~ trb \<leadsto>* C)" for trb C .
+        
+      
+      from `S1 ~~ a \<leadsto> S1'`
+      show ?case 
+      proof (cases rule: step.cases)
+        case (local s ls f ls')
 
+        from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
+          
+        show ?thesis 
+          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls')\<rparr>"])
+          using induct_step.coupling no_fail local
+          apply (intro conjI)
+          by (auto simp add: step_simps state_ext local induct_step)
+      next
+        case (newId s ls f ls' uid)
+        from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
+          
+        show ?thesis 
+          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls' uid), generatedIds := generatedIds S2 \<union> {uid}\<rparr>"])
+          using induct_step.coupling no_fail newId
+          by (auto simp add: step_simps state_ext  induct_step)
+          
+      next
+        case (beginAtomic s ls f ls' t)
+        from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
+          
+        show ?thesis 
+          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := currentTransaction S2(s \<mapsto> t), transactionStatus := transactionStatus S1(t \<mapsto> Uncommited)\<rparr>"])
+          using induct_step.coupling no_fail beginAtomic
+          by (auto simp add: step_simps state_ext  induct_step)
+          
+      next
+        case (endAtomic s ls f ls' t)
+        from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
+          
+        show ?thesis 
+          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S1(t \<mapsto> Commited)\<rparr>"])
+          using induct_step.coupling no_fail endAtomic
+          by (auto simp add: step_simps state_ext  induct_step)
+      next
+        case (dbop s ls f Op args ls' t c res vis)
+        from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
+          
+        show ?thesis 
+          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls' res), calls := calls S2(c \<mapsto> Call Op args res), callOrigin := callOrigin S1(c \<mapsto> t), visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> {c}), happensBefore := happensBefore S1 \<union> vis \<times> {c}\<rparr>"])
+          using induct_step.coupling no_fail dbop
+          by (auto simp add: step_simps state_ext  induct_step)
+      next
+        case (pull s ls vis newTxns newCalls)
+        from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
+          
+        show ?thesis 
+          apply (rule exI[where x="S2\<lparr>visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> newCalls)\<rparr>"])
+          using induct_step.coupling no_fail pull
+          by (auto simp add: step_simps state_ext  induct_step)
+      next
+        case (invocation s procName args initialLocalState impl)
+        from `initialState program ~~ tr \<leadsto>* S1` `invocationOp S1 s = None`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (meson everything_starts_with_an_invocation in_set_conv_nth)
+          
+        show ?thesis 
+          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> initialLocalState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"])
+          using induct_step.coupling no_fail invocation
+          by (auto simp add: step_simps state_ext  induct_step)
+      next
+        case (return s ls f res)
+        from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
+          
+        show ?thesis 
+          apply (rule exI[where x="S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S1(s \<mapsto> res), knownIds := knownIds S1 \<union> uniqueIds res\<rparr>"])
+          using induct_step.coupling no_fail return
+          by (auto simp add: step_simps state_ext  induct_step)
+      next
+        case (fail s ls)
+        from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
+        show ?thesis 
+          apply (rule exI[where x="S2"])
+          by (auto simp add: step_simps state_ext  induct_step  fail)
+                    
+      next
+        case (invCheck s vis res)
+        from `initialState program ~~ tr \<leadsto>* S1` `visibleCalls S1 s \<triangleq> vis`
+        have no_fail: "(s, AFail) \<notin> set tr"
+          by (metis everything_starts_with_an_invocation in_set_conv_nth option.simps(3) visibleCalls_iff_localState)
+          
+        show ?thesis 
+          apply (rule exI[where x="S2"])
+          using induct_step.coupling no_fail invCheck
+          by (auto simp add: step_simps state_ext  induct_step)
+      qed
+    qed
+      
+      
+    thus "[tr\<leftarrow>tr . \<not> isAFail (snd tr)] \<in> traces program"
+      by (auto simp add: traces_def)
+    (* idea with simulation like thing and invariant *)
+  qed
 qed
   
 

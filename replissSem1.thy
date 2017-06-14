@@ -99,6 +99,40 @@ lemma state_ext: "((x::state) = y) \<longleftrightarrow> (
 )"
 by auto
 
+lemma state_ext_exI: 
+fixes P :: "state \<Rightarrow> bool"
+assumes "
+\<exists>
+s_calls
+s_happensBefore
+s_prog
+s_localState
+s_currentProc
+s_visibleCalls
+s_currentTransaction
+s_transactionStatus
+s_callOrigin
+s_generatedIds
+s_knownIds
+s_invocationOp
+s_invocationRes. P \<lparr>
+calls = s_calls,
+happensBefore = s_happensBefore,
+prog = s_prog,
+callOrigin = s_callOrigin,
+generatedIds = s_generatedIds,
+knownIds = s_knownIds,
+invocationOp = s_invocationOp,
+invocationRes = s_invocationRes,
+transactionStatus = s_transactionStatus,
+localState = s_localState,
+currentProc = s_currentProc,
+visibleCalls = s_visibleCalls,
+currentTransaction = s_currentTransaction
+\<rparr>"
+shows "\<exists>s. P s"
+  using assms by blast
+
 thm state.defs  
 
 definition restrict_relation :: "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a rel" (infixl "|r"  110)
@@ -358,7 +392,8 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
                  invocationRes := (invocationRes C)(s \<mapsto> res),
                  knownIds := knownIds C \<union> uniqueIds res\<rparr>)"                
 | fail:
-  "      C ~~ (s, AFail) \<leadsto> (C\<lparr>localState := (localState C)(s := None),
+  "localState C s \<triangleq> ls
+   \<Longrightarrow> C ~~ (s, AFail) \<leadsto> (C\<lparr>localState := (localState C)(s := None),
                  currentTransaction := (currentTransaction C)(s := None),
                  currentProc := (currentProc C)(s := None),
                  visibleCalls := (visibleCalls C)(s := None) \<rparr>)"                  
@@ -468,11 +503,14 @@ definition initialState :: "prog \<Rightarrow> state" where
 
 type_synonym trace = "(session\<times>action) list"
 
+definition traces where
+"traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
+
 definition traceCorrect where
-"traceCorrect program trace \<equiv> (\<forall>s. (s, AInvcheck False) \<notin> set trace) \<and> (\<exists>s. initialState program ~~ trace \<leadsto>* s)"
+"traceCorrect trace \<equiv> (\<forall>s. (s, AInvcheck False) \<notin> set trace)"
 
 definition programCorrect where
-"programCorrect program \<equiv> (\<forall>trace s. (initialState program ~~ trace \<leadsto>* s) \<longrightarrow> traceCorrect program trace)"
+"programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"
 
 definition "isABeginAtomic action = (case action of ABeginAtomic x \<Rightarrow> True | _ \<Rightarrow> False)"
 
@@ -581,6 +619,12 @@ next
     by (metis (no_types, lifting) append_assoc snoc.hyps steps_appendBack) 
 qed
 
+lemma steps_append2: 
+assumes "A ~~ tra \<leadsto>* B"
+shows "(A ~~ tra@trb \<leadsto>* C) \<longleftrightarrow> (B ~~ trb \<leadsto>* C)"
+  using assms steps_append traceDeterministic by blast
+
+
 lemma steps_single[simp]: "(A ~~ [a] \<leadsto>* B) \<longleftrightarrow> (A ~~ a \<leadsto> B)"
 by (metis append_Nil steps_appendBack steps_refl traceDeterministic)
 
@@ -638,13 +682,13 @@ thm full_nat_induct
 
 
 lemma steps_induct[consumes 1, case_names initial step[steps IH step]]:
-assumes a1: "initialState progr ~~ tr \<leadsto>*  S"
-    and a2: "P [] (initialState progr)"
-    and a3: "\<And>S' tr a S''. \<lbrakk>initialState progr ~~ tr \<leadsto>*  S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr@[a]) S''"
+assumes a1: "init ~~ tr \<leadsto>*  S"
+    and a2: "P [] init"
+    and a3: "\<And>S' tr a S''. \<lbrakk>init ~~ tr \<leadsto>*  S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr@[a]) S''"
 shows "P tr S"
 proof -
-  have h: "\<lbrakk>S ~~ tr \<leadsto>* s; P [] (initialState progr); S = initialState progr; 
-      \<And>S' tr a S''. \<lbrakk>initialState progr ~~ tr \<leadsto>*  S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr@[a]) S''\<rbrakk> \<Longrightarrow> P tr s" for S tr s
+  have h: "\<lbrakk>S ~~ tr \<leadsto>* s; P [] init; S = init; 
+      \<And>S' tr a S''. \<lbrakk>init ~~ tr \<leadsto>*  S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr@[a]) S''\<rbrakk> \<Longrightarrow> P tr s" for S tr s
     proof (induct rule: steps.induct)
       case (steps_refl S)                        
       then show ?case by simp
@@ -657,7 +701,7 @@ proof -
         by (simp add: steps_step.prems(3))
       show ?case
       proof (rule a3)
-        show "initialState progr ~~ tr \<leadsto>* S'"
+        show "init ~~ tr \<leadsto>* S'"
           using steps_step.hyps(1) steps_step.prems(2) by auto
         show "P tr S'" using `P tr S'` .
         show "S' ~~ a \<leadsto> S''"
@@ -667,11 +711,20 @@ proof -
   show ?thesis
   using a1 a2
   proof (rule h)
-    show "initialState progr = initialState progr" ..
-    show "\<And>S' tr a S''. \<lbrakk>initialState progr ~~ tr \<leadsto>* S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr @ [a]) S''"
+    show "init = init" ..
+    show "\<And>S' tr a S''. \<lbrakk>init ~~ tr \<leadsto>* S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr @ [a]) S''"
       using a3 by auto
   qed  
 qed
+
+
+lemma steps_induct2[consumes 1, case_names initial step[steps IH step]]:
+assumes a1: "initialState progr ~~ tr \<leadsto>*  S"
+    and a2: "P [] (initialState progr)"
+    and a3: "\<And>S' tr a S''. \<lbrakk>initialState progr ~~ tr \<leadsto>*  S'; P tr S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> P (tr@[a]) S''"
+shows "P tr S"
+  using a1 a2 a3 steps_induct by blast
+
 
 lemma wellFormed_induct[consumes 1]:
 "\<lbrakk>state_wellFormed s; P (initialState (prog s)); \<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s\<rbrakk> \<Longrightarrow> P s\<rbrakk> \<Longrightarrow> P s"
