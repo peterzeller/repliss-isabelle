@@ -1046,7 +1046,7 @@ next
 next
   case AFail
   then show ?thesis
-    using precondition_fail by blast 
+    by (metis differentSessions exec preconditionHolds precondition_fail unchangedInTransaction(1))
 next
   case (AInvcheck b)
   with preconditionHolds obtain vis 
@@ -1528,9 +1528,9 @@ shows "(S ~~ [(sa,ABeginAtomic t),(sb,b)] \<leadsto>* T)
 (* todo and now move everything out of transactions ... *)
 
 lemma show_programCorrect:
-assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s \<rbrakk> \<Longrightarrow> traceCorrect program trace"
+assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s \<rbrakk> \<Longrightarrow> traceCorrect trace"
 shows "programCorrect program"
-  by (simp add: assms programCorrect_def)
+  by (auto simp add: assms programCorrect_def traces_def)
 
 lemma currentTransaction_unchangedInternalSteps:
 assumes "S ~~ tr \<leadsto>* S'"
