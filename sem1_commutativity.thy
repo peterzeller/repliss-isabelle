@@ -485,7 +485,6 @@ proof (rule iffI2; clarsimp)
       
     thus "[tr\<leftarrow>tr . \<not> isAFail (snd tr)] \<in> traces program"
       by (auto simp add: traces_def)
-    (* idea with simulation like thing and invariant *)
   qed
 qed
   
@@ -658,7 +657,7 @@ apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
 done
 
 lemma precondition_fail:
-"precondition (s, AFail) C = True" (* failures occur anywhere and anytime ;) *)
+"precondition (s, AFail) C = (\<exists>ls. localState C s \<triangleq> ls)" (* failures occur wherever something is running ;) *)
 apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
 done
 
