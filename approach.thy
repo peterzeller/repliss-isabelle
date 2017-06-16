@@ -62,34 +62,14 @@ shows "localState S s \<noteq> None"
 using assms apply (induct rule: wellFormed_induct)
 apply (simp add: initialState_def)
 apply (erule step.cases)
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
-apply (auto split: if_splits)[1]
+apply (auto split: if_splits)
 done  
 
 lemma state_wellFormed_tx_to_visibleCalls:     
 assumes "state_wellFormed S"
 and "currentTransaction S s \<triangleq> tx"
 shows "visibleCalls S s \<noteq> None"
-using assms apply (induct rule: wellFormed_induct)
-apply (simp add: initialState_def)
-apply (erule step.cases)
-apply (auto split: if_splits)
-
-  apply blast
-  by blast
-sorry
-  
-find_theorems state_wellFormed
+  using assms state_wellFormed_ls_to_visibleCalls state_wellFormed_ls_visibleCalls by auto
 
  
 
@@ -585,7 +565,7 @@ next
       using step_prog_invariant steps steps_step.prems(3) by force  
     
     have vis_None: "visibleCalls S' s = None"
-      using state_wellFormed_ls_to_visibleCalls S_wf a2 state_wellFormed_combine steps by blast 
+      using  S_wf a2 state_wellFormed_combine steps state_wellFormed_ls_visibleCalls by blast 
     
     have "visibleCalls S2 s = None \<or> visibleCalls S2 s \<triangleq> {}"
       using S2_vis' option.sel vis'_sub vis_None by fastforce
@@ -736,10 +716,13 @@ proof (rule show_programCorrect_noTransactionInterleaving)
   text {* We can assume transactions are packed. *}
   assume packed: "transactionsArePacked trace"
   
+  text {* We may also assume that there are no failures *}
+  assume noFail: "\<And>s. (s, AFail) \<notin> set trace"
+  
   text {* We show that the trace must be correct (proof by contradiction). *}
-  show "traceCorrect program trace"
+  show "traceCorrect trace"
   proof (rule ccontr)
-    assume incorrect_trace: "\<not> traceCorrect program trace"
+    assume incorrect_trace: "\<not> traceCorrect trace"
     
     text {* If the trace is incorrect, there must be a failing invariant check in the trace: *}
     from this obtain s where "(s, AInvcheck False) \<in> set trace"
