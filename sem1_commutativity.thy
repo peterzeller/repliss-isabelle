@@ -313,7 +313,7 @@ shows "\<exists>x. P x (x = y)"
 using assms by (metis (full_types))
 
 
-lemma 
+lemma can_ignore_fails:
 shows "(\<forall>tr\<in>traces program. traceCorrect tr) 
   \<longleftrightarrow> (\<forall>tr\<in>traces program. (\<nexists>s. (s, AFail) \<in> set tr) \<longrightarrow>  traceCorrect tr)"
 proof (rule iffI2; clarsimp)
@@ -1826,7 +1826,18 @@ using assms apply (induct rule: steps.induct)
   apply auto
   apply (auto simp add: step_simps)
   by (smt currentTransaction nth_append option.simps(3))
-  
+
+lemma noNestedTransactions':
+assumes steps: "S ~~ tr \<leadsto>* S'" 
+   and "tr!i = (s, ABeginAtomic txi)"
+   and "i<j"
+   and "j < length tr" 
+   and "tr!j = (s, ABeginAtomic txj)"
+   and "(s, AFail) \<notin> set tr"
+shows "\<exists>k. i<k \<and> k < j \<and> tr!k = (s, AEndAtomic) "
+using noNestedTransactions[OF steps assms(2) assms(3) assms(4) assms(5) ] assms(6)
+  by (metis assms(4) dual_order.strict_trans nth_mem)
+
   
 lemma transactionIsPackedAlt_eq:
 assumes uniqueTxs: "\<And>i j s s'. \<lbrakk>i<length tr; j<length tr; tr!i = (s, ABeginAtomic tx); tr!j = (s', ABeginAtomic tx)\<rbrakk> \<Longrightarrow> i = j"
@@ -2523,8 +2534,7 @@ qed
     
 lemma show_traceCorrect_same:
 assumes sameTraceContent: "set tr = set tr'"
-   and sameExecutions: "\<And>S. (initialState program ~~ tr \<leadsto>* S) \<longleftrightarrow> (initialState program ~~ tr' \<leadsto>* S)"
-shows "traceCorrect program tr' = traceCorrect program tr"
+shows "traceCorrect tr' = traceCorrect tr"
 using assms by (auto simp add: traceCorrect_def)
 
 
@@ -2607,7 +2617,7 @@ assumes "initialState program ~~ tr \<leadsto>* S'"
     and "beginAtomic < endAtomic"
     and "tr ! endAtomic = (s, AEndAtomic) "
     and "\<And>i. \<lbrakk>beginAtomic<i; i<endAtomic\<rbrakk> \<Longrightarrow> tr ! i \<noteq> (s, AEndAtomic)"
-    and "\<And>i. \<lbrakk>beginAtomic<i; i<endAtomic\<rbrakk> \<Longrightarrow> tr ! i \<noteq> (s, AFail)"
+    and "\<And>s. (s, AFail) \<notin> set tr"
     and "length insideTx = endAtomic - beginAtomic - 1"
     and "tr = trStart @ (s, ABeginAtomic tx) # insideTx @ (s, AEndAtomic) # trRest"
     and "tr'' = trStart @ insideTxOther @  (s, ABeginAtomic tx) # insideTxSame @ (s, AEndAtomic) # trRest"
@@ -2616,7 +2626,7 @@ assumes "initialState program ~~ tr \<leadsto>* S'"
     and "insideTxSame = filter (\<lambda>a. fst a = s) insideTx"
 shows "transactionIsPacked tr'' tx 
         \<and> (initialState program ~~ tr'' \<leadsto>* S') 
-        \<and> (traceCorrect program tr'' \<longleftrightarrow> traceCorrect program tr)"
+        \<and> (traceCorrect tr'' \<longleftrightarrow> traceCorrect tr)"
 using assms
 proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beginAtomic insideTx insideTxOther insideTxSame rule: nat_less_induct )
   case 1
@@ -2631,7 +2641,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
   assume beginBeforeEnd: "beginAtomic < endAtomic"
   assume tr_endAtomic: "tr ! endAtomic = (s, AEndAtomic)"
   assume noEndAtomicInTx: "\<And>i. \<lbrakk>beginAtomic < i; i < endAtomic\<rbrakk> \<Longrightarrow> tr ! i \<noteq> (s, AEndAtomic)"
-  assume noFailInTx: "\<And>i. \<lbrakk>beginAtomic < i; i < endAtomic\<rbrakk> \<Longrightarrow> tr ! i \<noteq> (s, AFail)"
+  assume noFailInTx: "\<And>s. (s, AFail) \<notin> set tr"
   assume insideTx_len: "length insideTx = endAtomic - beginAtomic - 1"
   assume tr_splitLemma: "tr = trStart @ (s, ABeginAtomic tx) # insideTx @ (s, AEndAtomic) # trRest"
   assume tr''_split: "tr'' = trStart @ insideTxOther @ (s, ABeginAtomic tx) # insideTxSame @ (s, AEndAtomic) # trRest"
@@ -2646,17 +2656,17 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
                        xc < endAtomic \<longrightarrow>
                        x ! endAtomic = (s, AEndAtomic) \<longrightarrow>
                        (\<forall>xa>xc. xa < endAtomic \<longrightarrow> x ! xa \<noteq> (s, AEndAtomic)) \<longrightarrow>
-                       (\<forall>xa>xc. xa < endAtomic \<longrightarrow> x ! xa \<noteq> (s, AFail)) \<longrightarrow>
+                       (\<forall>s. (s, AFail) \<notin> set x) \<longrightarrow>
                        (\<forall>xd. length xd = endAtomic - xc - 1 \<longrightarrow>
                              x = xb @ (s, ABeginAtomic tx) # xd @ (s, AEndAtomic) # trRest \<longrightarrow>
                              (\<forall>xc xe. xa = xb @ xc @ (s, ABeginAtomic tx) # xe @ (s, AEndAtomic) # trRest \<longrightarrow>
-                                      xc = [a\<leftarrow>xd . fst a \<noteq> s] \<longrightarrow> xe = [a\<leftarrow>xd . fst a = s] \<longrightarrow> transactionIsPacked xa tx \<and> (initialState program ~~ xa \<leadsto>* S') \<and> traceCorrect program xa = traceCorrect program x)))"
-  (* show "transactionIsPacked tr'' tx \<and> (initialState program ~~ tr'' \<leadsto>* S') \<and> traceCorrect program tr'' = traceCorrect program tr" *)
+                                      xc = [a\<leftarrow>xd . fst a \<noteq> s] \<longrightarrow> xe = [a\<leftarrow>xd . fst a = s] \<longrightarrow> transactionIsPacked xa tx \<and> (initialState program ~~ xa \<leadsto>* S') \<and> traceCorrect xa = traceCorrect x)))"
+  (* show "transactionIsPacked tr'' tx \<and> (initialState program ~~ tr'' \<leadsto>* S') \<and> traceCorrect  tr'' = traceCorrect  tr" *)
     
   have inductionHypothesis2: 
           "transactionIsPacked tr'' tx 
         \<and> (initialState program ~~ tr'' \<leadsto>* S') 
-        \<and> (traceCorrect program tr'' \<longleftrightarrow> traceCorrect program tr')"
+        \<and> (traceCorrect tr'' \<longleftrightarrow> traceCorrect tr')"
      if a1: "initialState program ~~ tr' \<leadsto>* S'"
     and a2: "Suc beginAtomic < length tr'"
     and a3: "tr' ! Suc beginAtomic = (s, ABeginAtomic tx)"
@@ -2664,7 +2674,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
     and a5: "Suc beginAtomic < endAtomic"
     and a6: "tr' ! endAtomic = (s, AEndAtomic)"
     and a7: "\<And>i. \<lbrakk>Suc beginAtomic<i; i<endAtomic\<rbrakk> \<Longrightarrow> tr' ! i \<noteq> (s, AEndAtomic)"
-    and a7': "\<And>i. \<lbrakk>Suc beginAtomic<i; i<endAtomic\<rbrakk> \<Longrightarrow> tr' ! i \<noteq> (s, AFail)"
+    and no_AFail: "\<And>s. (s, AFail) \<notin> set tr'"
     and a8: "length insideTx = endAtomic - Suc beginAtomic - 1"
     and a9: "tr' = trStart' @ (s, ABeginAtomic tx) # insideTx @ (s, AEndAtomic) # trRest"
     and a10: " tr'' = trStart' @ insideTxOther @ (s, ABeginAtomic tx) # insideTxSame @ (s, AEndAtomic) # trRest"
@@ -2733,14 +2743,11 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
       by (simp add: nth_append that trStart_len)
   qed   
   
-  have insideTx_noFail: "insideTx ! i \<noteq> (s, AFail)" if "i < length insideTx" for i
-  proof -
-    have "tr ! (beginAtomic + 1 + i) \<noteq> (s, AFail)"
-    using noFailInTx insideTx_len that by auto 
-    thus ?thesis
-      apply (simp add: tr_splitLemma)
-      by (simp add: nth_append that trStart_len)
-  qed
+  have insideTx_noFail: "(s, AFail) \<notin> set insideTx" 
+    using noFailInTx tr_splitLemma by auto
+  
+  hence insideTx_noFail: "insideTx ! i \<noteq> (s, AFail)" if "i < length insideTx" for i
+    by (simp add: in_set_conv_nth that)
   
   
   have trRest_len: "length trRest = length tr - endAtomic - 1"
@@ -2782,7 +2789,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
 *)      
     
   
-  show "transactionIsPacked tr'' tx \<and> (initialState program ~~ tr'' \<leadsto>* S') \<and> traceCorrect program tr'' = traceCorrect program tr"
+  show "transactionIsPacked tr'' tx \<and> (initialState program ~~ tr'' \<leadsto>* S') \<and> traceCorrect tr'' = traceCorrect tr"
   proof (cases "transactionIsPackedMeasure tr tx")
     case 0
     text "If the measure is zero, transaction is already packed"
@@ -3061,12 +3068,10 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
     (* 
     the above preserves  the correctness of the trace...
     *) 
-    have preservesCorrectness: "traceCorrect program tr' = traceCorrect program tr"
+    have preservesCorrectness: "traceCorrect tr' = traceCorrect tr"
       proof (rule show_traceCorrect_same)
         show "set tr = set tr'"
           by (auto simp add: tr'_def tr_split )
-        show "\<And>S. (initialState program ~~ tr \<leadsto>* S) \<longleftrightarrow> (initialState program ~~ tr' \<leadsto>* S)"
-          using tr'_steps_eq tr_steps traceDeterministic by blast
       qed  
       
     have noOtherBeginAtomic: "(s', ABeginAtomic tx) \<notin> set trStart" for s'
@@ -3337,7 +3342,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
       
       
     
-    have "transactionIsPacked tr'' tx \<and> (initialState program ~~ tr'' \<leadsto>* S') \<and> traceCorrect program tr'' = traceCorrect program tr'"  
+    have "transactionIsPacked tr'' tx \<and> (initialState program ~~ tr'' \<leadsto>* S') \<and> traceCorrect tr'' = traceCorrect tr'"  
     proof (rule inductionHypothesis2)
       show "initialState program ~~ tr' \<leadsto>* S'" 
         using `initialState program ~~ tr' \<leadsto>* S'` .
@@ -3368,8 +3373,9 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
               using nth_mem tr_split2' apply fastforce
               using trStart_len by linarith
         qed 
-      show "tr' ! i \<noteq> (s, AFail)" if "Suc beginAtomic < i" and "i < endAtomic" for i
-        using that (* TODO maybe first prove that we can remove all failures from the trace *)
+      show "\<And>s. (s, AFail) \<notin> set tr'"
+        using noFailInTx tr'_sameSet by auto
+         
       show "length insideTx' = endAtomic - Suc beginAtomic - 1"  
         apply (auto simp add: insideTx'_def  min_def)
         using endAtomic_len insideTx_len kmin_before_endAtomic trStart_len tr_split tr_split1 apply auto[1]
@@ -3512,6 +3518,7 @@ assumes steps: "initialState program ~~ tr \<leadsto>* S'"
     and exists: "(s, ABeginAtomic tx) \<in> set tr"
     and packed: "transactionIsPacked tr tx"
     and closed: "transactionIsClosed tr tx"
+    and noFail: "(s, AFail) \<notin> set tr"
 shows "\<exists>beginAtomic endAtomic. 
         beginAtomic < length tr
       \<and> beginAtomic < endAtomic  
@@ -3556,7 +3563,8 @@ proof -
     from this have t3: "tr ! i = (s, ABeginAtomic t)"
       by (metis less_imp_le_nat packed1 prod.collapse t1 t2)
       
-    have "\<exists>k>beginAtomic. k < i \<and> tr ! k = (s, AEndAtomic)"
+    thm noNestedTransactions[OF steps]  
+    have "\<exists>k>beginAtomic. k < i \<and> (tr ! k = (s, AEndAtomic) \<or> tr ! k = (s, AFail))"
     proof (rule noNestedTransactions[OF steps])
       show "tr ! beginAtomic = (s, ABeginAtomic tx)" using beginAtomic2 .
       show "beginAtomic < i" using t1 .
@@ -3564,6 +3572,8 @@ proof -
         using e1 t2 by auto 
       show "tr ! i = (s, ABeginAtomic t)" using t3 .
     qed
+    hence "\<exists>k>beginAtomic. k < i \<and> tr ! k = (s, AEndAtomic)"
+      using noFail by (metis dual_order.strict_trans e_prop' nth_mem t2) 
     thus False
       by (metis less_imp_le_nat less_trans packed2 snd_conv t2) 
   qed    
@@ -3689,15 +3699,17 @@ qed (auto)
 lemma canPackOneTransaction2:
 assumes steps: "initialState program ~~ tr \<leadsto>* S'"
   and transactionIsClosed: "\<And>tx. transactionIsClosed tr tx"
+  and noFail: "\<And>s. (s, AFail) \<notin> set tr"
 shows "\<exists>tr'. transactionIsPacked tr' tx 
         \<and> (initialState program ~~ tr' \<leadsto>* S') 
         \<and> (\<forall>t. transactionIsPacked tr t \<longrightarrow>  transactionIsPacked tr' t)
         \<and> (\<forall>tx. transactionIsClosed tr' tx)
-        \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
+        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (traceCorrect tr' \<longleftrightarrow> traceCorrect tr)"
 proof (cases "transactionIsPacked tr tx")
   case True
   with steps
-  show ?thesis using transactionIsClosed by blast
+  show ?thesis using transactionIsClosed noFail by blast
 next
   case False
   hence notPacked: "\<not> transactionIsPacked tr tx" .
@@ -3730,7 +3742,7 @@ next
   (*from canPackOneTransaction[OF steps a1 a2 a3 a4 a5]*)
   have "transactionIsPacked tr' tx 
      \<and> (initialState program ~~ tr' \<leadsto>* S') 
-     \<and> traceCorrect program tr' = traceCorrect program tr"
+     \<and> traceCorrect tr' = traceCorrect tr"
   proof (rule canPackOneTransaction)
     show "initialState program ~~ tr \<leadsto>* S'" using steps .
     show "beginAtomic < length tr" using a1 . 
@@ -3744,10 +3756,11 @@ next
     show "tr' = trStart @ insideTxOther @ (s, ABeginAtomic tx) # insideTxSame @ (s, AEndAtomic) # trRest" using tr'_def .
     show "insideTxOther = [a\<leftarrow>insideTx . fst a \<noteq> s]" using insideTxOther_def .
     show "insideTxSame = [a\<leftarrow>insideTx . fst a = s]" using insideTxSame_def .
+    show "\<And>s. (s, AFail) \<notin> set tr" using noFail .
   qed
   hence tr'1: "transactionIsPacked tr' tx" 
     and tr'2: "(initialState program ~~ tr' \<leadsto>* S')"
-    and tr'3: "traceCorrect program tr' = traceCorrect program tr"
+    and tr'3: "traceCorrect tr' = traceCorrect tr"
     by auto
   
   have insideTx_set: "set insideTx = set insideTxOther \<union> set insideTxSame"
@@ -3807,6 +3820,8 @@ next
     apply (auto simp add: a8 tr'_def insideTxOther_def insideTxSame_def)
     by metis
   
+  have noFail': "(s, AFail) \<notin> set tr'" for s
+    by (simp add: noFail tr'_sameSet)
     
   
   have transactionIsClosed': "transactionIsClosed tr' tx" for tx
@@ -3856,7 +3871,8 @@ next
     
     have closed: "transactionIsClosed tr t"
       by (simp add: transactionIsClosed)   
-    from beginAndEndOfPackedTransaction[OF steps hasBegin packedBefore closed]  
+      
+    from beginAndEndOfPackedTransaction[OF steps hasBegin packedBefore closed noFail]  
     obtain beginAtomic' endAtomic'
        where b1: "beginAtomic' < length tr"
        and b2: "beginAtomic' < endAtomic'"
@@ -3898,8 +3914,27 @@ next
     moreover
     {
       assume l1: "beginAtomic < beginAtomic'" and l2: "beginAtomic' < endAtomic "
-      hence "endAtomic' < endAtomic"
-        by (smt a2 a5 a6 b1 b4 b6 dual_order.strict_trans noNestedTransactions not_le_imp_less prod.sel(1) steps)
+      have "endAtomic' < endAtomic"
+      proof (rule ccontr)
+        assume "\<not> endAtomic' < endAtomic"
+        hence "endAtomic' \<ge> endAtomic" by simp
+
+        with b6
+        have "fst (tr ! endAtomic) = s'"
+          using l2 less_or_eq_imp_le by blast
+        hence "s' = s"
+          using a5 by auto
+          
+        from steps a2 l1 b1 
+        have "\<exists>k>beginAtomic. k < beginAtomic' \<and> tr ! k = (s, AEndAtomic)"
+        proof (rule noNestedTransactions')
+          from b4
+          show "tr ! beginAtomic' = (s, ABeginAtomic t)" using `s' = s` by simp
+          show "(s, AFail) \<notin> set tr" using noFail .
+        qed
+        thus False
+          using a6 l2 by auto
+       qed   
       
       have [simp]: "tx \<noteq> t"
         using notPacked that by blast  
@@ -4074,12 +4109,11 @@ next
     }
     ultimately show "transactionIsPacked tr' t"
       by linarith
-      
-      
   qed
     
+  
   then show ?thesis
-    using tr'1 tr'2 tr'3 transactionIsClosed' by blast 
+    using tr'1 tr'2 tr'3 transactionIsClosed' noFail' by blast
 qed
 
 find_theorems List.map_filter
@@ -4127,53 +4161,66 @@ qed
 lemma canPackAllClosedTransactions:
 assumes steps: "initialState program ~~ tr \<leadsto>* S'"
   and transactionIsClosed: "\<And>tx. transactionIsClosed tr tx"
+  and noFail: "\<And>s. (s, AFail) \<notin> set tr"
 shows "\<exists>tr'. (\<forall>tx. transactionIsPacked tr' tx)
-        \<and> (initialState program ~~ tr' \<leadsto>* S') 
-        \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
+        \<and> (initialState program ~~ tr' \<leadsto>* S')
+        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (traceCorrect tr' \<longleftrightarrow> traceCorrect tr)"
 using assms proof (induct "card {tx. \<not>transactionIsPacked tr tx}" arbitrary: tr rule: nat_less_induct)
 
   case 1
     fix tr
   assume a0: "\<forall>m<card {tx. \<not> transactionIsPacked tr tx}.
               \<forall>x. m = card {tx. \<not> transactionIsPacked x tx} \<longrightarrow>
-                  (initialState program ~~ x \<leadsto>* S') \<longrightarrow> All (transactionIsClosed x) \<longrightarrow> (\<exists>tr'. All (transactionIsPacked tr') \<and> (initialState program ~~ tr' \<leadsto>* S') \<and> traceCorrect program tr' = traceCorrect program x)"
+                  (initialState program ~~ x \<leadsto>* S') \<longrightarrow>
+                  All (transactionIsClosed x) \<longrightarrow> (\<forall>xa. (xa, AFail) \<notin> set x) \<longrightarrow> (\<exists>tr'. All (transactionIsPacked tr') \<and> (initialState program ~~ tr' \<leadsto>* S') \<and> (\<forall>s. (s, AFail) \<notin> set tr') \<and> (traceCorrect tr' = traceCorrect x))"
      and a1: "initialState program ~~ tr \<leadsto>* S'"
      and a2: "\<And>x. transactionIsClosed tr x"
+     and a3: "\<And>s. (s, AFail) \<notin> set tr"
 
-  show "\<exists>tr'. All (transactionIsPacked tr') \<and> (initialState program ~~ tr' \<leadsto>* S') \<and> traceCorrect program tr' = traceCorrect program tr"
+  show "\<exists>tr'. All (transactionIsPacked tr') \<and> (initialState program ~~ tr' \<leadsto>* S') \<and>  (\<forall>s. (s, AFail) \<notin> set tr') \<and> traceCorrect tr' = traceCorrect tr"
   proof (cases "card {tx. \<not>transactionIsPacked tr tx}")
     case 0
     hence "\<forall>tx. transactionIsPacked tr tx"
       using notPacked_finite by auto
       
     then show ?thesis
-      using a1 by blast 
+      using a1 a3 by blast 
     
   next
     case (Suc n)
     from this obtain tx where tx_notPacked: "\<not> transactionIsPacked tr tx"
       by fastforce 
     
-    thm canPackOneTransaction2
-    from canPackOneTransaction2 obtain tr'
+      
+    from canPackOneTransaction2[OF a1 a2 a3]
+    obtain tr'
       where tr1: "transactionIsPacked tr' tx"
         and tr2: "(initialState program ~~ tr' \<leadsto>* S')"
         and tr3: "(\<forall>t. transactionIsPacked tr t \<longrightarrow> transactionIsPacked tr' t) "
-        and tr4: "traceCorrect program tr' = traceCorrect program tr"
+        and tr4: "traceCorrect tr' = traceCorrect tr"
         and tr5: "\<forall>tx. transactionIsClosed tr' tx"
-      using a1 a2 by blast
+        and tr6: "\<forall>s. (s, AFail) \<notin> set tr'"
+      by blast
       
     have "{tx. \<not>transactionIsPacked tr' tx} \<subset> {tx. \<not>transactionIsPacked tr tx}"
       using tr3 tr1 tx_notPacked by auto
     hence cardReduced: "card {tx. \<not>transactionIsPacked tr' tx} < card {tx. \<not>transactionIsPacked tr tx}"
       by (simp add: notPacked_finite psubset_card_mono)
       
-    then show ?thesis
-      using a0 tr2 tr4 tr5 by blast 
-      
+    thm a0[rule_format]  
+    have "\<exists>tr''. All (transactionIsPacked tr'') \<and> (initialState program ~~ tr'' \<leadsto>* S') \<and> (\<forall>s. (s, AFail) \<notin> set tr'') \<and> traceCorrect tr'' = traceCorrect tr'"
+    proof (rule a0[rule_format]) 
+      show "card {tx. \<not>transactionIsPacked tr' tx} < card {tx. \<not>transactionIsPacked tr tx}" using cardReduced .
+      show "card {tx. \<not> transactionIsPacked tr' tx} = card {tx. \<not> transactionIsPacked tr' tx}" ..
+      show "initialState program ~~ tr' \<leadsto>* S'" using tr2 .
+      show "\<And>x. transactionIsClosed tr' x" using tr5 by simp
+      show "\<And>s. (s, AFail) \<notin> set tr'" using tr6 by simp
+  qed
+  thus ?thesis
+    using tr4 by blast
   qed
 qed
-
 
 lemma card_zero:
 assumes "finite S"
@@ -4428,17 +4475,21 @@ lemma removeAt_nth2: "\<lbrakk>i \<le> j; j < length tr - Suc 0\<rbrakk> \<Longr
   
   
 thm removeLastOffender_induct[where 
-         P="\<lambda>t. traceCorrect program t \<longleftrightarrow> traceCorrect program tr"
+         P="\<lambda>t. traceCorrect t \<longleftrightarrow> traceCorrect tr"
      and Q="\<lambda>t i. (\<forall>tx. actionInOpenTransaction tx t i)"]
 
 lemma canCloseTransactions_h:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
+    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
 shows "\<exists>tr'. 
-        ((traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr) \<and> (\<exists>S'. initialState program ~~ tr' \<leadsto>* S'))
+        ((traceCorrect tr' \<longleftrightarrow> traceCorrect tr) 
+        \<and> (\<exists>S'. initialState program ~~ tr' \<leadsto>* S')
+        \<and> (\<forall>s. (s, AFail) \<notin> set tr'))
         \<and> (\<forall>i<length tr'. \<not> (\<exists>tx. actionInOpenTransaction tx tr' i))"
 proof (rule removeLastOffender_induct; (intro conjI)?)
-  show "traceCorrect program tr = traceCorrect program tr" ..
+  show "traceCorrect tr = traceCorrect tr" ..
   show "\<exists>S'. initialState program ~~ tr \<leadsto>* S'" using steps ..
+  show "\<forall>s. (s, AFail) \<notin> set tr" using noFail by simp
   
   fix tr'::trace 
   fix i::nat
@@ -4456,10 +4507,9 @@ proof (rule removeLastOffender_induct; (intro conjI)?)
     *}
     sorry
 
-  show "traceCorrect program (removeAt i tr') \<longleftrightarrow> traceCorrect program tr" 
+  show "traceCorrect (removeAt i tr') \<longleftrightarrow> traceCorrect tr" 
     text {*
      1. Since i is in a transaction it cannot be an invariant check.
-     2. trace can be executed (see g1 above)
     *}
     sorry
   
@@ -4476,18 +4526,22 @@ proof (rule removeLastOffender_induct; (intro conjI)?)
     *}
     sorry
     
-
+  show "\<forall>s. (s, AFail) \<notin> set (removeAt i tr')"
+    sorry
+    
 qed  
 (*
   if there are unclosed transactions, we can just ignore them without affecting the correctness of the code
 *)
 lemma canCloseTransactions:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
+    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
 shows "\<exists>tr' S'. (\<forall>tx. transactionIsClosed tr' tx)
         \<and> (initialState program ~~ tr' \<leadsto>* S') 
-        \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
+        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (traceCorrect tr' \<longleftrightarrow> traceCorrect tr)"
 unfolding transactionIsClosed_def2
-using canCloseTransactions_h[OF steps]
+using canCloseTransactions_h[OF steps noFail] 
   by auto 
 
 lemma transactionsArePacked_def2:
@@ -4500,10 +4554,12 @@ apply (auto simp add: transactionsArePacked_def transactionIsPacked_def indexInO
 find_theorems transactionIsClosed steps        
 lemma canPackTransactions:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
+    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
 shows "\<exists>tr' S'. transactionsArePacked tr' 
         \<and> (initialState program ~~ tr' \<leadsto>* S')
-        \<and> (traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr)"
-  using canCloseTransactions canPackAllClosedTransactions steps transactionsArePacked_def2 by blast
+        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (traceCorrect tr' \<longleftrightarrow> traceCorrect tr)"
+  using canCloseTransactions canPackAllClosedTransactions steps transactionsArePacked_def2 noFail by blast
     
 
 (*
@@ -4665,30 +4721,39 @@ text {*
 *}
 theorem show_programCorrect_noTransactionInterleaving:
 assumes packedTracesCorrect: 
-  "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; transactionsArePacked trace\<rbrakk> \<Longrightarrow> traceCorrect program trace"
+  "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; transactionsArePacked trace; \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
 shows "programCorrect program"
-proof (rule show_programCorrect) 
-  text "Let tr be some trace such that program executes trace to s."
-  fix tr s
-  assume "initialState program ~~ tr \<leadsto>* s"
-  
-  text "Then there is a reshuffling of the trace, where transactions are not interleaved, but the final state is still the same."
-  then obtain tr' s'
-    where "initialState program ~~ tr' \<leadsto>* s'" 
-      and "transactionsArePacked tr'"
-      and "traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr"
-     
-    using canPackTransactions by blast
-  
-  text "According to the assumption those traces are correct"
-  with packedTracesCorrect
-  have "traceCorrect program tr'"  
-    by simp
-  
-  with `traceCorrect program tr' \<longleftrightarrow> traceCorrect program tr`
-  show "traceCorrect program tr" ..
-qed  
-
+unfolding programCorrect_def proof -
+  text "We only have to consider traces without AFail actions"
+  show "\<forall>trace\<in>traces program. traceCorrect trace"
+  proof (subst can_ignore_fails, clarsimp)
+    text "Let tr be some trace such that program executes trace to s."
+    fix tr
+    assume is_trace: "tr \<in> traces program" 
+       and noFail: "\<forall>s. (s, AFail) \<notin> set tr"
+    
+    from is_trace 
+    obtain s where "initialState program ~~ tr \<leadsto>* s"
+      by (auto simp add: traces_def)
+    
+    
+    text "Then there is a reshuffling of the trace, where transactions are not interleaved, but the final state is still the same."
+    then obtain tr' s'
+      where "initialState program ~~ tr' \<leadsto>* s'" 
+        and "transactionsArePacked tr'"
+        and "traceCorrect tr' \<longleftrightarrow> traceCorrect tr"
+        and "\<forall>s. (s, AFail) \<notin> set tr'"
+      using canPackTransactions noFail by blast
+    
+    text "According to the assumption those traces are correct"
+    with packedTracesCorrect noFail
+    have "traceCorrect tr'"  
+      by auto
+    
+    with `traceCorrect tr' \<longleftrightarrow> traceCorrect tr`
+    show "traceCorrect tr" ..
+  qed  
+qed
 
 
 end
