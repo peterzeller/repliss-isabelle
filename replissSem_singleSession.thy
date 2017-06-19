@@ -4,10 +4,37 @@ begin
 
 section {* Single session semantics *}
 
+
+definition consistentSnapshot where
+"consistentSnapshot state vis \<equiv>
+  vis \<subseteq> dom (calls state)
+ (* causally consistent *) 
+ \<and> (\<forall>c1 c2. c1\<in>vis \<and> (c2,c1)\<in> happensBefore state \<longrightarrow> c2\<in>vis)
+ (*transaction consistent *)
+ \<and> (\<forall>c1 c2. c1\<in>vis \<and> callOrigin state c1 = callOrigin state c2 \<longrightarrow> c2\<in>vis)
+"
+
+text {* Invariant holds for all possible (causally + transaction consistent) states *}
+definition invariant_all :: "state \<Rightarrow> bool" where
+"invariant_all state \<equiv> 
+ \<forall>vis. consistentSnapshot state vis
+ \<longrightarrow> invariant (prog state) (invContextVis state vis)"
+
+
+ 
+lemma show_invariant_all_changes:
+assumes "\<And>vis. invContextVis S' vis = invContextVis S vis"
+    and "prog S' = prog S"
+    and "consistentSnapshot S' = consistentSnapshot S"
+shows "invariant_all S' = invariant_all S"
+using assms by (auto simp add: invariant_all_def)
+      
+
 text {*
 The single session semantics only work on a single session.
 All other sessions are simulated by nondeterministic state changes, with respect to the invariant.
 *}
+
 
   
 inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
@@ -29,11 +56,12 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    f ls = BeginAtomic ls';
    currentTransaction C s = None;
    transactionStatus C t = None;
-   (* we assume a nondeterministic state change to C' here *)
+   (* we assume a nondeterministic state change to C' here *) (* TODO add more restrictions *)
+   prog C' = prog C;
    (* new transaction has no calls yet *)
    (* well formed history *)
    (* invariant maintained *)
-   \<And>s'. invariant (prog C) (invContext C' s')
+   invariant_all C'
    (* causally consistent *)
    (* transaction consistent *)
    (* monotonic growth of visible calls*)
@@ -57,7 +85,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    C' = (C\<lparr>localState := (localState C)(s \<mapsto> ls'), 
                 currentTransaction := (currentTransaction C)(s := None),
                 transactionStatus := (transactionStatus C)(t \<mapsto> Commited) \<rparr>);
-   valid = invariant (prog C) (invContext C s)
+   valid = invariant_all C
    \<rbrakk> \<Longrightarrow> C ~~ (s, AEndAtomic, valid) \<leadsto>\<^sub>S C'"
 | dbop: 
   "\<lbrakk>localState C s \<triangleq> ls; 
@@ -92,7 +120,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
                  currentProc := (currentProc C)(s \<mapsto> impl),
                  visibleCalls := (visibleCalls C)(s \<mapsto> {}),
                  invocationOp := (invocationOp C)(s \<mapsto> (procName, args)) \<rparr>);
-   valid = invariant (prog C) (invContext C s)  (* TODO check invariant in C' ??? *)            
+   valid = invariant_all C'  (* TODO check invariant in C ? *)            
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvoc procName args, valid) \<leadsto>\<^sub>S C'"       
 (* TODO do we have to consider concurrent actions here? *)                 
 | return:
@@ -105,7 +133,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
                  visibleCalls := (visibleCalls C)(s := None),
                  invocationRes := (invocationRes C)(s \<mapsto> res),
                  knownIds := knownIds C \<union> uniqueIds res\<rparr>);
-   valid = invariant (prog C') (invContext C' s)                   
+   valid = invariant_all C'                   
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AReturn res, valid) \<leadsto>\<^sub>S C'"
 (*                  
 | fail:

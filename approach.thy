@@ -73,11 +73,33 @@ shows "visibleCalls S s \<noteq> None"
 
  
 
+    
+text {* Coupling invariant: S is state from distributed execution and S is state from single-session execution.  *}
+definition state_coupling where
+"state_coupling S S' s \<equiv> 
+          (if currentTransaction S s = None 
+           then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S s orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(s := vis') \<rparr> 
+           else S' = S)"
   
-
-
-find_theorems "initialState" steps  
+lemma state_coupling_same_inv:
+assumes "state_coupling S S' s"
+shows "invariant_all S' \<longleftrightarrow> invariant_all S"
+proof -
+  have [simp]: "prog S' = prog S" using assms by (auto simp add: state_coupling_def split: if_splits)  
+  moreover have [simp]: "callOrigin S' = callOrigin S" using assms by (auto simp add: state_coupling_def split: if_splits)  
+  moreover have [simp]: "transactionStatus S' = transactionStatus S" using assms by (auto simp add: state_coupling_def split: if_splits)
+  moreover have [simp]: "happensBefore S' = happensBefore S" using assms by (auto simp add: state_coupling_def split: if_splits)
+  moreover have [simp]: "calls S' = calls S" using assms by (auto simp add: state_coupling_def split: if_splits)
+  moreover have [simp]: "knownIds S' = knownIds S" using assms by (auto simp add: state_coupling_def split: if_splits)
+  moreover have [simp]: "invocationOp S' = invocationOp S" using assms by (auto simp add: state_coupling_def split: if_splits)
+  moreover have [simp]: "invocationRes S' = invocationRes S" using assms by (auto simp add: state_coupling_def split: if_splits)
   
+  ultimately 
+  show "invariant_all S' \<longleftrightarrow> invariant_all S"
+    by  (auto simp add: invariant_all_def consistentSnapshot_def)
+qed    
+
+           
 text {*
 If we have an execution on a a single session starting with state satisfying the invariant, then we can convert 
 this trace to a single-session trace leading to an equivalent state.
@@ -92,12 +114,10 @@ assumes steps: "S ~~ tr \<leadsto>* S'"
     and singleSession: "\<And>a. a\<in>set tr \<Longrightarrow> fst a = s"
     and noFails: "(s, AFail) \<notin> set tr"
     (* invariant holds on all states in the execution *)
-    and inv: "\<And>s' S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')"
+    and inv: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S' "
 shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<forall>a. (a, False)\<notin>set tr')
-        \<and> (if currentTransaction S' s = None 
-           then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis') \<rparr> 
-           else S2 = S')"
+        \<and> (state_coupling S' S2 s)"
         (* TODO special case for fail, pull (and others?) *)
 using steps S_wellformed singleSession inv noFails proof (induct rule: steps.induct)
   case (steps_refl S)
@@ -110,7 +130,8 @@ using steps S_wellformed singleSession inv noFails proof (induct rule: steps.ind
       by (simp add: steps_s_refl) 
     show "\<forall>a. (a, False) \<notin> set []"
       by simp
-    show "if currentTransaction S s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S s orElse {} \<and> S = S\<lparr>visibleCalls := (visibleCalls S)(s := vis')\<rparr> else S = S"
+    show "state_coupling S S s"
+    unfolding state_coupling_def 
     proof (subst if_splits, safe)
       fix tx
       assume a: "currentTransaction S s = None"
@@ -123,27 +144,24 @@ next
   hence  steps: "S ~~ tr \<leadsto>* S'"
     and S_wf: "state_wellFormed S"
     and  IH: "\<lbrakk>state_wellFormed S; \<And>a. a \<in> set tr \<Longrightarrow> fst a = s; 
-               \<And>tr' S' s'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')\<rbrakk> 
+               \<And>tr' S'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'\<rbrakk> 
                \<Longrightarrow> \<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
                    \<and> (\<forall>a. (a, False) \<notin> set tr') 
-                   \<and> (if currentTransaction S' s = None 
-                      then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr> 
-                      else S2 = S')"
+                   \<and> (state_coupling S' S2 s)"
     and  step: "S' ~~ a \<leadsto> S''"
     and  singleSession: "\<And>a'. a' \<in> set (tr @ [a]) \<Longrightarrow> fst a' = s"
-    and prefix_invariant: "\<And>tr' S' s'.  \<lbrakk>isPrefix tr' (tr @ [a]); S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')"
+    and prefix_invariant: "\<And>tr' S'.  \<lbrakk>isPrefix tr' (tr @ [a]); S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
     and noFails: "(s, AFail) \<notin> set (tr @ [a])"
     by auto
- 
+
+    
   have "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
          \<and> (\<forall>a. (a, False) \<notin> set tr') 
-         \<and> (if currentTransaction S' s = None 
-            then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr> 
-            else S2 = S')"
+         \<and> (state_coupling S' S2 s)"
   proof (rule IH)
     show "\<And>a. a \<in> set tr \<Longrightarrow> fst a = s"
       using singleSession by auto
-    show "\<And>tr' S' s'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant (prog S) (invContext S' s')"
+    show "\<And>tr' S'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
       using prefix_invariant isPrefix_append by blast 
     show "state_wellFormed S" using S_wf .
   qed
@@ -151,28 +169,26 @@ next
   from this obtain tr' S2
       where ih1: "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
         and ih2: "\<And>a. (a, False) \<notin> set tr'"
-        and ih3: "if currentTransaction S' s = None 
-                  then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr> 
-                  else S2 = S'"
+        and ih3: "state_coupling S' S2 s"
       by blast
   
   have ih3_noTx: "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>" if "currentTransaction S' s = None"
-    using ih3 that by auto
+    using ih3 that by (auto simp add: state_coupling_def)
   have ih3_tx: "S2 = S'" if "currentTransaction S' s \<triangleq> tx" for tx
-    using ih3 that by auto
+    using ih3 that by (auto simp add: state_coupling_def)
   
-  have S2_calls: "calls S2 = calls S'" using ih3 by (auto split: if_splits)
-  have S2_happensBefore: "happensBefore S2 = happensBefore S'" using ih3 by (auto split: if_splits)
-  have S2_prog: "prog S2 = prog S'" using ih3 by (auto split: if_splits)
-  have S2_localState: "localState S2 = localState S'" using ih3 by (auto split: if_splits)
-  have S2_currentProc: "currentProc S2 = currentProc S'" using ih3 by (auto split: if_splits)
-  have S2_currentTransaction: "currentTransaction S2 = currentTransaction S'" using ih3 by (auto split: if_splits)
-  have S2_transactionStatus: "transactionStatus S2 = transactionStatus S'" using ih3 by (auto split: if_splits)
-  have S2_callOrigin: "callOrigin S2 = callOrigin S'" using ih3 by (auto split: if_splits)
-  have S2_generatedIds: "generatedIds S2 = generatedIds S'" using ih3 by (auto split: if_splits)
-  have S2_knownIds: "knownIds S2 = knownIds S'" using ih3 by (auto split: if_splits)
-  have S2_invocationOp: "invocationOp S2 = invocationOp S'" using ih3 by (auto split: if_splits)
-  have S2_invocationRes: "invocationRes S2 = invocationRes S'" using ih3 by (auto split: if_splits)
+  have S2_calls: "calls S2 = calls S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_happensBefore: "happensBefore S2 = happensBefore S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_prog: "prog S2 = prog S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_localState: "localState S2 = localState S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_currentProc: "currentProc S2 = currentProc S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_currentTransaction: "currentTransaction S2 = currentTransaction S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_transactionStatus: "transactionStatus S2 = transactionStatus S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_callOrigin: "callOrigin S2 = callOrigin S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_generatedIds: "generatedIds S2 = generatedIds S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_knownIds: "knownIds S2 = knownIds S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_invocationOp: "invocationOp S2 = invocationOp S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_invocationRes: "invocationRes S2 = invocationRes S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
  
   note S2_simps = 
       S2_calls S2_happensBefore S2_prog S2_localState S2_currentProc S2_currentTransaction
@@ -226,9 +242,9 @@ next
        by metis
     
     have a2': "localState S2 s \<triangleq> ls" 
-      using a2 ih3 by (auto split: if_splits)
+      using a2 ih3 by (auto simp add: state_coupling_def split: if_splits)
     have a3': "currentProc S2 s \<triangleq> f" 
-      using a3 ih3 by (auto split: if_splits)
+      using a3 ih3 by (auto simp add: state_coupling_def split: if_splits)
     from a2' a3' a4
     have step_s: "S2 ~~ (s,(ALocal,True)) \<leadsto>\<^sub>S S2\<lparr>localState := localState S2(s \<mapsto> ls')\<rparr>"
       by (rule step_s.local)
@@ -252,9 +268,11 @@ next
       show "S ~~ (s, tr'@[(ALocal, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>" using steps_s .
       show "\<forall>a. (a, False) \<notin> set (tr' @ [(ALocal, True)])"
         by (simp add: ih2) 
-      show "if currentTransaction S'' s = None 
+      show "state_coupling S'' (S''\<lparr>visibleCalls := visibleCalls S2\<rparr>) s"
+      (*show "if currentTransaction S'' s = None 
             then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr>
-            else S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
+            else S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"*)
+      unfolding state_coupling_def
       proof auto
         assume no_tx_S': "currentTransaction S'' s = None"
         hence no_tx_S': "currentTransaction S' s = None"
@@ -313,8 +331,8 @@ next
       show "S ~~ (s, tr'@[(ANewId uid, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>" using steps_s .
       show "\<forall>a. (a, False) \<notin> set (tr' @ [(ANewId uid, True)])"
         by (simp add: ih2) 
-      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr>
-            else S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
+      show "state_coupling S'' (S''\<lparr>visibleCalls := visibleCalls S2\<rparr>) s"
+      unfolding state_coupling_def
         proof auto
         assume no_tx_S': "currentTransaction S'' s = None"
         hence no_tx_S': "currentTransaction S' s = None"
@@ -359,23 +377,25 @@ next
     have a5': "currentTransaction S2 s = None" using a5 S2_simps by auto
     have a6': "transactionStatus S2 txId = None" using a6 S2_simps by auto
       
-    have "invariant (prog S) (invContext S' s')" for s'
+    have inv': "invariant_all S'" 
     proof (rule prefix_invariant)
       show "S ~~ tr \<leadsto>* S'" using steps .
       show "isPrefix tr (tr @ [a])" by simp
     qed
     
-    hence inv': "invariant (prog S2) (invContext S' s')" for s'
-      using step_prog_invariant steps S2_simps by auto
     
       
       
-    from a2' a3' a4 a5' a6' inv'
+    from a2' a3' a4 a5' a6' 
     have step_s: "S2 ~~ (s,(ABeginAtomic txId,True)) \<leadsto>\<^sub>S S'\<lparr>
                 localState := localState S2(s \<mapsto> ls'), 
                 currentTransaction := currentTransaction S2(s \<mapsto> txId), 
                 transactionStatus := transactionStatus S2(txId \<mapsto> Uncommited)\<rparr>"
-    by (rule step_s.beginAtomic)  
+    proof (rule step_s.beginAtomic)  
+      show "prog S' = prog S2"
+        by (simp add: S2_prog)
+      show "invariant_all S'" using inv' .
+    qed
     
     moreover have "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
       using ih1 by auto
@@ -397,7 +417,8 @@ next
         using steps_S''_s .
       show "\<forall>a. (a, False) \<notin> set (tr' @ [(ABeginAtomic txId, True)])"
         by (simp add: ih2)     
-      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"  
+      show "state_coupling S'' S'' s"  
+      unfolding state_coupling_def
         by (simp add: a1)
     qed    
     
@@ -428,7 +449,7 @@ next
     from a2 a3 a4 a5 a1
     have step_s: "S' ~~ (s,(AEndAtomic,True)) \<leadsto>\<^sub>S S''"
     proof (rule step_s.endAtomic)  
-      show "True = invariant (prog S') (invContext S' s)"
+      show "True = invariant_all S'"
         using step_prog_invariant steps
         by (metis (no_types, lifting) isPrefix_appendI steps_step.prems(3)) 
     qed  
@@ -446,7 +467,8 @@ next
       show "S ~~ (s, tr'@[(AEndAtomic,True)]) \<leadsto>\<^sub>S* S''" using steps_S''_s.
       show "\<forall>a. (a, False) \<notin> set (tr' @ [(AEndAtomic, True)])"
         by (simp add: ih2)
-      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"
+      show "state_coupling S'' S'' s"
+      unfolding state_coupling_def
         by (auto simp add: a1)
     qed
   next
@@ -474,7 +496,7 @@ next
       by metis  
      
     have "S2 = S'"
-      by (simp add: a5 ih3)
+      using ih3 by (auto simp add: a5 ih3 state_coupling_def)
       
     from a2 a3 a4 a5 a6 
     have step_s: "S' ~~ (s,(ADbOp cId operation args res,True)) \<leadsto>\<^sub>S S'\<lparr>localState := localState S'(s \<mapsto> ls' res), 
@@ -497,7 +519,8 @@ next
         using step_s' `S2 = S'` ih1 steps_s_step by blast 
       show "\<forall>a. (a, False) \<notin> set (tr' @ [(ADbOp cId operation args res, True)])"
         by (simp add: ih2)
-      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"
+      show "state_coupling S'' S'' s"
+      unfolding state_coupling_def
         by (auto simp add: a1 a5 state_ext)
     qed    
   next    
@@ -525,7 +548,8 @@ next
         by (simp add: ih1) 
       show "\<forall>a. (a, False) \<notin> set tr'"
         by (simp add: ih2)
-      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S2 = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S2 = S''"
+      show " state_coupling S'' S2 s"
+      unfolding state_coupling_def
       proof (auto simp add: a3 a1, rule exI[where x="visibleCalls S2 s"], intro conjI)
         show "S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := visibleCalls S2 s)\<rparr>"
           by (auto simp add: state_ext S2_simps S2_vis')
@@ -561,7 +585,7 @@ next
         and a5: "invocationOp S' s = None"
       by metis
     
-    have inv_S': "invariant (prog S') (invContext S' s)"
+    have inv_S': "invariant_all S'"
       using step_prog_invariant steps steps_step.prems(3) by force  
     
     have vis_None: "visibleCalls S' s = None"
@@ -588,9 +612,8 @@ next
         by (simp add: S2_invocationOp a5)
       show "S'' = S2\<lparr>localState := localState S2(s \<mapsto> initialState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"
         by (auto simp add: state_ext S2_simps a1 S2_vis')
-      show "True = invariant (prog S2) (invContext S2 s)"
-        using inv_S'
-        by (simp add: S2_prog invContextSame) 
+      show "True = invariant_all S''"
+        by (metis append.right_neutral isPrefix_appendI local.step prefix_invariant steps steps.steps_step)
     qed
     
     
@@ -602,7 +625,8 @@ next
         using ih1 steps_s_step by auto 
       show " \<forall>a. (a, False) \<notin> set (tr' @ [(AInvoc procName args, True)])"
         by (simp add: ih2)
-      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"
+      show "state_coupling S'' S'' s "
+      unfolding state_coupling_def  
         apply (auto simp add: a1 state_ext)
         by force
     qed    
@@ -628,12 +652,11 @@ next
         and a5: "currentTransaction S' s = None"
       by metis
     
-    have inv_S': "invariant (prog S') (invContext S' s)"
+    have inv_S': "invariant_all S'"
       using isPrefix_appendI step_prog_invariant steps steps_step.prems(3) by fastforce  
       
-    have inv_S'': "invariant (prog S'') (invContext S'' s)"
-      by (metis (no_types, lifting) append_Nil2 isPrefix_appendI local.step prefix_invariant step_prog_invariant steps steps.steps_step)
-      
+    have inv_S'': "invariant_all S''"
+      by (metis append.right_neutral isPrefix_appendI local.step prefix_invariant steps steps_appendBack)
     
       
     have step_s': "S2 ~~ (s, (AReturn res, True)) \<leadsto>\<^sub>S S'' "
@@ -646,7 +669,7 @@ next
         by (simp add: a4)  
       show "currentTransaction S2 s = None"
         by (simp add: S2_currentTransaction a5)
-      show "True = invariant (prog S'') (invContext S'' s)" using inv_S''
+      show "True = invariant_all S''" using inv_S''
         by simp
       show "S'' = S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S2(s \<mapsto> res), knownIds := knownIds S2 \<union> uniqueIds res\<rparr>"  
         by (auto simp add: a1 state_ext S2_simps S2_vis')
@@ -657,7 +680,8 @@ next
         using step_s' ih1 steps_s_step by blast 
       show "\<forall>a. (a, False) \<notin> set (tr' @ [(AReturn res, True)])"
         using ih2 by auto
-      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S'' = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S'' = S''"
+      show "state_coupling S'' S'' s "
+      unfolding state_coupling_def  
         by auto
     qed    
   next
@@ -680,10 +704,10 @@ next
       where a1: "S'' = S'" 
         and a2: "currentTransaction S' s = None"
         and a3: "visibleCalls S' s \<triangleq> vis"
-        and a4: "i = invariant (prog S') (invContextH (callOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S') (invocationRes S') (Some vis) s)"
+        and a4: "i = invariant (prog S') (invContextH (callOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S') (invocationRes S') (Some vis) )"
       by metis
       
-    text {* invariant checks can be done later *}
+    text {* We already assumed it holds for all possible set of visible calls *}
     
     show ?thesis 
     proof (intro exI conjI)
@@ -691,10 +715,82 @@ next
         by (simp add: ih1)
       show "\<forall>a. (a, False) \<notin> set tr'"
         by (simp add: ih2)
-      show "if currentTransaction S'' s = None then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S2 = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr> else S2 = S''"
-        using ih3 by (auto simp add: a1)
+      show "state_coupling S'' S2 s "
+        using ih3 by (auto simp add: state_coupling_def a1)
     qed
   qed
+qed
+
+lemma convert_to_single_session_trace_invFail_step:
+fixes tr :: trace
+  and s :: session      
+  and S S' :: state
+assumes step: "S ~~ (s,a) \<leadsto> S'"
+    and S_wellformed: "state_wellFormed S"
+    and noFails: "a \<noteq> AFail"
+    (* invariant holds in the initial state *)
+    and inv: "invariant_all S"
+    (* invariant no longer holds *)
+    and not_inv: "\<not>invariant_all S'"
+    and coupling: "state_coupling S S2 s"
+shows "\<exists>tr' S2'. (S2 ~~ (s, tr') \<leadsto>\<^sub>S* S2') 
+        \<and> (\<exists>a. (a, False)\<in>set tr')"
+using step proof (cases rule: step.cases)
+  case (local ls f ls')
+  text {* a local step does not change the invContext *}
+  
+  have "invariant_all S' = invariant_all S"
+  proof (rule show_invariant_all_changes)
+    show "invContextVis S' vis = invContextVis S vis" for vis
+      using local by (auto simp add: invContextH_def)
+    show "prog S' = prog S"
+      using local.step prog_inv by auto
+    show "consistentSnapshot S' = consistentSnapshot S"
+      using local
+      by (smt \<open>\<And>vis. invContextVis S' vis = invContextVis S vis\<close> \<open>prog S' = prog S\<close> consistentSnapshot_def distributed_state.select_convs(2) inv invariant_all_def not_inv operationContext.select_convs(1) operationContext.select_convs(2) state.surjective state.update_convs(1)) 
+  
+  
+  with inv and not_inv
+  have False
+  find_theorems invariant_all invContextVis
+  
+  thus ?thesis ..
+next
+  case (newId ls f ls' uid)
+  text {* generating a new id does not change the invContext *}
+  hence "invContext S' s = invContext S s" 
+  by (auto simp add: invContextH_def)
+  
+  with inv and not_inv
+  have False by simp
+  
+  thus ?thesis ..
+next
+  case (beginAtomic ls f ls' t)
+  then show ?thesis sorry
+next
+  case (endAtomic ls f ls' t)
+  then show ?thesis sorry
+next
+  case (dbop ls f Op args ls' t c res vis)
+  then show ?thesis sorry
+next
+  case (pull ls vis newTxns newCalls)
+  then show ?thesis sorry
+next
+  case (invocation procName args initialState impl)
+  then show ?thesis sorry
+next
+  case (return ls f res)
+  then show ?thesis sorry
+next
+  case (fail ls)
+  then show ?thesis
+    using noFails by blast 
+next
+  case (invCheck vis res)
+  then show ?thesis
+    using inv not_inv by blast 
 qed
 
 lemma convert_to_single_session_trace_invFail:

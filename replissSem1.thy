@@ -176,7 +176,7 @@ abbreviation commitedCalls :: "state \<Rightarrow> callId set" where
   
 definition invContextH  where
 "invContextH state_callOrigin state_transactionStatus state_happensBefore 
-   state_calls state_knownIds state_invocationOp state_invocationRes vis s = \<lparr>
+   state_calls state_knownIds state_invocationOp state_invocationRes vis = \<lparr>
         i_calls = state_calls |` commitedCallsH state_callOrigin state_transactionStatus , 
         i_happensBefore = state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus , 
         i_visibleCalls = (case vis of None \<Rightarrow> {} | Some vis \<Rightarrow> vis),
@@ -196,9 +196,19 @@ abbreviation invContext where
   (knownIds state)
   (invocationOp state)
   (invocationRes state)
-  (visibleCalls state s)
-  s"
+  (visibleCalls state s)"
 
+abbreviation invContextVis where
+"invContextVis state vis \<equiv>
+  invContextH
+  (callOrigin state)
+  (transactionStatus state)
+  (happensBefore state)
+  (calls state)
+  (knownIds state)
+  (invocationOp state)
+  (invocationRes state)
+  (Some vis)"
   
 lemma invariantContext_eqI: "\<lbrakk>
 i_calls x = i_calls y;

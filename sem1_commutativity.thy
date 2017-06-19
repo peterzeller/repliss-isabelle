@@ -1093,16 +1093,16 @@ happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
   
 lemma invContext_unchanged_happensBefore[simp]:
 assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
-shows "invContextH co ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs s
-    = invContextH co ts hbOld cs ki io ir vcs s"
+shows "invContextH co ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs
+    = invContextH co ts hbOld cs ki io ir vcs"
 apply (simp add: invContextH_def)
 using assms apply (auto simp add: restrict_relation_def commitedCallsH_def)
 done  
 
 lemma invContext_unchanged_happensBefore2[simp]:
 assumes "co c = None"
-shows "invContextH co ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs s
-    = invContextH co ts hbOld cs ki io ir vcs s"
+shows "invContextH co ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs 
+    = invContextH co ts hbOld cs ki io ir vcs "
 apply (simp add: invContextH_def)
 using assms apply (auto simp add: restrict_relation_def commitedCallsH_def)
 done  
@@ -1117,7 +1117,7 @@ using assms by (auto simp add: commitedCallsH_def)
 find_consts "'a \<Rightarrow> 'a option \<Rightarrow> 'a"
 
 lemma invContext_changeVisibleCalls[simp]:
-shows "i_visibleCalls (invContextH co ts hbOld cs ki io ir vcs s)
+shows "i_visibleCalls (invContextH co ts hbOld cs ki io ir vcs )
      = vcs orElse {}"
 by (auto simp add: invContextH_def split: option.splits)  
 
@@ -1159,14 +1159,14 @@ shows "(c \<in> commitedCallsH co ts) \<longleftrightarrow> (case co c of None \
     
 lemma invContextH_update_callOrigin[simp]:
 assumes "co c = None" and "ts t \<triangleq> Uncommited"
-shows "invContextH (co(c \<mapsto> t)) ts hb cs ki io ir vis s =
-       invContextH co ts hb cs ki io ir vis s"
+shows "invContextH (co(c \<mapsto> t)) ts hb cs ki io ir vis  =
+       invContextH co ts hb cs ki io ir vis "
 using assms by (auto simp add: invContextH_def)
 
 lemma invContextH_update_calls[simp]:
 assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
-shows "invContextH co ts hb (cs(c \<mapsto> newCall)) ki io ir vis s =
-       invContextH co ts hb cs ki io ir vis s"
+shows "invContextH co ts hb (cs(c \<mapsto> newCall)) ki io ir vis  =
+       invContextH co ts hb cs ki io ir vis "
 using assms by (auto simp add: invContextH_def commitedCallsH_in)
 
 lemma commitedCallsH_update_uncommited[simp]:
@@ -1179,8 +1179,8 @@ using assms apply (auto simp add: commitedCallsH_def)
 
 lemma invContextH_update_txstatus[simp]:
 assumes "ts t = None"
-shows "invContextH co (ts(t\<mapsto>Uncommited)) hb cs ki io ir vis s =
-       invContextH co ts hb cs ki io ir vis s"
+shows "invContextH co (ts(t\<mapsto>Uncommited)) hb cs ki io ir vis =
+       invContextH co ts hb cs ki io ir vis"
 using assms by (auto simp add: invContextH_def)
 
 lemma test:
@@ -1690,7 +1690,7 @@ assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest"
     and xOutside: "fst x \<noteq> s"
     and wf: "state_wellFormed s_init"
 shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ trStart @ x # (s, ABeginAtomic tx) # txa @ rest \<leadsto>* C)"
-  by (smt local.wf one_compaction_step splitTrace state_wellFormed_combine steps_append txaInTx xOutside)
+  by (smt local.wf one_compaction_step splitTrace state_wellFormed_combine steps_append txaInTx xOutside) (* may timeout sometimes *)
 
 lemma one_compaction_step3:
 assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" 
@@ -1825,7 +1825,7 @@ using assms apply (induct rule: steps.induct)
   apply (subgoal_tac "j = length tr")
   apply auto
   apply (auto simp add: step_simps)
-  by (smt currentTransaction nth_append option.simps(3))
+  by (smt currentTransaction nth_append option.simps(3)) (*times out sometimes*)
 
 lemma noNestedTransactions':
 assumes steps: "S ~~ tr \<leadsto>* S'" 
