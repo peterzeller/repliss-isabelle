@@ -154,6 +154,19 @@ next
     and noFails: "(s, AFail) \<notin> set (tr @ [a])"
     by auto
 
+  
+  have steps': "S ~~ tr @ [a] \<leadsto>* S''"
+    using steps step steps.steps_step by blast 
+    
+  from prefix_invariant steps
+  have inv': "invariant_all S'"
+    using isPrefix_appendI by blast
+    
+    
+  from prefix_invariant steps'
+  have inv'': "invariant_all S''"
+    by (metis append.right_neutral isPrefix_appendI)
+    
     
   have "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
          \<and> (\<forall>a. (a, False) \<notin> set tr') 
@@ -444,14 +457,18 @@ next
     have "S2 = S'"
       using a5 ih3_tx by blast
       
+    have "invariant_all S'"
+      using step_prog_invariant steps
+      by (metis (no_types, lifting) isPrefix_appendI steps_step.prems(3)) 
+      
       
     (*from a2 a3 a4 a5 *)
     from a2 a3 a4 a5 a1
     have step_s: "S' ~~ (s,(AEndAtomic,True)) \<leadsto>\<^sub>S S''"
     proof (rule step_s.endAtomic)  
-      show "True = invariant_all S'"
-        using step_prog_invariant steps
-        by (metis (no_types, lifting) isPrefix_appendI steps_step.prems(3)) 
+      from `invariant_all S'`
+      show "True = invariant_all S''"
+        by (simp add: inv'')
     qed  
     
     with `S2 = S'`
@@ -721,6 +738,7 @@ next
   qed
 qed
 
+
 lemma convert_to_single_session_trace_invFail_step:
 fixes tr :: trace
   and s :: session      
@@ -733,11 +751,13 @@ assumes step: "S ~~ (s,a) \<leadsto> S'"
     (* invariant no longer holds *)
     and not_inv: "\<not>invariant_all S'"
     and coupling: "state_coupling S S2 s"
+    (* we assume that we are not in a transaction (inside a transaction it is not necessary for invariants to hold)*)
+    and not_in_transaction: "currentTransaction S s = None "
 shows "\<exists>tr' S2'. (S2 ~~ (s, tr') \<leadsto>\<^sub>S* S2') 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
 using step proof (cases rule: step.cases)
   case (local ls f ls')
-  text {* a local step does not change the invContext *}
+  text {* a local step does not change the invariant *}
   
   have "invariant_all S' = invariant_all S"
   proof (rule show_invariant_all_changes)
@@ -746,20 +766,26 @@ using step proof (cases rule: step.cases)
     show "prog S' = prog S"
       using local.step prog_inv by auto
     show "consistentSnapshot S' = consistentSnapshot S"
-      using local
-      by (smt \<open>\<And>vis. invContextVis S' vis = invContextVis S vis\<close> \<open>prog S' = prog S\<close> consistentSnapshot_def distributed_state.select_convs(2) inv invariant_all_def not_inv operationContext.select_convs(1) operationContext.select_convs(2) state.surjective state.update_convs(1)) 
-  
+      using local by (auto simp add: consistentSnapshot_def)
+  qed
   
   with inv and not_inv
-  have False
-  find_theorems invariant_all invContextVis
-  
+  have False by simp
+    
   thus ?thesis ..
 next
   case (newId ls f ls' uid)
-  text {* generating a new id does not change the invContext *}
-  hence "invContext S' s = invContext S s" 
-  by (auto simp add: invContextH_def)
+  text {* generating a new id does not change the invariant *}
+  
+  have "invariant_all S' = invariant_all S"
+  proof (rule show_invariant_all_changes)
+    show "invContextVis S' vis = invContextVis S vis" for vis
+      using newId by (auto simp add: invContextH_def)
+    show "prog S' = prog S"
+      using local.step prog_inv by auto
+    show "consistentSnapshot S' = consistentSnapshot S"
+      using newId by (auto simp add: consistentSnapshot_def)
+  qed
   
   with inv and not_inv
   have False by simp
@@ -767,18 +793,94 @@ next
   thus ?thesis ..
 next
   case (beginAtomic ls f ls' t)
-  then show ?thesis sorry
+  text {* starting a transaction does not change the invariant *}
+  
+  have "invariant_all S' = invariant_all S"
+  proof (rule show_invariant_all_changes)
+    show "invContextVis S' vis = invContextVis S vis" for vis
+      using beginAtomic by (auto simp add: invContextH_def)
+    show "prog S' = prog S"
+      using local.step prog_inv by auto
+    show "consistentSnapshot S' = consistentSnapshot S"
+      using beginAtomic by (auto simp add: consistentSnapshot_def)
+  qed
+  
+  with inv and not_inv
+  have False by simp
+  
+  thus ?thesis ..
 next
   case (endAtomic ls f ls' t)
-  then show ?thesis sorry
+  text {* Ending a transaction includes an invariant-check in the single-session semantics, so we get a failing trace. *}
+  
+  define S2' where "S2' \<equiv> S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S2(t \<mapsto> Commited)\<rparr>"
+  
+  have "S2 ~~ (s,(AEndAtomic, False)) \<leadsto>\<^sub>S S2'"
+  proof (rule step_s.intros)
+    show "localState S2 s \<triangleq> ls" 
+     and "currentProc S2 s \<triangleq> f"  
+     and "f ls = EndAtomic ls'"
+     and "currentTransaction S2 s \<triangleq> t"
+      using coupling local.endAtomic state_coupling_def by force+
+    show "S2' 
+        = S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S2(t \<mapsto> Commited)\<rparr>"
+     using S2'_def by simp
+     
+    from not_inv coupling
+    show "False = invariant_all S2'"
+    proof (auto simp add: invariant_all_def state_coupling_def local.endAtomic(6) split: if_splits)
+      fix vis
+      assume a0: "S2 = S"
+         and a1: "consistentSnapshot S' vis"
+         and a2: "\<not> invariant (prog S') (invContextVis S' vis)"
+      
+      show "\<exists>vis. consistentSnapshot S2' vis \<and> \<not> invariant (prog S2') (invContextVis S2' vis)"
+      proof (rule exI[where x=vis], intro conjI)
+        from a1
+        show "consistentSnapshot S2' vis"
+          by (auto simp add: consistentSnapshot_def S2'_def `S2 = S`  local.endAtomic(2))
+          
+        from a2
+        show "\<not> invariant (prog S2') (invContextVis S2' vis)"  
+          by (auto simp add: S2'_def `S2 = S`  local.endAtomic(2))
+      qed    
+    qed
+  qed  
+  
+  then show ?thesis
+    using steps_s_refl steps_s_step by fastforce 
 next
   case (dbop ls f Op args ls' t c res vis)
-  then show ?thesis sorry
+  text {* assumption: we are not inside a transaction *}
+  
+  with not_in_transaction
+  have False
+    by simp
+  
+  thus ?thesis ..
 next
   case (pull ls vis newTxns newCalls)
-  then show ?thesis sorry
+  text {* pulling in new transactions only  *}
+  
+  have "invariant_all S' = invariant_all S"
+  proof (rule show_invariant_all_changes)
+    show "invContextVis S' vis = invContextVis S vis" for vis
+      using pull by (auto simp add: invContextH_def)
+    show "prog S' = prog S"
+      using local.step prog_inv by auto
+    show "consistentSnapshot S' = consistentSnapshot S"
+      using pull by (auto simp add: consistentSnapshot_def)
+  qed  
+  
+  with inv and not_inv
+  have False by simp
+  
+  thus ?thesis ..
 next
   case (invocation procName args initialState impl)
+  
+  
+  
   then show ?thesis sorry
 next
   case (return ls f res)

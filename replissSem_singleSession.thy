@@ -4,15 +4,25 @@ begin
 
 section {* Single session semantics *}
 
+definition 
+"causallyConsistent hb vis \<equiv>
+  (\<forall>c1 c2. c1\<in>vis \<and> (c2,c1)\<in> hb \<longrightarrow> c2\<in>vis)"
+
+definition 
+"transactionConsistent origin vis \<equiv>
+  (\<forall>c1 c2. c1\<in>vis \<and> origin c1 = origin c2 \<longrightarrow> c2\<in>vis)"
 
 definition consistentSnapshot where
 "consistentSnapshot state vis \<equiv>
   vis \<subseteq> dom (calls state)
  (* causally consistent *) 
- \<and> (\<forall>c1 c2. c1\<in>vis \<and> (c2,c1)\<in> happensBefore state \<longrightarrow> c2\<in>vis)
+ \<and> (causallyConsistent (happensBefore state) vis)
  (*transaction consistent *)
- \<and> (\<forall>c1 c2. c1\<in>vis \<and> callOrigin state c1 = callOrigin state c2 \<longrightarrow> c2\<in>vis)
+ \<and> (transactionConsistent (callOrigin state) vis)
 "
+
+
+
 
 text {* Invariant holds for all possible (causally + transaction consistent) states *}
 definition invariant_all :: "state \<Rightarrow> bool" where
@@ -85,7 +95,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    C' = (C\<lparr>localState := (localState C)(s \<mapsto> ls'), 
                 currentTransaction := (currentTransaction C)(s := None),
                 transactionStatus := (transactionStatus C)(t \<mapsto> Commited) \<rparr>);
-   valid = invariant_all C
+   valid = invariant_all C'
    \<rbrakk> \<Longrightarrow> C ~~ (s, AEndAtomic, valid) \<leadsto>\<^sub>S C'"
 | dbop: 
   "\<lbrakk>localState C s \<triangleq> ls; 
