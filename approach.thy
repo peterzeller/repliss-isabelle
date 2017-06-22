@@ -752,7 +752,7 @@ assumes step: "S ~~ (s,a) \<leadsto> S'"
     and not_inv: "\<not>invariant_all S'"
     and coupling: "state_coupling S S2 s"
     (* we assume that we are not in a transaction (inside a transaction it is not necessary for invariants to hold)*)
-    and not_in_transaction: "currentTransaction S s = None "
+    (* and not_in_transaction: "currentTransaction S s = None " *)
 shows "\<exists>tr' S2'. (S2 ~~ (s, tr') \<leadsto>\<^sub>S* S2') 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
 using step proof (cases rule: step.cases)
@@ -801,8 +801,9 @@ next
       using beginAtomic by (auto simp add: invContextH_def)
     show "prog S' = prog S"
       using local.step prog_inv by auto
-    show "consistentSnapshot S' = consistentSnapshot S"
-      using beginAtomic by (auto simp add: consistentSnapshot_def)
+    have "consistentSnapshot S' vis = consistentSnapshot S vis" for vis
+      using beginAtomic by (auto simp add: consistentSnapshot_def transactionConsistent_def)
+    thus "consistentSnapshot S' = consistentSnapshot S" ..
   qed
   
   with inv and not_inv
@@ -851,7 +852,29 @@ next
     using steps_s_refl steps_s_step by fastforce 
 next
   case (dbop ls f Op args ls' t c res vis)
-  text {* assumption: we are not inside a transaction *}
+  text {* uncommitted operations do not affect the invariant *}
+  
+  have "invariant_all S'" if "invariant_all S"
+  using that proof (auto simp add: invariant_all_def)
+    fix vis'
+    assume a0: "\<forall>vis. consistentSnapshot S vis \<longrightarrow> invariant (prog S) (invContextVis S vis)"
+       and a1: "consistentSnapshot S' vis'"
+    
+    from a1
+    have "vis' \<subseteq> insert c (dom (calls S))" 
+     and "causallyConsistent (happensBefore S \<union> vis \<times> {c}) vis" 
+     and "transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis"
+      apply (auto simp add: consistentSnapshot_def dbop)
+      
+      
+       
+    show "invariant (prog S') (invContextVis S' vis)"
+
+  
+  proof (rule show_invariant_all_changes)
+    show "\<And>vis. invContextVis S' vis = invContextVis S vis"
+      using dbop apply (auto simp add: invContextH_def)
+      
   
   with not_in_transaction
   have False
@@ -878,21 +901,101 @@ next
   thus ?thesis ..
 next
   case (invocation procName args initialState impl)
+  text {* invocations include an invariant-check *}
   
+  define S2' where "S2' \<equiv> S2\<lparr>localState := localState S2(s \<mapsto> initialState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"
   
-  
-  then show ?thesis sorry
+  have "S2 ~~ (s,(AInvoc procName args, False)) \<leadsto>\<^sub>S S2'"
+  proof (rule step_s.intros)
+    show "localState S2 s = None"
+     and "procedure (prog S2) procName args \<triangleq> (initialState, impl)"
+     and "uniqueIdsInList args \<subseteq> knownIds S2"
+     and "invocationOp S2 s = None"
+      using invocation coupling apply (auto simp add: state_coupling_def split: if_splits)
+      done
+    
+    show "S2' = S2\<lparr>localState := localState S2(s \<mapsto> initialState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"
+      using S2'_def by simp
+    
+    have no_vis: "visibleCalls S s = None"
+      using S_wellformed local.invocation(3) state_wellFormed_ls_visibleCalls by blast  
+      
+      
+    from not_inv coupling
+    show "False = invariant_all S2'"
+    proof (auto simp add: invariant_all_def state_coupling_def not_in_transaction no_vis)
+      fix vis vis'
+      assume a0: "consistentSnapshot S' vis"
+         and a1: "\<not> invariant (prog S') (invContextVis S' vis)"
+         and a2: "vis' orElse {} = {}"
+         and a3: "S2 = S\<lparr>visibleCalls := (visibleCalls S)(s := vis')\<rparr>"
+      
+      show "\<exists>vis. consistentSnapshot S2' vis \<and> \<not> invariant (prog S2') (invContextVis S2' vis)"
+      proof (rule exI[where x="vis"], intro conjI)
+        show "consistentSnapshot S2' vis"
+          using a0 by (auto simp add: consistentSnapshot_def S2'_def a3  invocation(2))
+          
+        from a1
+        show "\<not> invariant (prog S2') (invContextVis S2' vis)"  
+          using a0 by (auto simp add: consistentSnapshot_def S2'_def a3  invocation(2))
+      qed    
+    qed
+  qed
+  then show ?thesis
+    using steps_s_refl steps_s_step by fastforce 
 next
   case (return ls f res)
-  then show ?thesis sorry
+  text {* return contains an invariant check *}
+  
+  define S2' where "S2' \<equiv> S2\<lparr>localState := (localState S2)(s := None), 
+                              currentProc := (currentProc S2)(s := None), 
+                              visibleCalls := (visibleCalls S2)(s := None), 
+                              invocationRes := invocationRes S2(s \<mapsto> res), 
+                              knownIds := knownIds S2 \<union> uniqueIds res\<rparr>"
+  
+  have "S2 ~~ (s,(AReturn res, False)) \<leadsto>\<^sub>S S2'"
+  proof (rule step_s.intros)
+    show "localState S2 s \<triangleq> ls"
+     and "currentProc S2 s \<triangleq> f"
+     and "f ls = Return res"
+     and "currentTransaction S2 s = None"
+      using return coupling by (auto simp add: state_coupling_def)
+  
+    show "S2' = S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S2(s \<mapsto> res), knownIds := knownIds S2 \<union> uniqueIds res\<rparr>"
+      using S2'_def by simp
+    
+    from not_inv coupling
+    show "False = invariant_all S2'"
+    proof (auto simp add: invariant_all_def state_coupling_def not_in_transaction)
+      fix vis vis'
+      assume a0: "consistentSnapshot S' vis"
+         and a1: "\<not> invariant (prog S') (invContextVis S' vis)"
+         and a2: "vis' orElse {} \<subseteq> visibleCalls S s orElse {}"
+         and a3: "S2 = S\<lparr>visibleCalls := (visibleCalls S)(s := vis')\<rparr>"
+      
+      show "\<exists>vis. consistentSnapshot S2' vis \<and> \<not> invariant (prog S2') (invContextVis S2' vis)"
+      proof (rule exI[where x="vis"], intro conjI)
+        show "consistentSnapshot S2' vis"
+          using a0 by (auto simp add: consistentSnapshot_def S2'_def a3  return(2))
+          
+        from a1
+        show "\<not> invariant (prog S2') (invContextVis S2' vis)"  
+          using a0 by (auto simp add: consistentSnapshot_def S2'_def a3  return(2))
+      qed 
+    qed
+  qed
+      
+  then show ?thesis
+    using steps_s_refl steps_s_step by fastforce 
 next
   case (fail ls)
+  text {* we assumed that there are no fails *}
   then show ?thesis
-    using noFails by blast 
+    using noFails by blast
 next
   case (invCheck vis res)
   then show ?thesis
-    using inv not_inv by blast 
+    using inv not_inv by blast (* same state *)
 qed
 
 lemma convert_to_single_session_trace_invFail:
@@ -909,6 +1012,7 @@ assumes steps: "S ~~ tr \<leadsto>* S'"
     and not_inv: "invariant (prog S') (invContext S' s)"
 shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
+        
 sorry (* TODO *)
            
 lemma GreatestI2:

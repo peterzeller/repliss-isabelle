@@ -9,8 +9,9 @@ definition
   (\<forall>c1 c2. c1\<in>vis \<and> (c2,c1)\<in> hb \<longrightarrow> c2\<in>vis)"
 
 definition 
-"transactionConsistent origin vis \<equiv>
-  (\<forall>c1 c2. c1\<in>vis \<and> origin c1 = origin c2 \<longrightarrow> c2\<in>vis)"
+"transactionConsistent origin txStatus vis \<equiv>
+    (\<forall>c tx. origin c \<triangleq> tx \<longrightarrow> txStatus tx \<triangleq> Commited)
+  \<and> (\<forall>c1 c2. c1\<in>vis \<and> origin c1 = origin c2 \<longrightarrow> c2\<in>vis)"
 
 definition consistentSnapshot where
 "consistentSnapshot state vis \<equiv>
@@ -18,7 +19,7 @@ definition consistentSnapshot where
  (* causally consistent *) 
  \<and> (causallyConsistent (happensBefore state) vis)
  (*transaction consistent *)
- \<and> (transactionConsistent (callOrigin state) vis)
+ \<and> (transactionConsistent (callOrigin state) (transactionStatus state) vis)
 "
 
 
