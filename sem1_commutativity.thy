@@ -1690,7 +1690,9 @@ assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest"
     and xOutside: "fst x \<noteq> s"
     and wf: "state_wellFormed s_init"
 shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ trStart @ x # (s, ABeginAtomic tx) # txa @ rest \<leadsto>* C)"
-  by (smt local.wf one_compaction_step splitTrace state_wellFormed_combine steps_append txaInTx xOutside) (* may timeout sometimes *)
+apply (auto simp add: steps_append splitTrace)
+using local.wf one_compaction_step state_wellFormed_combine txaInTx xOutside by blast+
+
 
 lemma one_compaction_step3:
 assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx) # txa @ x # rest" 
@@ -1824,7 +1826,7 @@ using assms apply (induct rule: steps.induct)
   apply (metis (no_types, hide_lams) less_trans nth_append)
   apply (subgoal_tac "j = length tr")
   apply auto
-  apply (auto simp add: step_simps)
+  apply (auto simp add: step_simps )
   by (smt currentTransaction nth_append option.simps(3)) (*times out sometimes*)
 
 lemma noNestedTransactions':

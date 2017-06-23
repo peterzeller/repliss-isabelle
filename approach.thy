@@ -854,6 +854,11 @@ next
   case (dbop ls f Op args ls' t c res vis)
   text {* uncommitted operations do not affect the invariant *}
   
+  have hb': "happensBefore S' = happensBefore S \<union> vis \<times> {c}"
+    using dbop by auto
+    
+    
+  
   have "invariant_all S'" if "invariant_all S"
   using that proof (auto simp add: invariant_all_def)
     fix vis'
@@ -862,24 +867,65 @@ next
     
     from a1
     have "vis' \<subseteq> insert c (dom (calls S))" 
-     and "causallyConsistent (happensBefore S \<union> vis \<times> {c}) vis" 
-     and "transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis"
-      apply (auto simp add: consistentSnapshot_def dbop)
+      by (auto simp add: consistentSnapshot_def dbop)
+    
+    
+      
+    from a1  
+    have "causallyConsistent (happensBefore S \<union> vis \<times> {c}) vis'" 
+      using hb' by (auto simp add: consistentSnapshot_def causallyConsistent_def)
+    
+    hence "causallyConsistent (happensBefore S) vis'"
+      by (auto simp add: causallyConsistent_def)
+         
+    
+    from a1
+    have "transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis'"
+      by (auto simp add: consistentSnapshot_def dbop)
+    
+    hence "c \<notin> vis'"
+      by (metis (full_types) S_wellformed fun_upd_same local.dbop(6) map_upd_eqD1 transactionConsistent_def transactionStatus.distinct(1) wellFormed_currentTransaction_unique_h(2))  
+      
+    with `vis' \<subseteq> insert c (dom (calls S)) `
+    have "vis' \<subseteq> dom (calls S)"
+      by blast 
+      
+    from `transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis'`  
+    have "transactionConsistent (callOrigin S) (transactionStatus S) vis'"
+      by (metis (full_types) S_wellformed fun_upd_same local.dbop(6) map_upd_eqD1 transactionConsistent_def transactionStatus.distinct(1) wellFormed_currentTransaction_unique_h(2))
+      
+    from `transactionConsistent (callOrigin S) (transactionStatus S) vis'`
+     and `vis' \<subseteq> dom (calls S)`
+     and `causallyConsistent (happensBefore S) vis'`
+    have "consistentSnapshot S vis'"
+      by (simp add: consistentSnapshot_def)
+      
+    with a0  
+    have "invariant (prog S) (invContextVis S vis')"
+      by blast  
+    
+    have [simp]: "prog S' = prog S"
+      using local.step prog_inv by auto
+    
+    have commitedCalls_simp: 
+         "commitedCallsH (callOrigin S(c \<mapsto> t)) (transactionStatus S) 
+        = commitedCallsH (callOrigin S) (transactionStatus S)"
+      using S_wellformed local.dbop(6) local.dbop(7) by auto
+        
+    have "c \<notin> commitedCalls S"
+      by (simp add: S_wellformed local.dbop(7))
       
       
-       
-    show "invariant (prog S') (invContextVis S' vis)"
+    have "invContextVis S' vis' = invContextVis S vis'"
+      by (auto simp add: invContextH_def dbop commitedCalls_simp S_wellformed restrict_relation_def `c \<notin> commitedCalls S`)
+      
+    with `invariant (prog S) (invContextVis S vis')`   
+    show "invariant (prog S') (invContextVis S' vis')"
+      by simp
+  qed    
 
-  
-  proof (rule show_invariant_all_changes)
-    show "\<And>vis. invContextVis S' vis = invContextVis S vis"
-      using dbop apply (auto simp add: invContextH_def)
-      
-  
-  with not_in_transaction
-  have False
-    by simp
-  
+  hence False
+    by (simp add: inv not_inv)
   thus ?thesis ..
 next
   case (pull ls vis newTxns newCalls)
@@ -919,6 +965,9 @@ next
     
     have no_vis: "visibleCalls S s = None"
       using S_wellformed local.invocation(3) state_wellFormed_ls_visibleCalls by blast  
+      
+    have not_in_transaction: "currentTransaction S s = None"
+      using S_wellformed local.invocation(6) wellFormed_invoc_notStarted(1) by auto
       
       
     from not_inv coupling
@@ -963,7 +1012,10 @@ next
   
     show "S2' = S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S2(s \<mapsto> res), knownIds := knownIds S2 \<union> uniqueIds res\<rparr>"
       using S2'_def by simp
-    
+  
+    have not_in_transaction: "currentTransaction S s = None"
+      using S_wellformed return wellFormed_invoc_notStarted(1) by auto  
+      
     from not_inv coupling
     show "False = invariant_all S2'"
     proof (auto simp add: invariant_all_def state_coupling_def not_in_transaction)
@@ -1012,7 +1064,10 @@ assumes steps: "S ~~ tr \<leadsto>* S'"
     and not_inv: "invariant (prog S') (invContext S' s)"
 shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
-        
+proof -
+  
+
+
 sorry (* TODO *)
            
 lemma GreatestI2:
