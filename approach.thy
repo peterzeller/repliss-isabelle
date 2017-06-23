@@ -41,6 +41,12 @@ lemma isPrefix_append:
 "isPrefix xs ys \<Longrightarrow> isPrefix xs (ys@zs)"
 using take_all by (fastforce simp add: isPrefix_def)
 
+lemma isPrefix_refl[simp]: "isPrefix xs xs"
+  by (simp add: isPrefix_def)
+
+lemma isPrefix_empty[simp]: "isPrefix xs [] \<longleftrightarrow> xs = []"
+  by (simp add: isPrefix_def)
+
 lemma isPrefix_appendI[simp]:
 "isPrefix xs (xs@ys)"
   by (simp add: isPrefix_def)
@@ -1059,16 +1065,210 @@ assumes steps: "S ~~ tr \<leadsto>* S'"
     and singleSession: "\<And>a. a\<in>set tr \<Longrightarrow> fst a = s"
     and noFails: "(s, AFail) \<notin> set tr"
     (* invariant holds in the initial state *)
-    and inv: "invariant (prog S) (invContext S s)"
+    and inv: "invariant_all S"
     (* invariant no longer holds *)
-    and not_inv: "invariant (prog S') (invContext S' s)"
+    and not_inv: "\<not> invariant_all S'"
 shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
 proof -
   
+  have not_inv_ex: "\<exists>tr_pre S_fail. isPrefix tr_pre tr \<and> (S ~~ tr_pre \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail"
+    by (rule exI[where x="tr"], rule exI[where x="S'"], auto  simp add: not_inv steps)
+    
 
+  text {* There must be a place where the invariant fails for the first time: *}
+  obtain tr1 a tr2 S1 S_fail
+    where tr_split: "tr = tr1@a#tr2"
+      and steps1: "S ~~ tr1 \<leadsto>* S1"
+      and stepA: "S1 ~~ a \<leadsto> S_fail"
+      and first_not_inv: "\<not>invariant_all S_fail"
+      and inv_before: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr1; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S' "
+  proof (atomize_elim)  
+    show "\<exists>tr1 a tr2 S1 S_fail. tr = tr1 @ a # tr2 \<and> (S ~~ tr1 \<leadsto>* S1) \<and> (S1 ~~ a \<leadsto> S_fail) \<and> \<not> invariant_all S_fail \<and> (\<forall>S' tr'. isPrefix tr' tr1 \<longrightarrow> (S ~~ tr' \<leadsto>* S') \<longrightarrow> invariant_all S')"
+    using steps inv not_inv_ex proof (induct rule: steps_induct)
+      case initial
+      then show ?case
+        by simp 
+    next
+      case (step S' tr a S'')
+      then show ?case 
+      proof (cases "\<exists>tr_pre S_fail. isPrefix tr_pre tr \<and> (S ~~ tr_pre \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail")
+        case True
+        then show ?thesis
+          using inv step.IH by force 
+      next
+        case False
+        
+        hence invariant_in_tr: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
+          by blast
+        
+        from `\<exists>tr_pre S_fail. isPrefix tr_pre (tr @ [a]) \<and> (S ~~ tr_pre \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail`
+        obtain tr_pre S_fail 
+          where "isPrefix tr_pre (tr @ [a])" 
+          and "S ~~ tr_pre \<leadsto>* S_fail" 
+          and "\<not> invariant_all S_fail"
+          by blast
+        
+        have "tr_pre = tr @ [a]"
+        proof (rule ccontr)
+          assume "tr_pre \<noteq> tr @ [a]"
+          with `isPrefix tr_pre (tr @ [a])`
+          have "isPrefix tr_pre tr"
+            by (metis (no_types, lifting) append_eq_append_conv_if append_take_drop_id isPrefix_def length_append_singleton not_less_eq_eq take_all)
+          
+          with invariant_in_tr
+          have "invariant_all S_fail"
+            using \<open>S ~~ tr_pre \<leadsto>* S_fail\<close> by blast
+          with `\<not> invariant_all S_fail`
+          show False ..
+        qed
+        
+        hence "S_fail = S''"
+          using \<open>S ~~ tr_pre \<leadsto>* S_fail\<close> step.step step.steps steps_step traceDeterministic by blast
+          
+        with `\<not> invariant_all S_fail`
+        have "\<not>invariant_all S''"
+          by auto
+          
+        
+        show ?thesis 
+         using step invariant_in_tr `\<not>invariant_all S''` by blast 
+      qed
+    qed  
+  qed
+  
+  obtain tr1' S1' 
+    where "S ~~ (s, tr1') \<leadsto>\<^sub>S* S1'"
+      and "\<forall>a. (a, False)\<notin>set tr1'"
+      and "state_coupling S1 S1' s"
+  proof (atomize_elim, rule convert_to_single_session_trace)
+    show "S ~~ tr1 \<leadsto>* S1" using steps1 .
+    show "state_wellFormed S" using S_wellformed .
+    show "\<And>a. a \<in> set tr1 \<Longrightarrow> fst a = s" using singleSession tr_split by auto 
+    show "(s, AFail) \<notin> set tr1" using tr_split noFails by auto
+    show "\<And>S' tr1'. \<lbrakk>isPrefix tr1' tr1; S ~~ tr1' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
+      using inv_before by auto
+  qed
+  
+  obtain aa where a_def: "a = (s,aa)"
+    by (metis in_set_conv_decomp prod.collapse singleSession tr_split)
+    
+  
+  
+  
+  obtain tr_a S_fail'
+    where steps_tr_a: "S1' ~~ (s, tr_a) \<leadsto>\<^sub>S* S_fail'"
+      and tr_a_fails: "\<exists>a. (a, False)\<in>set tr_a"
+  proof (atomize_elim, rule convert_to_single_session_trace_invFail_step)
+    show "S1 ~~ (s,aa) \<leadsto> S_fail"
+      using a_def stepA by blast
+    show "state_wellFormed S1"
+      using S_wellformed state_wellFormed_combine steps1 by blast
+    show "aa \<noteq> AFail"
+      using a_def noFails tr_split by auto
+    show "invariant_all S1"
+      using inv_before isPrefix_refl steps1 by blast
+    show "\<not> invariant_all S_fail"
+      by (simp add: first_not_inv)
+    show "state_coupling S1 S1' s"
+      using \<open>state_coupling S1 S1' s\<close> by auto
+  qed    
+    
+  show ?thesis
+  proof (rule exI[where x="tr1'@tr_a"], rule exI[where x="S_fail'"], intro conjI)
+    from `S ~~ (s, tr1') \<leadsto>\<^sub>S* S1'` 
+     and `S1' ~~ (s, tr_a) \<leadsto>\<^sub>S* S_fail'`
+    show " S ~~ (s, tr1' @ tr_a) \<leadsto>\<^sub>S* S_fail'"
+      by (rule steps_s_append)  
+    show "\<exists>a. (a, False) \<in> set (tr1' @ tr_a)"
+      using tr_a_fails by auto
+  qed
+qed
 
-sorry (* TODO *)
+lemma wellFormed_state_consistent_snapshot:
+assumes wf: "state_wellFormed S"
+assumes vis: "visibleCalls S s \<triangleq> vis"
+assumes noTx: "currentTransaction S' s = None" 
+shows "consistentSnapshot S vis"
+unfolding consistentSnapshot_def proof (intro conjI)
+  show "vis \<subseteq> dom (calls S)"
+    using wf vis
+    using wellFormed_visibleCallsSubsetCalls_h(2) by auto 
+    
+  show "causallyConsistent (happensBefore S) vis"
+    using wf vis apply (auto simp add: causallyConsistent_def)
+    sorry
+  
+  show "transactionConsistent (callOrigin S) (transactionStatus S) vis"
+    using wf vis noTx apply (auto simp add: transactionConsistent_def)
+    sorry
+qed
+    
+
+text {* if there is an failing invariant check in the trace, then there is a prefix of the trace leading to a
+  state that does not satisfy the invariant *}
+lemma invCheck_to_failing_state:
+assumes steps: "S ~~ trace \<leadsto>* S'"
+    and inv_fail: "(s, AInvcheck False) \<in> set trace"
+    and state_wf: "state_wellFormed S"
+shows "\<exists>tr' S_fail. isPrefix tr' trace \<and> (S ~~ tr' \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail" 
+using steps inv_fail proof (induct rule: steps_induct)
+  case initial
+  then show ?case
+    by auto 
+next
+  case (step S' tr a S'')
+  show ?case 
+  proof (cases "(s, AInvcheck False) \<in> set tr")
+    case True
+    with step.IH
+    obtain tr' S_fail 
+      where "isPrefix tr' tr" 
+        and"S ~~ tr' \<leadsto>* S_fail" 
+        and "\<not> invariant_all S_fail"
+      by blast
+      
+    then show ?thesis
+      using isPrefix_append by blast 
+      
+  next
+    case False
+    with `(s, AInvcheck False) \<in> set (tr @ [a])`
+    have "a = (s, AInvcheck False)" by auto
+    
+    show ?thesis
+    proof (intro exI conjI)
+      show "isPrefix (tr @ [a]) (tr @ [a])"
+        by simp
+      show "S ~~ tr @ [a] \<leadsto>* S''"
+        using step.step step.steps steps_step by auto   
+      
+      from `S' ~~ a \<leadsto> S''`
+      have "S' ~~ (s, AInvcheck False) \<leadsto> S''" using `a = (s, AInvcheck False)` by simp
+      from this
+      obtain vis 
+        where "\<not> invariant (prog S') (invContextVis S' vis)" 
+          and [simp]: "S'' = S'" 
+          and "currentTransaction S' s = None" 
+          and "visibleCalls S' s \<triangleq> vis"
+        by (auto simp add: step_simps)
+        
+      show "\<not> invariant_all S''"  
+      proof (auto simp add: invariant_all_def, rule exI[where x=vis], intro conjI)
+        from `\<not> invariant (prog S') (invContextVis S' vis)`
+        show "\<not> invariant (prog S') (invContextVis S' vis)" .
+        
+        have "state_wellFormed S'"
+          using state_wellFormed_combine state_wf step.steps by blast
+          
+        with `visibleCalls S' s \<triangleq> vis`
+        show "consistentSnapshot S' vis"
+          using \<open>currentTransaction S' s = None\<close> wellFormed_state_consistent_snapshot by blast
+      qed    
+    qed
+  qed
+qed
+
            
 lemma GreatestI2:
 assumes example: "Q k"
@@ -1114,7 +1314,20 @@ proof (rule show_programCorrect_noTransactionInterleaving)
     from this obtain s where "(s, AInvcheck False) \<in> set trace"
        using steps by (auto simp add: traceCorrect_def)
     
-     
+    obtain tr' S_fail
+       where "isPrefix tr' trace"
+         and "initialState program ~~ tr' \<leadsto>* S_fail"
+         and "\<not> invariant_all S_fail"
+    by (atomize_elim, rule invCheck_to_failing_state[OF `initialState program ~~ trace \<leadsto>* S` `(s, AInvcheck False) \<in> set trace`], simp)     
+    
+    obtain tr'_s S_fail_s
+      where "initialState program ~~ (s, tr'_s) \<leadsto>\<^sub>S* S_fail_s"
+        and "\<exists>a. (a, False) \<in> set tr'_s"
+    proof (atomize_elim, rule convert_to_single_session_trace_invFail[OF `initialState program ~~ tr' \<leadsto>* S_fail`])
+      show "state_wellFormed (initialState program)" by simp
+      show "\<And>a. a \<in> set tr' \<Longrightarrow> fst a = s"
+        (* TODO I need to simulate gaps where work is done in other sessions by using the nondeterminism at beginAtomic and AInvoc *)
+    
     from this
     obtain invFailPos where invFailPos_def: "trace ! invFailPos = (s, AInvcheck False)" and invFailPos_inrange: "invFailPos < length trace"
       by (meson in_set_conv_nth)

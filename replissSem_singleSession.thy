@@ -172,13 +172,43 @@ definition traceCorrect_s where
 
 definition programCorrect_s where
 "programCorrect_s program \<equiv> (\<forall>init trace s S. 
-      invariant program (invContext init s) 
+      invariant program (invContext init s) (* TODO change to inv_all ??*)
     \<and> prog init = program
     \<and> (init ~~ (s, trace) \<leadsto>\<^sub>S* S)
     \<longrightarrow> traceCorrect_s program trace)"
   
+  thm steps_append
+    
+lemma steps_s_append: 
+assumes a1: "S ~~ (s, tra) \<leadsto>\<^sub>S* S'"
+    and a2: "S' ~~ (s, trb) \<leadsto>\<^sub>S* S''"
+shows "S ~~ (s, tra@trb) \<leadsto>\<^sub>S* S''"
+using a1 a2 proof (induct trb arbitrary: S'' rule: rev_induct)
+  case Nil
+  then show ?case
+    by (metis append_Nil2 snd_conv snoc_eq_iff_butlast steps_s.simps) 
+next
+  case (snoc x xs)
   
-
+  
+  obtain S_mid 
+   where  steps_xs: "S' ~~ (s, xs) \<leadsto>\<^sub>S* S_mid"
+   and step_x: "S_mid ~~ (s,x) \<leadsto>\<^sub>S S''"
+    apply (atomize_elim)
+    apply (rule steps_s.cases[OF `S' ~~ (s, xs @ [x]) \<leadsto>\<^sub>S* S''`]) 
+    by auto
+    
+  
+  have "S ~~ (s, (tra @ xs) @ [x]) \<leadsto>\<^sub>S* S''" 
+  proof (rule steps_s_step)
+    show "S_mid ~~ (s, x) \<leadsto>\<^sub>S S''" using step_x .
+    show "S ~~ (s, tra @ xs) \<leadsto>\<^sub>S* S_mid"
+      using steps_xs
+      by (simp add: a1 snoc.hyps) 
+  qed
+  thus "S ~~ (s, tra @ xs @ [x]) \<leadsto>\<^sub>S* S''"
+    by simp
+qed
 
 
 end
