@@ -4718,12 +4718,29 @@ shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr1 @ [x] 
 
 (* TODO now we need to show, that we can move all actions out of transactions*)
 
+definition packed_trace :: "trace \<Rightarrow> bool" where
+"packed_trace tr \<equiv>
+  \<forall>i j s.
+      i<j
+    (* i and j are on the same session *)
+    \<and> fst (tr!i) = s
+    \<and> fst (tr!j) = s
+    (* there is no context-switch point between i and j on session s*)
+    \<and> (\<forall>k txId. i<k \<and> k<j \<longrightarrow> tr!k \<noteq> (s, ABeginAtomic txId))
+    \<and> (\<forall>k p a. i<k \<and> k<j \<longrightarrow> tr!k \<noteq> (s, AInvoc p a))
+    \<and> (\<forall>k r. i<k \<and> k<j \<longrightarrow> tr!k \<noteq> (s, AReturn r))
+    (* then everything between i and j must be on the same session *)
+    \<longrightarrow> (\<forall>k. i\<le>k \<and> k\<le>j \<longrightarrow> fst (tr!k) = s)"
+
+
+
+
 text {*
  To show that a program is correct, we only have to consider packed transactions
 *}
 theorem show_programCorrect_noTransactionInterleaving:
 assumes packedTracesCorrect: 
-  "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; transactionsArePacked trace; \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+  "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
 shows "programCorrect program"
 unfolding programCorrect_def proof -
   text "We only have to consider traces without AFail actions"
@@ -4756,6 +4773,9 @@ unfolding programCorrect_def proof -
     show "traceCorrect tr" ..
   qed  
 qed
+
+
+
 
 
 end
