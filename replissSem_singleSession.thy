@@ -72,7 +72,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    (* new transaction has no calls yet *)
    (* well formed history *)
    (* invariant maintained *)
-   invariant_all C'
+   invariant_all C';
    (* causally consistent *)
    (* transaction consistent *)
    (* monotonic growth of visible calls*)
@@ -85,9 +85,12 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    (* monotonic growth of invocation result *)
    (* monotonic growth of invocation happens-before *)
    (*  --> no new calls can be added before*)
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t, True) \<leadsto>\<^sub>S (C'\<lparr>localState := (localState C)(s \<mapsto> ls'), 
-                currentTransaction := (currentTransaction C)(s \<mapsto> t),
-                transactionStatus := (transactionStatus C)(t \<mapsto> Uncommited) \<rparr>)"
+   
+   (* local changes: *)
+   localState C' s \<triangleq> ls';
+   currentTransaction C' s \<triangleq> t;
+   transactionStatus C' t \<triangleq> Uncommited
+   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t, True) \<leadsto>\<^sub>S C'"
 | endAtomic: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -126,13 +129,15 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
   "\<lbrakk>localState C s = None;
    procedure (prog C) procName args \<triangleq> (initState, impl);
    uniqueIdsInList args \<subseteq> knownIds C;
-   invocationOp C s = None;
-   C' = (C\<lparr>localState := (localState C)(s \<mapsto> initState),
-                 currentProc := (currentProc C)(s \<mapsto> impl),
-                 visibleCalls := (visibleCalls C)(s \<mapsto> {}),
-                 invocationOp := (invocationOp C)(s \<mapsto> (procName, args)) \<rparr>);
-   valid = invariant_all C'  (* TODO check invariant in C ? *)            
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvoc procName args, valid) \<leadsto>\<^sub>S C'"       
+   invariant_all C';
+   invocationOp C' s = None;
+   (* TODO some connection between C and C' or allow anything that preserves invariant? *)
+   C'' = (C'\<lparr>localState := (localState C')(s \<mapsto> initState),
+                 currentProc := (currentProc C')(s \<mapsto> impl),
+                 visibleCalls := (visibleCalls C')(s \<mapsto> {}),
+                 invocationOp := (invocationOp C')(s \<mapsto> (procName, args)) \<rparr>);
+   valid = invariant_all C''  (* TODO check invariant in C ? *)            
+   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvoc procName args, valid) \<leadsto>\<^sub>S C''"       
 (* TODO do we have to consider concurrent actions here? *)                 
 | return:
   "\<lbrakk>localState C s \<triangleq> ls; 

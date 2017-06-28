@@ -1,5 +1,5 @@
 theory sem1_commutativity
-imports replissSem1
+imports replissSem1 prefix
 begin
 
 lemma iffI2: "\<lbrakk>A \<Longrightarrow> B; \<not>A \<Longrightarrow> \<not>B\<rbrakk> \<Longrightarrow> A \<longleftrightarrow> B"
@@ -4717,11 +4717,12 @@ shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr1 @ [x] 
 *)
 
 (* TODO now we need to show, that we can move all actions out of transactions*)
-
+(*
 definition packed_trace :: "trace \<Rightarrow> bool" where
 "packed_trace tr \<equiv>
   \<forall>i j s.
       i<j
+    \<and> j<length tr
     (* i and j are on the same session *)
     \<and> fst (tr!i) = s
     \<and> fst (tr!j) = s
@@ -4731,7 +4732,62 @@ definition packed_trace :: "trace \<Rightarrow> bool" where
     \<and> (\<forall>k r. i<k \<and> k<j \<longrightarrow> tr!k \<noteq> (s, AReturn r))
     (* then everything between i and j must be on the same session *)
     \<longrightarrow> (\<forall>k. i\<le>k \<and> k\<le>j \<longrightarrow> fst (tr!k) = s)"
+*)
 
+definition packed_trace :: "trace \<Rightarrow> bool" where
+"packed_trace tr \<equiv>
+  \<forall>i.
+      0<i
+    \<longrightarrow> i<length tr
+    \<longrightarrow> fst (tr!(i-1)) \<noteq> fst (tr!i)
+    \<longrightarrow> ((\<exists>txId. snd(tr!i) = ABeginAtomic txId) 
+          \<or> (\<exists>p a. snd(tr!i) = AInvoc p a))" 
+
+    
+lemmas use_packed_trace = iffD1[OF packed_trace_def[THEN meta_eq_to_obj_eq], rule_format]
+
+lemma isPrefix_len:
+"isPrefix tr tr' \<Longrightarrow> length tr \<le> length tr'"
+  by (metis isPrefix_def nat_le_linear take_all)
+
+
+lemma isPrefix_same: 
+assumes "isPrefix tr tr'"
+    and "i<length tr"
+shows "tr!i = tr'!i"
+using assms apply (auto simp add: isPrefix_def )
+  by (metis nth_take)
+
+
+lemma prefixes_are_packed:
+assumes "packed_trace tr'" 
+    and "isPrefix tr tr'"
+shows "packed_trace tr"
+using `packed_trace tr'` apply (auto simp add: packed_trace_def  )
+  by (metis (no_types, lifting) Suc_leI assms(2) diff_less_Suc isPrefix_len isPrefix_same less_le_trans)
+
+
+
+lemma context_switches_in_packed: 
+assumes packed: "packed_trace tr"
+    and split_tr: "tr = tr1@[(s,a),(s',a')]@tr2"
+    and differentSession: "s \<noteq> s'"
+shows "(\<exists>tx. a' = ABeginAtomic tx) \<or> (\<exists>p ar. a' = AInvoc p ar)"
+proof -
+  have "a' = snd(tr!(1+length tr1))"
+    using split_tr by (auto simp add: nth_append)
+  
+  moreover
+  have "(\<exists>tx. snd(tr!(1+length tr1)) = ABeginAtomic tx) \<or> (\<exists>p ar. snd(tr!(1+length tr1)) = AInvoc p ar)"
+  using packed proof (rule use_packed_trace)
+    show "0 < 1 + length tr1" by simp
+    show "1 + length tr1 < length tr" using split_tr by auto
+    show "fst (tr ! (1 + length tr1 - 1)) \<noteq> fst (tr ! (1 + length tr1))" using split_tr `s \<noteq> s'` by (auto simp add: nth_append)
+  qed
+  ultimately
+  show ?thesis by simp
+qed  
+    
 
 
 
