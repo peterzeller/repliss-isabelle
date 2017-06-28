@@ -4767,7 +4767,8 @@ unfolding programCorrect_def proof -
     text "According to the assumption those traces are correct"
     with packedTracesCorrect noFail
     have "traceCorrect tr'"  
-      by auto
+      (* by auto *)
+      sorry (* TODO go from packed transactions to packed traces *)
     
     with `traceCorrect tr' \<longleftrightarrow> traceCorrect tr`
     show "traceCorrect tr" ..

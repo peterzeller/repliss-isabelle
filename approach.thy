@@ -1284,6 +1284,92 @@ proof -
   thus "P (GREATEST x::nat. Q x)"
     using impl by blast
 qed    
+
+lemma prefix_induct[case_names Nil snoc[IH]]:
+assumes empty: "P []"
+    and step: "\<And>ys a. \<lbrakk>\<And>xs. isPrefix xs ys \<Longrightarrow> P xs\<rbrakk> \<Longrightarrow> P (ys@[a])"
+shows "P xs"
+proof -
+  have "\<forall>xs'. isPrefix xs' xs \<longrightarrow> P xs'"
+  using assms proof (induct rule: rev_induct)
+    case Nil
+    then show ?case
+      by simp 
+  next
+    case (snoc x ys)
+    find_theorems name: local.snoc
+    show ?case
+    proof auto
+      fix xs' 
+      assume a1: "isPrefix xs' (ys @ [x])"
+      show "P xs'"
+      proof (cases "isPrefix xs' ys")
+        case True
+        then show ?thesis
+          using local.empty local.step snoc.hyps by blast 
+      next
+        case False
+        with a1
+        have "xs' = ys@[x]"
+          apply (auto simp add: isPrefix_def)
+          by (metis append_self_conv butlast.simps(2) diff_is_0_eq nat_le_linear not_le take_all take_butlast take_eq_Nil)
+        
+        have " P (ys@[x])"
+        proof (rule local.snoc(3))
+          show "\<And>xs. isPrefix xs ys \<Longrightarrow> P xs"
+            using local.empty local.step snoc.hyps by blast
+        qed    
+        thus "P xs'" using `xs' = ys@[x]` by simp
+      qed
+    qed
+  qed
+  thus "P xs"
+    by simp
+qed  
+
+lemma smallestPrefix_exists:
+fixes tr :: "'a list"
+  and  x :: 'b
+assumes example: "P tr x"
+shows "\<exists>tr x. P tr x \<and> (\<forall>tr' x'. P tr' x' \<and> tr' \<noteq> tr \<longrightarrow> \<not>isPrefix tr' tr)"
+using example proof (induct tr arbitrary: x rule: prefix_induct)
+  case Nil
+  show ?case
+  proof (rule exI[where x="[]"], rule exI[where x="x"], auto)
+    show "P [] x" using Nil .
+  qed
+next
+  case (snoc xs a)
+  show ?case 
+  proof (cases "\<exists>tr' x'. P tr' x' \<and> isPrefix tr' xs")
+  case True
+    from this obtain tr' x'
+      where "isPrefix tr' xs" and "P tr' x'"
+      by blast
+    thus "\<exists>tr x. P tr x \<and> (\<forall>tr' x'. P tr' x' \<and> tr' \<noteq> tr \<longrightarrow> \<not> isPrefix tr' tr)"
+      by (rule snoc.IH)
+  next 
+    case False
+    hence noPrefix: "\<not>isPrefix tr' xs" if "P tr' x'" for tr' x'
+      using that by blast
+      
+    show " \<exists>tr x. P tr x \<and> (\<forall>tr' x'. P tr' x' \<and> tr' \<noteq> tr \<longrightarrow> \<not> isPrefix tr' tr)"
+    proof (rule exI[where x="xs@[a]"], rule exI[where x=x], intro conjI allI impI; (elim conjE)?)
+      show "P (xs @ [a]) x"
+        using snoc.prems .
+      fix tr' x'
+      assume "P tr' x'"
+      hence "\<not>isPrefix tr' xs"
+        using False by blast
+      fix tr' x'
+      assume a0: "P tr' x'"
+         and a1: "tr' \<noteq> xs @ [a]"
+      
+      show "\<not> isPrefix tr' (xs @ [a])"
+        by (metis False a0 a1 butlast_snoc isPrefix_def not_le take_all take_butlast)
+    qed    
+  qed 
+qed
     
 
 text {*
@@ -1299,8 +1385,8 @@ proof (rule show_programCorrect_noTransactionInterleaving)
   text {* Such that executing the trace finishes in state S. *}
   assume steps: "initialState program ~~ trace \<leadsto>* S"
   
-  text {* We can assume transactions are packed. *}
-  assume packed: "transactionsArePacked trace"
+  text {* We can assume the trace is packed. *}
+  assume packed: "packed_trace trace"
   
   text {* We may also assume that there are no failures *}
   assume noFail: "\<And>s. (s, AFail) \<notin> set trace"
@@ -1319,6 +1405,19 @@ proof (rule show_programCorrect_noTransactionInterleaving)
          and "initialState program ~~ tr' \<leadsto>* S_fail"
          and "\<not> invariant_all S_fail"
     by (atomize_elim, rule invCheck_to_failing_state[OF `initialState program ~~ trace \<leadsto>* S` `(s, AInvcheck False) \<in> set trace`], simp)     
+    
+    text {* No take the first state where the invariant fails *}
+    from this
+    obtain tr'_min S_fail_min
+       where tr'_min_prefix: "isPrefix tr'_min trace"
+         and S_fail_min_steps:"initialState program ~~ tr'_min \<leadsto>* S_fail_min"
+         and S_fail_min_fail: "\<not> invariant_all S_fail_min"    
+         and S_fail_min_min: "\<And>tr' S_fail. \<lbrakk>isPrefix tr' trace; initialState program ~~ tr' \<leadsto>* S_fail; \<not> invariant_all S_fail; tr' \<noteq> tr'_min\<rbrakk> \<Longrightarrow> \<not>isPrefix tr' tr'_min"
+      using smallestPrefix_exists[where P="\<lambda>tr x. isPrefix tr trace \<and> (initialState program ~~ tr \<leadsto>* x) \<and> \<not> invariant_all x"]
+      by metis
+    
+    text {* Next get the invocation start before the failure *}  
+      
     
     obtain tr'_s S_fail_s
       where "initialState program ~~ (s, tr'_s) \<leadsto>\<^sub>S* S_fail_s"
