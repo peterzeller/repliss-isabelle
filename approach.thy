@@ -1444,11 +1444,11 @@ unfolding consistentSnapshot_def proof (intro conjI)
     
   show "causallyConsistent (happensBefore S) vis"
     using wf vis apply (auto simp add: causallyConsistent_def)
-    sorry
+    sorry (* TODO *)
   
   show "transactionConsistent (callOrigin S) (transactionStatus S) vis"
     using wf vis noTx apply (auto simp add: transactionConsistent_def)
-    sorry
+    sorry (* TODO *)
 qed
     
 
@@ -1618,6 +1618,18 @@ next
   qed 
 qed
     
+lemma programCorrect_s_inv_initial:
+assumes "programCorrect_s program"
+shows "invariant_all (initialState program)"
+proof (rule ccontr)
+  assume "\<not> invariant_all (initialState program)"
+  
+  text {* from invariant failure, start some procedure, directly get false in there ??? *}
+  
+  show False
+    sorry
+qed
+
 
 text {*
 When a program is correct in the single session semantics, 
@@ -1665,172 +1677,60 @@ proof (rule show_programCorrect_noTransactionInterleaving)
     
     text {* Next get the invocation start before the failure *}  
       
+    find_theorems "(\<exists>x y. ?P x y) \<longleftrightarrow> (\<exists>y x. ?P x y)"
     
-    obtain tr'_s S_fail_s
-      where "initialState program ~~ (s, tr'_s) \<leadsto>\<^sub>S* S_fail_s"
+    have inv_init: "invariant_all (initialState program)"
+      by (simp add: programCorrect_s_inv_initial works_in_single_session)
+      
+    obtain tr'_s S_fail_s s'
+      where "initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s"
         and "\<exists>a. (a, False) \<in> set tr'_s"
-    proof (atomize_elim, rule convert_to_single_session_trace_invFail[OF `initialState program ~~ tr' \<leadsto>* S_fail`])
-      show "state_wellFormed (initialState program)" by simp
-      show "\<And>a. a \<in> set tr' \<Longrightarrow> fst a = s"
-        (* TODO I need to simulate gaps where work is done in other sessions by using the nondeterminism at beginAtomic and AInvoc *)
+    proof (atomize_elim)
+      have "\<exists>tr'_s S_fail_s s'. (initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s) \<and> (\<exists>a. (a, False) \<in> set tr'_s)"
+      proof (rule convert_to_single_session_trace_invFail[OF `initialState program ~~ tr' \<leadsto>* S_fail`])
+        show "state_wellFormed (initialState program)" by simp
+        show "packed_trace tr'"
+          using \<open>isPrefix tr' trace\<close> packed prefixes_are_packed by blast
+        show "\<And>s'. (s', AFail) \<notin> set tr'"
+          using `isPrefix tr' trace` noFail apply (auto simp add: isPrefix_def) (* IMPROVE extract lemma for isPrefix with \<in> or \<subseteq>*)
+          by (metis in_set_takeD)
+        show "invariant_all (initialState program)"
+          using inv_init .
+        show "\<not> invariant_all S_fail"
+          by (simp add: \<open>\<not> invariant_all S_fail\<close>)
+      qed
+      thus "\<exists>s' tr'_s S_fail_s. (initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s) \<and> (\<exists>a. (a, False) \<in> set tr'_s)"
+        by blast
+    qed
     
-    from this
-    obtain invFailPos where invFailPos_def: "trace ! invFailPos = (s, AInvcheck False)" and invFailPos_inrange: "invFailPos < length trace"
-      by (meson in_set_conv_nth)
+    have not_correct: "\<not>traceCorrect_s program tr'_s"
+      by (simp add: \<open>\<exists>a. (a, False) \<in> set tr'_s\<close> traceCorrect_s_def)
+      
+ 
+      
     
-    text {*
-      Consider two cases: Either there is a beginAtomic before the failing invariant check
-      or there is none, in which case we consider the invocation before
-    *}
-    {
-      text "Case 1: There is a transaction before invFailPos"
-      assume beginAtomic_before: "\<exists>startPos txId. startPos < invFailPos \<and>  trace ! startPos = (s, ABeginAtomic txId)"
-      obtain startPos txId
-        where startPos_before: "startPos < invFailPos"
-          and startPos_beginAtomic: "trace ! startPos = (s, ABeginAtomic txId)"
-          and startPos_greatest: "\<And>startPos' txId'. \<lbrakk>startPos' < invFailPos; trace ! startPos' = (s, ABeginAtomic txId')\<rbrakk> \<Longrightarrow> startPos' \<le> startPos"
-      proof (atomize_elim, auto, rule exI, intro conjI)
-        
-        obtain startPos txId
-          where startPos_before: "startPos < invFailPos"
-            and startPos_beginAtomic: "trace ! startPos = (s, ABeginAtomic txId)"
-          using beginAtomic_before by blast
-      
-        show "(GREATEST i. \<exists>tx. i < invFailPos \<and> trace ! i = (s, ABeginAtomic tx)) < invFailPos"
-          using Greatest_smaller beginAtomic_before by presburger
-        show "\<exists>txId. trace ! (GREATEST i. \<exists>tx. i < invFailPos \<and> trace ! i = (s, ABeginAtomic tx)) = (s, ABeginAtomic txId)"
-        proof (rule GreatestI2)
-          show "\<exists>tx. startPos < invFailPos \<and> trace ! startPos = (s, ABeginAtomic tx)"
-            using startPos_before startPos_beginAtomic by blast
-          show "\<And>i. \<exists>tx. i < invFailPos \<and> trace ! i = (s, ABeginAtomic tx) \<Longrightarrow> \<exists>txId. trace ! i = (s, ABeginAtomic txId)"
-            by blast  
-          show "\<And>i. \<exists>tx. i < invFailPos \<and> trace ! i = (s, ABeginAtomic tx) \<Longrightarrow> i < invFailPos"
-            by simp
-        qed    
-        show "\<forall>startPos'<invFailPos. (\<exists>txId'. trace ! startPos' = (s, ABeginAtomic txId')) \<longrightarrow> startPos' \<le> (GREATEST i. \<exists>tx. i < invFailPos \<and> trace ! i = (s, ABeginAtomic tx))"
-          by (metis (mono_tags, lifting) Greatest_le)
-          
-      qed  
-      
-      define trace_until_begin where "trace_until_begin \<equiv> take startPos trace"
-      
-      text {* Let S_at_begin be the state at the betinAtomic  *}
-      obtain S_at_begin
-        where steps_until_begin: "initialState program ~~ trace_until_begin \<leadsto>* S_at_begin"
-        using steps
-        by (metis append_take_drop_id steps_append trace_until_begin_def) 
-        
-      define trace_begin_to_invcheck where "trace_begin_to_invcheck \<equiv> drop startPos (take invFailPos trace)"
-      
-      define trace_rest where "trace_rest \<equiv> drop (Suc invFailPos) trace"
-      
-      have trace_split: "trace = trace_until_begin @ trace_begin_to_invcheck @ [(s, AInvcheck False)] @ trace_rest"
-      proof (rule nth_equalityI)
-        have [simp]: "invFailPos < length trace" using invFailPos_inrange .
-        hence [simp]: "startPos < length trace"
-          using dual_order.strict_trans startPos_before by blast
-          
-          
-      
-        show "length trace = length (trace_until_begin @ trace_begin_to_invcheck @ [(s, AInvcheck False)] @ trace_rest)"
-          apply (auto simp add: trace_until_begin_def trace_begin_to_invcheck_def trace_rest_def)
-          using invFailPos_inrange startPos_before by linarith
-        
-        show "\<forall>i<length trace. trace ! i = (trace_until_begin @ trace_begin_to_invcheck @ [(s, AInvcheck False)] @ trace_rest) ! i"
-          apply (auto simp add: nth_append trace_until_begin_def trace_begin_to_invcheck_def trace_rest_def)
-          apply (metis (no_types, lifting) \<open>startPos < length trace\<close> add_diff_inverse_nat invFailPos_inrange leD le_add_diff_inverse2 le_less_linear length_take less_diff_conv less_imp_le_nat min_def nth_drop nth_take)
-          by (metis Cons_nth_drop_Suc \<open>startPos < length trace\<close> add.commute invFailPos_def invFailPos_inrange le_add_diff_inverse2 le_less_linear less_diff_conv less_imp_le_nat min_absorb2 nth_drop startPos_before)
-      qed    
-      
-      
-      obtain S_at_invcheck
-        where steps_begin_to_invcheck: "S_at_begin ~~ trace_begin_to_invcheck \<leadsto>* S_at_invcheck"
-        using steps steps_until_begin trace_begin_to_invcheck_def trace_until_begin_def
-          apply auto
-          by (metis (mono_tags, hide_lams) append_take_drop_id drop_take steps_append steps_append2)
-       
-      have steps_to_invcheck: "initialState program ~~ trace_until_begin @ trace_begin_to_invcheck \<leadsto>* S_at_invcheck"  
-        using steps steps_append2 steps_begin_to_invcheck steps_until_begin by blast 
-        
-      text {* the invariant fails at S_at_invcheck: *}  
-      obtain S_at_invcheck'
-        where "S_at_invcheck ~~ (s, AInvcheck False) \<leadsto> S_at_invcheck'"
-        using steps trace_split apply auto
-        using steps_append2 steps_appendFront steps_begin_to_invcheck steps_until_begin by auto
-          
-      hence S_at_invcheck_invFail: "\<not>invariant (prog S_at_invcheck) (invContext S_at_invcheck s) "
-        and S_at_invcheck'_eq: "S_at_invcheck = S_at_invcheck'"
-        and S_at_invcheck_vis: "\<exists>vis. visibleCalls S_at_invcheck s \<triangleq> vis"
-        and S_at_invcheck_notx: "currentTransaction S_at_invcheck s = None"
-        by (auto simp add: step_simps)
-      
-      from steps_to_invcheck
-      have prog_at_invcheck: "prog S_at_invcheck = program"
-        using step_prog_invariant by (auto simp add: initialState_def)
-        
-      with S_at_invcheck_invFail  
-      have "\<not> invariant program (invContext S_at_invcheck s)" by simp
-        
-      text {*
-       Now consider two cases:
-        Either the invariant holds in state S_at_begin or it does not.
-      *}
-      {
-        text {* First consider the case where the invariant holds: *}
-        assume "invariant program (invContext S_at_begin s)"
-        
-        text {*
-        Then we can execute the single session program starting from this state ...
-        *}
-        obtain tr' S2 
-          where "S_at_begin ~~ (s, tr') \<leadsto>\<^sub>S* S2"
-            and "\<forall>a. (a, False) \<notin> set tr'"
-            and "if currentTransaction S_at_invcheck s = None then 
-                   \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S_at_invcheck s orElse {} 
-                        \<and> S2 = S_at_invcheck\<lparr>visibleCalls := (visibleCalls S_at_invcheck)(s := vis')\<rparr> 
-                 else 
-                   S2 = S_at_invcheck"
-        proof (atomize_elim, rule convert_to_single_session_trace[OF steps_begin_to_invcheck])
-          show "state_wellFormed S_at_begin"
-            using state_wellFormed_combine state_wellFormed_init steps_until_begin by blast
-          show "\<And>a. a \<in> set trace_begin_to_invcheck \<Longrightarrow> fst a = s"
-            sorry (* TODO this only holds until endAtomic (we have packed transactions )*)
-          show "(s, AFail) \<notin> set trace_begin_to_invcheck"
-            by (metis UnCI append_take_drop_id noFail set_append trace_begin_to_invcheck_def)
-            
-        
-        find_theorems steps_s
-        
-        
-        (*
-        | invCheck:
-  "\<lbrakk>currentTransaction C s = None;
-   visibleCalls C s \<triangleq> vis;
-   invariant (prog C) (invContext C s) = res
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto> C"   
-   *)
-        
-      
-      
-      }
-      
-      
-      have False sorry
-    }
-    proof       
-      
-    from this obtain startPos
-      where "startPos < invFailPos"
-        and "(\<exists>txId. trace ! startPos = (s, ABeginAtomic txId)) \<or> ()"
-       
-   (* TODO now we need to split up the transactions one by one *)    
-    
-    
-  
-  
+    from works_in_single_session
+    have use_single_session: "traceCorrect_s program trace" if "invariant program (invContext init s)" and "prog init = program" and "init ~~ (s, trace) \<leadsto>\<^sub>S* S" for init trace s S
+      using that by (auto simp add: programCorrect_s_def)
 
-  (* Goal: show that there is a failing trace in the single-session semantics (contradiction to works_in_single_session) *)
-qed
+    have correct: "traceCorrect_s program tr'_s" 
+    proof (rule use_single_session)
+      show "initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s"
+        using `initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s` .
+      show "prog (initialState program) = program"
+        by (simp add: initialState_def)
+      show "invariant program (invContext (initialState program) s')"
+        using inv_init apply (auto simp add: invariant_all_def)
+        apply (drule_tac x="{}" in spec)
+        apply (drule mp)
+        by (auto simp add: consistentSnapshot_def initialState_def causallyConsistent_def transactionConsistent_def invContextH_def)
+    qed    
+    
+    with not_correct
+    show False ..
+  qed
+qed  
+   
 
 
 
