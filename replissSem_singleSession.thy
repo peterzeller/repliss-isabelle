@@ -128,7 +128,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
 | invocation:
   "\<lbrakk>localState C s = None;
    procedure (prog C) procName args \<triangleq> (initState, impl);
-   uniqueIdsInList args \<subseteq> knownIds C;
+   uniqueIdsInList args \<subseteq> knownIds C';
    invariant_all C';
    invocationOp C' s = None;
    (* TODO some connection between C and C' or allow anything that preserves invariant? *)
