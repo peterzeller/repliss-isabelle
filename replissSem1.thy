@@ -591,23 +591,6 @@ done
 
 declare compactTrace_step[simp del]
 
-(*
-theorem compactTrace_preservesSemantic:
-shows "(s_init ~~ tr \<leadsto>* C) \<longleftrightarrow> (s_init ~~ compactTrace s tr \<leadsto>* C)"
-proof (induct tr arbitrary: C rule: compactTrace.induct)
-  case (1 s)
-  then show ?case by simp
-next
-  case (2 s sa a tr)
-(*
-    \<lbrakk>s = sa \<and> isABeginAtomic a; ?x = splitTrace s tr; (?xa, ?y) = ?x; (?xb, ?ya) = ?y\<rbrakk> \<Longrightarrow> s_init ~~ ?ya \<leadsto>* ?C = s_init ~~ compactTrace s ?ya \<leadsto>* ?C
-    \<not> (s = sa \<and> isABeginAtomic a) \<Longrightarrow> s_init ~~ tr \<leadsto>* ?C = s_init ~~ compactTrace s tr \<leadsto>* ?C
-*)
-  show ?case 
-    apply auto
-  sorry
-qed
-*)  
 
 lemma steps_appendBack:
 "(A ~~ tr @ [a] \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ tr \<leadsto>* B) \<and> (B ~~ a \<leadsto> C))"
