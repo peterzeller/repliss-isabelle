@@ -4733,8 +4733,66 @@ proof -
   show ?thesis by simp
 qed  
     
-
-
+lemma packedTrace_from_packedTransactions:
+assumes steps: "initialState program ~~ tr \<leadsto>* S"
+    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
+    and packedTransactions: "transactionsArePacked tr"
+shows "\<exists>tr' S'. packed_trace tr' 
+        \<and> (initialState program ~~ tr' \<leadsto>* S')
+        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (traceCorrect tr' \<longleftrightarrow> traceCorrect tr)"
+using assms proof (induct "card {i.
+        0<i 
+      \<and> i<length tr 
+      \<and> fst (tr!(i-1)) \<noteq> fst (tr!i)
+      \<and> \<not>((\<exists>txId. snd(tr!i) = ABeginAtomic txId) 
+          \<or> (\<exists>p a. snd(tr!i) = AInvoc p a))}"
+      arbitrary: tr
+      rule: less_induct)
+  case less
+  then show ?case
+  proof (cases "card {i.
+        0<i 
+      \<and> i<length tr 
+      \<and> fst (tr!(i-1)) \<noteq> fst (tr!i)
+      \<and> \<not>((\<exists>txId. snd(tr!i) = ABeginAtomic txId) 
+          \<or> (\<exists>p a. snd(tr!i) = AInvoc p a))}")
+    case 0
+      hence "{i. 0 < i \<and> i < length tr \<and> fst (tr ! (i - 1)) \<noteq> fst (tr ! i) \<and> \<not>((\<exists>txId. snd (tr ! i) = ABeginAtomic txId) \<or> (\<exists>p a. snd (tr ! i) = AInvoc p a))} = {}"
+        by force
+      hence "packed_trace tr"
+        by (auto simp add: packed_trace_def)
+      then show ?thesis
+        using noFail steps
+        using less.prems(1) less.prems(2) by blast  
+  next
+    case (Suc nat)
+    
+    text {*idea: get the last offender (or better the last?)
+     
+    then move that action to the front:
+    if there is a beginAtomic or beginInvoc before, move it there, otherwise to beginning of list
+    
+    why can we do that?
+    
+    Case beginAtomic
+    between the two actions, there can only be actions from the same session.
+    there can be an endAtomic, but our action is no beginAtomic, so this does not really matter.
+    Pulls can be problematic, because they kind of belong to the beginAtomic.
+    I should change the thing with pulls, maybe just add them to beginAtomic?
+    
+    Ok, let's say we move things to the end.
+    Then the problem might be that there is no end of the invocation...
+    
+    *}
+    
+    
+    
+    then show ?thesis sorry
+  qed
+qed
+ 
+        
 
 text {*
  To show that a program is correct, we only have to consider packed transactions
@@ -4757,7 +4815,7 @@ unfolding programCorrect_def proof -
       by (auto simp add: traces_def)
     
     
-    text "Then there is a reshuffling of the trace, where transactions are not interleaved, but the final state is still the same."
+    text "Then there is a reshuffling of the trace, where transactions are not interleaved"
     then obtain tr' s'
       where "initialState program ~~ tr' \<leadsto>* s'" 
         and "transactionsArePacked tr'"
@@ -4765,11 +4823,17 @@ unfolding programCorrect_def proof -
         and "\<forall>s. (s, AFail) \<notin> set tr'"
       using canPackTransactions noFail by blast
     
+    then obtain tr'' s''
+      where "initialState program ~~ tr'' \<leadsto>* s''" 
+        and "packed_trace tr''"
+        and "traceCorrect tr'' \<longleftrightarrow> traceCorrect tr'"
+        and "\<forall>s. (s, AFail) \<notin> set tr''"
+      using  packedTrace_from_packedTransactions by blast
+      
     text "According to the assumption those traces are correct"
     with packedTracesCorrect noFail
     have "traceCorrect tr'"  
-      (* by auto *)
-      sorry (* TODO go from packed transactions to packed traces *)
+      by auto
     
     with `traceCorrect tr' \<longleftrightarrow> traceCorrect tr`
     show "traceCorrect tr" ..
