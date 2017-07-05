@@ -311,10 +311,9 @@ done
 datatype action =
     ALocal
   | ANewId uniqueId
-  | ABeginAtomic txid
+  | ABeginAtomic txid "txid set"
   | AEndAtomic
   | ADbOp callId operation "any list" any
-  | APull "txid set"
   | AInvoc procedureName "any list"
   | AReturn any
   | AFail  
@@ -347,11 +346,19 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
    f ls = BeginAtomic ls';
-   currentTransaction C s = None;
-   transactionStatus C t = None
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls'), 
+   currentTransaction C s = None;   
+   transactionStatus C t = None;
+   visibleCalls C s \<triangleq> vis;
+   (* choose a set of commited transactions to add to the snapshot *)
+   newTxns \<subseteq> commitedTransactions C;
+   (* determine new visible calls: downwards-closure wrt. causality  *)
+   newCalls = callsInTransaction C newTxns \<down> happensBefore C;
+   (* transaction snapshot *)
+   snapshot = vis \<union> newCalls
+   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t newTxns) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls'), 
                 currentTransaction := (currentTransaction C)(s \<mapsto> t),
-                transactionStatus := (transactionStatus C)(t \<mapsto> Uncommited) \<rparr>)"
+                transactionStatus := (transactionStatus C)(t \<mapsto> Uncommited),
+                visibleCalls := (visibleCalls C)(s \<mapsto> snapshot)\<rparr>)"
 | endAtomic: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -373,15 +380,7 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
                 callOrigin := (callOrigin C)(c \<mapsto> t),
                 visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> {c}),
                 happensBefore := happensBefore C \<union> vis \<times> {c}  \<rparr>)"                
-| pull:
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentTransaction C s = None;
-   visibleCalls C s \<triangleq> vis;
-   (* choose a set of commited transactions to pull in*)
-   newTxns \<subseteq> commitedTransactions C;
-   (* pull in calls from the transactions and their dependencies *)
-   newCalls = callsInTransaction C newTxns \<down> happensBefore C
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, APull newTxns) \<leadsto> (C\<lparr> visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> newCalls)\<rparr>)"                         
+                     
 | invocation:
   "\<lbrakk>localState C s = None;
    procedure (prog C) procName args \<triangleq> (initialState, impl);
@@ -415,16 +414,14 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
 
 inductive_simps step_simp_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
 inductive_simps step_simp_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
-inductive_simps step_simp_ABeginAtomic: "A ~~ (s, ABeginAtomic t) \<leadsto> B "
+inductive_simps step_simp_ABeginAtomic: "A ~~ (s, ABeginAtomic t newTxns) \<leadsto> B "
 inductive_simps step_simp_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
 inductive_simps step_simp_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
-inductive_simps step_simp_APull: "A ~~ (s, APull txns) \<leadsto> B "
 inductive_simps step_simp_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
 inductive_simps step_simp_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_simps step_simp_AFail: "A ~~ (s, AFail) \<leadsto> B "
 inductive_simps step_simp_AInvcheck: "A ~~ (s, b) \<leadsto> B "
 
-thm step_simp_APull
 
 lemmas step_simps = 
   step_simp_ALocal
@@ -432,7 +429,6 @@ lemmas step_simps =
   step_simp_ABeginAtomic
   step_simp_AEndAtomic
   step_simp_ADbOp
-  step_simp_APull
   step_simp_AInvoc
   step_simp_AReturn
   step_simp_AFail
@@ -440,10 +436,9 @@ lemmas step_simps =
 
 inductive_cases step_elim_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
 inductive_cases step_elim_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
-inductive_cases step_elim_ABeginAtomic: "A ~~ (s, ABeginAtomic t) \<leadsto> B "
+inductive_cases step_elim_ABeginAtomic: "A ~~ (s, ABeginAtomic t newTxns) \<leadsto> B "
 inductive_cases step_elim_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
 inductive_cases step_elim_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
-inductive_cases step_elim_APull: "A ~~ (s, APull txns) \<leadsto> B "
 inductive_cases step_elim_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
 inductive_cases step_elim_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_cases step_elim_AFail: "A ~~ (s, AFail) \<leadsto> B "
@@ -456,7 +451,6 @@ lemmas step_elims =
   step_elim_ABeginAtomic
   step_elim_AEndAtomic
   step_elim_ADbOp
-  step_elim_APull
   step_elim_AInvoc
   step_elim_AReturn
   step_elim_AFail
@@ -522,7 +516,7 @@ definition traceCorrect where
 definition programCorrect where
 "programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"
 
-definition "isABeginAtomic action = (case action of ABeginAtomic x \<Rightarrow> True | _ \<Rightarrow> False)"
+definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rightarrow> True | _ \<Rightarrow> False)"
 
 (*
  splits a trace into three parts
@@ -758,12 +752,11 @@ apply (auto split: if_splits)
   apply blast
   apply blast
   apply blast
-  apply blast
-  apply blast
-  apply blast
-  apply blast
   apply (auto simp add: callsInTransactionH_contains downwardsClosure_in split: option.splits)[1]
   apply (metis not_None_eq wellFormed_callOrigin_dom2)
+  apply blast
+  apply blast
+  apply blast
   apply blast
   apply blast
   apply blast
