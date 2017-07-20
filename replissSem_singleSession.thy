@@ -90,7 +90,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    localState C' s \<triangleq> ls';
    currentTransaction C' s \<triangleq> t;
    transactionStatus C' t \<triangleq> Uncommited
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t, True) \<leadsto>\<^sub>S C'"
+   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t txns, True) \<leadsto>\<^sub>S C'"
 | endAtomic: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
