@@ -2693,7 +2693,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
     for tr' tr'' trStart' insideTx insideTxOther insideTxSame::"(session \<times> action) list"  and beginAtomic::nat and txns
     using that ih  by blast
     
-  have beginAtomicUnique: "i = beginAtomic" if "tr!i = (c', ABeginAtomic tx txns)" and "i<length tr"  for i c'
+  have beginAtomicUnique: "i = beginAtomic" if "tr!i = (c', ABeginAtomic tx txns)" and "i<length tr"  for i c' txns
     using transactionIdsUnique that beginAtomic_len tr_beginAtomic tr_steps by blast 
    
   have trStart_len: "length trStart = beginAtomic"
@@ -2977,10 +2977,11 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
         show "state_wellFormed (initialState program)"
           by simp
         show "snd (min_s, min_a) \<noteq> AEndAtomic"
-          apply (simp add: min_a_def)
-          using kmin_inTx apply (auto simp add: indexInOtherTransaction_def)
-          
-          find_theorems kmin
+          sorry (*
+          TODO we cannot prove this part here, but actually 
+          it is sufficient to have one direction here and in that case 
+          the lemma one_compaction_step3 could probably drop this requirement
+          *)
           
       qed
     hence tr'_steps: "initialState program ~~ tr' \<leadsto>* S'"
@@ -2988,11 +2989,11 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
     
     have tr'_rest_eq: "tr' ! i = tr ! i" if "i \<ge> Suc ( Suc (length trStart + length txa))"  for i
     proof -
-      have "tr' ! i = (trStart @ (min_s, min_a) # (s, ABeginAtomic tx) # txa @ rest) ! i"
+      have "tr' ! i = (trStart @ (min_s, min_a) # (s, ABeginAtomic tx txns) # txa @ rest) ! i"
         by (auto simp add: tr'_def)
-      moreover have "... = ((trStart @ (min_s, min_a) # (s, ABeginAtomic tx) # txa) @ rest) ! i"
+      moreover have "... = ((trStart @ (min_s, min_a) # (s, ABeginAtomic tx txns) # txa) @ rest) ! i"
         by simp
-      moreover have "... = ((trStart @ (s, ABeginAtomic tx) # txa @ [(min_s, min_a)]) @ rest) ! i"  
+      moreover have "... = ((trStart @ (s, ABeginAtomic tx txns) # txa @ [(min_s, min_a)]) @ rest) ! i"  
         apply (rule nth_secondHalf_eq)
         using that by auto
       moreover have "... = tr ! i"
@@ -3017,37 +3018,37 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
           by (auto simp add: tr'_def tr_split )
       qed  
       
-    have noOtherBeginAtomic: "(s', ABeginAtomic tx) \<notin> set trStart" for s'
+    have noOtherBeginAtomic: "(s', ABeginAtomic tx txns) \<notin> set trStart" for s' txns
     proof 
-      assume "(s', ABeginAtomic tx) \<in> set trStart"
+      assume "(s', ABeginAtomic tx txns) \<in> set trStart"
       from this obtain ii 
         where "ii < length trStart"
-        and "trStart ! ii = (s', ABeginAtomic tx)"
+        and "trStart ! ii = (s', ABeginAtomic tx txns)"
         by (meson in_set_conv_nth)
-      hence "ii < length tr" and  "tr ! ii = (s', ABeginAtomic tx)"
+      hence "ii < length tr" and  "tr ! ii = (s', ABeginAtomic tx txns)"
         using tr_split by (auto simp add: nth_append)
       thus False
         by (metis transactionIdsUnique \<open>ii < length trStart\<close> kmin_length length_append nat_neq_iff not_le nth_append_length tr_split tr_split1 tr_steps trans_le_add1) 
     qed
         
-    have tr'_beginAtomicPos: "tr' ! (Suc beginAtomic) = (s, ABeginAtomic tx)"
+    have tr'_beginAtomicPos: "tr' ! (Suc beginAtomic) = (s, ABeginAtomic tx txns)"
       by (metis One_nat_def Suc_eq_plus1 nth_Cons_0 nth_Cons_Suc nth_append_length_plus tr'_def trStart_len)
       
     have tr'_beginAtomicPos_unique:
       "i = Suc beginAtomic" 
-      if "tr' ! i = (s', ABeginAtomic tx)" 
+      if "tr' ! i = (s', ABeginAtomic tx txns)" 
       and "i<length tr'"
-      for i s'
+      for i s' txns
       using that transactionIdsUnique tr'_steps tr'_beginAtomicPos tr'_def tr'_steps
       using beginBeforeEnd endAtomic_len tr_split by auto 
     
-    have tr_beginAtomicPos:  "tr ! beginAtomic = (s, ABeginAtomic tx)"
+    have tr_beginAtomicPos:  "tr ! beginAtomic = (s, ABeginAtomic tx txns)"
       by (simp add: tr_beginAtomic)
     have tr_beginAtomicPos_unique:
       "i = beginAtomic" 
-      if "tr ! i = (s', ABeginAtomic tx)" 
+      if "tr ! i = (s', ABeginAtomic tx txns)" 
       and "i<length tr"
-      for i s'
+      for i s' txns
       using that  transactionIdsUnique tr_beginAtomicPos "1"(2)
       using beginAtomicUnique by blast 
     
@@ -3108,10 +3109,10 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
               from a3 obtain i s'
                 where h1: "x < length tr'"
                   and h2: "i < x"
-                  and h3: "tr' ! i = (s', ABeginAtomic tx)"
+                  and h3: "tr' ! i = (s', ABeginAtomic tx txns)"
                   and h4: "fst (tr' ! x) \<noteq> s'"
                   and h5: "\<forall>j<x. i < j \<longrightarrow> tr' ! j \<noteq> (s', AEndAtomic)"
-                by (auto simp add: indexInOtherTransaction_def)
+                using indexInOtherTransaction_def tr'_beginAtomicPos tr'_beginAtomicPos_unique by auto 
               
               have i_def: "i = Suc beginAtomic"
                using h3 h1 h2 less_trans tr'_beginAtomicPos_unique by blast 
@@ -3125,13 +3126,13 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
                 
               show "indexInOtherTransaction tr tx x"
                 proof (auto simp add: indexInOtherTransaction_def)
-                  show "\<exists>i<x. \<exists>s. tr ! i = (s, ABeginAtomic tx) \<and> fst (tr ! x) \<noteq> s \<and> (\<forall>j<x. i < j \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic))"
+                  show "\<exists>i<x. \<exists>s. (\<exists>ntxns. tr ! i = (s, ABeginAtomic tx ntxns)) \<and> fst (tr ! x) \<noteq> s \<and> (\<forall>j<x. i < j \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic))"
                   proof (rule_tac x="beginAtomic" in exI, intro conjI)
                     show "beginAtomic < x"
                       by (simp add: a1)
-                    show "\<exists>s. tr ! beginAtomic = (s, ABeginAtomic tx) \<and> fst (tr ! x) \<noteq> s \<and> (\<forall>j<x. beginAtomic < j \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic))"
+                    show "\<exists>s. (\<exists>ntxns. tr ! beginAtomic = (s, ABeginAtomic tx ntxns)) \<and> fst (tr ! x) \<noteq> s \<and> (\<forall>j<x. beginAtomic < j \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic))"
                     proof (rule_tac x="s" in exI, auto)
-                      show "tr ! beginAtomic = (s, ABeginAtomic tx)"
+                      show "\<exists>ntxns. tr ! beginAtomic = (s, ABeginAtomic tx ntxns)"
                         using tr_beginAtomicPos by auto
                       show "s = fst (tr ! x) \<Longrightarrow> False"
                         using h4
@@ -3163,13 +3164,14 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
                   qed
                 moreover have "kmin \<notin> {i. beginAtomic < i \<and> i < endAtomic \<and> indexInOtherTransaction tr' tx i}"
                   proof (auto simp add: indexInOtherTransaction_def)
-                    fix i s'
+                    fix i s' ntxns
                     assume a0: "kmin < length tr'"
                        and a1: "kmin < endAtomic"
                        and a2: "beginAtomic < kmin"
                        and a3: "i < kmin"
-                       and a4: "tr' ! i = (s', ABeginAtomic tx)"
+                       and a4: "tr' ! i = (s', ABeginAtomic tx ntxns)"
                        and a5: "\<forall>j>i. j < kmin \<longrightarrow> tr' ! j \<noteq> (s', AEndAtomic)"
+                       and g: "fst (tr' ! kmin) \<noteq> s'"
                     
                     from a4    
                     have a6: "i = Suc beginAtomic"
@@ -3178,6 +3180,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
                     from a4
                     have a7: "s' = s"
                       using a0 a3 tr'_beginAtomicPos tr'_beginAtomicPos_unique by auto
+                    
                       
                     have "(tr' ! kmin) \<in> set txa"
                       apply (auto simp add: tr'_def nth_append nth_Cons split: nat.splits)
@@ -3186,7 +3189,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
                       using a3 a6 trStart_len apply linarith
                       using tr_split1 by auto
                       
-                    thus "fst (tr' ! kmin) = s'"
+                    with g show "False"
                       using a7 tr_split2 by blast
                   qed    
                   ultimately show ?thesis
@@ -3197,21 +3200,21 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
       moreover have "card {i. beginAtomic < i \<and> i < endAtomic \<and> indexInOtherTransaction tr' tx i} 
                   = card {i. indexInOtherTransaction tr' tx i}"
         apply (rule_tac f=card in arg_cong)
-        proof (auto simp add: indexInOtherTransaction_def; (rename_tac s'))
-          fix x i s
+        proof (auto simp add: indexInOtherTransaction_def; (rename_tac ntxns))
+          fix x i s ntxns
           assume a0: "x < length tr'"
              and a1: "i < x"
-             and a2: "tr' ! i = (s, ABeginAtomic tx)"
+             and a2: "tr' ! i = (s, ABeginAtomic tx ntxns)"
              and a3: "fst (tr' ! x) \<noteq> s"
              and a4: "\<forall>j<x. i < j \<longrightarrow> tr' ! j \<noteq> (s, AEndAtomic)"
           
           show "beginAtomic < x"
             using a0 a1 a2 by (metis Suc_le_eq dual_order.strict_trans less_or_eq_imp_le tr'_beginAtomicPos_unique)
         next
-          fix x i s'
+          fix x i s' ntxns
           assume a0: "x < length tr'"
              and a1: "i < x"
-             and a2: "tr' ! i = (s', ABeginAtomic tx)"
+             and a2: "tr' ! i = (s', ABeginAtomic tx ntxns)"
              and a3: "fst (tr' ! x) \<noteq> s'"
              and a4: "\<forall>j<x. i < j \<longrightarrow> tr' ! j \<noteq> (s', AEndAtomic)"
           
@@ -3291,7 +3294,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
         using `initialState program ~~ tr' \<leadsto>* S'` .
       show "Suc beginAtomic < length tr'"
         by (simp add: \<open>Suc beginAtomic < length tr'\<close>)
-      show "tr' ! Suc beginAtomic = (s, ABeginAtomic tx)"
+      show "tr' ! Suc beginAtomic = (s, ABeginAtomic tx txns)"
         by (simp add: tr'_beginAtomicPos)
       show "endAtomic < length tr'"
         by (simp add: endAtomic_len tr'_len)
@@ -3326,9 +3329,9 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
         by (smt One_nat_def Suc_diff_Suc Suc_eq_plus1 Suc_leI \<open>beginAtomic < kmin\<close> \<open>rest \<equiv> txb @ (s, AEndAtomic) # trRest\<close> add.commute add_Suc_right add_diff_cancel_left' add_diff_cancel_right' add_eq_if diff_Suc_1 diff_add_inverse diff_diff_add diff_diff_left diff_zero dual_order.strict_implies_not_eq endAtomic_len insideTx_split kmin_before_endAtomic le_add_diff_inverse length_Cons length_append less_not_refl2 less_or_eq_imp_le list.size(4) minus_nat.diff_0 minus_nat.simps(2) nat.simps(3) rest_def tr'_def tr'_len trRest_len trStart_len tr_split1 txa_txb_len zero_less_diff)
       (*have lenH: "length insideTx - Suc (length txa) \<le> length rest"
         by (smt Suc_diff_Suc Suc_eq_plus1 \<open>beginAtomic < kmin\<close> \<open>length insideTx' = endAtomic - Suc beginAtomic - 1\<close> add_diff_inverse_nat beginBeforeEnd diff_diff_left endAtomic_len insideTx'_def kmin_before_endAtomic le_cases length_Cons length_append less_trans_Suc order.asym take_all tr'_def tr'_len trStart_len)*)
-      show "tr' = (trStart @ [(min_s, min_a)]) @ (s, ABeginAtomic tx) # insideTx' @ (s, AEndAtomic) # trRest" 
+      show "tr' = (trStart @ [(min_s, min_a)]) @ (s, ABeginAtomic tx txns) # insideTx' @ (s, AEndAtomic) # trRest" 
         using  txa_txb_len by (auto simp add: tr'_def2 insideTx'_def rest_def)
-      show "tr'' = (trStart @ [(min_s, min_a)]) @ insideTxOther' @ (s, ABeginAtomic tx) # insideTxSame' @ (s, AEndAtomic) # trRest" 
+      show "tr'' = (trStart @ [(min_s, min_a)]) @ insideTxOther' @ (s, ABeginAtomic tx txns) # insideTxSame' @ (s, AEndAtomic) # trRest" 
         apply (auto simp add: tr''_split insideTx'_def)
         by (simp add: insideTxOther_cons)
       show "insideTxOther' = [a\<leftarrow>insideTx' . fst a \<noteq> s]" 
@@ -3348,17 +3351,18 @@ qed
 
 definition transactionIsClosed :: "trace \<Rightarrow> txid \<Rightarrow> bool" where
 "transactionIsClosed tr tx \<equiv>
-  \<forall>i s. i<length tr \<and> tr!i = (s, ABeginAtomic tx) \<longrightarrow> (\<exists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic))"
+  \<forall>i s txns. i<length tr \<and> tr!i = (s, ABeginAtomic tx txns) \<longrightarrow> (\<exists>j. j>i \<and> j<length tr \<and> tr!j = (s, AEndAtomic))"
 
 
 definition actionInOpenTransaction where
 "actionInOpenTransaction tx  tr i \<equiv> 
   \<forall>s a. tr!i = (s,a) 
-    \<longrightarrow> (\<exists>k. k\<le>i \<and> tr!k = (s, ABeginAtomic tx) \<and> (\<forall>j. j>k \<and> j<length tr \<longrightarrow> tr!j \<noteq> (s, AEndAtomic)))"
+    \<longrightarrow> (\<exists>k txns. k\<le>i \<and> tr!k = (s, ABeginAtomic tx txns) \<and> (\<forall>j. j>k \<and> j<length tr \<longrightarrow> tr!j \<noteq> (s, AEndAtomic)))"
   
 lemma transactionIsClosed_def2:
 shows "transactionIsClosed tr tx \<longleftrightarrow> (\<forall>i. i<length tr \<longrightarrow> \<not>actionInOpenTransaction  tx tr i)"
-  by (auto simp add: transactionIsClosed_def actionInOpenTransaction_def)
+  apply (auto simp add: transactionIsClosed_def actionInOpenTransaction_def)
+  
   
   
 fun transactionIsClosedFun where 
