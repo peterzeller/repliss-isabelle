@@ -4749,11 +4749,12 @@ qed
 lemma packedTrace_from_packedTransactions:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
     and noFail: "\<And>s. (s, AFail) \<notin> set tr"
-    and packedTransactions: "transactionsArePacked tr"
+    (* and packedTransactions: "transactionsArePacked tr" *)
+    and notCorrect: "\<not>traceCorrect tr"
 shows "\<exists>tr' S'. packed_trace tr' 
         \<and> (initialState program ~~ tr' \<leadsto>* S')
         \<and> (\<forall>s. (s, AFail) \<notin> set tr')
-        \<and> (traceCorrect tr' \<longleftrightarrow> traceCorrect tr)"
+        \<and> \<not>traceCorrect tr'"
 using assms proof (induct "card {i.
         0<i 
       \<and> i<length tr 
@@ -4830,24 +4831,27 @@ unfolding programCorrect_def proof -
     
     text "Then there is a reshuffling of the trace, where transactions are not interleaved"
     then obtain tr' s'
-      where "initialState program ~~ tr' \<leadsto>* s'" 
-        and "transactionsArePacked tr'"
-        and "traceCorrect tr' \<longleftrightarrow> traceCorrect tr"
-        and "\<forall>s. (s, AFail) \<notin> set tr'"
+      where steps': "initialState program ~~ tr' \<leadsto>* s'" 
+        and txpacked': "transactionsArePacked tr'"
+        and correct': "traceCorrect tr' \<longleftrightarrow> traceCorrect tr"
+        and nofail': "\<forall>s. (s, AFail) \<notin> set tr'"
       using canPackTransactions noFail by blast
     
-    then obtain tr'' s''
+    
+    have "traceCorrect tr'" 
+    proof (rule ccontr)
+      assume "\<not> traceCorrect tr'"
+      with nofail' steps'
+      obtain tr'' s''
       where "initialState program ~~ tr'' \<leadsto>* s''" 
         and "packed_trace tr''"
-        and "traceCorrect tr'' \<longleftrightarrow> traceCorrect tr'"
+        and "\<not>traceCorrect tr''"
         and "\<forall>s. (s, AFail) \<notin> set tr''"
-      using  packedTrace_from_packedTransactions by blast
-      
-    text "According to the assumption those traces are correct"
-    with packedTracesCorrect noFail
-    have "traceCorrect tr'"  
-      by auto
-    
+        using packedTrace_from_packedTransactions
+          by blast 
+      thus False
+        using packedTracesCorrect by blast
+    qed
     with `traceCorrect tr' \<longleftrightarrow> traceCorrect tr`
     show "traceCorrect tr" ..
   qed  
