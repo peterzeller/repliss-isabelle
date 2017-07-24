@@ -410,12 +410,12 @@ next
     qed  
        
   next
-    case (ABeginAtomic txId)
-    hence [simp]: "a = (s, ABeginAtomic txId)"
+    case (ABeginAtomic txId txns)
+    hence [simp]: "a = (s, ABeginAtomic txId txns)"
       by (simp add: prod_eqI steps_step.prems) 
     
     with step
-    have step': "S' ~~ (s, ABeginAtomic txId) \<leadsto> S''" by simp
+    have step': "S' ~~ (s, ABeginAtomic txId txns) \<leadsto> S''" by simp
     
     from step_elim_ABeginAtomic[OF step']
     obtain ls f ls' 
