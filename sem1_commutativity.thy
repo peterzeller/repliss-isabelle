@@ -198,31 +198,33 @@ next
 qed
 
 text {*
- There can be no action on a session before the invocation:
+ There can be no action on a session after a fail or return:
+ (except for invariant checks)
 *}
 lemma nothing_after_fail_or_return:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
  and fail_or_return: "tr!i = (s, AFail) \<or> tr!i = (s, AReturn res)"
  and i_in_range: "i < length tr"
-shows "\<nexists>j. j>i \<and> j<length tr \<and> fst(tr!j) = s" 
+shows "\<nexists>j. j>i \<and> j<length tr \<and> fst(tr!j) = s \<and> \<not>is_AInvcheck (snd (tr!j))" 
 using steps fail_or_return i_in_range proof (induct rule: steps_induct)
   case initial
   then show ?case by auto
 next
   case (step S' tr a S'')
-  show "\<nexists>j. j>i \<and> j < length (tr @ [a]) \<and> fst ((tr @ [a]) ! j) = s"
-  proof auto
+  show "\<not> (\<exists>j>i. j < length (tr @ [a]) \<and> fst ((tr @ [a]) ! j) = s \<and> \<not> is_AInvcheck (snd ((tr @ [a]) ! j)))"
+  proof (rule ccontr, auto)
     fix j
     assume a1: "j < Suc (length tr)"
        and a2: "i < j"
        and a3: "s = fst ((tr @ [a]) ! j)"
+       and a4: "\<not> is_AInvcheck (snd ((tr @ [a]) ! j))"
        
     have j_def: "j = length tr"
     proof (rule ccontr)
       assume "j \<noteq> length tr"
       hence "j < length tr" using a1 by simp
       hence "s \<noteq> fst ((tr @ [a]) ! j)"
-        by (metis (no_types, hide_lams) a2 dual_order.strict_trans nth_append step.IH step.prems(1))
+        by (metis a2 a4 length_append_singleton less_Suc_eq nth_append order.asym step.IH step.prems(1) step.prems(2))
       with a3 show False by simp
     qed
     
@@ -246,7 +248,7 @@ next
       apply (rule step.cases)
       apply (auto simp add: no_ls a3 op j_def)
       apply (auto simp add: fst_a no_ls op)
-      using no_ls step.steps visibleCalls_iff_localState by auto
+      using a4 a_def is_AInvcheck_def j_def by auto 
     qed
 qed
 
@@ -301,7 +303,7 @@ schematic_goal [simp]: "isAFail (ADbOp c oper args res) = ?x" by (auto simp add:
 schematic_goal [simp]: "isAFail (AInvoc pname args) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AReturn res) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AFail) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (AInvcheck c) = ?x" by (auto simp add: isAFail_def)                            
+schematic_goal [simp]: "isAFail (AInvcheck t c) = ?x" by (auto simp add: isAFail_def)                            
 
 lemma exI_eq: 
 assumes "P y True"
@@ -317,7 +319,7 @@ proof (rule iffI2; clarsimp)
   assume is_trace: "tr \<in> traces program"
      and tr_fail: "\<not> traceCorrect tr"
   
-  from this obtain s S' where "(s, AInvcheck False) \<in> set tr" and "initialState program ~~ tr \<leadsto>* S'"
+  from this obtain s txns S' where "(s, AInvcheck txns False) \<in> set tr" and "initialState program ~~ tr \<leadsto>* S'"
     by (auto simp add: traceCorrect_def traces_def)  
     
   
@@ -461,14 +463,11 @@ proof (rule iffI2; clarsimp)
           by (auto simp add: step_simps state_ext  induct_step  fail)
                     
       next
-        case (invCheck s vis res)
-        from `initialState program ~~ tr \<leadsto>* S1` `visibleCalls S1 s \<triangleq> vis`
-        have no_fail: "(s, AFail) \<notin> set tr"
-          by (metis everything_starts_with_an_invocation in_set_conv_nth option.simps(3) visibleCalls_iff_localState)
+        case (invCheck txns res s)
           
         show ?thesis 
           apply (rule exI[where x="S2"])
-          using induct_step.coupling no_fail invCheck
+          using induct_step.coupling  invCheck
           by (auto simp add: step_simps state_ext  induct_step)
       qed
     qed
@@ -656,8 +655,8 @@ apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
 done
 
 lemma precondition_invcheck:
-"precondition (s, AInvcheck b) C = (\<exists>vis. currentTransaction C s = None \<and> visibleCalls C s \<triangleq> vis \<and> invariant (prog C) (invContext C s) = b)"
-apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+"precondition (s, AInvcheck txns res) C = ((\<forall>t\<in>txns. transactionStatus C t \<triangleq> Commited) \<and> res = invariant (prog C) (invContextSnapshot C txns))"
+apply (auto simp add: precondition_def step_simps intro: step.intros elim!: step_elims)
 done
 
 (*
@@ -946,7 +945,13 @@ proof -
   
   have visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
     by (simp add: wellFormed wellFormed_visibleCallsSubsetCalls_h(2))
-  
+ 
+  from exec
+  have committed_same: "transactionStatus A t \<triangleq> Commited \<longleftrightarrow> transactionStatus B t \<triangleq> Commited" for t
+    apply (rule step.cases)
+    by (auto simp add: aIsNotCommit)
+    
+    
 
 show ?thesis
 proof (cases b)
@@ -1027,19 +1032,29 @@ next
   then show ?thesis
     by (metis differentSessions exec preconditionHolds precondition_fail unchangedInTransaction(1))
 next
-  case (AInvcheck b)
-  with preconditionHolds obtain vis 
-     where 1: "currentTransaction B sb = None"
-       and 2: "visibleCalls B sb \<triangleq> vis"
-       and 3: "invariant (prog B) (invContext B sb) = b"
+  case (AInvcheck txns res)
+  with preconditionHolds 
+  have 1: "\<And>t. t\<in>txns \<Longrightarrow> transactionStatus B t \<triangleq> Commited"
+   and 2: "res = invariant (prog B) (invContextSnapshot B txns)"
     by (auto simp add: precondition_invcheck)
   
+  have "(callsInTransaction A txns \<down> happensBefore A) = (callsInTransaction B txns \<down> happensBefore B)"
+    apply (auto simp add: callsInTransactionH_def downwardsClosure_in)
+    sorry
+  
+  hence invContextSame: "(invContextSnapshot A txns) = (invContextSnapshot B txns)"
+    apply auto
+    sorry
     
   moreover have "invContext A sb = invContext B sb"
     using unchangedInTransaction_getInvContext aIsInLocal aIsInTransaction aIsNotCommit differentSessions exec origin_inv txIsUncommited visibleCalls_inv by blast 
 
-    ultimately show ?thesis  using unchangedInTransaction
-      by (smt AInvcheck aIsInTransaction differentSessions exec precondition_invcheck prog_inv)
+  have "precondition (sb, AInvcheck txns res) A"  
+    using exec prog_inv by (auto simp add: precondition_invcheck "1" committed_same 2 invContextSame)
+      
+  
+  thus ?thesis
+    using AInvcheck by blast  
     
 qed
 qed

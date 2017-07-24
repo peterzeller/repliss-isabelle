@@ -137,8 +137,28 @@ thm state.defs
 
 definition restrict_relation :: "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a rel" (infixl "|r"  110)
 where "r |r A \<equiv> r Int (A \<times> A)"
+
+
+abbreviation "commitedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Commited }"
   
-term restrict_map
+find_consts "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a set"
+
+definition downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100)  where 
+"S \<down> R \<equiv> S \<union> {x | x y . (x,y)\<in>R \<and> y\<in>S}"
+
+lemma downwardsClosure_in:
+"x \<in> S \<down> R \<longleftrightarrow> (x\<in>S \<or> (\<exists>y\<in>S. (x,y)\<in>R))"
+by (auto simp add: downwardsClosure_def)
+
+lemma downwardsClosure_subset:
+"S \<down> R \<subseteq> S \<union> fst ` R"
+apply (auto simp add: downwardsClosure_in)
+using image_iff tranclD by fastforce
+
+lemma downwardsClosure_subset2:
+"x \<in> S \<down> R \<Longrightarrow> x \<in> S \<union> fst ` R"
+  by (meson downwardsClosure_subset subsetCE)
+
 
 abbreviation "emptyOperationContext \<equiv> \<lparr> calls = empty, happensBefore = {}\<rparr>"
 
@@ -210,6 +230,28 @@ abbreviation invContextVis where
   (invocationRes state)
   (Some vis)"
   
+definition callsInTransactionH :: "(callId \<rightharpoonup> txid) \<Rightarrow> txid set \<Rightarrow> callId set" where
+"callsInTransactionH origins txns  \<equiv> {c. \<exists>txn\<in>txns. origins c \<triangleq> txn }"
+
+lemma callsInTransactionH_contains:
+"c\<in>callsInTransactionH origins txns \<longleftrightarrow> (case origins c of Some txn \<Rightarrow>  txn \<in> txns | None \<Rightarrow> False)"
+by (auto simp add: callsInTransactionH_def split: option.splits)
+
+abbreviation 
+"callsInTransaction S txns \<equiv> callsInTransactionH (callOrigin S) txns"  
+  
+abbreviation invContextSnapshot where
+"invContextSnapshot state txns \<equiv>
+  invContextH
+  (callOrigin state)
+  (transactionStatus state)
+  (happensBefore state)
+  (calls state)
+  (knownIds state)
+  (invocationOp state)
+  (invocationRes state)
+  (Some (callsInTransaction state txns \<down> happensBefore state))"  
+  
 lemma invariantContext_eqI: "\<lbrakk>
 i_calls x = i_calls y;
 i_happensBefore x = i_happensBefore y;
@@ -229,25 +271,6 @@ abbreviation isUndef :: "'a option \<Rightarrow> bool" ("_ = \<bottom>" [0]60) w
   
 
 
-abbreviation "commitedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Commited }"
-  
-find_consts "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a set"
-
-definition downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100)  where 
-"S \<down> R \<equiv> S \<union> {x | x y . (x,y)\<in>R \<and> y\<in>S}"
-
-lemma downwardsClosure_in:
-"x \<in> S \<down> R \<longleftrightarrow> (x\<in>S \<or> (\<exists>y\<in>S. (x,y)\<in>R))"
-by (auto simp add: downwardsClosure_def)
-
-lemma downwardsClosure_subset:
-"S \<down> R \<subseteq> S \<union> fst ` R"
-apply (auto simp add: downwardsClosure_in)
-using image_iff tranclD by fastforce
-
-lemma downwardsClosure_subset2:
-"x \<in> S \<down> R \<Longrightarrow> x \<in> S \<union> fst ` R"
-  by (meson downwardsClosure_subset subsetCE)
 
 (*
 inductive_set downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100) for S R  where 
@@ -317,17 +340,10 @@ datatype action =
   | AInvoc procedureName "any list"
   | AReturn any
   | AFail  
-  | AInvcheck bool
+  | AInvcheck "txid set" bool
 
-definition callsInTransactionH :: "(callId \<rightharpoonup> txid) \<Rightarrow> txid set \<Rightarrow> callId set" where
-"callsInTransactionH origins txns  \<equiv> {c. \<exists>txn\<in>txns. origins c \<triangleq> txn }"
-
-lemma callsInTransactionH_contains:
-"c\<in>callsInTransactionH origins txns \<longleftrightarrow> (case origins c of Some txn \<Rightarrow>  txn \<in> txns | None \<Rightarrow> False)"
-by (auto simp add: callsInTransactionH_def split: option.splits)
-
-abbreviation 
-"callsInTransaction S txns \<equiv> callsInTransactionH (callOrigin S) txns"
+  
+definition "is_AInvcheck a \<equiv> \<exists>txns r. a = AInvcheck txns r"
   
 inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
@@ -406,11 +422,10 @@ inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> s
                  currentTransaction := (currentTransaction C)(s := None),
                  currentProc := (currentProc C)(s := None),
                  visibleCalls := (visibleCalls C)(s := None) \<rparr>)"                  
-| invCheck:
-  "\<lbrakk>currentTransaction C s = None;
-   visibleCalls C s \<triangleq> vis;
-   invariant (prog C) (invContext C s) = res
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto> C"   
+| invCheck: (* checks a snapshot*)
+  "\<lbrakk>\<forall>t\<in>txns. transactionStatus C t \<triangleq> Commited;
+   invariant (prog C) (invContextSnapshot C txns) = res
+   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck txns res) \<leadsto> C"   
 
 inductive_simps step_simp_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
 inductive_simps step_simp_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
@@ -420,7 +435,7 @@ inductive_simps step_simp_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
 inductive_simps step_simp_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
 inductive_simps step_simp_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_simps step_simp_AFail: "A ~~ (s, AFail) \<leadsto> B "
-inductive_simps step_simp_AInvcheck: "A ~~ (s, b) \<leadsto> B "
+inductive_simps step_simp_AInvcheck: "A ~~ (s, AInvcheck txns res) \<leadsto> B "
 
 
 lemmas step_simps = 
@@ -442,7 +457,7 @@ inductive_cases step_elim_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
 inductive_cases step_elim_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
 inductive_cases step_elim_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_cases step_elim_AFail: "A ~~ (s, AFail) \<leadsto> B "
-inductive_cases step_elim_AInvcheck: "A ~~ (s, AInvcheck i) \<leadsto> B "
+inductive_cases step_elim_AInvcheck: "A ~~ (s, AInvcheck t i) \<leadsto> B "
 inductive_cases step_elim_general: "A ~~ (s, a) \<leadsto> B "
 
 lemmas step_elims = 
@@ -511,7 +526,7 @@ definition traces where
 "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
 
 definition traceCorrect where
-"traceCorrect trace \<equiv> (\<forall>s. (s, AInvcheck False) \<notin> set trace)"
+"traceCorrect trace \<equiv> (\<forall>s txns. (s, AInvcheck txns False) \<notin> set trace)"
 
 definition programCorrect where
 "programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"
@@ -637,6 +652,22 @@ lemma state_wellFormed_init[simp]:
 "state_wellFormed (initialState program)"
   by (metis distributed_state.select_convs(1) initialState_def state_wellFormed_def steps_refl)
 
+lemma steps_do_not_change_prog: 
+assumes "S ~~ tr \<leadsto>* S'"
+shows "prog S' = prog S"
+using assms proof (induct rule: steps.induct)
+  case (steps_refl S)
+  then show ?case by simp
+next
+  case (steps_step S tr S' a S'')
+  hence [simp]: "prog S' = prog S" by simp
+  from `S' ~~ a \<leadsto> S''`
+  show ?case 
+    apply (rule step.cases)
+    apply auto
+    done
+qed
+  
 lemma state_wellFormed_combine:
 assumes wf: "state_wellFormed S"
 and steps: "S ~~ tr \<leadsto>* S'"
@@ -644,7 +675,7 @@ shows "state_wellFormed S'"
 proof -
   from steps 
   have "prog S' = prog S"
-    by (induct rule: steps.induct, auto simp add: step_simps)
+    using steps_do_not_change_prog by auto
 
  from wf obtain tr1 where "initialState (prog S) ~~ tr1 \<leadsto>* S"
    using state_wellFormed_def by blast 
