@@ -436,7 +436,7 @@ inductive_simps step_simp_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
 inductive_simps step_simp_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_simps step_simp_AFail: "A ~~ (s, AFail) \<leadsto> B "
 inductive_simps step_simp_AInvcheck: "A ~~ (s, AInvcheck txns res) \<leadsto> B "
-
+inductive_simps step_simps_all: "A ~~ b \<leadsto> B "
 
 lemmas step_simps = 
   step_simp_ALocal
