@@ -3089,15 +3089,20 @@ using assms proof (induct "max_natset {i.
       text {* Last we consider all other cases (no invariant checks included).
               Here all combinations should commute. *}
       fix s a s' a'
-      assume "tr!(i-1) = (s,a)"
-      assume "tr!i = (s',a')"
+      assume sa1: "tr!(i-1) = (s,a)"
+      assume sa2: "tr!i = (s',a')"
       assume no_invcheck1: "\<not>is_AInvcheck a"
       assume no_invcheck2: "\<not>is_AInvcheck a'"
       assume "s \<noteq> s'"
       
       
-      have tr_split: "tr = take (i-1) tr @ [(s, AInvcheck txns res)] @ drop i tr"
+      have tr_split: "tr = take (i-1) tr @ [(s, a), (s', a')] @ drop (Suc i) tr"
+        using sa1 sa2 apply auto
+        by (metis Cons_nth_drop_Suc Suc_less_eq Suc_pred i_gt_0 i_lt_len id_take_nth_drop less_SucI) 
     
+        
+        
+        
     }
     
       
