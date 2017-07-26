@@ -1,5 +1,6 @@
 theory sem1_commutativity2
 imports replissSem1 prefix
+    "~~/src/HOL/Eisbach/Eisbach"
 begin
 
 lemma iffI2: "\<lbrakk>A \<Longrightarrow> B; \<not>A \<Longrightarrow> \<not>B\<rbrakk> \<Longrightarrow> A \<longleftrightarrow> B"
@@ -2863,6 +2864,209 @@ lemma finiteH:
 "finite {x::nat. 0 < x \<and> x < A \<and> P x}"
   by simp
 
+definition canSwap :: "action \<Rightarrow> action \<Rightarrow> bool" where
+"canSwap a b \<equiv> (\<forall>C1 C2 s1 s2. s1\<noteq>s2 \<and> (C1 ~~ [(s1,a),(s2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(s2,b),(s1,a)] \<leadsto>* C2))"
+  
+lemma show_canSwap:
+assumes "\<And>C1 C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+shows "canSwap a b"
+proof (auto simp add: canSwap_def)
+  fix C1 C3 s1 s2
+  assume a0: "s1 \<noteq> s2"
+     and a1: "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C3"
+     and a2: "state_wellFormed C1"
+     
+  from a1 obtain C2
+  where a1': "C1 ~~ (s1,a) \<leadsto> C2" and a1'': "C2 ~~ (s2,b) \<leadsto> C3"
+    using steps_appendFront steps_single by blast
+    
+     
+  show "C1 ~~ [(s2, b), (s1, a)] \<leadsto>* C3"
+  proof (subst steps.simps, clarsimp, rule assms)
+    show "s1 \<noteq> s2" using a0.
+    show "C1 ~~ (s1, a) \<leadsto> C2" using a1'.
+    show "C2 ~~ (s2,b) \<leadsto> C3" using a1''.
+    show "state_wellFormed C1" using a2.
+  qed
+qed
+    
+lemma show_canSwap':
+assumes "x = a" 
+    and"\<And>C1 C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+shows "canSwap x b"
+  using assms show_canSwap by auto
+
+method prove_canSwap = (rule show_canSwap, auto simp add: step_simps, subst state_ext, auto)  
+method prove_canSwap' = (rule show_canSwap', auto simp add: step_simps, subst state_ext, auto)
+
+lemma commutativeS_canSwap:
+assumes comm: "\<And>C s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
+shows "canSwap a b"
+proof (auto simp add: canSwap_def)
+  fix C1 C2 s1 s2
+  assume a0: "s1 \<noteq> s2"
+     and a1: "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C2"
+  
+  show "C1 ~~ [(s2, b), (s1, a)] \<leadsto>* C2"
+  proof (subst useCommutativeS)
+    show "commutativeS C1 (s2, b) (s1, a)" 
+      using comm a0 by (simp add: commutativeS_switchArgs) 
+    show "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C2" using a1.
+  qed
+qed
+        
+
+lemma canSwap_when_allowed:
+assumes no_ctxt_switch: "\<not>allowed_context_switch b"
+    and no_invcheck_a: "\<not>is_AInvcheck a"
+    and no_invcheck_b: "\<not>is_AInvcheck b"  
+    and no_fail_a: "a \<noteq> AFail"
+    and no_fail_b: "b \<noteq> AFail"    
+shows "canSwap a b"
+proof (cases b)
+  case ALocal
+  then show ?thesis
+    by (simp add: commutativeS_canSwap) 
+next
+  case (ANewId bid)
+  hence [simp]: "b = ANewId bid" .
+  show ?thesis 
+  proof (cases a; prove_canSwap?)
+    case (AInvcheck x91 x92)
+    then show ?thesis
+      using is_AInvcheck_def no_invcheck_a by blast 
+  qed
+next
+  case (ABeginAtomic x31 x32)
+  then show ?thesis
+    using allowed_context_switch_def no_ctxt_switch by auto 
+next
+  case AEndAtomic
+  hence [simp]: "b = AEndAtomic" .
+  then show ?thesis 
+  proof (cases a; prove_canSwap?)
+    case ALocal
+    then show ?thesis
+      by (simp add: commutativeS_canSwap) 
+  next
+    case (ANewId x2)
+    then show ?thesis by prove_canSwap'
+  next
+    case (ABeginAtomic x31 x32)
+    then show ?thesis 
+      apply (rule show_canSwap')
+      apply (auto simp add: step_simps)
+      apply (auto)
+      apply (subst state_ext)
+      apply auto
+      done
+  next
+    case AEndAtomic
+    then show ?thesis by prove_canSwap'
+  next
+    case (ADbOp x51 x52 x53 x54)
+    then show ?thesis by prove_canSwap'
+  next
+    case (AInvoc x61 x62)
+    then show ?thesis by prove_canSwap'
+  next
+    case (AReturn x7)
+    then show ?thesis by prove_canSwap'
+  next
+    case AFail
+    then show ?thesis by prove_canSwap'
+  next
+    case (AInvcheck x91 x92)
+    then show ?thesis
+      using is_AInvcheck_def no_invcheck_a by auto 
+  qed
+next
+  case (ADbOp x51 x52 x53 x54)
+  hence [simp]: "b = ADbOp x51 x52 x53 x54" .
+  then show ?thesis 
+  proof (cases a)
+    case ALocal
+    then show ?thesis by prove_canSwap'
+  next
+    case (ANewId x2)
+    then show ?thesis by prove_canSwap'
+  next
+    case (ABeginAtomic x31 x32)
+    then show ?thesis by prove_canSwap'
+  next
+    case AEndAtomic
+    then show ?thesis by prove_canSwap'
+  next
+    case (ADbOp x51 x52 x53 x54)
+    then show ?thesis
+      using canSwap_def useCommutativeS by auto 
+  next
+    case (AInvoc x61 x62)
+    then show ?thesis by prove_canSwap'
+  next
+    case (AReturn x7)
+    then show ?thesis by prove_canSwap'
+  next
+    case AFail
+    then show ?thesis
+      using no_fail_a by blast 
+  next
+    case (AInvcheck x91 x92)
+    then show ?thesis
+      using is_AInvcheck_def no_invcheck_a by blast 
+  qed
+next
+  case (AInvoc x61 x62)
+  then show ?thesis
+    using allowed_context_switch_def no_ctxt_switch by auto 
+  
+next
+  case (AReturn res)
+  hence [simp]: "b = AReturn res" .
+  then show ?thesis 
+  proof (cases a)
+    case ALocal
+    then show ?thesis by prove_canSwap'
+  next
+    case (ANewId x2)
+    then show ?thesis by prove_canSwap'
+  next
+    case (ABeginAtomic x31 x32)
+    then show ?thesis by prove_canSwap'
+  next
+    case AEndAtomic
+    then show ?thesis by prove_canSwap'
+  next
+    case (ADbOp x51 x52 x53 x54)
+    then show ?thesis by prove_canSwap'
+  next
+    case (AInvoc x61 x62)
+    then show ?thesis by prove_canSwap'
+  next
+    case (AReturn x7)
+    then show ?thesis by prove_canSwap'
+  next
+    case AFail
+    then show ?thesis by prove_canSwap'
+  next
+    case (AInvcheck x91 x92)
+      then show ?thesis
+        using is_AInvcheck_def no_invcheck_a by auto 
+  qed
+next
+  case AFail
+  then show ?thesis
+    using no_fail_b by blast 
+next
+  case (AInvcheck x91 x92)
+  then show ?thesis
+    using is_AInvcheck_def no_invcheck_b by auto 
+qed
+
+  
+
+  
+find_theorems commutativeS  
 
 lemma packedTrace_from_packedTransactions:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
