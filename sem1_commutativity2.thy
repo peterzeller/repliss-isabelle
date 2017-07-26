@@ -2858,7 +2858,89 @@ assumes "P i"
 shows "max_natset {i. P' i} < max_natset {i. P i}"
 apply (rule show_max_natset_smaller)
 using assms by force+
+         
+(*
+thm less_induct
 
+find_consts "'a list \<Rightarrow> 'a"
+
+thm finite_induct
+
+definition hasBound :: "nat set \<Rightarrow> nat \<Rightarrow> bool" where
+"hasBound S b \<equiv> \<forall>x\<in>S. x<b"
+
+(* [bound min_def min_minimal IH] *)
+lemma min_induct[case_names  empty exists_min, induct set: "hasBound"]:
+fixes S :: "nat set"
+assumes 
+    "hasBound S bound"
+    "\<And>S. S = {} \<Longrightarrow> P S"
+    "\<And>S min_i. \<lbrakk>min_i\<in>S; \<And>i. i\<in>S \<Longrightarrow> i \<ge> min_i; \<And>x. x\<in>S \<Longrightarrow> x<bound;  \<And>S'. \<lbrakk>\<And>x. x\<in>S' \<Longrightarrow> min_i<x; \<And>x. x\<in>S' \<Longrightarrow> x<bound \<rbrakk> \<Longrightarrow> P S'\<rbrakk> \<Longrightarrow> P S"
+shows "P S"
+sorry
+
+lemma test:
+"map id xs = xs"
+proof -
+  have "finite (set xs)" by simp
+  thus ?thesis
+  proof (induct "set xs" rule: finite_induct)
+oops
+
+lemma 
+fixes xs :: "nat list"
+shows "\<exists>ys. (\<forall>i\<in>set ys. i\<le>10) \<and> sum_list xs \<ge> sum_list ys"
+proof -
+  have "hasBound {i. i<length xs \<and>  xs!i > 10} (length xs)" by (auto simp add: hasBound_def)
+  thus "\<exists>ys. (\<forall>i\<in>set ys. i\<le>10) \<and> sum_list xs \<ge> sum_list ys"
+proof (induct "{i. i<length xs \<and>  xs!i > 10}" arbitrary: xs rule: min_induct(*[where bound ="length xs"]*))
+  case (empty xs)
+  hence "\<forall>i\<in>set xs. i \<le> 10"
+    apply auto
+    by (metis in_set_conv_nth not_less)
+  then show ?case
+    by blast 
+next
+  case (exists_min min_i xs')
+  
+  define ys where "ys = take min_i xs' @ [0]@drop (Suc min_i) xs'"
+  
+  have "sum_list xs' \<ge> sum_list ys"
+    apply (auto simp add: ys_def)
+    by (smt Cons_nth_drop_Suc add.commute add_diff_cancel_left' append_take_drop_id exists_min.hyps(1) le_less_linear less_diff_conv mem_Collect_eq not_add_less2 sum_list.Cons sum_list.append)
+    
+    
+  find_theorems name: "exists_min"
+  have "\<exists>ys'. (\<forall>i\<in>set ys'. i \<le> 10) \<and> sum_list ys' \<le> sum_list ys"
+  proof (rule exists_min)
+    show "\<And>x. x \<in> {i. i < length ys \<and> 10 < ys ! i} \<Longrightarrow> min_i < x"
+      apply (auto simp add: ys_def)
+      sorry
+    next
+    show "\<And>x. x \<in> {i. i < length ys \<and> 10 < ys ! i} \<Longrightarrow> x < length xs"
+      apply (auto simp add: ys_def)
+      
+      
+    
+      
+      
+qed
+
+lemma greater_induct:
+"\<lbrakk>\<And>x. (\<And>y. y > x \<Longrightarrow> P y) \<Longrightarrow> P x\<rbrakk> \<Longrightarrow> P a"
+sorry
+
+lemma 
+fixes xs :: "nat list"
+shows "\<exists>ys. (\<forall>i\<in>set ys. i\<le>10) \<and> \<Sum>(set xs) = \<Sum>(set ys)"
+apply (induct "Min {i. i<length xs \<and>  xs!i > 10}" arbitrary: xs rule: greater_induct) 
+sorry
+
+lemma 
+fixes xs :: "nat list"
+shows "\<exists>ys. (\<forall>i\<in>set ys. i\<le>10) \<and> \<Sum>(set xs) = \<Sum>(set ys)"
+apply (induct "\<lambda>i. i<length xs \<and>  xs!i > 10" rule: min_induct) 
+*)
 
 lemma finiteH: 
 "finite {x::nat. 0 < x \<and> x < A \<and> P x}"
@@ -3064,9 +3146,131 @@ next
 qed
 
   
+text {* We can swap one action over a list of actions with canSwap *}
+lemma swapMany:
+assumes steps: "C1 ~~ tr @ [(s,a)] \<leadsto>* C2"
+    and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
+    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (snd x) a"
+    and wf: "state_wellFormed C1"
+shows "C1 ~~ [(s,a)] @ tr \<leadsto>* C2"
+using steps tr_different_session tr_canSwap 
+proof (induct tr arbitrary: C2 rule: rev_induct)
+  case Nil
+  then show ?case
+    by simp 
+next
+  case (snoc a' tr')
+  hence IH: "\<And>C2. \<lbrakk>C1 ~~ tr' @ [(s, a)] \<leadsto>* C2; \<And>x. x \<in> set tr' \<Longrightarrow> fst x \<noteq> s; \<And>x. x \<in> set tr' \<Longrightarrow> canSwap (snd x) a\<rbrakk> \<Longrightarrow> C1 ~~ [(s, a)] @ tr' \<leadsto>* C2" 
+    and steps: "C1 ~~ (tr' @ [a']) @ [(s, a)] \<leadsto>* C2"
+    and tr_different_session: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> fst x \<noteq> s"
+    and tr_canSwap: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> canSwap (snd x) a"
+    by auto
+ 
+  from steps
+  obtain C'
+    where steps1: "C1 ~~ tr' \<leadsto>* C'" 
+      and steps2: "C' ~~ [a', (s, a)] \<leadsto>* C2"
+    using steps_append by auto
+  
+  have wf': "state_wellFormed C'"
+    using local.wf state_wellFormed_combine steps1 by blast
+    
+  from steps2
+  have steps2': "C' ~~ [(s, a), a'] \<leadsto>* C2"
+    using tr_canSwap by (metis canSwap_def list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1 tr_different_session wf') 
+    
+  from steps1 steps2'
+  have "C1 ~~ tr' @  [(s, a), a'] \<leadsto>* C2"
+    using steps_append2 by blast
+  
+  from this 
+  obtain C''
+  where steps1': "C1 ~~ tr' @  [(s, a)] \<leadsto>* C''" and steps2'': "C'' ~~ [a'] \<leadsto>* C2"
+    by (metis (no_types, hide_lams) append.assoc append_Cons append_Nil steps_append)
+  
+  from steps1' IH
+  have steps1'': "C1 ~~ [(s, a)] @ tr' \<leadsto>* C''"
+    by (simp add: snoc.prems(2) snoc.prems(3))
+  
+    
+  with steps2''  
+  show ?case
+    using steps_append2 by fastforce 
+qed
+
 
   
-find_theorems commutativeS  
+definition packed_trace_s :: "trace \<Rightarrow> session \<Rightarrow> bool" where
+"packed_trace_s tr s \<equiv>
+  \<forall>i.
+      0<i
+    \<longrightarrow> i<length tr
+    \<longrightarrow> fst (tr!i) = s
+    \<longrightarrow> fst (tr!(i-1)) \<noteq> s
+    \<longrightarrow> (allowed_context_switch (snd (tr!i)))" 
+
+lemma pack_trace_for_one_session:
+assumes steps: "initialState program ~~ tr \<leadsto>* C"
+    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
+    and noInvcheck: "\<And>s a. (s, a)\<in>set tr \<Longrightarrow> \<not>is_AInvcheck a "
+shows "\<exists>tr'. packed_trace_s tr' s
+        \<and> (initialState program ~~ tr' \<leadsto>* C)
+        \<and> (\<forall>s. packed_trace_s tr s \<longrightarrow> packed_trace_s tr s)
+        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (\<forall>s a. (s,a)\<in>set tr \<longrightarrow> \<not>is_AInvcheck a)"
+using steps noFail noInvcheck        
+proof (induct "card {i.
+        0<i 
+      \<and> i<length tr 
+      \<and> fst (tr!(i-1)) \<noteq> s
+      \<and> fst (tr!i) = s
+      \<and> \<not>(allowed_context_switch (snd(tr!i)))}"
+      arbitrary: tr C
+      rule: less_induct)
+  case less
+  
+  
+  show ?case 
+  proof (cases "card {i. 0<i \<and> i<length tr \<and> fst (tr!(i-1)) \<noteq> s \<and> fst (tr!i) = s \<and> \<not>(allowed_context_switch (snd(tr!i)))}")
+    case 0
+    hence "{i. 0<i \<and> i<length tr \<and> fst (tr!(i-1)) \<noteq> s \<and> fst (tr!i) = s \<and> \<not>(allowed_context_switch (snd(tr!i)))} = {}"
+      by simp
+    hence already_packed: "packed_trace_s tr s"
+      by (auto simp add: packed_trace_s_def)
+    
+    show ?thesis 
+      by (rule exI[where x=tr], auto simp add: less already_packed)
+    
+  next
+    case (Suc n)
+    
+    text {* There is one problematic position *}
+    from Suc
+        obtain i_example
+        where i_example: "0 < i_example \<and> i_example < length tr \<and> fst (tr ! (i_example - 1)) \<noteq> s \<and> fst (tr ! i_example) = s \<and> \<not> allowed_context_switch (snd (tr ! i_example))"
+          by (smt Collect_empty_eq Zero_not_Suc card.empty)
+          
+    text {* Let i be the smallest problematic position *}
+    obtain i
+      where "0<i \<and> i<length tr \<and> fst (tr!(i-1)) \<noteq> s \<and> fst (tr!i) = s \<and> \<not>(allowed_context_switch (snd(tr!i)))"
+      and "\<And>j. 0<j \<and> j<length tr \<and> fst (tr!(j-1)) \<noteq> s \<and> fst (tr!j) = s \<and> \<not>(allowed_context_switch (snd(tr!j))) \<Longrightarrow> j\<ge>i"
+        apply atomize_elim
+        using i_example by (rule ex_has_least_nat)
+        
+    text {* There must be a previous action on the same session (at least the invocation should be there, since i is no invocation). *}
+    (*obtain prev *)
+      
+    text {* Then we can split the trace, so that we have (one action from s) -- (many other actions) -- (action i form s) *}
+    
+    text {* Because of the swap lemma we can change this to (one action from s) -- (action i form s) -- (many other actions) *}
+    
+    text {* Now cardinality should be decreased (we have a subset where i is removed), so we can use IH to fix the rest of the trace. *}
+    
+    then show ?thesis sorry
+  qed
+qed
+        
+text {* Now we can just repeat fixing session by session, until all sessions are packed. *}
 
 lemma packedTrace_from_packedTransactions:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
