@@ -744,7 +744,7 @@ shows "P tr S"
   using a1 a2 a3 steps_induct by blast
 
 
-lemma wellFormed_induct[consumes 1]:
+lemma wellFormed_induct[consumes 1, case_names initial step]:
 "\<lbrakk>state_wellFormed s; P (initialState (prog s)); \<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s\<rbrakk> \<Longrightarrow> P s\<rbrakk> \<Longrightarrow> P s"
 apply (auto simp add: state_wellFormed_def)
 apply (erule(1) steps_induct)

@@ -10,8 +10,16 @@ definition
 
 definition 
 "transactionConsistent origin txStatus vis \<equiv>
-    (\<forall>c tx. origin c \<triangleq> tx \<longrightarrow> txStatus tx \<triangleq> Commited)
+    (\<forall>c tx. c\<in>vis \<and> origin c \<triangleq> tx \<longrightarrow> txStatus tx \<triangleq> Commited)
   \<and> (\<forall>c1 c2. c1\<in>vis \<and> origin c1 = origin c2 \<longrightarrow> c2\<in>vis)"
+
+lemma transactionConsistent_Commited:
+shows "\<lbrakk>transactionConsistent origin txStatus vis; c\<in>vis \<and> origin c \<triangleq> tx; origin c \<triangleq> tx\<rbrakk> \<Longrightarrow> txStatus tx \<triangleq> Commited"
+by (auto simp add:  transactionConsistent_def) 
+
+lemma transactionConsistent_all_from_same:
+shows "\<lbrakk>transactionConsistent origin txStatus vis; c1\<in>vis; origin c1 = origin c2\<rbrakk> \<Longrightarrow> c2\<in>vis"
+by (auto simp add:  transactionConsistent_def) 
 
 definition consistentSnapshot where
 "consistentSnapshot state vis \<equiv>
