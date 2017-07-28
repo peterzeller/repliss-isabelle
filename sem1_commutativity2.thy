@@ -1,6 +1,7 @@
 theory sem1_commutativity2
 imports replissSem1 prefix
     "~~/src/HOL/Eisbach/Eisbach"
+    execution_invariants
 begin
 
 lemma iffI2: "\<lbrakk>A \<Longrightarrow> B; \<not>A \<Longrightarrow> \<not>B\<rbrakk> \<Longrightarrow> A \<longleftrightarrow> B"
@@ -922,19 +923,6 @@ done
 
 
 
-lemma commitedCalls_unchanged_callOrigin[simp]:
-assumes a1: "ts t \<triangleq> Uncommited"
-    and a2: "co c = None"
-shows "commitedCallsH (co(c \<mapsto> t)) ts = commitedCallsH co ts"
-using a1 a2 by (auto simp add: commitedCallsH_def)
-
-lemma callOrigin_same_committed: 
-assumes exec: "A ~~ (sa, a) \<leadsto> B"
-    and wellFormed: "state_wellFormed A"
-    and committed: "transactionStatus A tx \<triangleq> Commited "
-shows "callOrigin A c \<triangleq> tx \<longleftrightarrow> callOrigin B c \<triangleq> tx"     
-    using exec apply (rule step.cases)
-    using wellFormed committed by auto
 
 
 lemma committed_same: 
@@ -1071,16 +1059,6 @@ proof -
   from exec
   have callOrigin_same_committed: "callOrigin A c \<triangleq> tx \<longleftrightarrow> callOrigin B c \<triangleq> tx" if "transactionStatus A tx \<triangleq> Commited " for c tx
     using callOrigin_same_committed that wellFormed by blast    
-    
-  (*  
-  from exec
-  have happensBefore_same_committed1: "(x,y) \<in> happensBefore A  \<longleftrightarrow> (x,y) \<in> happensBefore B" 
-        if "transactionStatus A tx \<triangleq> Commited " 
-        and "callOrigin A x \<triangleq> tx"
-        for tx x y
-    apply (rule step.cases)
-    using wellFormed that apply auto  
-    sorry *)
 
   from exec
   have happensBefore_same_committed2: "(x,y) \<in> happensBefore A  \<longleftrightarrow> (x,y) \<in> happensBefore B" 
@@ -2859,88 +2837,6 @@ shows "max_natset {i. P' i} < max_natset {i. P i}"
 apply (rule show_max_natset_smaller)
 using assms by force+
          
-(*
-thm less_induct
-
-find_consts "'a list \<Rightarrow> 'a"
-
-thm finite_induct
-
-definition hasBound :: "nat set \<Rightarrow> nat \<Rightarrow> bool" where
-"hasBound S b \<equiv> \<forall>x\<in>S. x<b"
-
-(* [bound min_def min_minimal IH] *)
-lemma min_induct[case_names  empty exists_min, induct set: "hasBound"]:
-fixes S :: "nat set"
-assumes 
-    "hasBound S bound"
-    "\<And>S. S = {} \<Longrightarrow> P S"
-    "\<And>S min_i. \<lbrakk>min_i\<in>S; \<And>i. i\<in>S \<Longrightarrow> i \<ge> min_i; \<And>x. x\<in>S \<Longrightarrow> x<bound;  \<And>S'. \<lbrakk>\<And>x. x\<in>S' \<Longrightarrow> min_i<x; \<And>x. x\<in>S' \<Longrightarrow> x<bound \<rbrakk> \<Longrightarrow> P S'\<rbrakk> \<Longrightarrow> P S"
-shows "P S"
-sorry
-
-lemma test:
-"map id xs = xs"
-proof -
-  have "finite (set xs)" by simp
-  thus ?thesis
-  proof (induct "set xs" rule: finite_induct)
-oops
-
-lemma 
-fixes xs :: "nat list"
-shows "\<exists>ys. (\<forall>i\<in>set ys. i\<le>10) \<and> sum_list xs \<ge> sum_list ys"
-proof -
-  have "hasBound {i. i<length xs \<and>  xs!i > 10} (length xs)" by (auto simp add: hasBound_def)
-  thus "\<exists>ys. (\<forall>i\<in>set ys. i\<le>10) \<and> sum_list xs \<ge> sum_list ys"
-proof (induct "{i. i<length xs \<and>  xs!i > 10}" arbitrary: xs rule: min_induct(*[where bound ="length xs"]*))
-  case (empty xs)
-  hence "\<forall>i\<in>set xs. i \<le> 10"
-    apply auto
-    by (metis in_set_conv_nth not_less)
-  then show ?case
-    by blast 
-next
-  case (exists_min min_i xs')
-  
-  define ys where "ys = take min_i xs' @ [0]@drop (Suc min_i) xs'"
-  
-  have "sum_list xs' \<ge> sum_list ys"
-    apply (auto simp add: ys_def)
-    by (smt Cons_nth_drop_Suc add.commute add_diff_cancel_left' append_take_drop_id exists_min.hyps(1) le_less_linear less_diff_conv mem_Collect_eq not_add_less2 sum_list.Cons sum_list.append)
-    
-    
-  find_theorems name: "exists_min"
-  have "\<exists>ys'. (\<forall>i\<in>set ys'. i \<le> 10) \<and> sum_list ys' \<le> sum_list ys"
-  proof (rule exists_min)
-    show "\<And>x. x \<in> {i. i < length ys \<and> 10 < ys ! i} \<Longrightarrow> min_i < x"
-      apply (auto simp add: ys_def)
-      sorry
-    next
-    show "\<And>x. x \<in> {i. i < length ys \<and> 10 < ys ! i} \<Longrightarrow> x < length xs"
-      apply (auto simp add: ys_def)
-      
-      
-    
-      
-      
-qed
-
-lemma greater_induct:
-"\<lbrakk>\<And>x. (\<And>y. y > x \<Longrightarrow> P y) \<Longrightarrow> P x\<rbrakk> \<Longrightarrow> P a"
-sorry
-
-lemma 
-fixes xs :: "nat list"
-shows "\<exists>ys. (\<forall>i\<in>set ys. i\<le>10) \<and> \<Sum>(set xs) = \<Sum>(set ys)"
-apply (induct "Min {i. i<length xs \<and>  xs!i > 10}" arbitrary: xs rule: greater_induct) 
-sorry
-
-lemma 
-fixes xs :: "nat list"
-shows "\<exists>ys. (\<forall>i\<in>set ys. i\<le>10) \<and> \<Sum>(set xs) = \<Sum>(set ys)"
-apply (induct "\<lambda>i. i<length xs \<and>  xs!i > 10" rule: min_induct) 
-*)
 
 lemma finiteH: 
 "finite {x::nat. 0 < x \<and> x < A \<and> P x}"
@@ -3799,131 +3695,3 @@ qed
 
 end
 
-(* old stuf:
-
-find_theorems "commutativeS"
-
-
-lemma commutativePreservesPrecondition_rev:
-assumes preconditionHolds: "precondition (sb,b) A"
-    and differentSessions[simp]: "sa \<noteq> sb"
-    and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
-    and txIsUncommited: "transactionStatus A tx \<triangleq> Uncommited"
-    and aIsInLocal: "localState A sa \<triangleq> lsa"
-    and aIsNotCommit: "a \<noteq> AEndAtomic"
-    and exec: "A ~~ (sa, a) \<leadsto> B"
-    and visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
-    and origin_inv: "dom (callOrigin A) = dom (calls A)"
-shows "precondition (sb,b) B"
-proof (cases b)
-  case ALocal
-  then show ?thesis
-    by (metis aIsInTransaction differentSessions exec preconditionHolds precondition_alocal unchangedInTransaction(1) unchangedInTransaction(2)) 
-next
-  case (ANewId x2)
-  then show ?thesis sorry
-next
-  case (ABeginAtomic x3)
-  then show ?thesis sorry
-next
-  case AEndAtomic
-  then show ?thesis
-    by (metis aIsInTransaction differentSessions exec preconditionHolds precondition_endAtomic unchangedInTransaction(1) unchangedInTransaction(2) unchangedInTransaction(3)) 
-next
-  case (ADbOp x51 x52 x53 x54)
-  then show ?thesis sorry
-next
-  case (APull x6)
-  then show ?thesis 
-     sorry
-next
-  case (AInvoc x71 x72)
-  then show ?thesis 
-    sorry
-next
-  case (AReturn x8)
-  then show ?thesis
-    by (metis (full_types) aIsInTransaction differentSessions exec preconditionHolds precondition_return unchangedInTransaction(1) unchangedInTransaction(2) unchangedInTransaction(3)) 
-    
-next
-  case AFail
-  then show ?thesis
-    by (simp add: precondition_fail) 
-next
-  case (AInvcheck x10)
-  then show ?thesis
-  proof - (* hammered *)
-    obtain CC :: "state \<Rightarrow> bool \<Rightarrow> session \<Rightarrow> callId set" where
-      "\<forall>x0 x1 x2. (\<exists>v3. currentTransaction x0 x2 = None \<and> visibleCalls x0 x2 \<triangleq> v3 \<and> invariant (prog x0) (invContext x0 x2) = x1) = (currentTransaction x0 x2 = None \<and> visibleCalls x0 x2 \<triangleq> CC x0 x1 x2 \<and> invariant (prog x0) (invContext x0 x2) = x1)"
-      by moura
-    then have f1: "\<forall>s b z. (\<not> precondition (s, AInvcheck b) z \<or> currentTransaction z s = None \<and> visibleCalls z s \<triangleq> CC z b s \<and> (\<not> invariant (prog z) (invContext z s)) \<noteq> b) \<and> (precondition (s, AInvcheck b) z \<or> (\<forall>C. currentTransaction z s \<noteq> None \<or> visibleCalls z s \<noteq> Some C \<or> (\<not> invariant (prog z) (invContext z s)) = b))"
-      by (metis precondition_invcheck)
-    then have f2: "currentTransaction A sb = None \<and> visibleCalls A sb \<triangleq> CC A x10 sb \<and> (\<not> invariant (prog A) (invContext A sb)) \<noteq> x10"
-      using AInvcheck preconditionHolds by blast
-    then have f3: "currentTransaction B sb = None"
-    using aIsInTransaction differentSessions exec unchangedInTransaction(3) by auto
-  have f4: "visibleCalls B sb \<triangleq> CC A x10 sb"
-    using f2 aIsInTransaction differentSessions exec unchangedInTransaction(4) by auto
-  have "invContext A sb = invContext B sb"
-    by (meson aIsInLocal aIsInTransaction aIsNotCommit differentSessions exec origin_inv txIsUncommited unchangedInTransaction_getInvContext visibleCalls_inv)
-  then have "invariant (prog A) (invContext A sb) = invariant (prog B) (invContext B sb)"
-    using exec prog_inv by force
-  then show ?thesis
-    using f4 f3 f2 f1 AInvcheck by blast
-qed
-    
-qed  
-  
-lemma 
-assumes order1: "\<And>B1 B2. \<lbrakk>A ~~ (sa,a) \<leadsto> B1; B1 ~~ (sb,b) \<leadsto> C1; A ~~ (sb,b) \<leadsto> B2; B2 ~~ (sa,a) \<leadsto> C2\<rbrakk> \<Longrightarrow> C1 = C2" 
- and a1: "sa \<noteq> sb"
- and a2: "currentTransaction A sa \<triangleq> tx"
- and a3: "transactionStatus A tx \<triangleq> Uncommited"
- and a4: "localState A sa \<triangleq> lsa"
- and a5: "a \<noteq> AEndAtomic"
- and a6: "A ~~ (sa, a) \<leadsto> B"
- and a7: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
- and a8: "dom (callOrigin A) = dom (calls A)"
-shows "(A ~~ [(sa,a),(sb,b)] \<leadsto>* C) \<longleftrightarrow> (A ~~ [(sb,b),(sa,a)] \<leadsto>* C)"
-proof (auto simp add: steps_appendFront)
-  fix B
-  assume a0: "A ~~ (sa, a) \<leadsto> B"
-     and a1: "B ~~ (sb, b) \<leadsto> C"
-
-  from a1
-  have "precondition (sb, b) B"
-    using precondition_def by blast
-  with commutativePreservesPrecondition
-  have "precondition (sb, b) A"
-    using a0 a2 a3 a4 a5 a7 a8 assms(2) by blast
-    
-  thus "\<exists>B. (A ~~ (sb, b) \<leadsto> B) \<and> (B ~~ (sa, a) \<leadsto> C)"
-    apply (rule step_existsH)
-    (*
-    what we need here is the other direction as well: preconditions are preserved when moving something into a transaction
-    
-    alternatively I could also just prove one direction first
-    *)
-    
-    
-find_theorems "precondition"
-
-lemma swapCommutative:
-assumes differentSessions[simp]: "sa \<noteq> sb"
-   and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
-shows "(A ~~ [(sa,a),(sb,b)] \<leadsto>* C) \<longleftrightarrow> (A ~~ [(sb,b),(sa,a)] \<leadsto>* C)"
-proof -
-  have differentSessions2[simp]: "sb \<noteq> sa"
-    using differentSessions by blast 
-  show "?thesis"
-    apply (case_tac a; case_tac b)
-    apply (auto simp add: steps_appendFront elim!: step_elims)[1]
-    apply (rule step_existsH)
-    
-
-
-
-
-end
-
-*)
