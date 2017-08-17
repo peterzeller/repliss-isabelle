@@ -198,7 +198,7 @@ next
 qed
 
 text {*
- There can be no action on a session after a fail or return:
+ There can be no action on a invocation after a fail or return:
  (except for invariant checks)
 *}
 lemma nothing_after_fail_or_return:
@@ -254,7 +254,7 @@ qed
 
 (*
 text {*
-After a return or a failure no more actions on the same session are possible.
+After a return or a failure no more actions on the same invocation are possible.
 *}
 lemma nothing_after_fail_or_return:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
@@ -479,7 +479,7 @@ proof (rule iffI2; clarsimp)
 qed
   
 
-definition commutativeS :: "state \<Rightarrow> session \<times> action \<Rightarrow> session \<times> action \<Rightarrow> bool" where
+definition commutativeS :: "state \<Rightarrow> invocation \<times> action \<Rightarrow> invocation \<times> action \<Rightarrow> bool" where
 "commutativeS s a b \<equiv> (\<forall>t. ((s ~~ [a,b] \<leadsto>*  t) \<longleftrightarrow> (s ~~ [b,a] \<leadsto>* t)))"
 
 
@@ -538,7 +538,7 @@ apply (rule usePrecondition2)
   using a4 usePrecondition apply blast 
 done  
 
-definition differentIds :: "(session \<times> action) \<Rightarrow> (session \<times> action) \<Rightarrow> bool" where
+definition differentIds :: "(invocation \<times> action) \<Rightarrow> (invocation \<times> action) \<Rightarrow> bool" where
 "differentIds a b \<equiv> case (a,b) of
    ((s1, ANewId u1), (s2, ANewId u2)) \<Rightarrow> (u1 \<noteq> u2)
  | ((s1, ABeginAtomic u1 nt1), (s2, ABeginAtomic u2 nt2)) \<Rightarrow> (u1 \<noteq> u2)
@@ -2186,14 +2186,14 @@ it appears.
 
 
 (* checks if sessions s is in a transaction at position i in trace tr *)
-definition inTransaction :: "trace \<Rightarrow> nat \<Rightarrow> session \<Rightarrow> bool"  where 
+definition inTransaction :: "trace \<Rightarrow> nat \<Rightarrow> invocation \<Rightarrow> bool"  where 
 "inTransaction tr i s \<equiv>
   \<exists>j. j\<le>i \<and> i<length tr \<and> (\<exists>t txns. tr!j = (s, ABeginAtomic t txns))
      \<and> (\<forall>k. j<k \<and> k < length tr \<and> k\<le>i \<longrightarrow> tr!k \<noteq> (s, AEndAtomic))
 "
 
 (* returns the set of all transactions, which are in a transaction at point i in the trace*)
-definition sessionsInTransaction :: "trace \<Rightarrow> nat \<Rightarrow> session set"  where 
+definition sessionsInTransaction :: "trace \<Rightarrow> nat \<Rightarrow> invocation set"  where 
 "sessionsInTransaction tr i \<equiv> {s. inTransaction tr i s}"
 
 (* counts how many concurrent transactions are active *)
@@ -2227,7 +2227,7 @@ apply (auto simp add: inTransaction_def nth_Cons' split: if_splits)
 done
 
 (*
-fun sessionsInTransactionRevAlt :: "trace \<Rightarrow> nat \<Rightarrow> session set"  where
+fun sessionsInTransactionRevAlt :: "trace \<Rightarrow> nat \<Rightarrow> invocation set"  where
   "sessionsInTransactionRevAlt [] i = {}"
 | "sessionsInTransactionRevAlt ((s, ABeginAtomic t)#as) i = sessionsInTransactionRevAlt as (i-1) \<union> {s}"
 | "sessionsInTransactionRevAlt as 0 = {}"
@@ -2501,7 +2501,7 @@ proof -
       }
       note case_endAtomic = this
       
-      { (* Next, we consider the case where txa contains an action from a different session*)
+      { (* Next, we consider the case where txa contains an action from a different invocation*)
         assume differentSession: "fst (txa ! otherI) \<noteq> s"
         
         define s' where s'_def: "s' = fst (txa ! otherI)"
@@ -2652,7 +2652,7 @@ proof -
       }
       note case_endAtomic = this
       
-      { (* Next, we consider the case where txa contains an action from a different session*)
+      { (* Next, we consider the case where txa contains an action from a different invocation*)
         assume differentSession: "fst (txa ! otherI) \<noteq> s"
         
         define s' where s'_def: "s' = fst (txa ! otherI)"
@@ -2787,10 +2787,10 @@ shows "transactionIsPacked tr'' tx
 using assms
 proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beginAtomic insideTx insideTxOther insideTxSame txns rule: nat_less_induct )
   case 1
-  fix tr tr'' trStart :: "(session \<times> action)  list" 
+  fix tr tr'' trStart :: "(invocation \<times> action)  list" 
   fix beginAtomic :: nat
-  fix insideTx :: "(session \<times> action)  list" 
-  fix insideTxOther insideTxSame :: "(session \<times> action)  list" 
+  fix insideTx :: "(invocation \<times> action)  list" 
+  fix insideTxOther insideTxSame :: "(invocation \<times> action)  list" 
   fix txns
   assume tr_steps: "initialState program ~~ tr \<leadsto>* S'"
   assume beginAtomic_len: "beginAtomic < length tr"
@@ -2840,7 +2840,7 @@ proof (induct "transactionIsPackedMeasure tr tx"  arbitrary: tr tr'' trStart beg
     and a11: "insideTxOther = [a\<leftarrow>insideTx . fst a \<noteq> s \<and> \<not> is_AInvcheck (snd a)]"
     and a12: "insideTxSame = map (\<lambda>a. (s, snd a)) [a\<leftarrow>insideTx . fst a = s \<or> is_AInvcheck (snd a)]"
     and measureDecr: "transactionIsPackedMeasure tr' tx < transactionIsPackedMeasure tr tx"
-    for tr' tr'' trStart' insideTx insideTxOther insideTxSame::"(session \<times> action) list"  and beginAtomic::nat and txns
+    for tr' tr'' trStart' insideTx insideTxOther insideTxSame::"(invocation \<times> action) list"  and beginAtomic::nat and txns
     using that ih  by blast
     
   have beginAtomicUnique: "i = beginAtomic" if "tr!i = (c', ABeginAtomic tx txns)" and "i<length tr"  for i c' txns
@@ -4245,7 +4245,7 @@ proof (rule finite_subset)
   show "{tx. \<not> transactionIsPacked tr tx} \<subseteq> {tx | c tx txns. (c, ABeginAtomic tx txns) \<in> set tr}"
     using notPackedExists by auto
     
-  define P :: "(session\<times>action) \<Rightarrow> txid option" where "P = (\<lambda>x. case x of (c, ABeginAtomic tx txns) \<Rightarrow> Some tx | _ \<Rightarrow> None)"
+  define P :: "(invocation\<times>action) \<Rightarrow> txid option" where "P = (\<lambda>x. case x of (c, ABeginAtomic tx txns) \<Rightarrow> Some tx | _ \<Rightarrow> None)"
   
   have P1: "P (c, ABeginAtomic tx txns) = Some tx" for c tx txns by (auto simp add: P_def)
   have P2: "P a = None" if "\<forall>c tx txns. a \<noteq> (c, ABeginAtomic tx txns)" for a 
@@ -4954,7 +4954,7 @@ using assms proof (induct "card {i.
     why can we do that?
     
     Case beginAtomic
-    between the two actions, there can only be actions from the same session.
+    between the two actions, there can only be actions from the same invocation.
     there can be an endAtomic, but our action is no beginAtomic, so this does not really matter.
     Pulls can be problematic, because they kind of belong to the beginAtomic.
     I should change the thing with pulls, maybe just add them to beginAtomic?
@@ -5081,7 +5081,7 @@ next
   case (AInvcheck x10)
   then show ?thesis
   proof - (* hammered *)
-    obtain CC :: "state \<Rightarrow> bool \<Rightarrow> session \<Rightarrow> callId set" where
+    obtain CC :: "state \<Rightarrow> bool \<Rightarrow> invocation \<Rightarrow> callId set" where
       "\<forall>x0 x1 x2. (\<exists>v3. currentTransaction x0 x2 = None \<and> visibleCalls x0 x2 \<triangleq> v3 \<and> invariant (prog x0) (invContext x0 x2) = x1) = (currentTransaction x0 x2 = None \<and> visibleCalls x0 x2 \<triangleq> CC x0 x1 x2 \<and> invariant (prog x0) (invContext x0 x2) = x1)"
       by moura
     then have f1: "\<forall>s b z. (\<not> precondition (s, AInvcheck b) z \<or> currentTransaction z s = None \<and> visibleCalls z s \<triangleq> CC z b s \<and> (\<not> invariant (prog z) (invContext z s)) \<noteq> b) \<and> (precondition (s, AInvcheck b) z \<or> (\<forall>C. currentTransaction z s \<noteq> None \<or> visibleCalls z s \<noteq> Some C \<or> (\<not> invariant (prog z) (invContext z s)) = b))"

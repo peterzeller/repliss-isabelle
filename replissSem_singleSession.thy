@@ -2,7 +2,7 @@ theory replissSem_singleSession
 imports replissSem1
 begin
 
-section {* Single session semantics *}
+section {* Single invocation semantics *}
 
 definition 
 "causallyConsistent hb vis \<equiv>
@@ -50,13 +50,13 @@ using assms by (auto simp add: invariant_all_def)
       
 
 text {*
-The single session semantics only work on a single session.
+The single invocation semantics only work on a single session.
 All other sessions are simulated by nondeterministic state changes, with respect to the invariant.
 *}
 
 
   
-inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
+inductive step_s :: "state \<Rightarrow> (invocation \<times> action \<times> bool) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
   local: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -173,7 +173,7 @@ inductive step_s :: "state \<Rightarrow> (session \<times> action \<times> bool)
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto>\<^sub>S C"   
 *)
   
-inductive steps_s :: "state \<Rightarrow> session \<times> (action \<times> bool) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
+inductive steps_s :: "state \<Rightarrow> invocation \<times> (action \<times> bool) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_s_refl:
   "S ~~ (s, []) \<leadsto>\<^sub>S* S"
 | steps_s_step:

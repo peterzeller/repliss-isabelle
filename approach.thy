@@ -7,9 +7,9 @@ begin
 (*
 TODO:
 
-1. single session semantics
+1. single invocation semantics
 
-2. show that multi-session trace with fixed session can be reduced to multiple single session traces by chopping
+2. show that multi-invocation trace with fixed invocation can be reduced to multiple single invocation traces by chopping
 
 3. other things
 
@@ -20,11 +20,11 @@ declare length_dropWhile_le[simp]
   
 (*
 split a trace into maximal chunks of actions in the same session.
-Each chunk can be used in single-session semantics.
+Each chunk can be used in single-invocation semantics.
 
-Remember that a trace is just a (session\<times>action) list
+Remember that a trace is just a (invocation\<times>action) list
 *)
-fun split_trace :: "trace \<Rightarrow> (session \<times> (action list)) list" where
+fun split_trace :: "trace \<Rightarrow> (invocation \<times> (action list)) list" where
   "split_trace [] = []"
 | "split_trace ((s,a)#rest) = (
    let same = map snd (takeWhile (\<lambda>x. fst x = s) rest);
@@ -78,16 +78,16 @@ by (auto simp add: initialState_def step_simps_all state_wellFormed_invocation_b
 
 
     
-text {* Coupling invariant: S is state from distributed execution and S is state from single-session execution.  *}
-definition state_coupling :: "state \<Rightarrow> state \<Rightarrow> session \<Rightarrow> bool \<Rightarrow> bool" where
+text {* Coupling invariant: S is state from distributed execution and S is state from single-invocation execution.  *}
+definition state_coupling :: "state \<Rightarrow> state \<Rightarrow> invocation \<Rightarrow> bool \<Rightarrow> bool" where
 "state_coupling S S' s sameSession \<equiv> 
    if sameSession then
-      (* did a step in the same session *)
+      (* did a step in the same invocation *)
       if currentTransaction S s = None 
       then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S s orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(s := vis') \<rparr> (* TODO maybe can get equality here*)
       else S' = S
    else 
-      (* did step in a different session *)
+      (* did step in a different invocation *)
       (*monotonic growth of calls*)
         (\<forall>c i. calls S' c \<triangleq> i \<longrightarrow> calls S c \<triangleq> i)
       (*monotonic growth of happensBefore 
@@ -123,15 +123,15 @@ record distributed_state = operationContext +
   callOrigin :: "callId \<rightharpoonup> txid"
   generatedIds :: "uniqueId set"
   knownIds :: "uniqueId set"
-  invocationOp :: "session \<rightharpoonup> (procedureName \<times> any list)"
-  invocationRes :: "session \<rightharpoonup> any"
+  invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> any list)"
+  invocationRes :: "invocation \<rightharpoonup> any"
   transactionStatus :: "txid \<rightharpoonup> transactionStatus"
 
 record state = distributed_state + 
-  localState :: "session \<rightharpoonup> localState"
-  currentProc :: "session \<rightharpoonup> procedureImpl"
-  visibleCalls :: "session \<rightharpoonup> callId set"
-  currentTransaction :: "session \<rightharpoonup> txid"
+  localState :: "invocation \<rightharpoonup> localState"
+  currentProc :: "invocation \<rightharpoonup> procedureImpl"
+  visibleCalls :: "invocation \<rightharpoonup> callId set"
+  currentTransaction :: "invocation \<rightharpoonup> txid"
 *)
       
       
@@ -156,13 +156,13 @@ qed
 
            
 text {*
-If we have an execution on a a single session starting with state satisfying the invariant, then we can convert 
-this trace to a single-session trace leading to an equivalent state.
+If we have an execution on a a single invocation starting with state satisfying the invariant, then we can convert 
+this trace to a single-invocation trace leading to an equivalent state.
 Moreover the new trace contains an invariant violation, if the original trace contained one.
 *}
 lemma convert_to_single_session_trace:
 fixes tr :: trace
-  and s :: session      
+  and s :: invocation      
   and S S' :: state
 assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
@@ -234,7 +234,7 @@ next
   
   show  "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 s (tr @ [a] = [] \<or> fst (last (tr @ [a])) = s)"  
   proof (cases "fst a = s"; simp)
-    case True (* the new action is on session s *)
+    case True (* the new action is on invocation s *)
     hence [simp]: "fst a = s" .
   
   show "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 s True"  (is ?goal) 
@@ -783,12 +783,12 @@ next
     qed
   qed
 next
-  case False (* we are coming from a different session and executing an action on s now  *)
+  case False (* we are coming from a different invocation and executing an action on s now  *)
   hence [simp]: "tr \<noteq> []" and [simp]: "fst (last tr) \<noteq> s" by auto
   
   hence ih3: "state_coupling S' S2 s  False" using ih3' by simp
   
-  text {* Because the trace is packed, there can only be two cases where we can go from another session to s: *}
+  text {* Because the trace is packed, there can only be two cases where we can go from another invocation to s: *}
   have "allowed_context_switch (snd a)"
   proof (rule context_switches_in_packed[OF packed])
     show "tr @ [a] = butlast tr @ [(fst (last tr), snd (last tr)), (s, snd a)] @ []"
@@ -1004,7 +1004,7 @@ qed
 
 lemma convert_to_single_session_trace_invFail_step:
 fixes tr :: trace
-  and s :: session      
+  and s :: invocation      
   and S S' :: state
 assumes step: "S ~~ (s,a) \<leadsto> S'"
     and S_wellformed: "state_wellFormed S"
@@ -1076,7 +1076,7 @@ next
   thus ?thesis ..
 next
   case (endAtomic ls f ls' t)
-  text {* Ending a transaction includes an invariant-check in the single-session semantics, so we get a failing trace. *}
+  text {* Ending a transaction includes an invariant-check in the single-invocation semantics, so we get a failing trace. *}
   
   define S2' where "S2' \<equiv> S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S2(t \<mapsto> Commited)\<rparr>"
   
@@ -2104,7 +2104,7 @@ proof (rule ccontr)
 
 
 text {*
-When a program is correct in the single session semantics, 
+When a program is correct in the single invocation semantics, 
 it is also correct when executed in the concurrent interleaving semantics.
 *}
 theorem

@@ -200,7 +200,7 @@ next
 qed
 
 text {*
- There can be no action on a session after a fail or return:
+ There can be no action on a invocation after a fail or return:
  (except for invariant checks)
 *}
 lemma nothing_after_fail_or_return:
@@ -256,7 +256,7 @@ qed
 
 (*
 text {*
-After a return or a failure no more actions on the same session are possible.
+After a return or a failure no more actions on the same invocation are possible.
 *}
 lemma nothing_after_fail_or_return:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
@@ -481,7 +481,7 @@ proof (rule iffI2; clarsimp)
 qed
   
 
-definition commutativeS :: "state \<Rightarrow> session \<times> action \<Rightarrow> session \<times> action \<Rightarrow> bool" where
+definition commutativeS :: "state \<Rightarrow> invocation \<times> action \<Rightarrow> invocation \<times> action \<Rightarrow> bool" where
 "commutativeS s a b \<equiv> (\<forall>t. ((s ~~ [a,b] \<leadsto>*  t) \<longleftrightarrow> (s ~~ [b,a] \<leadsto>* t)))"
 
 
@@ -540,7 +540,7 @@ apply (rule usePrecondition2)
   using a4 usePrecondition apply blast 
 done  
 
-definition differentIds :: "(session \<times> action) \<Rightarrow> (session \<times> action) \<Rightarrow> bool" where
+definition differentIds :: "(invocation \<times> action) \<Rightarrow> (invocation \<times> action) \<Rightarrow> bool" where
 "differentIds a b \<equiv> case (a,b) of
    ((s1, ANewId u1), (s2, ANewId u2)) \<Rightarrow> (u1 \<noteq> u2)
  | ((s1, ABeginAtomic u1 nt1), (s2, ABeginAtomic u2 nt2)) \<Rightarrow> (u1 \<noteq> u2)
@@ -2165,14 +2165,14 @@ it appears.
 
 
 (* checks if sessions s is in a transaction at position i in trace tr *)
-definition inTransaction :: "trace \<Rightarrow> nat \<Rightarrow> session \<Rightarrow> bool"  where 
+definition inTransaction :: "trace \<Rightarrow> nat \<Rightarrow> invocation \<Rightarrow> bool"  where 
 "inTransaction tr i s \<equiv>
   \<exists>j. j\<le>i \<and> i<length tr \<and> (\<exists>t txns. tr!j = (s, ABeginAtomic t txns))
      \<and> (\<forall>k. j<k \<and> k < length tr \<and> k\<le>i \<longrightarrow> tr!k \<noteq> (s, AEndAtomic))
 "
 
 (* returns the set of all transactions, which are in a transaction at point i in the trace*)
-definition sessionsInTransaction :: "trace \<Rightarrow> nat \<Rightarrow> session set"  where 
+definition sessionsInTransaction :: "trace \<Rightarrow> nat \<Rightarrow> invocation set"  where 
 "sessionsInTransaction tr i \<equiv> {s. inTransaction tr i s}"
 
 (* counts how many concurrent transactions are active *)
@@ -2206,7 +2206,7 @@ apply (auto simp add: inTransaction_def nth_Cons' split: if_splits)
 done
 
 (*
-fun sessionsInTransactionRevAlt :: "trace \<Rightarrow> nat \<Rightarrow> session set"  where
+fun sessionsInTransactionRevAlt :: "trace \<Rightarrow> nat \<Rightarrow> invocation set"  where
   "sessionsInTransactionRevAlt [] i = {}"
 | "sessionsInTransactionRevAlt ((s, ABeginAtomic t)#as) i = sessionsInTransactionRevAlt as (i-1) \<union> {s}"
 | "sessionsInTransactionRevAlt as 0 = {}"
@@ -2480,7 +2480,7 @@ proof -
       }
       note case_endAtomic = this
       
-      { (* Next, we consider the case where txa contains an action from a different session*)
+      { (* Next, we consider the case where txa contains an action from a different invocation*)
         assume differentSession: "fst (txa ! otherI) \<noteq> s"
         
         define s' where s'_def: "s' = fst (txa ! otherI)"
@@ -2631,7 +2631,7 @@ proof -
       }
       note case_endAtomic = this
       
-      { (* Next, we consider the case where txa contains an action from a different session*)
+      { (* Next, we consider the case where txa contains an action from a different invocation*)
         assume differentSession: "fst (txa ! otherI) \<noteq> s"
         
         define s' where s'_def: "s' = fst (txa ! otherI)"
@@ -3187,7 +3187,7 @@ next
   qed
 qed
   
-definition packed_trace_s :: "trace \<Rightarrow> session \<Rightarrow> bool" where
+definition packed_trace_s :: "trace \<Rightarrow> invocation \<Rightarrow> bool" where
 "packed_trace_s tr s \<equiv>
   \<forall>i.
       0<i
@@ -3293,7 +3293,7 @@ proof (induct "max_natset {length tr - i  | i.
       and i5: "\<not>(allowed_context_switch (snd(tr!i)))"
       by auto
     
-    text {* There must be a previous action on the same session (at least the invocation should be there, since i is no invocation). *}
+    text {* There must be a previous action on the same invocation (at least the invocation should be there, since i is no invocation). *}
     obtain prev
       where prev1: "fst(tr!prev) = s"
         and prev2: "prev < i"
@@ -3486,7 +3486,7 @@ lemma packed_trace_iff_all_sessions_packed:
   "packed_trace tr \<longleftrightarrow> (\<forall>s. packed_trace_s tr s)"
 by (auto simp add: packed_trace_def packed_trace_s_def)
 
-text {* Now we can just repeat fixing session by session, until all sessions are packed. *}
+text {* Now we can just repeat fixing invocation by invocation, until all sessions are packed. *}
 lemma pack_trace:
 assumes steps: "initialState program ~~ tr \<leadsto>* C"
     and noFail: "\<And>s. (s, AFail) \<notin> set tr"

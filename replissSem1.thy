@@ -15,7 +15,7 @@ abbreviation eqsome :: "'a option \<Rightarrow> 'a \<Rightarrow> bool" (infixr "
 abbreviation orElse :: "'a option \<Rightarrow> 'a \<Rightarrow> 'a" (infixr "orElse" 70) where
 "x orElse y \<equiv> case x of Some a \<Rightarrow> a | None \<Rightarrow> y"
  
-typedecl session
+typedecl invocation
 typedecl localState
 typedecl uniqueId
 
@@ -74,8 +74,8 @@ record invariantContext =
   i_visibleCalls :: "callId set"
   i_callOrigin :: "callId \<rightharpoonup> txid"
   i_knownIds :: "uniqueId set"
-  i_invocationOp :: "session \<rightharpoonup> (procedureName \<times> any list)"
-  i_invocationRes :: "session \<rightharpoonup> any"
+  i_invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> any list)"
+  i_invocationRes :: "invocation \<rightharpoonup> any"
 
 record prog =
   querySpec :: "operation \<Rightarrow> any list \<Rightarrow> operationContext \<Rightarrow> any \<Rightarrow> bool"
@@ -87,15 +87,15 @@ record distributed_state = operationContext +
   callOrigin :: "callId \<rightharpoonup> txid"
   generatedIds :: "uniqueId set"
   knownIds :: "uniqueId set"
-  invocationOp :: "session \<rightharpoonup> (procedureName \<times> any list)"
-  invocationRes :: "session \<rightharpoonup> any"
+  invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> any list)"
+  invocationRes :: "invocation \<rightharpoonup> any"
   transactionStatus :: "txid \<rightharpoonup> transactionStatus"
 
 record state = distributed_state + 
-  localState :: "session \<rightharpoonup> localState"
-  currentProc :: "session \<rightharpoonup> procedureImpl"
-  visibleCalls :: "session \<rightharpoonup> callId set"
-  currentTransaction :: "session \<rightharpoonup> txid"
+  localState :: "invocation \<rightharpoonup> localState"
+  currentProc :: "invocation \<rightharpoonup> procedureImpl"
+  visibleCalls :: "invocation \<rightharpoonup> callId set"
+  currentTransaction :: "invocation \<rightharpoonup> txid"
   
   
 lemma state_ext: "((x::state) = y) \<longleftrightarrow> (
@@ -361,7 +361,7 @@ datatype action =
   
 definition "is_AInvcheck a \<equiv> \<exists>txns r. a = AInvcheck txns r"
   
-inductive step :: "state \<Rightarrow> (session \<times> action) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
+inductive step :: "state \<Rightarrow> (invocation \<times> action) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -487,7 +487,7 @@ lemmas step_elims =
   step_elim_AFail
   step_elim_AInvcheck
 
-inductive steps :: "state \<Rightarrow> (session \<times> action) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
+inductive steps :: "state \<Rightarrow> (invocation \<times> action) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
   steps_refl:
   "S ~~ [] \<leadsto>* S"
 | steps_step:
@@ -536,7 +536,7 @@ definition initialState :: "prog \<Rightarrow> state" where
   currentTransaction = empty
 \<rparr>"
 
-type_synonym trace = "(session\<times>action) list"
+type_synonym trace = "(invocation\<times>action) list"
 
 definition traces where
 "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
@@ -553,10 +553,10 @@ definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rig
  splits a trace into three parts
   
 1. part until first (s, EndAtomic) on different sessions
-2. part until and including (s, EndAtomic); same session
+2. part until and including (s, EndAtomic); same invocation
 3. rest
 *)
-fun splitTrace :: "session \<Rightarrow> trace \<Rightarrow> (trace \<times> trace \<times> trace)" where
+fun splitTrace :: "invocation \<Rightarrow> trace \<Rightarrow> (trace \<times> trace \<times> trace)" where
   "splitTrace s [] = ([],[],[])"
 | "splitTrace s ((sa, a)#tr) = (
     if s = sa then
@@ -595,7 +595,7 @@ using a by (metis splitTrace_len(1), metis splitTrace_len(2), metis splitTrace_l
 declare splitTrace.simps[simp del]
 
 
-fun compactTrace :: "session \<Rightarrow> trace \<Rightarrow> trace" where
+fun compactTrace :: "invocation \<Rightarrow> trace \<Rightarrow> trace" where
   compactTrace_empty:
   "compactTrace s [] = []"
 | compactTrace_step:

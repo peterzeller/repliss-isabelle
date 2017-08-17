@@ -1,0 +1,5 @@
+Changes to be done in the Isabelle theories:
+
+- arrange theories / order of theorems etc.
+- rename sessions to invocations
+
