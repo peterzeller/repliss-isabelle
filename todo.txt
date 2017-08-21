@@ -1,5 +1,6 @@
 Changes to be done in the Isabelle theories:
 
 - arrange theories / order of theorems etc.
-- rename sessions to invocations
+- use contexts instead of typedecls. Invariant and program would be part of the context.
+- verify one example in Isabelle
 
