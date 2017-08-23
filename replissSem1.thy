@@ -439,7 +439,7 @@ inductive step :: "state \<Rightarrow> (invocation \<times> action) \<Rightarrow
                  currentProc := (currentProc C)(s := None),
                  visibleCalls := (visibleCalls C)(s := None) \<rparr>)"                  
 | invCheck: (* checks a snapshot*)
-  "\<lbrakk>\<forall>t\<in>txns. transactionStatus C t \<triangleq> Commited;
+  "\<lbrakk>txns \<subseteq> commitedTransactions C;
    invariant (prog C) (invContextSnapshot C txns) = res
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck txns res) \<leadsto> C"   
 
