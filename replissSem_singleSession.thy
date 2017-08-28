@@ -139,7 +139,7 @@ inductive step_s :: "state \<Rightarrow> (invocation \<times> action \<times> bo
    uniqueIdsInList args \<subseteq> knownIds C';
    invariant_all C';
    invocationOp C' s = None;
-   (* TODO some connection between C and C' or allow anything that preserves invariant? *)
+   (* TODO some connection between C and C' or allow anything that preserves invariant? maybe C is not needed at all? *)
    C'' = (C'\<lparr>localState := (localState C')(s \<mapsto> initState),
                  currentProc := (currentProc C')(s \<mapsto> impl),
                  visibleCalls := (visibleCalls C')(s \<mapsto> {}),

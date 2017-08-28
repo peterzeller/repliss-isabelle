@@ -1615,7 +1615,8 @@ next
 next
   case (AInvcheck x10)
   then show ?thesis 
-    by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits)
+    by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits, auto)
+    
 qed
 qed
 
