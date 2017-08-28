@@ -141,6 +141,7 @@ shows "invariant_all S' \<longleftrightarrow> invariant_all S"
 proof -
   have [simp]: "prog S' = prog S" using assms by (auto simp add: state_coupling_def split: if_splits)  
   moreover have [simp]: "callOrigin S' = callOrigin S" using assms by (auto simp add: state_coupling_def split: if_splits)  
+  moreover have [simp]: "transactionOrigin S' = transactionOrigin S" using assms by (auto simp add: state_coupling_def split: if_splits)  
   moreover have [simp]: "transactionStatus S' = transactionStatus S" using assms by (auto simp add: state_coupling_def split: if_splits)
   moreover have [simp]: "happensBefore S' = happensBefore S" using assms by (auto simp add: state_coupling_def split: if_splits)
   moreover have [simp]: "calls S' = calls S" using assms by (auto simp add: state_coupling_def split: if_splits)
@@ -258,6 +259,7 @@ next
   have S2_currentTransaction: "currentTransaction S2 = currentTransaction S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
   have S2_transactionStatus: "transactionStatus S2 = transactionStatus S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
   have S2_callOrigin: "callOrigin S2 = callOrigin S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+  have S2_transactionOrigin: "transactionOrigin S2 = transactionOrigin S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
   have S2_generatedIds: "generatedIds S2 = generatedIds S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
   have S2_knownIds: "knownIds S2 = knownIds S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
   have S2_invocationOp: "invocationOp S2 = invocationOp S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
@@ -265,7 +267,7 @@ next
  
   note S2_simps = 
       S2_calls S2_happensBefore S2_prog S2_localState S2_currentProc S2_currentTransaction
-      S2_transactionStatus S2_callOrigin S2_generatedIds S2_knownIds S2_invocationOp S2_invocationRes
+      S2_transactionStatus S2_callOrigin S2_transactionOrigin S2_generatedIds S2_knownIds S2_invocationOp S2_invocationRes
   
   have vis_defined: "visibleCalls S' s \<noteq> None" if "currentTransaction S' s \<noteq> None"
     using S_wf state_wellFormed_combine state_wellFormed_tx_to_visibleCalls steps that by auto    
@@ -438,6 +440,7 @@ next
                   localState := localState S'(s \<mapsto> ls'), 
                   currentTransaction := currentTransaction S'(s \<mapsto> txId), 
                   transactionStatus := transactionStatus S'(txId \<mapsto> Uncommited),
+                  transactionOrigin := transactionOrigin S'(txId \<mapsto> s),
                   visibleCalls := visibleCalls S'(s \<mapsto> vis \<union> callsInTransaction S' txns \<down> happensBefore S')\<rparr>"
         and a2: "localState S' s \<triangleq> ls"
         and a3: "currentProc S' s \<triangleq> f"
@@ -474,6 +477,7 @@ next
           localState := localState S2(s \<mapsto> ls'), 
           currentTransaction := currentTransaction S2(s \<mapsto> txId), 
           transactionStatus := transactionStatus S2(txId \<mapsto> Uncommited),
+          transactionOrigin := transactionOrigin S2(txId \<mapsto> s),
           visibleCalls := visibleCalls S'(s \<mapsto> vis \<union> callsInTransaction S' txns \<down> happensBefore S')\<rparr>)"  
       
     from a2' a3' a4 a5' a6' 
@@ -487,6 +491,8 @@ next
         by (simp add: newS_def)
       show "transactionStatus newS txId \<triangleq> Uncommited"  
         by (simp add: newS_def)
+      show "transactionOrigin newS txId \<triangleq> s"
+        by (simp add: newS_def)
         
       have [simp]: "consistentSnapshot newS vis \<Longrightarrow> consistentSnapshot S' vis" for vis
         apply (auto simp add: consistentSnapshot_def newS_def a6' transactionConsistent_def)
@@ -494,8 +500,7 @@ next
         
       show "invariant_all newS" 
         using inv' apply (auto simp add: invariant_all_def)
-        using S2_currentTransaction S2_localState S2_transactionStatus newS_def a1 inv'' invariant_all_def by auto
-        
+        using S2_currentTransaction S2_localState S2_transactionStatus newS_def a1 inv'' invariant_all_def S2_transactionOrigin  by auto
     qed
     
     moreover have "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
@@ -503,7 +508,7 @@ next
       
     
     moreover have "S'' = newS"
-       by (auto simp add: a1 newS_def S2_localState S2_currentTransaction S2_transactionStatus)  
+       by (auto simp add: a1 newS_def S2_localState S2_currentTransaction S2_transactionStatus S2_transactionOrigin)  
       
        
     
@@ -814,6 +819,7 @@ next
                     localState := localState S'(s \<mapsto> ls'), 
                     currentTransaction := currentTransaction S'(s \<mapsto> tx), 
                     transactionStatus := transactionStatus S'(tx \<mapsto> Uncommited),
+                    transactionOrigin := transactionOrigin S'(tx \<mapsto> s),
                     visibleCalls := visibleCalls S'(s \<mapsto> vis \<union> callsInTransaction S' txns \<down> happensBefore S')\<rparr>"
         and a2: "localState S' s \<triangleq> ls"
         and a3: "currentProc S' s \<triangleq> f"
@@ -872,6 +878,8 @@ next
         show "currentTransaction S'' s \<triangleq> tx"
           using a1 by auto
         show "transactionStatus S'' tx \<triangleq> Uncommited"
+          using a1 by auto
+        show "transactionOrigin S'' tx \<triangleq> s"
           using a1 by auto
       qed
         
@@ -1062,7 +1070,7 @@ next
   have "invariant_all S' = invariant_all S"
   proof (rule show_invariant_all_changes)
     show "invContextVis S' vis = invContextVis S vis" for vis
-      using beginAtomic by (auto simp add: invContextH_def)
+      using beginAtomic by (auto simp add: invContextH_def restrict_map_def)
     show "prog S' = prog S"
       using local.step prog_inv by auto
     have "consistentSnapshot S' vis = consistentSnapshot S vis" for vis
@@ -1151,7 +1159,7 @@ next
       by (auto simp add: consistentSnapshot_def dbop)
     
     hence "c \<notin> vis'"
-      by (metis (full_types) S_wellformed fun_upd_same local.dbop(6) map_upd_eqD1 transactionConsistent_def transactionStatus.distinct(1) wellFormed_currentTransaction_unique_h(2))  
+      by (metis (full_types) S_wellformed fun_upd_same local.dbop(6) map_upd_eqD1 transactionConsistent_def transactionStatus.distinct(1) wellFormed_currentTransaction_unique_h(2)) (* takes long *) 
       
     with `vis' \<subseteq> insert c (dom (calls S)) `
     have "vis' \<subseteq> dom (calls S)"

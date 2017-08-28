@@ -351,6 +351,7 @@ proof (rule iffI2; clarsimp)
          \<and> prog S'' = prog S'
          \<and> transactionStatus S'' = transactionStatus S' 
          \<and> callOrigin S'' = callOrigin S' 
+         \<and> transactionOrigin S'' = transactionOrigin S' 
          \<and> generatedIds S'' = generatedIds S' 
          \<and> knownIds S'' = knownIds S' 
          \<and> invocationOp S'' = invocationOp S' 
@@ -411,9 +412,11 @@ proof (rule iffI2; clarsimp)
                 localState := localState S2(s \<mapsto> ls'), 
                 currentTransaction := currentTransaction S2(s \<mapsto> t), 
                 transactionStatus := transactionStatus S1(t \<mapsto> Uncommited),
+                transactionOrigin := transactionOrigin S2(t \<mapsto> s),
                 visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> newCalls)\<rparr>"])
           using induct_step.coupling no_fail beginAtomic
           by (auto simp add: step_simps state_ext  induct_step)
+          
       next
         case (endAtomic s ls f ls' t)
         from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
@@ -852,19 +855,14 @@ next
         apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         apply (auto simp add: B_def)
         done
-        
       show "i_knownIds (invContext A sb) = i_knownIds (invContext B sb)"
-        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
-        apply (auto simp add: B_def)
-        done
+        by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
       show "i_invocationOp (invContext A sb) = i_invocationOp (invContext B sb)"
-        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
-        apply (auto simp add: B_def)
-        done
+        by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
       show "i_invocationRes (invContext A sb) = i_invocationRes (invContext B sb)"
-        apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
-        apply (auto simp add: B_def)
-        done
+        by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
+      show "i_transactionOrigin (invContext A sb) = i_transactionOrigin (invContext B sb)"
+        by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
     qed
     
   
@@ -1032,6 +1030,20 @@ proof (auto simp add: invContextH_def invContextSame_h[OF exec wellFormed 1 aIsN
   show "invocationRes A = invocationRes B"
     using exec apply (rule step.cases)
     by (auto simp add: aIsInTransaction)
+    
+    
+  have "transactionOrigin A t = transactionOrigin B t"  for t
+    using exec apply (rule step.cases)
+    by (auto simp add: aIsInTransaction)
+    
+  
+  show "transactionOrigin A |` commitedTransactions A = transactionOrigin B |` commitedTransactions B"
+    using exec apply (rule step.cases)
+    apply (auto simp add: restrict_map_def aIsInTransaction)
+    using aIsNotCommit exec sem1_commutativity2.committed_same by auto[1]
+    
+    
+    
 qed    
   
 lemma commutativePreservesPrecondition:
@@ -1200,16 +1212,16 @@ happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
   
 lemma invContext_unchanged_happensBefore[simp]:
 assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
-shows "invContextH co ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs
-    = invContextH co ts hbOld cs ki io ir vcs"
+shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs
+    = invContextH co to ts hbOld cs ki io ir vcs"
 apply (simp add: invContextH_def)
 using assms apply (auto simp add: restrict_relation_def commitedCallsH_def)
 done  
 
 lemma invContext_unchanged_happensBefore2[simp]:
 assumes "co c = None"
-shows "invContextH co ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs 
-    = invContextH co ts hbOld cs ki io ir vcs "
+shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs 
+    = invContextH co to ts hbOld cs ki io ir vcs "
 apply (simp add: invContextH_def)
 using assms apply (auto simp add: restrict_relation_def commitedCallsH_def)
 done  
@@ -1224,7 +1236,7 @@ using assms by (auto simp add: commitedCallsH_def)
 find_consts "'a \<Rightarrow> 'a option \<Rightarrow> 'a"
 
 lemma invContext_changeVisibleCalls[simp]:
-shows "i_visibleCalls (invContextH co ts hbOld cs ki io ir vcs )
+shows "i_visibleCalls (invContextH co to ts hbOld cs ki io ir vcs )
      = vcs orElse {}"
 by (auto simp add: invContextH_def split: option.splits)  
 
@@ -1266,14 +1278,14 @@ shows "(c \<in> commitedCallsH co ts) \<longleftrightarrow> (case co c of None \
     
 lemma invContextH_update_callOrigin[simp]:
 assumes "co c = None" and "ts t \<triangleq> Uncommited"
-shows "invContextH (co(c \<mapsto> t)) ts hb cs ki io ir vis  =
-       invContextH co ts hb cs ki io ir vis "
+shows "invContextH (co(c \<mapsto> t)) to ts hb cs ki io ir vis  =
+       invContextH co to ts hb cs ki io ir vis "
 using assms by (auto simp add: invContextH_def)
 
 lemma invContextH_update_calls[simp]:
 assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
-shows "invContextH co ts hb (cs(c \<mapsto> newCall)) ki io ir vis  =
-       invContextH co ts hb cs ki io ir vis "
+shows "invContextH co to ts hb (cs(c \<mapsto> newCall)) ki io ir vis  =
+       invContextH co to ts hb cs ki io ir vis "
 using assms by (auto simp add: invContextH_def commitedCallsH_in)
 
 lemma commitedCallsH_update_uncommited[simp]:
@@ -1285,10 +1297,10 @@ using assms apply (auto simp add: commitedCallsH_def)
 
 
 lemma invContextH_update_txstatus[simp]:
-assumes "ts t = None"
-shows "invContextH co (ts(t\<mapsto>Uncommited)) hb cs ki io ir vis =
-       invContextH co ts hb cs ki io ir vis"
-using assms by (auto simp add: invContextH_def)
+assumes "ts t = None" 
+shows "invContextH co to (ts(t\<mapsto>Uncommited)) hb cs ki io ir vis =
+       invContextH co to ts hb cs ki io ir vis"
+using assms by (auto simp add: invContextH_def restrict_map_def)
 
 lemma test:
 assumes a7: "currentTransaction S sa \<triangleq> t"
@@ -1586,8 +1598,8 @@ next
     using ABeginAtomic apply (auto simp add: step_simps contra_subsetD split: if_splits)[1]
     using ABeginAtomic   apply (auto simp add: step_simps contra_subsetD split: if_splits)[1]
     apply (subst state_ext)
-    using ABeginAtomic   by (auto simp add: step_simps)
-  
+    using ABeginAtomic   apply (auto simp add: step_simps)
+    using fun_upd_twist map_upd_nonempty by force
    
 next
   case AEndAtomic (* this is not commutative, since the transaction committed could be included in ht next snapshot*)
@@ -1615,8 +1627,7 @@ next
 next
   case (AInvcheck x10)
   then show ?thesis 
-    by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits, auto)
-    
+    by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits, auto simp add: invContextH_def)
 qed
 qed
 

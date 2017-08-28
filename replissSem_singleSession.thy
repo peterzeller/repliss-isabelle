@@ -97,7 +97,8 @@ inductive step_s :: "state \<Rightarrow> (invocation \<times> action \<times> bo
    (* local changes: *)
    localState C' s \<triangleq> ls';
    currentTransaction C' s \<triangleq> t;
-   transactionStatus C' t \<triangleq> Uncommited
+   transactionStatus C' t \<triangleq> Uncommited;
+   transactionOrigin C' t \<triangleq> s
    \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t txns, True) \<leadsto>\<^sub>S C'"
 | endAtomic: 
   "\<lbrakk>localState C s \<triangleq> ls; 
