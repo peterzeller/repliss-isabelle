@@ -501,6 +501,13 @@ next
       show "invariant_all newS" 
         using inv' apply (auto simp add: invariant_all_def)
         using S2_currentTransaction S2_localState S2_transactionStatus newS_def a1 inv'' invariant_all_def S2_transactionOrigin  by auto
+        
+      show "state_wellFormed newS"
+        using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' by auto
+        
+      show "state_monotonicGrowth S2 newS"
+        by (auto simp add: state_monotonicGrowth_def)
+        
     qed
     
     moreover have "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
@@ -881,6 +888,11 @@ next
           using a1 by auto
         show "transactionOrigin S'' tx \<triangleq> s"
           using a1 by auto
+        show "state_wellFormed S''"
+          using S_wf state_wellFormed_combine steps' by blast
+        show "state_monotonicGrowth S2 S''"
+          by (simp add: state_monotonicGrowth_def)
+          
       qed
         
       thus "S ~~ (s, tr'@[(ABeginAtomic tx txns, True)]) \<leadsto>\<^sub>S*  S''"

@@ -1,5 +1,5 @@
 theory replissSem_singleSession
-imports replissSem1
+imports replissSem1 execution_invariants
 begin
 
 section {* Single invocation semantics *}
@@ -31,6 +31,19 @@ definition consistentSnapshot where
 "
 
 
+(* TODO add definitions *)
+   (* monotonic growth of visible calls*)
+   (* monotonic growth of callops *)
+   (* monotonic growth of happens-before *)
+   (*  --> no new calls can be added before*)
+   (* monotonic growth of sameTransaction *)
+   (* monotonic growth of origin *)
+   (* monotonic growth of invocations *)
+   (* monotonic growth of invocation result *)
+   (* monotonic growth of invocation happens-before *)
+   (*  --> no new calls can be added before*)
+definition state_monotonicGrowth :: "state \<Rightarrow> state \<Rightarrow> bool" where
+"state_monotonicGrowth S S' = True"
 
 
 text {* Invariant holds for all possible (causally + transaction consistent) states *}
@@ -81,19 +94,8 @@ inductive step_s :: "state \<Rightarrow> (invocation \<times> action \<times> bo
    (* well formed history *)
    (* invariant maintained *)
    invariant_all C';
-   (* causally consistent *)
-   (* transaction consistent *)
-   (* monotonic growth of visible calls*)
-   (* monotonic growth of callops *)
-   (* monotonic growth of happens-before *)
-   (*  --> no new calls can be added before*)
-   (* monotonic growth of sameTransaction *)
-   (* monotonic growth of origin *)
-   (* monotonic growth of invocations *)
-   (* monotonic growth of invocation result *)
-   (* monotonic growth of invocation happens-before *)
-   (*  --> no new calls can be added before*)
-   
+   state_wellFormed C';
+   state_monotonicGrowth C C';   
    (* local changes: *)
    localState C' s \<triangleq> ls';
    currentTransaction C' s \<triangleq> t;
