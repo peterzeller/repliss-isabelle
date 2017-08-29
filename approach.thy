@@ -677,8 +677,8 @@ next
       
     have step_s': "S2 ~~ (s, (AInvoc procName args, True)) \<leadsto>\<^sub>S S'' "
     proof (rule step_s.invocation)
-      show "localState S2 s = None"
-        by (simp add: S2_localState a2) 
+      show "invocationOp S2 s = None"
+        by (simp add: S2_invocationOp a5)
       show "procedure (prog S2) procName args \<triangleq> (initialState, impl)"
         by (simp add: S2_prog a3)
       show "uniqueIdsInList args \<subseteq> knownIds S2"
@@ -923,8 +923,9 @@ next
     proof (intro exI conjI)
       have "S2 ~~ (s, AInvoc p ar, True) \<leadsto>\<^sub>S S''"
       proof (rule step_s.intros)
-        show "localState S2 s = None"
-          using a2 ih3 by (simp add: state_coupling_def)
+        have "\<And>p. invocationOp S2 s \<noteq> Some p"
+          using a5 ih3 state_coupling_def by fastforce
+        thus "invocationOp S2 s = None" by blast
         have [simp]: "prog S2 = prog S'"
           using ih3 state_coupling_def by auto
         show "procedure (prog S2) p ar \<triangleq> (initial, impl)"
@@ -1229,8 +1230,12 @@ next
   
   have "S2 ~~ (s,(AInvoc procName args, False)) \<leadsto>\<^sub>S S'"
   proof (rule step_s.intros)
-    show "localState S2 s = None"
+    
+    have "localState S2 s = None"
       using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
+    have "\<And>x. invocationOp S2 s \<noteq> Some x"      
+      using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
+    thus "invocationOp S2 s = None" by blast     
     show "procedure (prog S2) procName args \<triangleq> (initialState, impl)"
       using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
     show "uniqueIdsInList args \<subseteq> knownIds S"

@@ -137,7 +137,8 @@ inductive step_s :: "state \<Rightarrow> (invocation \<times> action \<times> bo
    \<rbrakk> \<Longrightarrow>  C ~~ (s, APull newTxns) \<leadsto>\<^sub>S (C\<lparr> visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> newCalls)\<rparr>)"                         
 *)
 | invocation:
-  "\<lbrakk>localState C s = None;
+  "\<lbrakk>(*localState C s = None;*)
+   invocationOp C s = None;
    procedure (prog C) procName args \<triangleq> (initState, impl);
    uniqueIdsInList args \<subseteq> knownIds C';
    invariant_all C';
