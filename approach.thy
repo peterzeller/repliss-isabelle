@@ -121,10 +121,10 @@ record operationContext =
 record distributed_state = operationContext +
   prog :: prog
   callOrigin :: "callId \<rightharpoonup> txid"
-  generatedIds :: "uniqueId set"
-  knownIds :: "uniqueId set"
-  invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> any list)"
-  invocationRes :: "invocation \<rightharpoonup> any"
+  generatedIds :: "'any set"
+  knownIds :: "'any set"
+  invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
+  invocationRes :: "invocation \<rightharpoonup> 'any"
   transactionStatus :: "txid \<rightharpoonup> transactionStatus"
 
 record state = distributed_state + 
