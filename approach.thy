@@ -2199,22 +2199,19 @@ proof (rule show_programCorrect_noTransactionInterleaving)
       
  
       
-    
+    (*
     from works_in_single_session
     have use_single_session: "traceCorrect_s program trace" if "invariant program (invContext init s)" and "prog init = program" and "init ~~ (s, trace) \<leadsto>\<^sub>S* S" for init trace s S
       using that by (auto simp add: programCorrect_s_def)
-
+    *)
+    from works_in_single_session
+    have use_single_session: "traceCorrect_s program trace" if "initialState program ~~ (s, trace) \<leadsto>\<^sub>S* S" for  trace s S
+      using that by (auto simp add: programCorrect_s_def)  
+      
     have correct: "traceCorrect_s program tr'_s" 
     proof (rule use_single_session)
       show "initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s"
         using `initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s` .
-      show "prog (initialState program) = program"
-        by (simp add: initialState_def)
-      show "invariant program (invContext (initialState program) s')"
-        using inv_init apply (auto simp add: invariant_all_def)
-        apply (drule_tac x="{}" in spec)
-        apply (drule mp)
-        by (auto simp add: consistentSnapshot_def initialState_def causallyConsistent_def transactionConsistent_def invContextH_def)
     qed    
     
     with not_correct

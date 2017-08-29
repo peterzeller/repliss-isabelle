@@ -187,14 +187,10 @@ definition traceCorrect_s where
 "traceCorrect_s program trace \<equiv> (\<forall>a. (a, False) \<notin> set trace)"
 
 definition programCorrect_s where
-"programCorrect_s program \<equiv> (\<forall>init trace s S. 
-      invariant program (invContext init s) (* TODO change to inv_all ??*)
-    \<and> prog init = program
-    \<and> (init ~~ (s, trace) \<leadsto>\<^sub>S* S)
+"programCorrect_s program \<equiv> (\<forall>trace s S. 
+   (initialState program ~~ (s, trace) \<leadsto>\<^sub>S* S)
     \<longrightarrow> traceCorrect_s program trace)"
   
-  thm steps_append
-    
 lemma steps_s_append: 
 assumes a1: "S ~~ (s, tra) \<leadsto>\<^sub>S* S'"
     and a2: "S' ~~ (s, trb) \<leadsto>\<^sub>S* S''"
