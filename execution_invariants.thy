@@ -3,7 +3,7 @@ theory execution_invariants
 begin
 
 
-definition state_wellFormed :: "state \<Rightarrow> bool" where
+definition state_wellFormed :: "('localState, 'any) state \<Rightarrow> bool" where
 "state_wellFormed state \<equiv> \<exists>tr. initialState (prog state) ~~ tr \<leadsto>* state"
 
 lemma state_wellFormed_init[simp]:
@@ -159,7 +159,7 @@ lemma wellFormed_visibleCallsSubsetCalls:
 assumes a1: "state_wellFormed A"
     and a2: "visibleCalls A s \<triangleq> vis"
 shows "vis \<subseteq> dom (calls A)"
-  using a1 a2 wellFormed_visibleCallsSubsetCalls_h(2) by auto
+  using a1 a2 wellFormed_visibleCallsSubsetCalls_h(2) by blast
 
 lemma wellFormed_currentTransaction_unique_h:
 assumes a1: "state_wellFormed S"

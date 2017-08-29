@@ -157,7 +157,8 @@ next
         hence "invocationOp S' s \<noteq> None"
           using invocation_ops_if_localstate_nonempty step.steps by blast
         thus "invocationOp S'' s \<noteq> None"  
-          using `S' ~~ (s, AFail) \<leadsto> S''` invation_info_set_iff_invocation_happened(1) step.steps steps'' by auto 
+          using `S' ~~ (s, AFail) \<leadsto> S''` invation_info_set_iff_invocation_happened(1) step.steps steps''
+          by (metis butlast_snoc in_set_butlastD)  
       next 
         assume "a = (s, AReturn res)"
         hence "S' ~~ (s, AReturn res) \<leadsto> S''"
@@ -167,7 +168,8 @@ next
           
         from `S' ~~ (s, AReturn res) \<leadsto> S''`  
         show "invocationOp S'' s \<noteq> None"
-          using invocation_ops_if_localstate_nonempty step.steps step_simp_AReturn by auto
+          using invocation_ops_if_localstate_nonempty step.steps step_simp_AReturn
+          by (metis butlast_snoc in_set_butlastD invation_info_set_iff_invocation_happened(1) option.distinct(1) steps'') 
       qed    
       
     next
@@ -484,7 +486,7 @@ proof (rule iffI2; clarsimp)
 qed
   
 
-definition commutativeS :: "state \<Rightarrow> invocation \<times> action \<Rightarrow> invocation \<times> action \<Rightarrow> bool" where
+definition commutativeS :: "('localState, 'any) state \<Rightarrow> invocation \<times> 'any action \<Rightarrow> invocation \<times> 'any action \<Rightarrow> bool" where
 "commutativeS s a b \<equiv> (\<forall>t. ((s ~~ [a,b] \<leadsto>*  t) \<longleftrightarrow> (s ~~ [b,a] \<leadsto>* t)))"
 
 
@@ -543,7 +545,7 @@ apply (rule usePrecondition2)
   using a4 usePrecondition apply blast 
 done  
 
-definition differentIds :: "(invocation \<times> action) \<Rightarrow> (invocation \<times> action) \<Rightarrow> bool" where
+definition differentIds :: "(invocation \<times> 'any action) \<Rightarrow> (invocation \<times> 'any action) \<Rightarrow> bool" where
 "differentIds a b \<equiv> case (a,b) of
    ((s1, ANewId u1), (s2, ANewId u2)) \<Rightarrow> (u1 \<noteq> u2)
  | ((s1, ABeginAtomic u1 nt1), (s2, ABeginAtomic u2 nt2)) \<Rightarrow> (u1 \<noteq> u2)
@@ -592,7 +594,7 @@ proof (auto simp add: commutativeS_def precondition_def steps_appendFront)
   assume step1: "s ~~ a \<leadsto> B" and step2: "B ~~ b \<leadsto> t"
   
   hence dIds: "differentIds a b"
-    using steps_to_differentIds2 by auto
+    using steps_to_differentIds2 by blast
   
   show "\<exists>B. (s ~~ b \<leadsto> B) \<and> (B ~~ a \<leadsto> t)"
     by (metis a1 a2 a4 dIds preconditionI step1 step2 usePrecondition)
@@ -892,6 +894,9 @@ lemma generatedIds_mono2:
 "\<lbrakk>x\<in>generatedIds A; A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> x\<in>generatedIds B"
   using generatedIds_mono by blast
 
+lemma generatedIds_mono2_rev:
+"\<lbrakk>x\<notin>generatedIds B; A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> x\<notin>generatedIds A"
+  by (meson generatedIds_mono2)
 
 lemma transactionStatus_mono:
 "\<lbrakk>transactionStatus B tx = None; A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> transactionStatus A tx = None"
@@ -988,7 +993,7 @@ proof (auto simp add: invContextH_def invContextSame_h[OF exec wellFormed 1 aIsN
     using exec apply (rule step.cases)
     apply (auto simp add: commitedCallsH_def aIsInTransaction aIsNotCommit )
     apply (metis option.inject transactionStatus.distinct(1) txIsUncommited)
-    by (metis domI domIff option.inject wellFormed wellFormed_callOrigin_dom2)
+    by (metis (no_types, lifting) option.distinct(1) wellFormed wellFormed_callOrigin_dom2)
   
   show "\<And>a b. (a, b) \<in> happensBefore A |r commitedCalls A \<Longrightarrow> (a, b) \<in> happensBefore B |r commitedCalls B"
     apply (simp add: committed_same)
@@ -1095,7 +1100,7 @@ next
       and 4: "f ls = NewId ls'"
     by (auto simp add: precondition_newid)
   have 5: "x2 \<notin> generatedIds A"
-    using 3 exec generatedIds_mono2 by blast
+    using generatedIds_mono2_rev[OF 3 exec] by blast
   thus ?thesis
     by (metis "1" "2" "4" ANewId differentSessions exec precondition_newid unchangedInTransaction(1) unchangedInTransaction(2)) 
 next
@@ -1148,7 +1153,7 @@ next
     using aIsInTransaction calculation(1) differentSessions exec unchangedInTransaction(5) by fastforce
     
   ultimately show ?thesis using unchangedInTransaction
-    by (metis (mono_tags, lifting) AInvoc aIsInTransaction differentSessions exec precondition_invoc prog_inv) 
+    by (smt AInvoc aIsInTransaction differentSessions exec precondition_invoc prog_inv)
 next
   case (AReturn x8)
   then show ?thesis
@@ -1172,10 +1177,10 @@ next
     using "1" aIsInTransaction aIsNotCommit exec invContextSnapshot_same txIsUncommited wellFormed by blast
     
   moreover have "invContext A sb = invContext B sb"
-    using unchangedInTransaction_getInvContext aIsInLocal aIsInTransaction aIsNotCommit differentSessions exec origin_inv txIsUncommited visibleCalls_inv by blast 
+    using unchangedInTransaction_getInvContext[OF differentSessions aIsInTransaction aIsInLocal txIsUncommited aIsNotCommit exec ] origin_inv  visibleCalls_inv   by blast 
 
   have "precondition (sb, AInvcheck txns res) A"  
-    using exec prog_inv by (auto simp add: precondition_invcheck "1" committed_same 2 invContextSame)
+    using prog_inv[OF exec] by (auto simp add: precondition_invcheck "1" committed_same 2 invContextSame)
       
   
   thus ?thesis
@@ -1303,6 +1308,7 @@ shows "invContextH co to (ts(t\<mapsto>Uncommited)) hb cs ki io ir vis =
 using assms by (auto simp add: invContextH_def restrict_map_def)
 
 lemma test:
+fixes S:: "('localState, 'any) state"
 assumes a7: "currentTransaction S sa \<triangleq> t"
 assumes a10: "state_wellFormed S"
 assumes a11: "sb\<noteq>sa"
@@ -1312,7 +1318,7 @@ shows "invContext
                 callOrigin := callOrigin S(c \<mapsto> t), visibleCalls := visibleCalls S(sa \<mapsto> {c} \<union> vis),
                 happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
            sb
-  = invContext (S::state) sb"
+  = invContext S sb"
   using assms by auto
 
 lemma getContextH_visUpdate[simp]:

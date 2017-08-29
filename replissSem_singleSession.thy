@@ -42,12 +42,12 @@ definition consistentSnapshot where
    (* monotonic growth of invocation result *)
    (* monotonic growth of invocation happens-before *)
    (*  --> no new calls can be added before*)
-definition state_monotonicGrowth :: "state \<Rightarrow> state \<Rightarrow> bool" where
+definition state_monotonicGrowth :: "('localState, 'any) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth S S' = True"
 
 
 text {* Invariant holds for all possible (causally + transaction consistent) states *}
-definition invariant_all :: "state \<Rightarrow> bool" where
+definition invariant_all :: "('localState, 'any) state \<Rightarrow> bool" where
 "invariant_all state \<equiv> 
  \<forall>vis. consistentSnapshot state vis
  \<longrightarrow> invariant (prog state) (invContextVis state vis)"
@@ -69,7 +69,7 @@ All other sessions are simulated by nondeterministic state changes, with respect
 
 
   
-inductive step_s :: "state \<Rightarrow> (invocation \<times> action \<times> bool) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
+inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 'any action \<times> bool) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
   local: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -177,7 +177,7 @@ inductive step_s :: "state \<Rightarrow> (invocation \<times> action \<times> bo
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto>\<^sub>S C"   
 *)
   
-inductive steps_s :: "state \<Rightarrow> invocation \<times> (action \<times> bool) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
+inductive steps_s :: "('localState, 'any) state \<Rightarrow> invocation \<times> ('any action \<times> bool) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_s_refl:
   "S ~~ (s, []) \<leadsto>\<^sub>S* S"
 | steps_s_step:

@@ -1,5 +1,5 @@
 theory sem1_commutativity
-imports replissSem1 prefix
+imports replissSem1 execution_invariants prefix
 begin
 
 lemma iffI2: "\<lbrakk>A \<Longrightarrow> B; \<not>A \<Longrightarrow> \<not>B\<rbrakk> \<Longrightarrow> A \<longleftrightarrow> B"

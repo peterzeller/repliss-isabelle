@@ -16,36 +16,34 @@ abbreviation orElse :: "'a option \<Rightarrow> 'a \<Rightarrow> 'a" (infixr "or
 "x orElse y \<equiv> case x of Some a \<Rightarrow> a | None \<Rightarrow> y"
  
 typedecl invocation
-typedecl localState
-typedecl uniqueId
 
-typedecl any
-definition uniqueIds :: "any \<Rightarrow> uniqueId set" where 
+definition uniqueIds :: "'any \<Rightarrow> 'any set" where 
 "uniqueIds = ???"
 
 definition 
 "uniqueIdsInList xs = (\<Union>x\<in>set xs. uniqueIds x)"
 
 
-typedecl operation
+type_synonym operation = string
 
 
 
 typedecl txid
 typedecl callId
 
-datatype call = Call operation (call_args:"any list") (call_res:"any")
+datatype 'any call = Call operation (call_args:"'any list") (call_res:"'any")
 
-datatype localAction =
-    LocalStep localState
-  | BeginAtomic localState
-  | EndAtomic localState
-  | NewId "uniqueId \<Rightarrow> localState"
-  | DbOperation operation "any list" "any \<Rightarrow> localState"
-  | Return any
+datatype ('localState, 'any) localAction =
+    LocalStep 'localState
+  | BeginAtomic 'localState
+  | EndAtomic 'localState
+  | NewId "'any \<Rightarrow> 'localState"
+  | DbOperation operation "'any list" "'any \<Rightarrow> 'localState"
+  | Return 'any
 
-typedecl procedureName
-type_synonym procedureImpl = "localState \<Rightarrow> localAction"
+type_synonym procedureName = string
+
+type_synonym ('localState, 'any) procedureImpl = "'localState \<Rightarrow> ('localState, 'any) localAction"
 
 datatype transactionStatus = Uncommited | Commited 
 
@@ -65,43 +63,43 @@ lemma onlyCommitedGreater: "a \<triangleq> Commited" if "a\<ge>Some Commited" fo
     
 
 
-record operationContext = 
-  calls :: "callId \<rightharpoonup> call"
+record 'any operationContext = 
+  calls :: "callId \<rightharpoonup> 'any call"
   happensBefore :: "callId rel"
 
-record invariantContext = 
-  i_calls :: "callId \<rightharpoonup> call"
+record 'any invariantContext = 
+  i_calls :: "callId \<rightharpoonup> 'any call"
   i_happensBefore :: "callId rel"
   i_visibleCalls :: "callId set"
   i_callOrigin :: "callId \<rightharpoonup> txid"
   i_transactionOrigin :: "txid \<rightharpoonup> invocation"
-  i_knownIds :: "uniqueId set"
-  i_invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> any list)"
-  i_invocationRes :: "invocation \<rightharpoonup> any"
+  i_knownIds :: "'any set"
+  i_invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
+  i_invocationRes :: "invocation \<rightharpoonup> 'any"
 
-record prog =
-  querySpec :: "operation \<Rightarrow> any list \<Rightarrow> operationContext \<Rightarrow> any \<Rightarrow> bool"
-  procedure :: "procedureName \<Rightarrow> any list \<rightharpoonup> (localState \<times> procedureImpl)"
-  invariant :: "invariantContext \<Rightarrow> bool"
+record ('localState, 'any) prog =
+  querySpec :: "operation \<Rightarrow> 'any list \<Rightarrow> 'any operationContext \<Rightarrow> 'any \<Rightarrow> bool"
+  procedure :: "procedureName \<Rightarrow> 'any list \<rightharpoonup> ('localState \<times> ('localState, 'any) procedureImpl)"
+  invariant :: "'any invariantContext \<Rightarrow> bool"
 
-record distributed_state = operationContext +
-  prog :: prog
+record ('localState, 'any) distributed_state = "'any operationContext" +
+  prog :: "('localState, 'any) prog"
   callOrigin :: "callId \<rightharpoonup> txid"
   transactionOrigin :: "txid \<rightharpoonup> invocation"
-  generatedIds :: "uniqueId set"
-  knownIds :: "uniqueId set"
-  invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> any list)"
-  invocationRes :: "invocation \<rightharpoonup> any"
+  generatedIds :: "'any set"
+  knownIds :: "'any set"
+  invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
+  invocationRes :: "invocation \<rightharpoonup> 'any"
   transactionStatus :: "txid \<rightharpoonup> transactionStatus"
 
-record state = distributed_state + 
-  localState :: "invocation \<rightharpoonup> localState"
-  currentProc :: "invocation \<rightharpoonup> procedureImpl"
+record ('localState, 'any) state = "('localState, 'any) distributed_state" + 
+  localState :: "invocation \<rightharpoonup> 'localState"
+  currentProc :: "invocation \<rightharpoonup> ('localState, 'any) procedureImpl"
   visibleCalls :: "invocation \<rightharpoonup> callId set"
   currentTransaction :: "invocation \<rightharpoonup> txid"
   
   
-lemma state_ext: "((x::state) = y) \<longleftrightarrow> (
+lemma state_ext: "((x::('localState, 'any) state) = y) \<longleftrightarrow> (
     calls x = calls y
   \<and> happensBefore x = happensBefore y
   \<and> prog x = prog y
@@ -120,7 +118,7 @@ lemma state_ext: "((x::state) = y) \<longleftrightarrow> (
 by auto
 
 lemma state_ext_exI: 
-fixes P :: "state \<Rightarrow> bool"
+fixes P :: "('localState, 'any) state \<Rightarrow> bool"
 assumes "
 \<exists>
 s_calls
@@ -214,7 +212,7 @@ abbreviation "emptyInvariantContext \<equiv> \<lparr>
 definition "commitedCallsH state_callOrigin state_transactionStatus \<equiv> 
    {c | c tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Commited }"
 
-abbreviation commitedCalls :: "state \<Rightarrow> callId set" where
+abbreviation commitedCalls :: "('localState, 'any) state \<Rightarrow> callId set" where
 "commitedCalls state \<equiv> commitedCallsH (callOrigin state) (transactionStatus state)"
   
 definition invContextH  where
@@ -305,7 +303,7 @@ i_transactionOrigin x = i_transactionOrigin y;
 i_knownIds x = i_knownIds y;
 i_invocationOp x = i_invocationOp y;
 i_invocationRes x = i_invocationRes y
-\<rbrakk> \<Longrightarrow> x = (y::invariantContext)"
+\<rbrakk> \<Longrightarrow> x = (y::'any invariantContext)"
 by auto
 
 
@@ -376,21 +374,21 @@ apply eval
 done
 *)
 
-datatype action =
+datatype 'any action =
     ALocal
-  | ANewId uniqueId
+  | ANewId 'any
   | ABeginAtomic txid "txid set"
   | AEndAtomic
-  | ADbOp callId operation "any list" any
-  | AInvoc procedureName "any list"
-  | AReturn any
+  | ADbOp callId operation "'any list" 'any
+  | AInvoc procedureName "'any list"
+  | AReturn 'any
   | AFail  
   | AInvcheck "txid set" bool
 
   
 definition "is_AInvcheck a \<equiv> \<exists>txns r. a = AInvcheck txns r"
   
-inductive step :: "state \<Rightarrow> (invocation \<times> action) \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
+inductive step :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -517,7 +515,7 @@ lemmas step_elims =
   step_elim_AFail
   step_elim_AInvcheck
 
-inductive steps :: "state \<Rightarrow> (invocation \<times> action) list \<Rightarrow> state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
+inductive steps :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 'any action) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
   steps_refl:
   "S ~~ [] \<leadsto>* S"
 | steps_step:
@@ -549,7 +547,7 @@ next
     by (metis snoc_eq_iff_butlast stepDeterministic steps.cases) 
 qed
 
-definition initialState :: "prog \<Rightarrow> state" where
+definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state" where
 "initialState program \<equiv> \<lparr>
   calls = empty,
   happensBefore = {},
@@ -567,7 +565,7 @@ definition initialState :: "prog \<Rightarrow> state" where
   currentTransaction = empty
 \<rparr>"
 
-type_synonym trace = "(invocation\<times>action) list"
+type_synonym 'any trace = "(invocation\<times>'any action) list"
 
 definition traces where
 "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
@@ -587,7 +585,7 @@ definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rig
 2. part until and including (s, EndAtomic); same invocation
 3. rest
 *)
-fun splitTrace :: "invocation \<Rightarrow> trace \<Rightarrow> (trace \<times> trace \<times> trace)" where
+fun splitTrace :: "invocation \<Rightarrow> 'any trace \<Rightarrow> ('any trace \<times> 'any trace \<times> 'any trace)" where
   "splitTrace s [] = ([],[],[])"
 | "splitTrace s ((sa, a)#tr) = (
     if s = sa then
@@ -626,7 +624,7 @@ using a by (metis splitTrace_len(1), metis splitTrace_len(2), metis splitTrace_l
 declare splitTrace.simps[simp del]
 
 
-fun compactTrace :: "invocation \<Rightarrow> trace \<Rightarrow> trace" where
+fun compactTrace :: "invocation \<Rightarrow> 'any trace \<Rightarrow> 'any trace" where
   compactTrace_empty:
   "compactTrace s [] = []"
 | compactTrace_step:
