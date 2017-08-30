@@ -1476,7 +1476,7 @@ next
 next
   case (ADbOp x51 x52 x53 x54)
   then show ?thesis
-    using a1 a2 commutativeS_switchArgs commutative_Dbop_other by presburger
+    using a1 a2 commutativeS_switchArgs commutative_Dbop_other by metis
 next
   case (AInvoc x71 x72)
   then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
@@ -1571,11 +1571,11 @@ shows "(S ~~ a#b#xs \<leadsto>* T)
    \<longleftrightarrow> (S ~~ b#a#xs \<leadsto>* T)"
 proof -
   have "(S ~~ a#b#xs \<leadsto>* T) \<longleftrightarrow> (\<exists>S'. (S ~~ [a,b] \<leadsto>* S') \<and> (S' ~~ xs \<leadsto>* T))"
-    using steps_appendFront by auto
+    by (auto simp add: steps_appendFront)
   moreover have "... \<longleftrightarrow> (\<exists>S'. (S ~~ [b,a] \<leadsto>* S') \<and> (S' ~~ xs \<leadsto>* T))"
     by (metis a_is_in_transaction b_is_a_different_session local.wf move_transaction not_endAtomic prod.collapse not_invCheck)
   moreover have "... \<longleftrightarrow> (S ~~ b#a#xs \<leadsto>* T)" 
-    using steps_appendFront by auto
+    by (auto simp add: steps_appendFront)
   ultimately show ?thesis
     by blast 
 qed   
@@ -1614,7 +1614,7 @@ next
 next
   case (ADbOp x51 x52 x53 x54)
   then show ?thesis
-    using a1 a2 commutativeS_switchArgs commutative_Dbop_other by presburger 
+    using a1 a2 commutativeS_switchArgs commutative_Dbop_other by metis 
 (**next
   case (APull x6)
   then show ?thesis 
@@ -1629,7 +1629,7 @@ next
 next
   case AFail
   then show ?thesis
-    using a1 a2 commutativeS_switchArgs commutative_fail_other by presburger 
+    using a1 a2 commutativeS_switchArgs commutative_fail_other by metis 
 next
   case (AInvcheck x10)
   then show ?thesis 
@@ -1835,7 +1835,7 @@ assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx ntxns) # txa @ x # rest"
 shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr' \<leadsto>* C)"
   using local.wf one_compaction_step2 splitTrace splitTrace' txaInTx xOutside no_endatomic by blast
 
-definition indexInOtherTransaction :: "trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
+definition indexInOtherTransaction :: "'any trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
 "indexInOtherTransaction tr tx k \<equiv> 
   \<exists>i s ntxns. 
       k<length tr 
@@ -1844,11 +1844,11 @@ definition indexInOtherTransaction :: "trace \<Rightarrow> txid \<Rightarrow> na
     \<and> fst (tr!k) \<noteq> s
     \<and> \<not>(\<exists>j. i < j \<and> j < k \<and> tr!j = (s, AEndAtomic))"
   
-definition transactionIsPacked :: "trace \<Rightarrow> txid \<Rightarrow> bool" where
+definition transactionIsPacked :: "'any trace \<Rightarrow> txid \<Rightarrow> bool" where
 "transactionIsPacked tr tx \<equiv> 
   \<forall>k. \<not>indexInOtherTransaction tr tx k"  
   
-definition transactionIsPackedMeasure :: "trace \<Rightarrow> txid \<Rightarrow> nat" where
+definition transactionIsPackedMeasure :: "'any trace \<Rightarrow> txid \<Rightarrow> nat" where
 "transactionIsPackedMeasure tr tx \<equiv>
   card {k . indexInOtherTransaction tr tx k}"  
     
@@ -1860,7 +1860,7 @@ lemma transactionIsPackedMeasure_zero_iff:
 by (auto simp add: transactionIsPackedMeasure_def transactionIsPacked_def)
 
 (* this is an alternative definition, which might be easier to work with in some cases *)
-definition transactionIsPackedAlt :: "trace \<Rightarrow> txid \<Rightarrow> bool" where
+definition transactionIsPackedAlt :: "'any trace \<Rightarrow> txid \<Rightarrow> bool" where
 "transactionIsPackedAlt tr tx \<equiv> 
   if \<exists>i s ntxns. i < length tr \<and> tr!i = (s, ABeginAtomic tx ntxns) then
     \<exists>i s end ntxns. 
@@ -1945,16 +1945,58 @@ assumes steps: "S ~~ tr \<leadsto>* S'"
    and "i<j"
    and "j < length tr" 
    and "tr!j = (s, ABeginAtomic txj ntxnsj)"
-shows "\<exists>k. i<k \<and> k < j \<and> (tr!k = (s, AEndAtomic) \<or> tr!k = (s, AFail))"
-using assms apply (induct rule: steps.induct)
-  apply simp
-  apply (case_tac "j < length tr")
-  apply (metis (no_types, hide_lams) less_trans nth_append)
-  apply (subgoal_tac "j = length tr")
-  apply auto
-  apply (auto simp add: step_simps nth_append)
-  using currentTransaction by (metis option.simps(3)) 
+shows "\<exists>k. i<k \<and> k < j \<and> (tr!k = (s, AEndAtomic) \<or> tr!k = (s, AFail))"  
+using assms proof (induct rule: steps.induct)
+  case (steps_refl S)
+  then show ?case by simp
+next
+  case (steps_step S tr S' a S'')
+  then show ?case 
+  proof (cases "j < length tr")
+    case True
+    then show ?thesis
+      using steps_step by (auto simp add: nth_append dest: less_trans)
+  next
+    case False
+    hence [simp]: "j = length tr"
+      using steps_step by auto
+      
+      
+    have "S ~~ tr@[a] \<leadsto>* S''"
+      using steps.steps_step steps_step.hyps(1) steps_step.hyps(3) by blast
+    have "(tr @ [a]) ! i = (s, ABeginAtomic txi ntxnsi)"
+      by (simp add: steps_step.prems(1))  
+    have "i < j"
+      using steps_step.prems(2) by blast
+    have "j < length (tr @ [a])"
+      by simp
+    have "(tr @ [a]) ! j = (s, ABeginAtomic txj ntxnsj)"
+      using steps_step.prems(4) by blast  
+    hence "a =  (s, ABeginAtomic txj ntxnsj)"
+      by simp
+      
+    have "i < length tr"
+      using \<open>j = length tr\<close> steps_step.prems(2) by blast  
+    
+    have "tr ! i = (s, ABeginAtomic txi ntxnsi)"
+      by (metis \<open>i < length tr\<close> nth_append steps_step.prems(1))  
+      
+    from `S' ~~ a \<leadsto> S''`  
+    have "precondition (s, ABeginAtomic txj ntxnsj) S'"
+      by (simp add: \<open>a = (s, ABeginAtomic txj ntxnsj)\<close>)
+      
+      
+      
+    show "\<exists>k>i. k < j \<and> ((tr @ [a]) ! k = (s, AEndAtomic) \<or> (tr @ [a]) ! k = (s, AFail))"
+      using currentTransaction[OF `S ~~ tr \<leadsto>* S'` `i < length tr` `tr ! i = (s, ABeginAtomic txi ntxnsi)`] 
+      apply (auto simp add: nth_append  dest: less_trans)
+      thm \<open>j = length tr\<close> nth_append_length option.simps(3) preconditionI precondition_beginAtomic steps_step.hyps(3) steps_step.prems(4)
+      by (metis \<open>j = length tr\<close> nth_append_length option.simps(3) preconditionI precondition_beginAtomic steps_step.hyps(3) steps_step.prems(4))
+  qed      
+qed  
+      
 
+  
 lemma noNestedTransactions':
 assumes steps: "S ~~ tr \<leadsto>* S'" 
    and "tr!i = (s, ABeginAtomic txi ntxnsi)"
@@ -2112,7 +2154,7 @@ qed
 lemma transactionIsPackedAlt_eq2:
 assumes steps: "initialState p ~~ tr \<leadsto>* S"
 shows "transactionIsPackedAlt tr tx = transactionIsPacked tr tx"
-  using steps transactionIdsUnique transactionIsPackedAlt_eq by auto  
+  by (auto simp add: transactionIdsUnique[OF steps] transactionIsPackedAlt_eq)
 
 find_theorems steps ABeginAtomic
 
