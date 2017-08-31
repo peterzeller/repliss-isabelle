@@ -2178,9 +2178,9 @@ proof (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
      and b3: "\<forall>j>i. j < k \<longrightarrow> tr ! j \<noteq> (s', AEndAtomic)"
      and b4: "fst (tr ! k) \<noteq> s'"
   
-  from steps b2
+  from b2
   have "i = beginAtomic"
-    using b0 b1 beginAtomic1 beginAtomic2 endAtomic1 transactionIdsUnique by auto
+    using b0 b1 beginAtomic1 beginAtomic2 endAtomic1 transactionIdsUnique[OF steps] by auto
   hence "s' = s"
     using b2 beginAtomic2 by auto
     
@@ -2204,11 +2204,11 @@ oops (* TODO needs more restrictive definition of transactionIsPacked *)
 
 
 (* the set of transactions occurring in the trace *)    
-definition traceTransactions :: "trace \<Rightarrow> txid set" where
+definition traceTransactions :: "'any trace \<Rightarrow> txid set" where
 "traceTransactions tr \<equiv> {tx | s tx txns. (s, ABeginAtomic tx txns) \<in> set tr}"
     
 text {* between begin and end of a transaction there are no actions from other sessions  *}
-definition transactionsArePacked :: "trace \<Rightarrow> bool" where
+definition transactionsArePacked :: "'any trace \<Rightarrow> bool" where
 "transactionsArePacked tr \<equiv>
   \<forall>i k s t txns. 
       i<k 
@@ -2225,18 +2225,18 @@ it appears.
 
 
 (* checks if sessions s is in a transaction at position i in trace tr *)
-definition inTransaction :: "trace \<Rightarrow> nat \<Rightarrow> invocation \<Rightarrow> bool"  where 
+definition inTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocation \<Rightarrow> bool"  where 
 "inTransaction tr i s \<equiv>
   \<exists>j. j\<le>i \<and> i<length tr \<and> (\<exists>t txns. tr!j = (s, ABeginAtomic t txns))
      \<and> (\<forall>k. j<k \<and> k < length tr \<and> k\<le>i \<longrightarrow> tr!k \<noteq> (s, AEndAtomic))
 "
 
 (* returns the set of all transactions, which are in a transaction at point i in the trace*)
-definition sessionsInTransaction :: "trace \<Rightarrow> nat \<Rightarrow> invocation set"  where 
+definition sessionsInTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocation set"  where 
 "sessionsInTransaction tr i \<equiv> {s. inTransaction tr i s}"
 
 (* counts how many concurrent transactions are active *)
-definition transactionsArePackedMeasure :: "trace \<Rightarrow> nat" where
+definition transactionsArePackedMeasure :: "'any trace \<Rightarrow> nat" where
 "transactionsArePackedMeasure tr \<equiv> 
 \<Sum>i\<in>{..<length tr}. card (sessionsInTransaction tr i - {fst (tr!i)})  "
 
@@ -2311,14 +2311,16 @@ proof (intro if_cases2; clarsimp)
      and a1: "snd a = ABeginAtomic t ts"
   
   thus "sessionsInTransaction (tr @ [a]) (length tr) = insert (fst a) (sessionsInTransaction tr (length tr - Suc 0))"
-    apply (case_tac a, auto)
-    apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
-    apply (metis Suc_leI Suc_le_mono Suc_pred length_pos_if_in_set less_imp_le_nat nat_neq_iff nth_mem)
-    apply (auto simp add: nth_append sessionsInTransaction_def  split: if_splits)[1]
-    apply (metis (no_types, lifting) inTransaction_def leD le_eq_less_or_eq length_append_singleton less_Suc_eq nth_append_length)
-    apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
-    by (metis Suc_pred le0 le_less_trans less_not_refl3 less_trans_Suc not_le)
-    
+  proof (case_tac a, auto)
+    show "\<And>aa x. \<lbrakk>a = (aa, ABeginAtomic t ts); i = length tr; x \<in> sessionsInTransaction (tr @ [(aa, ABeginAtomic t ts)]) (length tr); x \<notin> sessionsInTransaction tr (length tr - Suc 0)\<rbrakk> \<Longrightarrow> x = aa"
+      apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
+      by (metis (full_types) Suc_leI Suc_le_mono Suc_pred gr_implies_not_zero less_imp_le_nat nat_neq_iff)
+    show "\<And>aa. \<lbrakk>a = (aa, ABeginAtomic t ts); i = length tr\<rbrakk> \<Longrightarrow> aa \<in> sessionsInTransaction (tr @ [(aa, ABeginAtomic t ts)]) (length tr)"
+      by (auto simp add: nth_append sessionsInTransaction_def inTransaction_def  split: if_splits)[1]
+    show "\<And>aa x. \<lbrakk>a = (aa, ABeginAtomic t ts); i = length tr; x \<in> sessionsInTransaction tr (length tr - Suc 0)\<rbrakk> \<Longrightarrow> x \<in> sessionsInTransaction (tr @ [(aa, ABeginAtomic t ts)]) (length tr)"
+      apply (auto simp add: nth_append sessionsInTransaction_def  split: if_splits)[1]
+      by (smt Nitpick.size_list_simp(2) One_nat_def butlast_snoc fst_conv inTransaction_def le_SucI le_less_Suc_eq le_less_trans length_append_singleton length_greater_0_conv length_tl not_less_eq_eq nth_append_length nth_butlast)
+  qed
 next
   assume a0: "i = length tr"
    and a1: "snd a = AEndAtomic"
@@ -2804,7 +2806,7 @@ definition allowed_context_switch where
             (\<exists>txId txns. action = ABeginAtomic txId txns) 
           \<or> (\<exists>p a. action = AInvoc p a)"
 
-definition packed_trace :: "trace \<Rightarrow> bool" where
+definition packed_trace :: "'any trace \<Rightarrow> bool" where
 "packed_trace tr \<equiv>
   \<forall>i.
       0<i
@@ -2902,14 +2904,15 @@ lemma finiteH:
 "finite {x::nat. 0 < x \<and> x < A \<and> P x}"
   by simp
 
-definition canSwap :: "action \<Rightarrow> action \<Rightarrow> bool" where
-"canSwap a b \<equiv> (\<forall>C1 C2 s1 s2. s1\<noteq>s2 \<and> (C1 ~~ [(s1,a),(s2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(s2,b),(s1,a)] \<leadsto>* C2))"
+definition canSwap :: "'ls itself \<Rightarrow> 'any action \<Rightarrow> 'any action \<Rightarrow> bool" where
+"canSwap t a b \<equiv> (\<forall>(C1::('ls,'any) state) C2 s1 s2. s1\<noteq>s2 \<and> (C1 ~~ [(s1,a),(s2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(s2,b),(s1,a)] \<leadsto>* C2))"
   
 lemma show_canSwap:
-assumes "\<And>C1 C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
-shows "canSwap a b"
+assumes "\<And>(C1::('ls,'any) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+shows "canSwap (t::'ls itself) a b"
 proof (auto simp add: canSwap_def)
-  fix C1 C3 s1 s2
+  fix C1 C3 :: "('ls,'any) state"
+  fix s1 s2
   assume a0: "s1 \<noteq> s2"
      and a1: "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C3"
      and a2: "state_wellFormed C1"
@@ -2930,18 +2933,19 @@ qed
     
 lemma show_canSwap':
 assumes "x = a" 
-    and"\<And>C1 C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
-shows "canSwap x b"
-  using assms show_canSwap by auto
+    and"\<And>(C1::('ls,'any) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+shows "canSwap (t::'ls itself) x b"
+  by (simp add: assms show_canSwap)
 
 method prove_canSwap = (rule show_canSwap, auto simp add: step_simps, subst state_ext, auto)  
 method prove_canSwap' = (rule show_canSwap', auto simp add: step_simps, subst state_ext, auto)
 
 lemma commutativeS_canSwap:
-assumes comm: "\<And>C s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
-shows "canSwap a b"
+assumes comm: "\<And>(C::('ls,'any) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
+shows "canSwap (t::'ls itself) a b"
 proof (auto simp add: canSwap_def)
-  fix C1 C2 s1 s2
+  fix C1 C2 :: "('ls,'any) state"
+  fix s1 s2
   assume a0: "s1 \<noteq> s2"
      and a1: "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C2"
   
@@ -2960,7 +2964,7 @@ assumes no_ctxt_switch: "\<not>allowed_context_switch b"
     and no_invcheck_b: "\<not>is_AInvcheck b"  
     and no_fail_a: "a \<noteq> AFail"
     and no_fail_b: "b \<noteq> AFail"    
-shows "canSwap a b"
+shows "canSwap t a b"
 proof (cases b)
   case ALocal
   then show ?thesis
@@ -3037,7 +3041,7 @@ next
   next
     case (ADbOp x51 x52 x53 x54)
     then show ?thesis
-      using canSwap_def useCommutativeS by auto 
+      by (meson canSwap_def commutative_Dbop_other useCommutativeS)  
   next
     case (AInvoc x61 x62)
     then show ?thesis by prove_canSwap'
@@ -3056,7 +3060,7 @@ next
 next
   case (AInvoc x61 x62)
   then show ?thesis
-    using allowed_context_switch_def no_ctxt_switch by auto 
+    using allowed_context_switch_def[where action = b] no_ctxt_switch by auto 
   
 next
   case (AReturn res)
@@ -3104,9 +3108,9 @@ qed
   
 text {* We can swap one action over a list of actions with canSwap *}
 lemma swapMany:
-assumes steps: "C1 ~~ tr @ [(s,a)] \<leadsto>* C2"
+assumes steps: "(C1::('ls,'any) state) ~~ tr @ [(s,a)] \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
-    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (snd x) a"
+    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
     and wf: "state_wellFormed C1"
 shows "C1 ~~ [(s,a)] @ tr \<leadsto>* C2"
 using steps tr_different_session tr_canSwap 
@@ -3116,17 +3120,17 @@ proof (induct tr arbitrary: C2 rule: rev_induct)
     by simp 
 next
   case (snoc a' tr')
-  hence IH: "\<And>C2. \<lbrakk>C1 ~~ tr' @ [(s, a)] \<leadsto>* C2; \<And>x. x \<in> set tr' \<Longrightarrow> fst x \<noteq> s; \<And>x. x \<in> set tr' \<Longrightarrow> canSwap (snd x) a\<rbrakk> \<Longrightarrow> C1 ~~ [(s, a)] @ tr' \<leadsto>* C2" 
+  hence IH: "\<And>C2. \<lbrakk>C1 ~~ tr' @ [(s, a)] \<leadsto>* C2; \<And>x. x \<in> set tr' \<Longrightarrow> fst x \<noteq> s; \<And>x. x \<in> set tr' \<Longrightarrow> canSwap t (snd x) a\<rbrakk> \<Longrightarrow> C1 ~~ [(s, a)] @ tr' \<leadsto>* C2" 
     and steps: "C1 ~~ (tr' @ [a']) @ [(s, a)] \<leadsto>* C2"
     and tr_different_session: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> fst x \<noteq> s"
-    and tr_canSwap: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> canSwap (snd x) a"
+    and tr_canSwap: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> canSwap t (snd x) a"
     by auto
  
   from steps
   obtain C'
     where steps1: "C1 ~~ tr' \<leadsto>* C'" 
       and steps2: "C' ~~ [a', (s, a)] \<leadsto>* C2"
-    using steps_append by auto
+    by (auto simp add: steps_append)
   
   have wf': "state_wellFormed C'"
     using local.wf state_wellFormed_combine steps1 by blast
@@ -3156,9 +3160,10 @@ qed
 
 
 lemma swapMany_middle:
+fixes C1 :: "('ls,'any) state"
 assumes steps: "C1 ~~ tr_start @ tr @ [(s,a)] @ tr_end \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
-    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (snd x) a"
+    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
     and wf: "state_wellFormed C1"
 shows "C1 ~~ tr_start @ [(s,a)] @ tr @ tr_end \<leadsto>* C2"
 proof -
@@ -3171,13 +3176,15 @@ proof -
     using local.wf state_wellFormed_combine swapMany tr_canSwap tr_different_session by blast
     
   thus "C1 ~~ tr_start @ [(s,a)] @ tr @ tr_end \<leadsto>* C2"
-    using \<open>C1 ~~ tr_start \<leadsto>* C1'\<close> \<open>C2' ~~ tr_end \<leadsto>* C2\<close> steps_append2 by fastforce
+    using \<open>C1 ~~ tr_start \<leadsto>* C1'\<close> \<open>C2' ~~ tr_end \<leadsto>* C2\<close>
+    using steps_append by blast  
 qed    
 
 lemma swapMany_middle':
+fixes C1 :: "('ls,'any) state"
 assumes steps: "C1 ~~ tr_start @ tr @ [a] @ tr_end \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> (fst a)"
-    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (snd x) (snd a)"
+    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) (snd a)"
     and wf: "state_wellFormed C1"
 shows "C1 ~~ tr_start @ [a] @ tr @ tr_end \<leadsto>* C2"
 using assms apply (cases a)
@@ -3188,7 +3195,7 @@ done
 lemma localState_iff_exists_invoc:
 assumes steps: "initialState program ~~ tr \<leadsto>* C"
 shows "localState C s \<noteq> None \<longrightarrow> (\<exists>p args. (s, AInvoc p args) \<in> set tr)"
-  using invation_info_set_iff_invocation_happened(1) invocation_ops_if_localstate_nonempty steps by auto
+  using invation_info_set_iff_invocation_happened(1) invocation_ops_if_localstate_nonempty steps by blast
 (*
   using steps proof (induct rule: steps_induct)
   case initial
@@ -3236,7 +3243,7 @@ next
         `fst ((tr @ [a]) ! i) = s`
       apply (auto simp add: step_simps_all nth_append_first  dest!: getI split: if_splits)
       using step.prems(3) apply fastforce
-      using is_AInvcheck_def step.prems(4) by auto
+      using is_AInvcheck_def[where a="(snd ((tr @ [a]) ! i))"] step.prems(4) by auto
   next
     case False
     hence "i < length tr"
@@ -3247,7 +3254,7 @@ next
   qed
 qed
   
-definition packed_trace_s :: "trace \<Rightarrow> invocation \<Rightarrow> bool" where
+definition packed_trace_s :: "'any trace \<Rightarrow> invocation \<Rightarrow> bool" where
 "packed_trace_s tr s \<equiv>
   \<forall>i.
       0<i
@@ -3363,7 +3370,7 @@ proof (induct "max_natset {length tr - i  | i.
         have "\<exists>j<i. fst (tr ! j) = s \<and> (\<exists>p args. snd (tr ! j) = AInvoc p args)"
         proof (rule exists_invoc)
           show "\<And>p args. snd (tr ! i) \<noteq> AInvoc p args"
-            using allowed_context_switch_def i5 by auto 
+            using allowed_context_switch_def[where action="snd (tr ! i)"] i5 by auto 
           show "\<not> is_AInvcheck (snd (tr ! i))"
             by (metis i2 less.prems(3) nth_mem snd_conv surj_pair)
         qed
@@ -3445,7 +3452,7 @@ proof (induct "max_natset {length tr - i  | i.
         by (metis add.commute add_Suc_right fst_conv i4 less_add_Suc1 less_diff_conv) 
        
       from i5
-      show "canSwap (snd x) (snd (tr ! i))" if "x \<in> set (drop (Suc prev) (take i tr))" for x
+      show "canSwap t (snd x) (snd (tr ! i))" if "x \<in> set (drop (Suc prev) (take i tr))" for x t
       proof (rule canSwap_when_allowed)
         from that obtain k 
           where k1: "x = tr!k" 
@@ -3648,7 +3655,7 @@ proof -
   have "initialState program ~~ (tr'@[tr!failPos]@drop (Suc failPos) tr) \<leadsto>* C"
     by (metis \<open>failPos < length tr\<close> append.assoc append_take_drop_id take_Suc_conv_app_nth tr'_def)
   hence "\<exists>C''. (op ~~ C' \<leadsto> (tr ! failPos)) C''"
-    using steps_append2 steps_appendFront tr'_steps by auto
+    using  tr'_steps by (auto simp add: steps_append2 steps_appendFront)
     
   hence C'_fails: "\<And>s. C' ~~ (s, AInvcheck txns False) \<leadsto> C'"  
     by (auto simp add: failPos_fail step_simps)

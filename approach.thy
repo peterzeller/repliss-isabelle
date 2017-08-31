@@ -24,7 +24,7 @@ Each chunk can be used in single-invocation semantics.
 
 Remember that a trace is just a (invocation\<times>action) list
 *)
-fun split_trace :: "trace \<Rightarrow> (invocation \<times> (action list)) list" where
+fun split_trace :: "'any trace \<Rightarrow> (invocation \<times> ('any action list)) list" where
   "split_trace [] = []"
 | "split_trace ((s,a)#rest) = (
    let same = map snd (takeWhile (\<lambda>x. fst x = s) rest);
@@ -56,10 +56,10 @@ apply (auto split: if_splits)
 done  
 
 lemma state_wellFormed_tx_to_visibleCalls:     
-assumes "state_wellFormed S"
+assumes wf: "state_wellFormed S"
 and "currentTransaction S s \<triangleq> tx"
 shows "visibleCalls S s \<noteq> None"
-  using assms state_wellFormed_ls_to_visibleCalls state_wellFormed_ls_visibleCalls by auto
+  using assms state_wellFormed_ls_to_visibleCalls[OF wf] state_wellFormed_ls_visibleCalls[OF wf] by auto
 
 lemma state_wellFormed_invocation_before_result:
 assumes "state_wellFormed C"
@@ -79,7 +79,7 @@ by (auto simp add: initialState_def step_simps_all state_wellFormed_invocation_b
 
     
 text {* Coupling invariant: S is state from distributed execution and S is state from single-invocation execution.  *}
-definition state_coupling :: "state \<Rightarrow> state \<Rightarrow> invocation \<Rightarrow> bool \<Rightarrow> bool" where
+definition state_coupling :: "('ls,'any) state \<Rightarrow> ('ls,'any) state \<Rightarrow> invocation \<Rightarrow> bool \<Rightarrow> bool" where
 "state_coupling S S' s sameSession \<equiv> 
    if sameSession then
       (* did a step in the same invocation *)
@@ -162,9 +162,9 @@ this trace to a single-invocation trace leading to an equivalent state.
 Moreover the new trace contains an invariant violation, if the original trace contained one.
 *}
 lemma convert_to_single_session_trace:
-fixes tr :: trace
+fixes tr :: "'any trace"
   and s :: invocation      
-  and S S' :: state
+  and S S' :: "('ls,'any) state"
 assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
@@ -270,7 +270,7 @@ next
       S2_transactionStatus S2_callOrigin S2_transactionOrigin S2_generatedIds S2_knownIds S2_invocationOp S2_invocationRes
   
   have vis_defined: "visibleCalls S' s \<noteq> None" if "currentTransaction S' s \<noteq> None"
-    using S_wf state_wellFormed_combine state_wellFormed_tx_to_visibleCalls steps that by auto    
+    using state_wellFormed_combine[OF S_wf] state_wellFormed_tx_to_visibleCalls S_wf steps that by fastforce
     
   obtain vis'
      where vis'_sub: "vis' orElse {} \<subseteq>visibleCalls S' s orElse {}"
@@ -500,7 +500,7 @@ next
         
       show "invariant_all newS" 
         using inv' apply (auto simp add: invariant_all_def)
-        using S2_currentTransaction S2_localState S2_transactionStatus newS_def a1 inv'' invariant_all_def S2_transactionOrigin  by auto
+        using S2_currentTransaction S2_localState S2_transactionStatus newS_def a1 inv'' invariant_all_def S2_transactionOrigin  by fastforce
         
       show "state_wellFormed newS"
         using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' by auto
@@ -877,7 +877,7 @@ next
             by (simp add: less_eq_option_None_is_None)
         qed
         show "prog S'' = prog S2"
-          using ih3 local.step prog_inv  by (auto simp add: state_coupling_def)
+          using ih3  prog_inv[OF local.step]  by (auto simp add: state_coupling_def)
         show "invariant_all S''"
           using inv'' by blast
         show "localState S'' s \<triangleq> ls'"
@@ -924,10 +924,10 @@ next
       have "S2 ~~ (s, AInvoc p ar, True) \<leadsto>\<^sub>S S''"
       proof (rule step_s.intros)
         have "\<And>p. invocationOp S2 s \<noteq> Some p"
-          using a5 ih3 state_coupling_def by fastforce
+          using a5 ih3  by (fastforce simp add : state_coupling_def)
         thus "invocationOp S2 s = None" by blast
         have [simp]: "prog S2 = prog S'"
-          using ih3 state_coupling_def by auto
+          using ih3 by (auto simp add: state_coupling_def)
         show "procedure (prog S2) p ar \<triangleq> (initial, impl)"
           using a3 state_coupling_def by auto
         show "uniqueIdsInList ar \<subseteq> knownIds S'"
@@ -990,7 +990,7 @@ next
       using S_wf dbop.hyps(1) state_wellFormed_combine steps wellFormed_callOrigin_dom2 by blast
       
     hence "callOrigin S2 c = None"
-      using dbop.hyps(1) old_coupling state_coupling_def by fastforce  
+      using dbop.hyps(1) old_coupling by (fastforce simp add: state_coupling_def)
       
     with dbop
     show ?case using old_coupling different_session by (auto simp add: state_coupling_def)
@@ -1000,8 +1000,12 @@ next
   next
     case (return C s ls f res)
     
+    have "state_wellFormed S'"
+      using S_wf state_wellFormed_combine steps by blast
+      
+    
     have "invocationRes C s = None"
-      using S_wf return.hyps(1) return.hyps(4) state_wellFormed_combine state_wellFormed_no_result_when_running steps by blast
+      using  return.hyps(1) return.hyps(4)  state_wellFormed_no_result_when_running[OF `state_wellFormed S'`] steps by blast
     
     with return
     show ?case using old_coupling different_session by (auto simp add: state_coupling_def)
@@ -1024,9 +1028,9 @@ qed
 
 
 lemma convert_to_single_session_trace_invFail_step:
-fixes tr :: trace
+fixes tr :: "'any trace"
   and s :: invocation      
-  and S S' :: state
+  and S S' :: "('ls, 'any) state"
 assumes step: "S ~~ (s,a) \<leadsto> S'"
     and S_wellformed: "state_wellFormed S"
     and noFails: "a \<noteq> AFail"
@@ -1102,7 +1106,7 @@ next
   define S2' where "S2' \<equiv> S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S2(t \<mapsto> Commited)\<rparr>"
   
   have [simp]: "sameSession"
-    using allowed_context_switch_def ctxtSwitchCases local.endAtomic(1) by blast
+    using allowed_context_switch_def[where action=a] ctxtSwitchCases local.endAtomic(1) by blast
   
   have "S2 ~~ (s,(AEndAtomic, False)) \<leadsto>\<^sub>S S2'"
   proof (rule step_s.intros)
@@ -1263,7 +1267,7 @@ next
                               knownIds := knownIds S2 \<union> uniqueIds res\<rparr>"
   
   have [simp]: sameSession
-    using ctxtSwitchCases local.return(1) allowed_context_switch_def by blast                            
+    using ctxtSwitchCases local.return(1) allowed_context_switch_def[where action = a] by blast                            
                               
   have "S2 ~~ (s,(AReturn res, False)) \<leadsto>\<^sub>S S2'"
   proof (rule step_s.intros)
@@ -1314,8 +1318,8 @@ next
 qed
 
 lemma convert_to_single_session_trace_invFail:
-fixes tr :: trace
-  and S S' :: state
+fixes tr :: "'any trace"
+  and S S' :: "('ls, 'any) state"
 assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
@@ -1619,6 +1623,7 @@ next
       using local.beginAtomic(7) step.hyps(1) wellFormed_state_callOrigin_transactionStatus apply auto[1]
       using IH1 local.beginAtomic(6) local.beginAtomic(8) apply fastforce
       apply (auto simp add: new_snapshot_cases)
+      using IH1 local.beginAtomic(6) local.beginAtomic(8) apply fastforce
       using IH4 local.beginAtomic(9) apply blast
       using local.beginAtomic(9) apply blast
       using IH1 by blast
@@ -1814,7 +1819,7 @@ next
         show "\<lbrakk>y1 \<noteq> c; callOrigin C y1 \<triangleq> t; y2 = c; callOrigin C x2 \<noteq> Some t; x2 \<noteq> c; x1 \<noteq> c; callOrigin C x1 = callOrigin C x2; (x1, y1) \<in> happensBefore C\<rbrakk> \<Longrightarrow> x2 \<in> vis"
           by (smt IH3_to causallyConsistent_def local.dbop(6) local.dbop(9) step.hyps(1) wellFormed_state_calls_from_current_transaction_in_vis wellFormed_state_causality(1))
         show "\<lbrakk>y1 \<noteq> c; callOrigin C y1 \<triangleq> t; y2 = c; callOrigin C x2 \<noteq> Some t; x2 \<noteq> c; x1 \<noteq> c; callOrigin C x1 = callOrigin C x2; x2 \<in> vis\<rbrakk> \<Longrightarrow> (x1, y1) \<in> happensBefore C"
-          using IH2 local.dbop(6) local.dbop(9) step.hyps(1) wellFormed_happensBefore_vis by auto
+          using IH2 local.dbop(6) local.dbop(9) step.hyps(1) wellFormed_happensBefore_vis by fastforce
         show "\<lbrakk>y1 \<noteq> c; callOrigin C y1 = callOrigin C y2; y2 \<noteq> c; Some t \<noteq> callOrigin C y2; x2 = c; x1 = c; (c, y1) \<in> happensBefore C\<rbrakk> \<Longrightarrow> (c, y2) \<in> happensBefore C"
           using local.dbop(7) step.hyps(1) wellFormed_happensBefore_calls_l by blast
         show "\<lbrakk>y1 \<noteq> c; callOrigin C y1 = callOrigin C y2; y2 \<noteq> c; Some t \<noteq> callOrigin C y2; x2 = c; x1 = c; (c, y2) \<in> happensBefore C\<rbrakk> \<Longrightarrow> (c, y1) \<in> happensBefore C"
@@ -1862,7 +1867,7 @@ shows "consistentSnapshot S vis"
 unfolding consistentSnapshot_def proof (intro conjI)
   show "vis \<subseteq> dom (calls S)"
     using wf vis
-    using wellFormed_visibleCallsSubsetCalls_h(2) by auto 
+    using wellFormed_visibleCallsSubsetCalls_h(2) by fastforce 
     
   show "causallyConsistent (happensBefore S) vis"
     using local.wf vis wellFormed_state_causality(1) by auto
@@ -1982,7 +1987,7 @@ next
       show "isPrefix (tr @ [a]) (tr @ [a])"
         by simp
       show "S ~~ tr @ [a] \<leadsto>* S''"
-        using step.step step.steps steps_step by auto   
+        using step.step step.steps steps_step by fastforce   
       
       from `S' ~~ a \<leadsto> S''`
       have "S' ~~ (s, AInvcheck txns False) \<leadsto> S''" using `a = (s, AInvcheck txns False)` by simp
