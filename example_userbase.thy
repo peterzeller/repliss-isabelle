@@ -5,6 +5,7 @@ begin
 datatype val =
     String string
   | UserId int
+  | Bool bool
   | Undef
 
 record localState = 
@@ -12,13 +13,15 @@ record localState =
   ls_u :: val
   ls_name :: string
   ls_mail :: string
+  ls_exists :: bool
 
 definition initialState :: "localState" where
 "initialState = \<lparr>
   ls_pc = 0,
   ls_u = Undef,
   ls_name = '''',
-  ls_mail = ''''
+  ls_mail = '''',
+  ls_exists = False
 \<rparr>"
   
 (*
@@ -37,6 +40,16 @@ definition registerUserImpl :: "(localState, val) procedureImpl" where
    (* 5 *) Return (ls_u ls)
    ] ! ls_pc ls"
 
+definition updateMailImpl :: "(localState, val) procedureImpl" where
+"updateMailImpl ls \<equiv> [
+   (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
+   (* 1 *) DbOperation ''users_contains_key'' [ls_u ls] (\<lambda>r. ls\<lparr>ls_exists := (r = Bool True), ls_pc := 2 \<rparr>),
+   (* 2 *) LocalStep (if ls_exists ls then ls\<lparr>ls_pc := 3\<rparr> else ls\<lparr>ls_pc := 4\<rparr> ),
+   (* 3 *) DbOperation ''users_mail_assign'' [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
+   (* 5 *) EndAtomic  (ls\<lparr>ls_pc := 6\<rparr>),
+   (* 6 *) Return Undef
+   ] ! ls_pc ls"   
+   
 definition procedures where
 "procedures proc args \<equiv> 
   if proc = ''registerUser'' then
