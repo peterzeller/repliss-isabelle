@@ -841,10 +841,10 @@ next
         
   show ?thesis 
     proof (rule invariantContext_eqI)
-      show "i_calls (invContext A sb) = i_calls (invContext B sb)"
+      show "calls (invContext A sb) = calls (invContext B sb)"
         apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         done
-      show "i_happensBefore (invContext A sb) = i_happensBefore (invContext B sb)"
+      show "happensBefore (invContext A sb) = happensBefore (invContext B sb)"
         apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
         apply (auto simp add: restrict_relation_def B_def)
         done
