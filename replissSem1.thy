@@ -67,9 +67,7 @@ record 'any operationContext =
   calls :: "callId \<rightharpoonup> 'any call"
   happensBefore :: "callId rel"
 
-record 'any invariantContext = 
-  i_calls :: "callId \<rightharpoonup> 'any call"
-  i_happensBefore :: "callId rel"
+record 'any invariantContext = "'any operationContext" +
   i_visibleCalls :: "callId set"
   i_callOrigin :: "callId \<rightharpoonup> txid"
   i_transactionOrigin :: "txid \<rightharpoonup> invocation"
@@ -198,8 +196,8 @@ abbreviation
  \<equiv> getContextH (calls state) (happensBefore state) (visibleCalls state s) "
 
 abbreviation "emptyInvariantContext \<equiv> \<lparr>
-        i_calls = empty,
-        i_happensBefore = {},
+        calls = empty,
+        happensBefore = {},
         i_visibleCalls = {},
         i_callOrigin  = empty,
         i_transactionOrigin = empty,
@@ -218,8 +216,8 @@ abbreviation commitedCalls :: "('localState, 'any) state \<Rightarrow> callId se
 definition invContextH  where
 "invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes vis = \<lparr>
-        i_calls = state_calls |` commitedCallsH state_callOrigin state_transactionStatus , 
-        i_happensBefore = state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus , 
+        calls = state_calls |` commitedCallsH state_callOrigin state_transactionStatus , 
+        happensBefore = state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus , 
         i_visibleCalls = (case vis of None \<Rightarrow> {} | Some vis \<Rightarrow> vis),
         i_callOrigin  = state_callOrigin |` commitedCallsH state_callOrigin state_transactionStatus,
         i_transactionOrigin = state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Commited},
@@ -282,8 +280,8 @@ assumes "c_calls = commitedCallsH (callOrigin state) (transactionStatus state)"
     and "c_txns = {t. transactionStatus state t \<triangleq> Commited}"
 shows
 "invContextSnapshot state snapshot =  \<lparr>
-        i_calls = calls state |` c_calls , 
-        i_happensBefore = happensBefore state |r c_calls , 
+        calls = calls state |` c_calls , 
+        happensBefore = happensBefore state |r c_calls , 
         i_visibleCalls = callsInTransaction state snapshot \<down> happensBefore state,
         i_callOrigin  = callOrigin state |` c_calls,
         i_transactionOrigin = transactionOrigin state |` c_txns,
@@ -295,8 +293,8 @@ by (auto simp add: assms  invContextH_def)
         
   
 lemma invariantContext_eqI: "\<lbrakk>
-i_calls x = i_calls y;
-i_happensBefore x = i_happensBefore y;
+calls x = calls y;
+happensBefore x = happensBefore y;
 i_visibleCalls x = i_visibleCalls y;
 i_callOrigin x = i_callOrigin y;
 i_transactionOrigin x = i_transactionOrigin y;

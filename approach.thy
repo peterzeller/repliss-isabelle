@@ -2137,7 +2137,7 @@ text {*
 When a program is correct in the single invocation semantics, 
 it is also correct when executed in the concurrent interleaving semantics.
 *}
-theorem
+theorem show_correctness_via_single_session:
 assumes works_in_single_session: "programCorrect_s program"
     and inv_init: "invariant_all (initialState program)"
 shows "programCorrect program"
