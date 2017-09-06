@@ -223,5 +223,38 @@ next
     by simp
 qed
 
+lemma steps_s_append_simp:
+"(S ~~ (s, tra@trb) \<leadsto>\<^sub>S* S'') \<longleftrightarrow> (\<exists>S'. (S ~~ (s, tra) \<leadsto>\<^sub>S* S') \<and> (S' ~~ (s, trb) \<leadsto>\<^sub>S* S''))"
+proof
+  show "\<exists>S'. (S ~~ (s, tra) \<leadsto>\<^sub>S* S') \<and> (S' ~~ (s, trb) \<leadsto>\<^sub>S* S'') \<Longrightarrow> S ~~ (s, tra @ trb) \<leadsto>\<^sub>S* S''"
+    using steps_s_append by blast
+  
+  show "S ~~ (s, tra @ trb) \<leadsto>\<^sub>S* S'' \<Longrightarrow> \<exists>S'. (S ~~ (s, tra) \<leadsto>\<^sub>S* S') \<and> (S' ~~ (s, trb) \<leadsto>\<^sub>S* S'')"
+  proof (induct trb arbitrary: S'' rule: rev_induct)
+    case Nil
+    then show ?case by (auto simp add: steps_s_refl)
+  next
+    case (snoc a trb')
+    
+    from `S ~~ (s, tra @ trb' @ [a]) \<leadsto>\<^sub>S* S''`
+    obtain S1 where "S ~~ (s, tra @ trb') \<leadsto>\<^sub>S* S1" and "S1 ~~ (s, a) \<leadsto>\<^sub>S S''"
+      using Pair_inject steps_s.cases by force
+    
+    moreover from `S ~~ (s, tra @ trb') \<leadsto>\<^sub>S* S1` 
+    obtain S2 where "S ~~ (s, tra) \<leadsto>\<^sub>S* S2" and "S2 ~~ (s, trb') \<leadsto>\<^sub>S* S1"
+      using snoc.hyps by blast
+    
+    ultimately show ?case
+      using steps_s_step by blast 
+  qed
+qed    
+    
+lemma step_s_induct:
+assumes steps: "S_init ~~ tr \<leadsto>\<^sub>S* S"
+    and "P S_init"
+    and "\<And>S. \<lbrakk>P S; S ~~ a \<leadsto>\<^sub>S S'\<rbrakk> \<Longrightarrow> P S'"
+shows "P S"
+sorry (*  TODO *)
+
 
 end
