@@ -248,13 +248,64 @@ proof
       using steps_s_step by blast 
   qed
 qed    
+
+lemma steps_s_empty:
+"(S ~~ (s, []) \<leadsto>\<^sub>S* S') \<longleftrightarrow> (S' = S)"
+apply (auto simp add: step_s.simps steps_s_refl)
+  using steps_s.cases by fastforce
+
     
-lemma step_s_induct:
-assumes steps: "S_init ~~ tr \<leadsto>\<^sub>S* S"
-    and "P S_init"
-    and "\<And>S. \<lbrakk>P S; S ~~ a \<leadsto>\<^sub>S S'\<rbrakk> \<Longrightarrow> P S'"
-shows "P S"
-sorry (*  TODO *)
+lemma steps_s_single: 
+"(S ~~ (s, [a]) \<leadsto>\<^sub>S* S') \<longleftrightarrow> (S ~~ (s, a) \<leadsto>\<^sub>S S')"
+apply (subst steps_s.simps)
+by (auto simp add:  steps_s_empty)
+
+
+lemma steps_s_cons_simp:
+"(S ~~ (s, a#tr) \<leadsto>\<^sub>S* S'') \<longleftrightarrow> (\<exists>S'. (S ~~ (s, a) \<leadsto>\<^sub>S S') \<and> (S' ~~ (s, tr) \<leadsto>\<^sub>S* S''))"
+proof -
+  have "(S ~~ (s, a#tr) \<leadsto>\<^sub>S* S'') \<longleftrightarrow> (S ~~ (s, [a]@tr) \<leadsto>\<^sub>S* S'')" 
+    by simp
+  moreover have "... \<longleftrightarrow>  (\<exists>S'. (S ~~ (s, [a]) \<leadsto>\<^sub>S* S') \<and> (S' ~~ (s, tr) \<leadsto>\<^sub>S* S''))"
+    using steps_s_append_simp by blast 
+  moreover have "... \<longleftrightarrow>  (\<exists>S'. (S ~~ (s, a) \<leadsto>\<^sub>S S') \<and> (S' ~~ (s, tr) \<leadsto>\<^sub>S* S''))"
+    using steps_s_single by blast
+  ultimately show ?thesis by blast 
+qed  
+
+
+lemma step_s_induct[consumes 1, case_names initial step[IH step]]:
+assumes steps: "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S"
+    and initial: "P [] S_init"
+    and step: "\<And>tr S a S'. \<lbrakk>P tr S; S ~~ (i, a) \<leadsto>\<^sub>S S'\<rbrakk> \<Longrightarrow> P (tr@[a]) S'"
+shows "P tr S"
+proof -
+  (*have "(S_init ~~ (i, tr) \<leadsto>\<^sub>S* S) \<and> P S_init \<longrightarrow> P S"*)
+  
+  
+  from steps initial show "P tr S"
+  proof (induct tr arbitrary:  S rule: rev_induct)
+    case Nil
+    hence "S = S_init"
+      using steps_s.cases by fastforce
+    with `P [] S_init` show "P [] S" by simp
+  next
+    case (snoc a tr)
+    from `S_init ~~ (i, tr@[a]) \<leadsto>\<^sub>S* S`
+    obtain S1 
+      where S1a: "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1"
+        and S1b: "S1 ~~ (i, a) \<leadsto>\<^sub>S S"
+      using steps_s_cons_simp
+      by (meson steps_s_append_simp steps_s_single)   
+      
+    from `S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1` and `P [] S_init`
+    have "P tr S1" 
+      by (rule snoc.hyps)
+    
+    with S1b show "P (tr@[a]) S"
+      using local.step by blast
+  qed
+qed  
 
 
 end

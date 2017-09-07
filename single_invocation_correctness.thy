@@ -101,9 +101,55 @@ assumes initialCorrect: "\<And>S. S\<in>initialStates program \<Longrightarrow> 
 shows "programCorrect_s program"
 proof (auto simp add: programCorrect_s_def)
   fix trace i S_fin
-  assume "initialState program ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
+  assume steps: "initialState program ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
   
+  from steps
   show "traceCorrect_s program trace"
+  proof (induct rule: step_s_induct)
+    case initial
+    then show ?case
+      by (simp add: traceCorrect_s_def) 
+  next
+    case (step tr S a S')
+    
+    (* 
+    Idea: 
+    
+    - states are reachable
+    - checkCorrect proves correctness for all reachable states
+    
+    *)
+    
+    from `S ~~ (i, a) \<leadsto>\<^sub>S S'`
+    have "snd a \<noteq> False"
+    proof (cases rule: step_s.induct)
+      case (local C s ls f ls')
+      then show ?thesis sorry
+    next
+      case (newId C s ls f ls' uid)
+      then show ?thesis sorry
+    next
+      case (beginAtomic C s ls f ls' t C' txns)
+      then show ?thesis sorry
+    next
+      case (endAtomic C s ls f ls' t C' valid)
+      then show ?thesis sorry
+    next
+      case (dbop C s ls f Op args ls' t c res vis)
+      then show ?thesis sorry
+    next
+      case (invocation C s procName args initState impl C' C'' valid)
+      then show ?thesis sorry
+    next
+      case (return C s ls f res C' valid)
+      then show ?thesis sorry
+    qed
+      
+    from `traceCorrect_s program tr` `snd a \<noteq> False`
+    show "traceCorrect_s program (tr @ [a])"
+      by (auto simp add: traceCorrect_s_def) 
+  qed
+qed 
 
 
 
