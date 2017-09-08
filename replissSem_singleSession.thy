@@ -143,6 +143,7 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    uniqueIdsInList args \<subseteq> knownIds C';
    invariant_all C';
    invocationOp C' s = None;
+   prog C' = prog C;
    (* TODO some connection between C and C' or allow anything that preserves invariant? maybe C is not needed at all? *)
    C'' = (C'\<lparr>localState := (localState C')(s \<mapsto> initState),
                  currentProc := (currentProc C')(s \<mapsto> impl),

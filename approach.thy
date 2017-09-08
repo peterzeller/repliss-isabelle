@@ -691,6 +691,8 @@ next
         using ih3' inv_S' state_coupling_same_inv by auto
       show "True = invariant_all S''"
         by (metis append.right_neutral isPrefix_appendI local.step prefix_invariant steps steps.steps_step)
+      show "prog S2 = prog S2"
+        by simp
     qed
     
     
@@ -939,6 +941,8 @@ next
           using a1 by auto
         show "True = invariant_all S''"
           by (simp add: inv'')
+        show "prog S' = prog S2"
+          by simp
       qed
       thus "S ~~ (s, tr'@[(AInvoc p ar, True)]) \<leadsto>\<^sub>S* S''"
         using ih1 steps_s_step by blast
@@ -1252,6 +1256,8 @@ next
       using local.invocation(2) by blast  
     show "False = invariant_all S'"
       by (simp add: not_inv)
+    show "prog S = prog S2" 
+      using coupling by (auto simp add: state_coupling_def split: if_splits)
   qed    
     
   then show ?thesis

@@ -576,6 +576,8 @@ definition programCorrect where
 
 definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rightarrow> True | _ \<Rightarrow> False)"
 
+definition "isAInvoc action = (case action of AInvoc _ _  \<Rightarrow> True | _ \<Rightarrow> False)"
+
 (*
  splits a trace into three parts
   
