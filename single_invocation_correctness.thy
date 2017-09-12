@@ -209,6 +209,107 @@ qed
 now we have it without invocations, so we have to prove that invocations can only be at the beginning, then we are in initial states ...
 *)
 
+lemma use_map_le:
+assumes "m x \<triangleq> y" and "m  \<subseteq>\<^sub>m m'"
+shows "m' x \<triangleq> y"
+using assms
+by (metis domI map_le_def) 
+
+lemma has_invocationOp_forever:
+assumes steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
+    and "invocationOp S i \<triangleq> info"
+shows "invocationOp S' i \<triangleq> info"
+
+using assms proof (induct rule: step_s_induct)
+  case initial
+  then show ?case by auto
+next
+  case (step tr S a S')
+  then show ?case by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
+  
+qed
+
+(*
+lemma wf_localState_has_invocationOp:
+assumes wf: "state_wellFormed S"
+    and ls: "localState S i \<triangleq> ls"
+shows "invocationOp S i \<noteq> None"  
+using assms
+  using wellFormed_invoc_notStarted(2) by fastforce 
+*)
+
+lemma has_invocationOp_afterOneStep:
+assumes step: "S ~~ (i, a) \<leadsto>\<^sub>S S'"
+    and wf: "state_wellFormed S"
+shows "invocationOp S' i \<noteq> None"   
+using step wf apply (auto simp add: step_s.simps )
+by (metis invation_info_set_iff_invocation_happened(1) invation_info_set_iff_invocation_happened(2) invocation_ops_if_localstate_nonempty option.simps(3) state_wellFormed_def)+
+
+
+
+lemma has_invocationOp_afterStart:
+assumes steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
+    and notEmpty: "trace \<noteq> []"
+    and wf: "state_wellFormed S"
+shows "invocationOp S' i \<noteq> None"   
+using steps notEmpty wf proof (induct rule: step_s_induct)
+  case initial
+  then show ?case
+    by simp  
+next
+  case (step tr S a S')
+  have "state_wellFormed S" 
+    sorry (* TODO add steps_s to step_s_induct and prove that steps_s preserves wf *)
+    
+  from `S ~~ (i, a) \<leadsto>\<^sub>S S'` and `state_wellFormed S`
+  show ?case 
+    by (rule has_invocationOp_afterOneStep)
+qed
+
+
+lemma invocations_only_in_beginning:
+assumes steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
+    and wf: "state_wellFormed S"
+    and notStarted: "invocationOp S i = None"
+    and traceLen: "j < length trace"
+shows "isAInvoc (fst (trace ! j)) \<longleftrightarrow> j = 0"
+proof -
+  
+  from steps
+  obtain S_mid where "S ~~ (i, take j trace) \<leadsto>\<^sub>S* S_mid" and "S_mid ~~ (i, drop j trace) \<leadsto>\<^sub>S* S'"
+    using steps_s_append_simp by force
+  
+    
+  obtain Sa where firstStep: "S ~~ (i, hd trace) \<leadsto>\<^sub>S Sa"
+    by (metis traceLen cons_eq_conv_conj length_Suc_conv less_imp_Suc_add steps steps_s_cons_simp)
+   
+  with notStarted
+  have startsWithInvoc: "isAInvoc (fst (hd trace))"
+    by (auto simp add: step_s.simps isAInvoc_def local.wf wellFormed_invoc_notStarted(2))
+    
+  
+    
+    
+    
+  {
+    assume "j = 0"
+    hence "isAInvoc (fst (trace ! j))" 
+      using startsWithInvoc hd_drop_conv_nth traceLen by force 
+  }
+  moreover
+  {
+    assume "j \<noteq> 0"
+    have "\<not>isAInvoc (fst (trace ! j))" 
+      sorry
+  }
+  ultimately
+  show "isAInvoc (fst (trace ! j)) \<longleftrightarrow> j = 0"
+    by blast
+qed    
+  
+
+
+
 lemma 
 assumes initialCorrect: "\<And>S. S\<in>initialStates program \<Longrightarrow> invariant_all S "
     and check: "\<And>S i. S\<in>initialStates program \<Longrightarrow> checkCorrect program S i bound"

@@ -43,7 +43,8 @@ definition consistentSnapshot where
    (* monotonic growth of invocation happens-before *)
    (*  --> no new calls can be added before*)
 definition state_monotonicGrowth :: "('localState, 'any) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
-"state_monotonicGrowth S S' = True"
+"state_monotonicGrowth S S' = 
+  (invocationOp S \<subseteq>\<^sub>m invocationOp S') "
 
 
 text {* Invariant holds for all possible (causally + transaction consistent) states *}
