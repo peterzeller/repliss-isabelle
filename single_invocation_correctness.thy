@@ -1,5 +1,5 @@
 theory single_invocation_correctness
-imports approach
+imports approach execution_invariants_s
 begin
 
 text {*
@@ -14,17 +14,6 @@ text {*
 *}
 
 
-definition initialStates :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state set"  where
-"initialStates progr \<equiv> {S | S S' procName args initState impl i.
-  procedure progr procName args \<triangleq> (initState, impl)  
-  \<and> uniqueIdsInList args \<subseteq> knownIds S
-  \<and> invariant_all S
-  \<and> invocationOp S i = None
-  \<and> S' = (S\<lparr>localState := (localState S)(i \<mapsto> initState),
-                 currentProc := (currentProc S)(i \<mapsto> impl),
-                 visibleCalls := (visibleCalls S)(i \<mapsto> {}),
-                 invocationOp := (invocationOp S)(i \<mapsto> (procName, args))\<rparr>)
-}"
 
 (* check program (with a given start-state, bound by a number of steps) *)
 fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> nat \<Rightarrow> bool" where
@@ -240,11 +229,29 @@ using assms
 
 lemma has_invocationOp_afterOneStep:
 assumes step: "S ~~ (i, a) \<leadsto>\<^sub>S S'"
-    and wf: "state_wellFormed S"
+    and wf: "state_wellFormed_s S i"
 shows "invocationOp S' i \<noteq> None"   
 using step wf apply (auto simp add: step_s.simps )
+thm invocation_ops_if_localstate_nonempty
+sorry
+(*
 by (metis invation_info_set_iff_invocation_happened(1) invation_info_set_iff_invocation_happened(2) invocation_ops_if_localstate_nonempty option.simps(3) state_wellFormed_def)+
+*)
 
+(*
+lemma single_step_preserves_wf:
+assumes steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
+    and wf: "state_wellFormed S"
+shows "state_wellFormed S'"    
+using assms proof (induct rule: step_s_induct)
+  case initial
+  then show ?case by simp
+next
+  case (step tr S a S')
+  then show ?case apply (auto simp add: step_s.simps)
+  
+qed
+*)
 
 
 lemma has_invocationOp_afterStart:

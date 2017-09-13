@@ -279,18 +279,20 @@ qed
 lemma step_s_induct[consumes 1, case_names initial step[IH step]]:
 assumes steps: "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S"
     and initial: "P [] S_init"
-    and step: "\<And>tr S a S'. \<lbrakk>P tr S; S ~~ (i, a) \<leadsto>\<^sub>S S'\<rbrakk> \<Longrightarrow> P (tr@[a]) S'"
+    and step: "\<And>tr S a S'. \<lbrakk>P tr S; S_init ~~ (i,tr) \<leadsto>\<^sub>S* S;  S ~~ (i, a) \<leadsto>\<^sub>S S'\<rbrakk> \<Longrightarrow> P (tr@[a]) S'"
 shows "P tr S"
 proof -
   (*have "(S_init ~~ (i, tr) \<leadsto>\<^sub>S* S) \<and> P S_init \<longrightarrow> P S"*)
   
   
-  from steps initial show "P tr S"
+  from steps initial have "P tr S \<and> S_init ~~ (i, tr) \<leadsto>\<^sub>S* S"
   proof (induct tr arbitrary:  S rule: rev_induct)
     case Nil
     hence "S = S_init"
       using steps_s.cases by fastforce
-    with `P [] S_init` show "P [] S" by simp
+    with `P [] S_init` `S_init ~~ (i, []) \<leadsto>\<^sub>S* S`
+    show ?case by auto
+    
   next
     case (snoc a tr)
     from `S_init ~~ (i, tr@[a]) \<leadsto>\<^sub>S* S`
@@ -300,13 +302,20 @@ proof -
       using steps_s_cons_simp
       by (meson steps_s_append_simp steps_s_single)   
       
+    thm snoc.hyps
     from `S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1` and `P [] S_init`
-    have "P tr S1" 
+    have "P tr S1 \<and> S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1" 
       by (rule snoc.hyps)
     
-    with S1b show "P (tr@[a]) S"
+    with S1b have "P (tr@[a]) S"
       using local.step by blast
+      
+    with `S_init ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S`
+    show ?case by auto
+      
   qed
+  
+  thus "P tr S" by simp
 qed  
 
 

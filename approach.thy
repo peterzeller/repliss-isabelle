@@ -506,7 +506,8 @@ next
         using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' by auto
         
       show "state_monotonicGrowth S2 newS"
-        by (auto simp add: state_monotonicGrowth_def)
+        by (auto simp add: state_monotonicGrowth_def S2_invocationOp newS_def)
+        
         
     qed
     
@@ -893,7 +894,7 @@ next
         show "state_wellFormed S''"
           using S_wf state_wellFormed_combine steps' by blast
         show "state_monotonicGrowth S2 S''"
-          by (simp add: state_monotonicGrowth_def)
+          using ih3 by (auto simp add: state_monotonicGrowth_def map_le_def a1 state_coupling_def)
           
       qed
         
