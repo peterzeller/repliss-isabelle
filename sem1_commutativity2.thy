@@ -1498,18 +1498,6 @@ shows "commutativeS S (sa, AFail) (sb, a)"
 apply (case_tac a)
 by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 
-lemma wellFormed_invoc_notStarted:
-assumes "state_wellFormed S"
-  and "invocationOp S s = None"
-shows "currentTransaction S s = None"  
-  and "localState S s = None"
-using assms apply (induct rule: wellFormed_induct)
-apply (auto simp add: initialState_def)
-apply (erule step.cases)
-apply (auto split: if_splits)
-apply (erule step.cases)
-apply (auto split: if_splits)
-done
 
 lemma move_transaction:
 assumes a_is_in_transaction: "currentTransaction S sa \<triangleq> t"

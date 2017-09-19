@@ -192,5 +192,30 @@ shows "callOrigin A c \<triangleq> tx \<longleftrightarrow> callOrigin B c \<tri
     using exec apply (rule step.cases)
     using wellFormed committed by auto  
 
+    
+lemma wf_localState_to_invocationOp:
+"\<lbrakk>state_wellFormed S; localState S i \<noteq> None\<rbrakk> \<Longrightarrow> invocationOp S i \<noteq> None"    
+proof (induct  rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case 
+    by (auto simp add: step.simps split: if_splits)
+qed
+
+lemma wellFormed_invoc_notStarted:
+assumes "state_wellFormed S"
+  and "invocationOp S s = None"
+shows "currentTransaction S s = None"  
+  and "localState S s = None"
+using assms apply (induct rule: wellFormed_induct)
+apply (auto simp add: initialState_def)
+apply (erule step.cases)
+apply (auto split: if_splits)
+apply (erule step.cases)
+apply (auto split: if_splits)
+done
+    
 
 end

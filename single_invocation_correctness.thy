@@ -231,33 +231,15 @@ lemma has_invocationOp_afterOneStep:
 assumes step: "S ~~ (i, a) \<leadsto>\<^sub>S S'"
     and wf: "state_wellFormed_s S i"
 shows "invocationOp S' i \<noteq> None"   
-using step wf apply (auto simp add: step_s.simps )
-thm invocation_ops_if_localstate_nonempty
-sorry
-(*
-by (metis invation_info_set_iff_invocation_happened(1) invation_info_set_iff_invocation_happened(2) invocation_ops_if_localstate_nonempty option.simps(3) state_wellFormed_def)+
-*)
-
-(*
-lemma single_step_preserves_wf:
-assumes steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
-    and wf: "state_wellFormed S"
-shows "state_wellFormed S'"    
-using assms proof (induct rule: step_s_induct)
-  case initial
-  then show ?case by simp
-next
-  case (step tr S a S')
-  then show ?case apply (auto simp add: step_s.simps)
+using step wf apply (auto simp add: step_s.simps wf_s_localState_to_invocationOp2)
+  by (meson state_monotonicGrowth_def use_map_le wf_s_localState_to_invocationOp2)
   
-qed
-*)
-
+  
 
 lemma has_invocationOp_afterStart:
 assumes steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
     and notEmpty: "trace \<noteq> []"
-    and wf: "state_wellFormed S"
+    and wf: "state_wellFormed_s S i"
 shows "invocationOp S' i \<noteq> None"   
 using steps notEmpty wf proof (induct rule: step_s_induct)
   case initial
@@ -265,10 +247,10 @@ using steps notEmpty wf proof (induct rule: step_s_induct)
     by simp  
 next
   case (step tr S a S')
-  have "state_wellFormed S" 
-    sorry (* TODO add steps_s to step_s_induct and prove that steps_s preserves wf *)
+  have "state_wellFormed_s S i"
+    using local.wf state_wellFormed_s_def step.step steps_s_append by blast 
     
-  from `S ~~ (i, a) \<leadsto>\<^sub>S S'` and `state_wellFormed S`
+  from `S ~~ (i, a) \<leadsto>\<^sub>S S'` and `state_wellFormed_s S i`
   show ?case 
     by (rule has_invocationOp_afterOneStep)
 qed
@@ -276,7 +258,7 @@ qed
 
 lemma invocations_only_in_beginning:
 assumes steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
-    and wf: "state_wellFormed S"
+    and wf: "state_wellFormed_s S i"
     and notStarted: "invocationOp S i = None"
     and traceLen: "j < length trace"
 shows "isAInvoc (fst (trace ! j)) \<longleftrightarrow> j = 0"
@@ -287,15 +269,12 @@ proof -
     using steps_s_append_simp by force
   
     
-  obtain Sa where firstStep: "S ~~ (i, hd trace) \<leadsto>\<^sub>S Sa"
-    by (metis traceLen cons_eq_conv_conj length_Suc_conv less_imp_Suc_add steps steps_s_cons_simp)
+  obtain Sa where firstStep: "S ~~ (i, hd trace) \<leadsto>\<^sub>S Sa" and afterFirstStep: "Sa ~~ (i, tl trace) \<leadsto>\<^sub>S* S'"
+    by (metis Cons_nth_drop_Suc append.assoc append_take_drop_id hd_Cons_tl snoc_eq_iff_butlast steps steps_s_cons_simp traceLen)
    
   with notStarted
   have startsWithInvoc: "isAInvoc (fst (hd trace))"
-    by (auto simp add: step_s.simps isAInvoc_def local.wf wellFormed_invoc_notStarted(2))
-    
-  
-    
+    by (auto simp add: step_s.simps isAInvoc_def local.wf wf_s_localState_to_invocationOp)
     
     
   {
@@ -306,8 +285,31 @@ proof -
   moreover
   {
     assume "j \<noteq> 0"
+    
+    from afterFirstStep
+    obtain Sc where steps_until_after_j: "Sa ~~ (i, take j (tl trace)) \<leadsto>\<^sub>S* Sc"
+      by (metis append_take_drop_id steps_s_append_simp)
+      
+    
+    (* get Sb so that S Sa Sb S*)
+    from steps_until_after_j
+    have "Sa ~~ (i, (take (j-1) (tl trace))@[trace!j]) \<leadsto>\<^sub>S* Sc"
+      by (metis \<open>j \<noteq> 0\<close> drop_Nil drop_eq_Nil hd_drop_conv_nth leD take_eq_Nil take_hd_drop take_tl tl_append2 tl_take traceLen)
+    from this    
+    obtain Sb 
+      where steps1: "Sa ~~ (i, take (j-1) (tl trace)) \<leadsto>\<^sub>S* Sb"
+        and step_j: "Sb ~~ (i, trace ! j) \<leadsto>\<^sub>S Sc"
+      by (auto simp add: steps_s_append_simp steps_s_single)
+    
+    have "invocationOp Sa i \<noteq> None"
+      using firstStep has_invocationOp_afterOneStep local.wf by blast  
+      
+    hence "invocationOp Sb i \<noteq> None"
+      using has_invocationOp_forever steps1 by blast
+      
+    with step_j 
     have "\<not>isAInvoc (fst (trace ! j))" 
-      sorry
+      by (auto simp add: step_s.simps isAInvoc_def)
   }
   ultimately
   show "isAInvoc (fst (trace ! j)) \<longleftrightarrow> j = 0"
@@ -318,23 +320,143 @@ qed
 
 
 lemma 
-assumes initialCorrect: "\<And>S. S\<in>initialStates program \<Longrightarrow> invariant_all S "
-    and check: "\<And>S i. S\<in>initialStates program \<Longrightarrow> checkCorrect program S i bound"
-    and steps: "initialState program ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
+assumes initialCorrect: "\<And>S. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
+    and check: "\<And>S. S\<in>initialStates program i \<Longrightarrow> checkCorrect program S i bound"
+    and steps: "initS ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
+    and initS: "initS \<in> initialStates program i"
     and trace_len: "length trace < bound"
     and trace_len2: "0 < length trace"
 shows "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
-using steps check trace_len proof (induct "length trace")
+using steps check trace_len trace_len2 proof (induct "length trace" arbitrary: trace S_fin)
   case 0
   thus ?case
-    using trace_len2 by linarith 
+    by simp 
     
 next
-  case (Suc trLen)
-  
-  
+  case (Suc trLen trace S_fin)
   
   obtain tr a where tr_def: "trace = tr@[a]"
+    by (metis Suc.hyps(2) Zero_not_Suc list.size(3) rev_exhaust)
+    
+  obtain a_action a_inv where a_def[simp]: "a = (a_action, a_inv)"
+    by fastforce
+    
+   
+  have  wf: "state_wellFormed_s initS i"
+    using initS state_wellFormed_s_def steps_s_refl by blast  
+    
+    
+    
+  from `initS ~~ (i, trace) \<leadsto>\<^sub>S* S_fin`
+  obtain S_pre 
+    where steps_pre: "initS ~~ (i, tr) \<leadsto>\<^sub>S* S_pre"
+      and step_final: "S_pre ~~ (i, a) \<leadsto>\<^sub>S S_fin"
+    by (auto simp add: tr_def steps_s_append_simp steps_s_single)
+  
+  
+    
+    
+  show ?case
+  proof (cases "trLen > 0")
+    case True
+    
+      have hasInvocation: "invocationOp S_pre i \<noteq> None"
+        using Suc.hyps(2) True has_invocationOp_afterStart local.wf steps_pre tr_def by fastforce
+        
+      have [simp]: "prog S_pre = program"
+        sorry
+    
+      have "traceCorrect_s program tr \<and> checkCorrect program S_pre i (bound - length tr)"
+      proof (rule Suc.hyps)
+        show "trLen = length tr"
+          using `Suc trLen = length trace` tr_def by auto
+          
+        show "initS ~~ (i, tr) \<leadsto>\<^sub>S* S_pre"
+          by (simp add: steps_pre)
+          
+        show "\<And>S. S \<in> initialStates program i \<Longrightarrow> checkCorrect program S i bound"
+          using check by blast
+        
+        show "length tr < bound"
+          using Suc.hyps(2) Suc.prems(3) \<open>trLen = length tr\<close> by linarith
+          
+        show "0 < length tr"
+          using True \<open>trLen = length tr\<close> by auto
+      qed
+      hence tr_correct: "traceCorrect_s program tr"
+        and S_pre_correct: "checkCorrect program S_pre i (Suc (bound - length trace))"
+        apply blast
+        using Suc.prems(3) Suc_diff_Suc \<open>traceCorrect_s program tr \<and> checkCorrect program S_pre i (bound - length tr)\<close> tr_def by auto 
+      
+      with step_final  
+      have "a_inv = True" (*and "checkCorrect program S_fin i (bound - length trace)" *)
+        by (auto simp add: step_s.simps Let_def hasInvocation split: option.splits)
+        
+      from S_pre_correct step_final
+      have cc: "checkCorrect program S_fin i (bound - length trace)" 
+        apply (auto simp add: step_s.simps Let_def hasInvocation split: option.splits)
+        using wellFormed_currentTransactionUncommited apply blast  
+        apply (drule_tac x=c in spec)
+        apply auto
+        apply (case_tac "bound - length trace")
+        apply auto
+        done
+        
+      
+      from tr_correct `a_inv = True`
+      have "traceCorrect_s program trace"
+        by (auto simp add: traceCorrect_s_def tr_def)
+        
+      with cc
+      show ?thesis by blast
+
+  next
+    case False
+      hence [simp]: "tr = []"
+        using Suc.hyps(2) tr_def by auto
+    
+    hence [simp]: "S_pre = initS"
+      using steps_pre steps_s_empty by blast   
+    
+    hence "initS ~~ (i, a) \<leadsto>\<^sub>S S_fin"
+      using step_final by blast
+    
+    have initS_correct: "checkCorrect program initS i bound"
+      by (simp add: check initS)  
+      
+    from `initS \<in> initialStates program i`
+    have [simp]: "localState initS i = None"
+      apply (auto simp add: initialStates_def)
+      by (simp add: wellFormed_invoc_notStarted(2))
+        
+    from step_final 
+    have "a_inv" 
+      apply (auto simp add: step_s.simps) 
+      
+      
+    
+    hence "traceCorrect_s program trace"
+      by (auto simp add: tr_def traceCorrect_s_def)   
+      
+    have "checkCorrect program S_fin i (bound - length trace)"
+      sorry
+      
+    with `traceCorrect_s program trace`
+    show ?thesis
+      by simp
+  qed
+qed
+      
+  {
+    assume "trLen > 0"
+    (* then we can use the induction hypothesis *)
+    
+    
+    
+  }
+  
+  
+  
     
   
   
