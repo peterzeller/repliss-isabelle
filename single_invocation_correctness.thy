@@ -319,7 +319,7 @@ qed
 
 
 
-lemma 
+lemma show_traceCorrect_s_1:
 assumes initialCorrect: "\<And>S. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
     and check: "\<And>S. S\<in>initialStates program i \<Longrightarrow> checkCorrect program S i bound"
     and steps: "initS ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
@@ -354,7 +354,8 @@ next
     by (auto simp add: tr_def steps_s_append_simp steps_s_single)
   
   
-    
+  obtain bound' where bound_def: "bound = Suc bound'"
+    using `length trace < bound` less_imp_Suc_add by auto  
     
   show ?case
   proof (cases "trLen > 0")
@@ -363,8 +364,10 @@ next
       have hasInvocation: "invocationOp S_pre i \<noteq> None"
         using Suc.hyps(2) True has_invocationOp_afterStart local.wf steps_pre tr_def by fastforce
         
-      have [simp]: "prog S_pre = program"
-        sorry
+      have "prog initS = program"
+        using initS by (auto simp add: initialStates_def)
+      hence [simp]: "prog S_pre = program"
+        using prog_invariant steps_pre by blast
     
       have "traceCorrect_s program tr \<and> checkCorrect program S_pre i (bound - length tr)"
       proof (rule Suc.hyps)
@@ -423,59 +426,126 @@ next
     
     have initS_correct: "checkCorrect program initS i bound"
       by (simp add: check initS)  
+    
+    from `initS \<in> initialStates program i`
+    have hasInvocationOp: "invocationOp initS i \<noteq> None"
+      by (auto simp add: initialStates_def)
       
     from `initS \<in> initialStates program i`
-    have [simp]: "localState initS i = None"
+    have noTransaction: "currentTransaction initS i = None"  
       apply (auto simp add: initialStates_def)
-      by (simp add: wellFormed_invoc_notStarted(2))
-        
+      using wellFormed_invoc_notStarted(1) by blast
+      
+      
     from step_final 
     have "a_inv" 
-      apply (auto simp add: step_s.simps) 
-      
+    proof (cases rule: step_s.cases)
+      case (local ls f ls')
+      then show ?thesis by auto
+    next
+      case (newId ls f ls' uid)
+      then show ?thesis  by auto
+    next
+      case (beginAtomic ls f ls' t txns)
+      then show ?thesis  by auto
+    next
+      case (endAtomic ls f ls' t valid)
+      then show ?thesis
+        by (simp add: noTransaction) 
+    next
+      case (dbop ls f Op args ls' t c res vis)
+      then show ?thesis  by auto
+    next
+      case (invocation procName args initState impl C' valid)
+      then show ?thesis
+        by (simp add: hasInvocationOp) 
+    next
+      case (return ls f res valid)
+      then show ?thesis  
+        using initS_correct
+        by (auto simp add: bound_def)
+    qed
       
     
     hence "traceCorrect_s program trace"
       by (auto simp add: tr_def traceCorrect_s_def)   
       
-    have "checkCorrect program S_fin i (bound - length trace)"
-      sorry
+    
+    have [simp]: "Suc bound' - length trace = bound'"
+      using False Suc.hyps(2) by auto 
+      
+      
+    from step_final   
+    have "checkCorrect program S_fin i bound'"
+    proof (cases rule: step_s.cases)
+      case (local ls f ls')
+      then show ?thesis 
+        using initS_correct by (auto simp add: bound_def)
+    next
+      case (newId ls f ls' uid)
+      then show ?thesis using initS_correct by (auto simp add: bound_def)
+    next
+      case (beginAtomic ls f ls' t txns)
+      then show ?thesis using initS_correct 
+        apply (auto simp add: bound_def )
+        using `transactionStatus S_fin t \<triangleq> Uncommited` by blast
+    next
+      case (endAtomic ls f ls' t valid)
+      then show ?thesis using initS_correct by (auto simp add: bound_def)
+    next
+      case (dbop ls f Op args ls' t c res vis)
+      then show ?thesis using initS_correct 
+        by (auto simp add:  noTransaction)
+    next
+      case (invocation procName args initState impl C' valid)
+      then show ?thesis using initS_correct 
+        by (auto simp add:  hasInvocationOp)
+    next
+      case (return ls f res valid)
+      then show ?thesis using initS_correct 
+        by (case_tac bound', auto)
+    qed
       
     with `traceCorrect_s program trace`
     show ?thesis
-      by simp
+      by (simp add: bound_def)
   qed
 qed
-      
-  {
-    assume "trLen > 0"
-    (* then we can use the induction hypothesis *)
-    
-    
-    
-  }
-  
   
   
     
   
-  
-  then show ?case sorry
-qed
-
-
-
     
 lemma show_program_correct_single_invocation:
-assumes initialCorrect: "\<And>S. S\<in>initialStates program \<Longrightarrow> invariant_all S "
-    and check: "\<And>S i. S\<in>initialStates program \<Longrightarrow> checkCorrect program S i bound"
+assumes initialCorrect: "\<And>S i. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
+    and check: "\<And>bound S i. S\<in>initialStates program i \<Longrightarrow> checkCorrect program S i bound"
 shows "programCorrect_s program"
 proof (auto simp add: programCorrect_s_def)
   fix trace i S_fin
   assume steps: "initialState program ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
   
-  from steps
+  {
+    fix a tr
+    assume trace_def: "trace = a#tr"
+    
+    with steps
+    obtain S_init 
+      where "initialState program ~~ (i, a) \<leadsto>\<^sub>S S_init"
+        and "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S_fin"
+      using steps_s_cons_simp by blast
+    
+    obtain p args where "a = (AInvoc p args, True)"
+  
+  }
+  
   show "traceCorrect_s program trace"
+  proof (rule show_traceCorrect_s_1[THEN conjunct1])
+    show "\<And>S. S \<in> initialStates program i \<Longrightarrow> invariant_all S"
+      using initialCorrect by simp
+    show "\<And>S. S \<in> initialStates program i \<Longrightarrow> checkCorrect program S i xxx"
+      using check by simp
+    
+  
   proof (induct rule: step_s_induct)
     case initial
     then show ?case
