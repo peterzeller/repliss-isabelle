@@ -1,5 +1,5 @@
 theory example_userbase
-imports approach
+imports approach single_invocation_correctness
 begin
 
 
@@ -177,19 +177,90 @@ definition inv3 :: "val invariantContext \<Rightarrow> bool" where
 definition inv :: "val invariantContext \<Rightarrow> bool" where
 "inv ctxt \<equiv> inv1 ctxt \<and> inv2 ctxt \<and> inv3 ctxt"
   
-definition prog :: "(localState, val) prog" where
-"prog \<equiv> \<lparr>
+definition progr :: "(localState, val) prog" where
+"progr \<equiv> \<lparr>
   querySpec = crdtSpec,
   procedure = procedures,
   invariant = inv
 \<rparr>"
 
-theorem "programCorrect prog"
+
+theorem "programCorrect progr"
 proof (rule show_correctness_via_single_session)
-  show "invariant_all (replissSem1.initialState prog)"
-     by (auto simp add: initialState_def invariant_all_def prog_def inv_def inv1_def inv2_def inv3_def invContextH_def)
+  have [simp]: "invariant progr = inv" by (simp add: progr_def)
+
+  have [simp]: "S \<in> initialStates progr i \<Longrightarrow> prog S = progr" for S i
+    by (auto simp add: initialStates_def)
   
-  show "programCorrect_s example_userbase.prog"
+  show "invariant_all (replissSem1.initialState progr)"
+     by (auto simp add: initialState_def invariant_all_def inv_def inv1_def inv2_def inv3_def invContextH_def)
+  
+     
+     
+  show "programCorrect_s progr"
+  proof (rule show_program_correct_single_invocation)
+    show "\<And>S i. S \<in> initialStates progr i \<Longrightarrow> invariant_all S"
+    proof (auto simp add: invariant_all_def inv_def)
+      fix S i vis
+      assume a0: "S \<in> initialStates progr i"
+         and vis_cs: "consistentSnapshot S vis"
+      
+      
+      from a0 
+      obtain Spre procName args initState impl
+        where S_def: "S = Spre\<lparr>localState := localState Spre(i \<mapsto> initState), currentProc := currentProc Spre(i \<mapsto> impl), visibleCalls := visibleCalls Spre(i \<mapsto> {}), invocationOp := invocationOp Spre(i \<mapsto> (procName, args))\<rparr>"
+          and a1: "prog Spre = progr"
+          and a2: "procedure progr procName args \<triangleq> (initState, impl)"
+          and a3: "uniqueIdsInList args \<subseteq> knownIds Spre"
+          and pre_inv_all: "invariant_all Spre"
+          and pre_wf: "state_wellFormed Spre"
+          and a6: "invocationOp Spre i = None"
+      by (subst(asm) initialStates_def, auto)
+
+      from `consistentSnapshot S vis` 
+      have vis_cs_pre: "consistentSnapshot Spre vis"
+        by (auto simp add: consistentSnapshot_def S_def)
+      
+      from pre_inv_all
+      have pre_inv: "inv (invContextVis Spre vis)"
+        by (auto simp add: invariant_all_def `prog Spre = progr` `consistentSnapshot Spre vis`)
+        
+      
+      from pre_inv 
+      have "inv1 (invContextVis Spre vis)"
+        using example_userbase.inv_def by blast
+      thus "inv1 (invContextVis S vis)"
+        apply (auto simp add: inv1_def  split: if_splits)
+        apply (auto simp add: invContextH_def invocation_happensBefore_def i_callOriginI_def )
+        apply (subst(asm) invariantContext.simps)+
+        apply (auto simp add: restrict_relation_def restrict_map_def)
+        
+        find_theorems i_transactionOrigin
+        apply (drule_tac x=r in spec)
+        apply (drule_tac x=g in spec)
+        sorry (* apply (auto simp add: invocation_happensBefore_def) *)
+       
+        (* TODO add simplification rules for "i_invocationOp (invContextVis S vis)" and other fields *)
+        
+      
+      show "inv2 (invContextVis S vis)"
+        using a0 apply (subst(asm) initialStates_def)
+        apply (auto simp add: inv2_def invContextH_def restrict_relation_def restrict_map_def i_callOriginI_def invariantContext.defs split: if_splits option.splits)
+        apply (simp add: state_wellFormed_invocation_before_result)
+        sorry
+        
+      show "inv3 (invContextVis S vis)"
+        using a0 apply (subst(asm) initialStates_def)
+        apply (auto simp add: inv3_def  invContextH_def restrict_relation_def restrict_map_def  split: if_splits)
+        
+        
+      sorry
+    
+    show "\<And>bound S i. S \<in> initialStates progr i \<Longrightarrow> checkCorrect progr S i bound"
+    
+      
+    
+  
   apply (auto simp add: programCorrect_s_def)
   apply (auto simp add: prog_def step_s.simps)
 
