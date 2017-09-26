@@ -142,6 +142,8 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    invocationOp C s = None;
    procedure (prog C) procName args \<triangleq> (initState, impl);
    uniqueIdsInList args \<subseteq> knownIds C';
+   (*  TODO add welformedness? *)
+   state_wellFormed C';
    invariant_all C';
    invocationOp C' s = None;
    prog C' = prog C;

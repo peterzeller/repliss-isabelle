@@ -676,34 +676,40 @@ next
       by (auto simp add: S2_simps vis_None invContextH_def)
       
       
-    have step_s': "S2 ~~ (s, (AInvoc procName args, True)) \<leadsto>\<^sub>S S'' "
+    find_theorems S
+    have step_s': "S ~~ (s, (AInvoc procName args, True)) \<leadsto>\<^sub>S S'' "
     proof (rule step_s.invocation)
-      show "invocationOp S2 s = None"
+      show "invocationOp S' s = None"
         by (simp add: S2_invocationOp a5)
-      show "procedure (prog S2) procName args \<triangleq> (initialState, impl)"
-        by (simp add: S2_prog a3)
-      show "uniqueIdsInList args \<subseteq> knownIds S2"
+      show "procedure (prog S) procName args \<triangleq> (initialState, impl)"
+        using a3 steps steps_do_not_change_prog by force
+      show "uniqueIdsInList args \<subseteq> knownIds S'"
         by (simp add: S2_knownIds a4)
-      show "invocationOp S2 s = None"
+      have "invocationOp S2 s = None"
         by (simp add: S2_invocationOp a5)
-      show "S'' = S2\<lparr>localState := localState S2(s \<mapsto> initialState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"
+      have "invocationOp S' s = None"
+        by (simp add: S2_invocationOp a5)
+      thus "invocationOp S s = None"
+        using steps steps_do_not_change_invocationOp by (metis not_Some_eq) 
+      show "S'' = S'\<lparr>localState := localState S'(s \<mapsto> initialState), currentProc := currentProc S'(s \<mapsto> impl), visibleCalls := visibleCalls S'(s \<mapsto> {}), invocationOp := invocationOp S'(s \<mapsto> (procName, args))\<rparr>"
         by (auto simp add: state_ext S2_simps a1 S2_vis')
-      show "invariant_all S2"
+      show "invariant_all S'"
         using ih3' inv_S' state_coupling_same_inv by auto
       show "True = invariant_all S''"
         by (metis append.right_neutral isPrefix_appendI local.step prefix_invariant steps steps.steps_step)
-      show "prog S2 = prog S2"
-        by simp
+      show "prog S' = prog S"
+        using steps steps_do_not_change_prog by blast
+      show "state_wellFormed S'"
+        using S_wf state_wellFormed_combine steps by auto
     qed
     
     
     
     show ?thesis 
     proof (intro exI conjI)
-      show "S ~~ (s, tr'@[(AInvoc procName args, True)]) \<leadsto>\<^sub>S* S''"
-        using step_s'
-        using ih1 steps_s_step by auto 
-      show " \<forall>a. (a, False) \<notin> set (tr' @ [(AInvoc procName args, True)])"
+      show "S ~~ (s, [(AInvoc procName args, True)]) \<leadsto>\<^sub>S* S''"
+        by (simp add: step_s' steps_s_single)
+      show " \<forall>a. (a, False) \<notin> set ([(AInvoc procName args, True)])"
         by (simp add: ih2)
       show "state_coupling S'' S'' s True"
       unfolding state_coupling_def  
@@ -944,6 +950,9 @@ next
           by (simp add: inv'')
         show "prog S' = prog S2"
           by simp
+        show "state_wellFormed S'"
+          using S_wf state_wellFormed_combine steps by auto
+          
       qed
       thus "S ~~ (s, tr'@[(AInvoc p ar, True)]) \<leadsto>\<^sub>S* S''"
         using ih1 steps_s_step by blast
@@ -1259,6 +1268,8 @@ next
       by (simp add: not_inv)
     show "prog S = prog S2" 
       using coupling by (auto simp add: state_coupling_def split: if_splits)
+    show "state_wellFormed S"
+      by (simp add: S_wellformed)
   qed    
     
   then show ?thesis

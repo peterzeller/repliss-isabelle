@@ -217,5 +217,17 @@ apply (erule step.cases)
 apply (auto split: if_splits)
 done
     
+lemma steps_do_not_change_invocationOp:
+assumes steps:"S ~~ tr \<leadsto>* S'"
+    and "invocationOp S i \<triangleq> x"
+shows "invocationOp S' i \<triangleq> x"
+using assms proof (induct rule: steps.induct)
+  case (steps_refl S)
+  then show ?case by simp
+next
+  case (steps_step S tr S' a S'')
+  then show ?case by (auto simp add: step.simps)
+qed
+
 
 end

@@ -343,8 +343,7 @@ next
     
    
   have  wf: "state_wellFormed_s initS i"
-    using initS state_wellFormed_s_def steps_s_refl by blast  
-    
+    using initS initialStates_wf steps_s_refl by blast
     
     
   from `initS ~~ (i, trace) \<leadsto>\<^sub>S* S_fin`
@@ -513,7 +512,8 @@ next
 qed
   
   
-    
+lemma "\<lbrakk>\<not>P; P\<rbrakk> \<Longrightarrow> False"
+by simp
   
     
 lemma show_program_correct_single_invocation:
@@ -530,11 +530,35 @@ proof (auto simp add: programCorrect_s_def)
     
     with steps
     obtain S_init 
-      where "initialState program ~~ (i, a) \<leadsto>\<^sub>S S_init"
-        and "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S_fin"
+      where step1: "initialState program ~~ (i, a) \<leadsto>\<^sub>S S_init"
+        and steps': "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S_fin"
       using steps_s_cons_simp by blast
     
-    obtain p args where "a = (AInvoc p args, True)"
+    find_theorems isAInvoc
+      
+    thm invocations_only_in_beginning[OF steps, where j=0, simplified]
+    have "isAInvoc (fst (trace ! 0))"
+    proof (rule invocations_only_in_beginning[OF steps, where j=0, simplified])
+      show "state_wellFormed_s (initialState program) i"
+        using state_wellFormed_s_def steps_s_refl by blast
+      show "invocationOp (initialState program) i = None"
+        by (simp add: initialState_def)
+      show "trace \<noteq> [] "
+        by (simp add: trace_def)
+    qed
+    from this
+    obtain p args invInitial where a_def: "a = (AInvoc p args, invInitial)"
+      by (cases a, auto simp add: trace_def isAInvoc_def split: action.splits)
+    
+   
+    from step1 and a_def
+    have "invInitial"
+      apply (auto simp add: step_s.simps)
+      apply (erule notE, rule initialCorrect[where i=i])
+      apply (auto simp add: initialStates_def )
+      by (rule_tac x="C'" in exI, auto simp add: initialState_def)
+      
+      
   
   }
   
