@@ -1,20 +1,8 @@
 theory example_userbase
-imports approach single_invocation_correctness
+imports invariant_simps
 begin
 
 
-definition 
-"i_callOriginI ctxt c \<equiv> 
-  case i_callOrigin ctxt c of Some t \<Rightarrow> i_transactionOrigin ctxt t | None \<Rightarrow> None"
-
-text {* lifting the happensBefore relation on database-calls to the level of invocations. *}
-definition 
-"invocation_happensBefore ctxt \<equiv> 
-  {(x,y). (\<exists>c. i_callOriginI ctxt c \<triangleq> x) 
-        \<and> (\<exists>c. i_callOriginI ctxt c \<triangleq> y) 
-        \<and> (\<forall>cx cy. i_callOriginI ctxt cx \<triangleq> x
-                 \<and> i_callOriginI ctxt cy \<triangleq> y
-                 \<longrightarrow> (cx,cy)\<in>happensBefore ctxt)}"
 
 
 (* ^^^^ *)
@@ -231,7 +219,13 @@ proof (rule show_correctness_via_single_session)
         using example_userbase.inv_def by blast
       thus "inv1 (invContextVis S vis)"
         apply (auto simp add: inv1_def  split: if_splits)
+        apply (auto simp add: invariant_simps)
+        
+        
         apply (auto simp add: invContextH_def invocation_happensBefore_def i_callOriginI_def )
+        
+        
+        
         apply (subst(asm) invariantContext.simps)+
         apply (auto simp add: restrict_relation_def restrict_map_def)
         
