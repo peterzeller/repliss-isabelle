@@ -80,38 +80,22 @@ by (auto simp add: initialState_def step_simps_all state_wellFormed_invocation_b
     
 text {* Coupling invariant: S is state from distributed execution and S is state from single-invocation execution.  *}
 definition state_coupling :: "('ls,'any) state \<Rightarrow> ('ls,'any) state \<Rightarrow> invocation \<Rightarrow> bool \<Rightarrow> bool" where
-"state_coupling S S' s sameSession \<equiv> 
+"state_coupling S S' i sameSession \<equiv> 
    if sameSession then
       (* did a step in the same invocation *)
-      if currentTransaction S s = None 
-      then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S s orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(s := vis') \<rparr> (* TODO maybe can get equality here*)
+      if currentTransaction S i = None 
+      then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S i orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(i := vis') \<rparr> (* TODO maybe can get equality here*)
       else S' = S
    else 
       (* did step in a different invocation *)
-      (*monotonic growth of calls*)
-        (\<forall>c i. calls S' c \<triangleq> i \<longrightarrow> calls S c \<triangleq> i)
-      (*monotonic growth of happensBefore 
-         --> no new calls can be added before existing calls *)
-      \<and> (\<forall>c1 c2. c2\<in>dom (calls S') \<longrightarrow> ((c1,c2)\<in>happensBefore S \<longleftrightarrow> (c1,c2)\<in>happensBefore S'))
-      (* monotonic growth of callOrigin *)
-      \<and> (\<forall>c t. callOrigin S' c \<triangleq> t \<longrightarrow> callOrigin S c \<triangleq> t)
-      (* monotonic growth of generatedIds *)
-      \<and> generatedIds S' \<subseteq> generatedIds S
-      (* growth of known ids *)
-      \<and> knownIds S' \<subseteq> knownIds S
-      (* monotonic growth of invocationOp *)
-      \<and> (\<forall>s i. invocationOp S' s \<triangleq> i \<longrightarrow> invocationOp S s \<triangleq> i)
-      (* monotonic growth of invocationRes *)
-      \<and> (\<forall>s i. invocationRes S' s \<triangleq> i \<longrightarrow> invocationRes S s \<triangleq> i)
-      (* transactionStatus ??? may change, irrelevant *)
-      \<and> (\<forall>tx. transactionStatus S' tx \<le> transactionStatus S tx )
+        state_monotonicGrowth S' S
       (* local state on s unchanged *)
-      \<and> localState S s = localState S' s
-      \<and> currentProc S s = currentProc S' s
-      \<and> currentTransaction S s = currentTransaction S' s
-      \<and> prog S = prog S'
+      \<and> localState S i = localState S' i
+      \<and> currentProc S i = currentProc S' i
+      \<and> currentTransaction S i = currentTransaction S' i
       "
-  
+
+
 (*
 
 record operationContext = 
@@ -506,7 +490,7 @@ next
         using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' by auto
         
       show "state_monotonicGrowth S2 newS"
-        by (auto simp add: state_monotonicGrowth_def S2_invocationOp newS_def)
+        using ih3 by (auto simp add: state_coupling_def state_monotonicGrowth_def S2_invocationOp newS_def a6 split: if_splits)
         
         
     qed
@@ -879,14 +863,14 @@ next
         show "transactionStatus S2 tx = None"
         proof -
           from ih3 have "transactionStatus S2 tx \<le> transactionStatus S' tx"
-            by (auto simp add: state_coupling_def)
-        
+            by (auto simp add: state_coupling_def state_monotonicGrowth_transactionStatus)
           with a6
           show ?thesis
             by (simp add: less_eq_option_None_is_None)
         qed
         show "prog S'' = prog S2"
-          using ih3  prog_inv[OF local.step]  by (auto simp add: state_coupling_def)
+          using ih3  prog_inv[OF local.step]
+            by (simp add: state_coupling_def state_monotonicGrowth_prog)
         show "invariant_all S''"
           using inv'' by blast
         show "localState S'' s \<triangleq> ls'"
@@ -900,8 +884,7 @@ next
         show "state_wellFormed S''"
           using S_wf state_wellFormed_combine steps' by blast
         show "state_monotonicGrowth S2 S''"
-          using ih3 by (auto simp add: state_monotonicGrowth_def map_le_def a1 state_coupling_def)
-          
+          using ih3 by (auto simp add:  map_le_def a1 state_coupling_def state_monotonicGrowth_def \<open>transactionStatus S2 tx = None\<close>)
       qed
         
       thus "S ~~ (s, tr'@[(ABeginAtomic tx txns, True)]) \<leadsto>\<^sub>S*  S''"
@@ -933,10 +916,10 @@ next
       have "S2 ~~ (s, AInvoc p ar, True) \<leadsto>\<^sub>S S''"
       proof (rule step_s.intros)
         have "\<And>p. invocationOp S2 s \<noteq> Some p"
-          using a5 ih3  by (fastforce simp add : state_coupling_def)
+          using a5 ih3  by (metis option.distinct(1) state_coupling_def state_monotonicGrowth_invocationOp)  
         thus "invocationOp S2 s = None" by blast
         have [simp]: "prog S2 = prog S'"
-          using ih3 by (auto simp add: state_coupling_def)
+          using ih3 state_coupling_def state_monotonicGrowth_prog by force 
         show "procedure (prog S2) p ar \<triangleq> (initial, impl)"
           using a3 state_coupling_def by auto
         show "uniqueIdsInList ar \<subseteq> knownIds S'"
@@ -974,27 +957,27 @@ next
   text {* no matter what he had before, the coupling with "False" will hold: *}
   from ih3'
   have old_coupling: "state_coupling S' S2 s False"
-    by (auto simp add: state_coupling_def split: if_splits)
+    by (auto simp add: state_coupling_def state_monotonicGrowth_def split: if_splits)
   
   from step
   have new_coupling: "state_coupling S'' S2 s False"
   proof (induct rule: step.cases) (* prove this with a case distinction on the action *)
     case (local C s ls f ls')
     then show ?case 
-      using old_coupling different_session by (auto simp add: state_coupling_def)
+      using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (newId C s ls f ls' uid)
     thus ?case 
-      using old_coupling different_session by (auto simp add: state_coupling_def)
+      using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (beginAtomic C s ls f ls' t)
     then show ?case using old_coupling different_session 
-      apply (auto simp add: state_coupling_def )
+      apply (auto simp add: state_coupling_def state_monotonicGrowth_def)
       by (metis less_eq_option_None_code less_eq_option_Some_None not_None_eq)
   next
     case (endAtomic C s ls f ls' t)
     then show ?case using old_coupling different_session 
-      apply (auto simp add: state_coupling_def)
+      apply (auto simp add: state_coupling_def state_monotonicGrowth_def)
       by (metis domD domIff less_eq_option_None less_eq_option_None_code less_eq_option_Some less_eq_transactionStatus_def)
   next
     case (dbop C s ls f Op args ls' t c res vis)
@@ -1004,13 +987,13 @@ next
       using S_wf dbop.hyps(1) state_wellFormed_combine steps wellFormed_callOrigin_dom2 by blast
       
     hence "callOrigin S2 c = None"
-      using dbop.hyps(1) old_coupling by (fastforce simp add: state_coupling_def)
+      using dbop.hyps(1) old_coupling state_coupling_def state_monotonicGrowth_callOrigin2 by force
       
     with dbop
-    show ?case using old_coupling different_session by (auto simp add: state_coupling_def)
+    show ?case using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (invocation C s procName args initialState impl)
-    then show ?case using old_coupling different_session by (auto simp add: state_coupling_def)
+    then show ?case using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (return C s ls f res)
     
@@ -1022,11 +1005,11 @@ next
       using  return.hyps(1) return.hyps(4)  state_wellFormed_no_result_when_running[OF `state_wellFormed S'`] steps by blast
     
     with return
-    show ?case using old_coupling different_session by (auto simp add: state_coupling_def)
+    show ?case using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (fail C s ls)
     
-    then show ?case using old_coupling different_session by (auto simp add: state_coupling_def)
+    then show ?case using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (invCheck C s vis res)
     then show ?case using old_coupling different_session by (auto simp add: state_coupling_def)
@@ -1252,10 +1235,10 @@ next
     have "localState S2 s = None"
       using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
     have "\<And>x. invocationOp S2 s \<noteq> Some x"      
-      using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
+      using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_invocationOp split: if_splits)
     thus "invocationOp S2 s = None" by blast     
     show "procedure (prog S2) procName args \<triangleq> (initialState, impl)"
-      using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
+      using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_prog split: if_splits)
     show "uniqueIdsInList args \<subseteq> knownIds S"
       using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
     show "invocationOp S s = None"
@@ -1267,7 +1250,7 @@ next
     show "False = invariant_all S'"
       by (simp add: not_inv)
     show "prog S = prog S2" 
-      using coupling by (auto simp add: state_coupling_def split: if_splits)
+      using coupling by (auto simp add: state_coupling_def state_monotonicGrowth_prog split: if_splits)
     show "state_wellFormed S"
       by (simp add: S_wellformed)
   qed    
@@ -1417,7 +1400,8 @@ proof -
   
   obtain as aa where a_def: "a = (as,aa)"
     by force
-  
+
+
   thm convert_to_single_session_trace
   obtain tr1' S1' 
     where tr1'_steps: "S ~~ (as, tr1') \<leadsto>\<^sub>S* S1'"
@@ -1432,7 +1416,8 @@ proof -
     show "\<And>S' tr1'. \<lbrakk>isPrefix tr1' tr1; S ~~ tr1' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
       using inv_before by auto
   qed
-  
+
+
   have tr1_packed: "packed_trace (tr1@[a])"     
   using packed proof (rule prefixes_are_packed)
     have "isPrefix (tr1 @ [a]) ((tr1 @ [a]) @ tr2)" by (rule isPrefix_appendI)

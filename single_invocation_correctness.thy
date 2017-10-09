@@ -214,7 +214,9 @@ using assms proof (induct rule: step_s_induct)
   then show ?case by auto
 next
   case (step tr S a S')
-  then show ?case by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
+  then show ?case apply (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
+    by (metis prod.collapse)
+
   
 qed
 

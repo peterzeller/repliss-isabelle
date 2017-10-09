@@ -43,8 +43,86 @@ definition consistentSnapshot where
    (* monotonic growth of invocation happens-before *)
    (*  --> no new calls can be added before*)
 definition state_monotonicGrowth :: "('localState, 'any) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
-"state_monotonicGrowth S S' = 
-  (invocationOp S \<subseteq>\<^sub>m invocationOp S') "
+"state_monotonicGrowth S' S \<equiv> 
+        
+      (*monotonic growth of calls*)
+        (\<forall>c i. calls S' c \<triangleq> i \<longrightarrow> calls S c \<triangleq> i)
+      (*monotonic growth of happensBefore 
+         --> no new calls can be added before existing calls *)
+      \<and> (\<forall>c1 c2. c2\<in>dom (calls S') \<longrightarrow> ((c1,c2)\<in>happensBefore S \<longleftrightarrow> (c1,c2)\<in>happensBefore S'))
+      (* monotonic growth of callOrigin *)
+      \<and> (\<forall>c t. callOrigin S' c \<triangleq> t \<longrightarrow> callOrigin S c \<triangleq> t)
+      (* monotonic growth of generatedIds *)
+      \<and> generatedIds S' \<subseteq> generatedIds S
+      (* growth of known ids *)
+      \<and> knownIds S' \<subseteq> knownIds S
+      (* monotonic growth of invocationOp *)
+      \<and> (\<forall>s i. invocationOp S' s \<triangleq> i \<longrightarrow> invocationOp S s \<triangleq> i)
+      (* monotonic growth of invocationRes *)
+      \<and> (\<forall>s i. invocationRes S' s \<triangleq> i \<longrightarrow> invocationRes S s \<triangleq> i)
+      (* transactionStatus ??? may change, irrelevant *)
+      \<and> (\<forall>tx. transactionStatus S' tx \<le> transactionStatus S tx )
+      \<and> prog S = prog S'"
+
+
+lemma state_monotonicGrowth_calls:
+  assumes "state_monotonicGrowth S' S"
+  shows "calls S' c \<triangleq> info \<Longrightarrow> calls S c \<triangleq> info"
+  using assms by (auto simp add: state_monotonicGrowth_def)
+
+lemma state_monotonicGrowth_happensBefore:
+  assumes "state_monotonicGrowth S' S"
+  shows "c2\<in>dom (calls S') \<Longrightarrow> ((c1,c2)\<in>happensBefore S \<longleftrightarrow> (c1,c2)\<in>happensBefore S')"
+  using assms by (auto simp add: state_monotonicGrowth_def)
+
+lemma state_monotonicGrowth_callOrigin:
+  assumes "state_monotonicGrowth S' S"
+  shows "callOrigin S' c \<triangleq> t \<Longrightarrow> callOrigin S c \<triangleq> t"
+  using assms by (auto simp add: state_monotonicGrowth_def)
+
+lemma state_monotonicGrowth_callOrigin2:
+  assumes "state_monotonicGrowth S' S"
+  shows "callOrigin S c = None \<Longrightarrow> callOrigin S' c = None"
+  using assms domIff state_monotonicGrowth_callOrigin by fastforce 
+
+lemma state_monotonicGrowth_generatedIds:
+  assumes "state_monotonicGrowth S' S"
+  shows "generatedIds S' \<subseteq> generatedIds S"
+  using assms by (auto simp add: state_monotonicGrowth_def)
+
+
+lemma state_monotonicGrowth_knownIds:
+  assumes "state_monotonicGrowth S' S"
+  shows "knownIds S' \<subseteq> knownIds S"
+  using assms by (auto simp add: state_monotonicGrowth_def)
+
+
+lemma state_monotonicGrowth_invocationOp:
+  assumes "state_monotonicGrowth S' S"
+  shows "invocationOp S' s \<triangleq> info \<Longrightarrow> invocationOp S s \<triangleq> info"
+  using assms state_monotonicGrowth_def by blast
+
+lemma state_monotonicGrowth_invocationRes:
+  assumes "state_monotonicGrowth S' S"
+  shows "invocationRes S' s \<triangleq> info \<Longrightarrow> invocationRes S s \<triangleq> info"
+  using assms by (auto simp add: state_monotonicGrowth_def)
+
+lemma state_monotonicGrowth_transactionStatus:
+  assumes "state_monotonicGrowth S' S"
+  shows "transactionStatus S' tx \<le> transactionStatus S tx"
+  using assms by (auto simp add: state_monotonicGrowth_def)
+
+
+lemma state_monotonicGrowth_prog:
+  assumes "state_monotonicGrowth  S' S"
+  shows "prog S = prog S'"
+  using assms by (auto simp add: state_monotonicGrowth_def)
+
+lemma state_monotonicGrowth_invocationOp2:
+  assumes "state_monotonicGrowth  S' S"
+  shows "(invocationOp S' \<subseteq>\<^sub>m invocationOp S) "
+  using assms by (auto simp add: state_monotonicGrowth_def map_le_def)
+
 
 
 text {* Invariant holds for all possible (causally + transaction consistent) states *}
