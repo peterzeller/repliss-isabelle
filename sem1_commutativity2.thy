@@ -3266,7 +3266,7 @@ using example proof (induct "bound - j" arbitrary: j)
 next
   case (Suc i)
   then show ?case
-    by (metis GreatestI Greatest_le bounded leI less_le_trans) 
+    by (metis bounded bounded_Max_nat)
 qed
 
     

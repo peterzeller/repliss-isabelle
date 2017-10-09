@@ -2035,21 +2035,17 @@ next
   qed
 qed
 
+lemma GreatestI: 
+"\<lbrakk>P k; \<forall>y. P y \<longrightarrow> y < b\<rbrakk> \<Longrightarrow> P (GREATEST x. P x)"
+for k :: nat
+  by (metis GreatestI_nat le_eq_less_or_eq)
            
 lemma GreatestI2:
 assumes example: "Q k"
    and impl: "\<And>i. Q i \<Longrightarrow> P i"
    and bound: "\<And>i. Q i \<Longrightarrow> i < bound"
-shows "P (GREATEST x::nat. Q x)"
-proof -
-  
-  have "Q (GREATEST x::nat. Q x)"
-  using example proof (rule GreatestI)
-    show "\<forall>y. Q y \<longrightarrow> y < bound" using bound by simp
-  qed
-  thus "P (GREATEST x::nat. Q x)"
-    using impl by blast
-qed    
+ shows "P (GREATEST x::nat. Q x)"
+  using assms GreatestI by blast 
 
 lemma prefix_induct[case_names Nil snoc[IH]]:
 assumes empty: "P []"
