@@ -3649,7 +3649,7 @@ proof -
     by (auto simp add: failPos_fail step_simps)
       
   
-  text {* No remove all other invariant checks *}
+  text {* Now remove all other invariant checks *}
   define tr'' where "tr'' = filter (\<lambda>(s,a). \<not>is_AInvcheck a) tr'"
     
   from tr'_steps
