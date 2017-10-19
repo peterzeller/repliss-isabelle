@@ -281,6 +281,12 @@ lemma pc_init[simp]: "ls_pc lsInit = 0"
   by (simp add: lsInit_def)
 
 
+lemma is_message_update_vis_simps:
+"is_message_update (mkContext (invContextH co   to  ts  hb  cs  kids  iop  ires (Some vis))) c m
+\<longleftrightarrow> is_message_updateH cs c m \<and> isCommittedH co ts c \<and> c \<in> vis"
+  by (auto simp add: mkContext_def invContextH_def restrict_map_def is_message_updateH_def commitedCallsH_def)
+
+
 theorem "programCorrect progr"
 proof (rule show_correctness_via_single_session)
   have [simp]: "invariant progr = inv" by (simp add: progr_def)
@@ -414,9 +420,22 @@ proof (rule show_correctness_via_single_session)
             have [simp]: "prog S' = progr"
               by (simp add: c3)
 
+            have "state_wellFormed S" 
+              sorry
+
+            have "callOrigin S c \<noteq> Some t" for c
+              using `transactionStatus S t = None` `state_wellFormed S`
+              using wellFormed_state_callOrigin_transactionStatus by blast  
+
+            hence no_calls_in_t: "callOrigin S' c \<noteq> Some t" for c
+              sorry (* TODO add this to beginAtomic rule, other invocations cannot add to this transaction *)
+
+
+
+            (* TODO  consistentSnapshot of vis without current transaction should always be a consistent snapshot*)
             have "consistentSnapshot S' (visa - {c,ca})"
             proof (auto simp add: consistentSnapshot_def)
-              show "\<And>x. \<lbrakk>x \<in> visa; calls S' x = None; x \<noteq> c\<rbrakk> \<Longrightarrow> x = ca"
+              show visa_subset_calls: "\<And>x. \<lbrakk>x \<in> visa; calls S' x = None; x \<noteq> c\<rbrakk> \<Longrightarrow> x = ca"
                 using c14 by (auto simp add: consistentSnapshot_def)
 
               from c14 have cc: "causallyConsistent (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca})) visa"
@@ -437,6 +456,7 @@ proof (rule show_correctness_via_single_session)
               show "transactionConsistent (callOrigin S') (transactionStatus S') (visa - {c, ca})"
               proof (auto simp add: transactionConsistent_def)
 
+                
                 show "transactionStatus S' tx \<triangleq> Commited"
                   if c0: "cb \<in> visa"
                     and c1: "cb \<noteq> c"
@@ -466,13 +486,37 @@ proof (rule show_correctness_via_single_session)
                     by auto
                 qed
 
+                have callOrigin_exists: "callOrigin S' c1 \<noteq> None" 
+                  if c0: "c1 \<in> visa"
+                    and c1: "c1 \<noteq> c"
+                    and c2: "c1 \<noteq> ca" 
+                  for c1
+                  using `state_wellFormed S'`
+                  using visa_subset_calls c0 c1 c2 wellFormed_callOrigin_dom by fastforce
+
                 show "c2 \<in> visa"
                   if c0: "c1 \<in> visa"
                     and c1: "c1 \<noteq> c"
                     and c2: "c1 \<noteq> ca"
                     and c3: "callOrigin S' c1 = callOrigin S' c2"
                   for  c1 c2
-                  sorry
+                proof (rule transactionConsistent_all_from_same[OF tc c0 ])
+                  have "callOrigin S' c1 \<noteq> None"
+                    using callOrigin_exists[OF c0 c1 c2] .
+                  hence "callOrigin S' c2 \<noteq> None"
+                    by (simp add: c3)
+
+                  have [simp]: "c2 \<noteq> c"
+                    using  `callOrigin S' c2 \<noteq> None` `state_wellFormed S'` `calls S' c = None`
+                    by auto
+
+                  have [simp]: "c2 \<noteq> ca"
+                    using `callOrigin S' c2 \<noteq> None` `state_wellFormed S'` `calls S' ca = None`
+                    by auto
+
+                  show "(callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) c1 = (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) c2"
+                    by (auto simp add: c1 c2 c3)
+                qed
 
                 show "False"
                   if c0: "c1 \<in> visa"
@@ -480,7 +524,15 @@ proof (rule show_correctness_via_single_session)
                     and c2: "c1 \<noteq> ca"
                     and c3: "callOrigin S' c1 = callOrigin S' c"
                   for  c1
-                  sorry
+                proof-
+                  from `calls S' c = None`
+                  have "callOrigin S' c = None"
+                    using `state_wellFormed S'`
+                    by simp 
+
+                  with callOrigin_exists[OF c0 c1 c2] and c3
+                  show False by simp
+                qed
 
                 show "False"
                   if c0: "c1 \<in> visa"
@@ -488,18 +540,82 @@ proof (rule show_correctness_via_single_session)
                     and c2: "c1 \<noteq> ca"
                     and c3: "callOrigin S' c1 = callOrigin S' ca"
                   for  c1
-                  sorry
+                  proof-
+                  from `calls S' ca = None`
+                  have "callOrigin S' ca = None"
+                    using `state_wellFormed S'`
+                    by simp 
+
+                  with callOrigin_exists[OF c0 c1 c2] and c3
+                  show False by simp
+                qed
               qed
+            qed
 
 
-
-            from `invariant_all S'` have "inv (invContextVis S' (visa - {c,ca}))"
-              apply (auto simp add: invariant_all_def)
+            with `invariant_all S'` 
+            have oldInv: "inv (invContextVis S' (visa - {c,ca}))"
+              by (auto simp add: invariant_all_def)
+            hence old_inv1: "inv1 (invContextVis S' (visa - {c, ca}))"
+              and  old_inv2: "inv2 (invContextVis S' (visa - {c, ca}))"
+              and old_inv2_h1: "inv2_h1 (invContextVis S' (visa - {c, ca}))"
+              by (auto simp add: inv_def)
 
             show "inv1 (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited)) (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca}))
-           (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa)) (knownIds S') (invocationOp S')
-           (invocationRes S') (Some visa))"
-              apply (auto simp add: inv1_def crdtSpec_chat_contains_h_def  crdtSpec_message_exists_h_def mkContext_simps)
+             (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa)) (knownIds S') (invocationOp S')
+             (invocationRes S') (Some visa))"
+            proof (auto simp add: inv1_def)
+              fix cb m
+              assume "crdtSpec_chat_contains_h [cb, m]
+             (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                          (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca}))
+                          (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa))
+                          (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
+
+              from this obtain cc 
+                where cc1: "isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) cc"
+                  and cc2: "cc \<in> visa"
+                  and cc3: "calls S' cc \<triangleq> Call ''chat_add'' [cb, m] Undef"
+                by (auto simp add: crdtSpec_chat_contains_h_def mkContext_simps split: if_splits)
+
+              have [simp]: "cc \<noteq> ca" 
+                using `calls S' cc \<triangleq> Call ''chat_add'' [cb, m] Undef`
+                using c12 by auto
+              have [simp]: "cc \<noteq> c" 
+                using `calls S' cc \<triangleq> Call ''chat_add'' [cb, m] Undef`
+                using c8 by auto
+
+              hence "crdtSpec_chat_contains_h [cb, m] (mkContext (invContextVis S' (visa - {c, ca})))"
+                apply (auto simp add: crdtSpec_chat_contains_h_def mkContext_simps)
+                apply (rule_tac x=cc in exI)
+                apply (auto simp add: cc2 cc3)
+                using cc1 apply (auto simp add: isCommittedH_def no_calls_in_t split: if_splits)
+                done
+
+              with old_inv1
+              have "crdtSpec_message_exists_h [m] (mkContext (invContextVis S' (visa - {c, ca})))"
+                by (auto simp add: inv1_def)
+
+              thus "crdtSpec_message_exists_h [m]
+             (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                          (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca}))
+                          (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa))
+                          (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
+                apply (auto simp add: crdtSpec_message_exists_h_def mkContext_simps is_message_update_vis_simps)
+                 apply (auto simp add: is_message_updateH_def isCommittedH_def)
+                by (metis no_calls_in_t)
+            qed
+
+
+(*
+cc \<in> visa \<Longrightarrow>
+          (if cc = ca then Some (Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa)
+           else (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True))) cc) \<triangleq>
+          Call ''chat_add'' [cb, m] Undef*)
+              using old_inv1 apply (auto simp add: inv1_def crdtSpec_chat_contains_h_def  crdtSpec_message_exists_h_def mkContext_simps is_message_update_vis_simps)
+                 apply (auto simp add: is_message_updateH_def)[1]
+
+
               
               find_theorems calls mkContext
 
