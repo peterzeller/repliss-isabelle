@@ -229,5 +229,29 @@ next
   then show ?case by (auto simp add: step.simps)
 qed
 
+lemma wf_no_transactionStatus_origin_for_nothing:
+  assumes wf: "state_wellFormed S"
+and txStatusNone: "transactionStatus S txId = None"
+shows "callOrigin S c \<noteq> Some txId"
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case by (auto simp add: step.simps split: if_splits)
+qed
+
+lemma wf_callOrigin_implies_transactionStatus_defined:
+  assumes wf: "state_wellFormed S"
+and co:  "callOrigin S c = Some txId"
+shows "transactionStatus S txId \<noteq> None" 
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case by (auto simp add: step.simps split: if_splits)
+qed
+
 
 end

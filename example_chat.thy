@@ -415,20 +415,15 @@ proof (rule show_correctness_via_single_session)
               and c12: "calls S' ca = None"
               and c13: "crdtSpec ''message_content_assign'' [MessageId mId, ls_content lsInit] (getContextH (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True))) (happensBefore S' \<union> vis \<times> {c}) (Some (insert c vis))) resa"
               and c14: "consistentSnapshot (S'\<lparr>calls := calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa), callOrigin := callOrigin S'(c \<mapsto> t, ca \<mapsto> t), visibleCalls := visibleCalls S'(i \<mapsto> insert ca (insert c vis)), happensBefore := insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca}), localState := localState S'(i \<mapsto> lsInit\<lparr>ls_id := MessageId mId, ls_pc := 4\<rparr>), currentTransaction := (currentTransaction S')(i := None), transactionStatus := transactionStatus S'(t \<mapsto> Commited)\<rparr>) visa"
+              and c15: "\<forall>c. callOrigin S' c \<noteq> Some t"
             for  t S' c vis ca resa visa
           proof (auto simp add: inv_def)
             have [simp]: "prog S' = progr"
               by (simp add: c3)
 
-            have "state_wellFormed S" 
-              sorry
-
-            have "callOrigin S c \<noteq> Some t" for c
-              using `transactionStatus S t = None` `state_wellFormed S`
-              using wellFormed_state_callOrigin_transactionStatus by blast  
 
             hence no_calls_in_t: "callOrigin S' c \<noteq> Some t" for c
-              sorry (* TODO add this to beginAtomic rule, other invocations cannot add to this transaction *)
+              using c15 by blast
 
 
 
@@ -464,14 +459,13 @@ proof (rule show_correctness_via_single_session)
                     and c3: "callOrigin S' cb \<triangleq> tx"
                   for  cb tx
                 proof - 
-                  from `callOrigin S' cb \<triangleq> tx` 
-                  have "transactionStatus S tx \<noteq> None"
-                    (* TODO this should be a wf-invariant *)
-                    sorry
+                  from `state_wellFormed S'` `callOrigin S' cb \<triangleq> tx` 
+                  have "transactionStatus S' tx \<noteq> None"
+                    using wf_callOrigin_implies_transactionStatus_defined by blast
 
                   with `transactionStatus S t = None`
                   have "tx \<noteq> t"
-                    by blast
+                    using c3 no_calls_in_t by blast
 
                   have "(transactionStatus S'(t \<mapsto> Commited)) tx \<triangleq> Commited"
                   proof (rule transactionConsistent_Commited[OF tc `cb \<in> visa`])
@@ -606,6 +600,33 @@ proof (rule show_correctness_via_single_session)
                 by (metis no_calls_in_t)
             qed
 
+            show "inv2 (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited)) (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca}))
+           (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa)) (knownIds S')
+           (invocationOp S') (invocationRes S') (Some visa))"
+            proof (auto simp add: inv2_def)
+              fix m
+              assume "crdtSpec_message_exists_h [m]
+          (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                       (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca}))
+                       (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa))
+                       (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
+
+              hence "crdtSpec_message_exists_h [m] (mkContext (invContextVis S' (visa - {c, ca})))"
+                apply (auto simp add: crdtSpec_message_exists_h_def mkContext_simps is_message_update_vis_simps split: if_splits)
+                apply (auto simp add: is_message_updateH_def)
+
+                find_theorems is_message_update
+
+              from old_inv2
+              have "???"
+                apply (auto simp add: inv2_def )
+
+              show "\<exists>a. crdtSpec_message_author_read [m]
+              (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                           (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca}))
+                           (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa))
+                           (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))
+              (ListVal [a])"
 
 (*
 cc \<in> visa \<Longrightarrow>

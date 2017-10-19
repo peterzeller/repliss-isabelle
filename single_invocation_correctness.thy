@@ -38,6 +38,7 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
               \<and> currentTransaction S' i \<triangleq> t
               \<and> transactionStatus S' t \<triangleq> Uncommited
               \<and> transactionOrigin S' t \<triangleq> i
+              \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
               \<longrightarrow> checkCorrect progr S' i bound)
         | EndAtomic ls \<Rightarrow> 
             (case currentTransaction S i of
@@ -108,6 +109,7 @@ lemma checkCorrectAll_simps:
               \<and> currentTransaction S' i \<triangleq> t
               \<and> transactionStatus S' t \<triangleq> Uncommited
               \<and> transactionOrigin S' t \<triangleq> i
+              \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
               \<longrightarrow> checkCorrectAll progr S' i)
         | EndAtomic ls \<Rightarrow> 
             (case currentTransaction S i of

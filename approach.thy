@@ -494,7 +494,19 @@ next
         
       show "currentProc newS s \<triangleq> f"
         by (simp add: a3 newS_def)
-  
+
+
+      have "state_wellFormed S'"
+        using S_wf state_wellFormed_combine steps by auto
+
+      have "\<And>c. callOrigin S' c \<noteq> Some txId"
+        using `transactionStatus S' txId = None` `state_wellFormed S'`
+        by (simp add: wf_no_transactionStatus_origin_for_nothing)
+
+
+      thus "\<And>c. callOrigin newS c \<noteq> Some txId"
+        by (simp add: newS_def)
+
     qed
     
     moreover have "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
@@ -889,6 +901,9 @@ next
           using ih3 by (auto simp add:  map_le_def a1 state_coupling_def state_monotonicGrowth_def \<open>transactionStatus S2 tx = None\<close>)
         show "currentProc S'' s \<triangleq> f"
           by (simp add: a1 a3)
+        show "\<And>c. callOrigin S'' c \<noteq> Some tx"
+          using S_wf a6 state_wellFormed_combine steps wf_callOrigin_implies_transactionStatus_defined a1 by (auto, blast)
+
       qed
         
       thus "S ~~ (s, tr'@[(ABeginAtomic tx txns, True)]) \<leadsto>\<^sub>S*  S''"

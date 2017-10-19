@@ -180,6 +180,7 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    currentProc C' s \<triangleq> f;
    currentTransaction C' s \<triangleq> t;
    transactionStatus C' t \<triangleq> Uncommited;
+   \<And>c. callOrigin C' c \<noteq> Some t;
    transactionOrigin C' t \<triangleq> s
    \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t txns, True) \<leadsto>\<^sub>S C'"
 | endAtomic: 
