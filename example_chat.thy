@@ -621,14 +621,16 @@ proof (rule show_correctness_via_single_session)
                 have "crdtSpec_message_exists_h [m] (mkContext (invContextVis S' (visa - {c, ca})))"
                   apply (auto simp add: crdtSpec_def crdtSpec_message_exists_def crdtSpec_message_exists_h_def mkContext_simps is_message_update_vis_simps)
 
-                   apply (auto simp add: is_message_updateH_simp isCommittedH_def `calls S' c = None` split: option.splits if_splits)
+                   apply (auto simp add: is_message_updateH_simp isCommittedH_def  split: option.splits if_splits)
                    apply (rule_tac x=cb in exI)
                    apply (rule_tac x=x2 in exI)
                    apply (auto simp add: getContextH_def restrict_map_def split: option.splits if_splits)[1]
                       apply (metis c10 c15 c2 c6 domIff not_None_eq wellFormed_callOrigin_dom wellFormed_state_transaction_consistent(1))(* TODO general*)
                   using \<open>vis \<subseteq> visa\<close> apply auto[1]
-                  apply (simp add: ) 
+                    apply (simp add: `calls S' c = None`)
+                   apply (simp add: `calls S' ca = None`) 
 
+apply (auto simp add: getContextH_def restrict_map_def split: option.splits if_splits)[1]
 
 
 
