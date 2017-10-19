@@ -125,15 +125,18 @@ definition crdtSpec_message_author_read :: "val list \<Rightarrow> val operation
 
 definition is_message_updateH  where
  (*:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where *)
-"is_message_updateH state_calls c mid \<equiv> 
-  case state_calls c of 
-     Some (Call upd (mid'#args) _) \<Rightarrow> upd \<in> {''message_author_assign'', ''message_content_assign'', ''message_chat_assign''} \<and> mid = mid' 
+"is_message_updateH mid c \<equiv> 
+  case c of 
+     Call upd (mid'#args) _ \<Rightarrow> upd \<in> {''message_author_assign'', ''message_content_assign'', ''message_chat_assign''} \<and> mid = mid' 
    | _ \<Rightarrow> False"
+
+lemma is_message_updateH_simp: "is_message_updateH mid (Call upd (mid'#args) res) \<longleftrightarrow> upd \<in> {''message_author_assign'', ''message_content_assign'', ''message_chat_assign''} \<and> mid = mid'"
+  by (auto simp add: is_message_updateH_def)
 
 
 abbreviation is_message_update :: "(val, 'b) operationContext_scheme \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where
  (*:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where *)
-"is_message_update ctxt \<equiv> is_message_updateH (calls ctxt)"
+"is_message_update ctxt c mId \<equiv> case calls ctxt c of Some call \<Rightarrow> is_message_updateH mId call | None \<Rightarrow> False "
 
 definition crdtSpec_message_exists_h :: "val list \<Rightarrow> val operationContext \<Rightarrow> bool" where
 "crdtSpec_message_exists_h args ctxt \<equiv> 
@@ -283,8 +286,8 @@ lemma pc_init[simp]: "ls_pc lsInit = 0"
 
 lemma is_message_update_vis_simps:
 "is_message_update (mkContext (invContextH co   to  ts  hb  cs  kids  iop  ires (Some vis))) c m
-\<longleftrightarrow> is_message_updateH cs c m \<and> isCommittedH co ts c \<and> c \<in> vis"
-  by (auto simp add: mkContext_def invContextH_def restrict_map_def is_message_updateH_def commitedCallsH_def)
+\<longleftrightarrow> (\<exists>call. cs c \<triangleq> call \<and>  is_message_updateH m call \<and> isCommittedH co ts c \<and> c \<in> vis)"
+  by (auto simp add: mkContext_def invContextH_def restrict_map_def is_message_updateH_def commitedCallsH_def split: option.splits)
 
 
 theorem "programCorrect progr"
@@ -596,7 +599,8 @@ proof (rule show_correctness_via_single_session)
                           (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa))
                           (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
                 apply (auto simp add: crdtSpec_message_exists_h_def mkContext_simps is_message_update_vis_simps)
-                 apply (auto simp add: is_message_updateH_def isCommittedH_def)
+                 apply (auto simp add: is_message_updateH_def isCommittedH_def split: option.splits)
+                 apply fastforce
                 by (metis no_calls_in_t)
             qed
 
@@ -605,15 +609,28 @@ proof (rule show_correctness_via_single_session)
            (invocationOp S') (invocationRes S') (Some visa))"
             proof (auto simp add: inv2_def)
               fix m
-              assume "crdtSpec_message_exists_h [m]
+              assume a_message_exists: "crdtSpec_message_exists_h [m]
           (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
                        (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca}))
                        (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa))
                        (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
 
-              hence "crdtSpec_message_exists_h [m] (mkContext (invContextVis S' (visa - {c, ca})))"
-                apply (auto simp add: crdtSpec_message_exists_h_def mkContext_simps is_message_update_vis_simps split: if_splits)
-                apply (auto simp add: is_message_updateH_def)
+              {
+                assume [simp]: "m = MessageId mId" and "vis \<subseteq> visa"
+                from `crdtSpec ''message_exists'' [MessageId mId] (getContextH (calls S') (happensBefore S') (Some vis)) (Bool True)`
+                have "crdtSpec_message_exists_h [m] (mkContext (invContextVis S' (visa - {c, ca})))"
+                  apply (auto simp add: crdtSpec_def crdtSpec_message_exists_def crdtSpec_message_exists_h_def mkContext_simps is_message_update_vis_simps)
+
+                   apply (auto simp add: is_message_updateH_simp isCommittedH_def `calls S' c = None` split: option.splits if_splits)
+                   apply (rule_tac x=cb in exI)
+                   apply (rule_tac x=x2 in exI)
+                   apply (auto simp add: getContextH_def restrict_map_def split: option.splits if_splits)[1]
+                      apply (metis c10 c15 c2 c6 domIff not_None_eq wellFormed_callOrigin_dom wellFormed_state_transaction_consistent(1))(* TODO general*)
+                  using \<open>vis \<subseteq> visa\<close> apply auto[1]
+                  apply (simp add: ) 
+
+
+
 
                 find_theorems is_message_update
 
