@@ -15,6 +15,7 @@ text {*
 
 
 
+
 (* check program (with a given start-state, bound by a number of steps) *)
 fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> nat \<Rightarrow> bool" where
 "checkCorrect progr S i 0 = True"
@@ -33,6 +34,7 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
               \<and> state_wellFormed S'
               \<and> state_monotonicGrowth S S'
               \<and> localState S' i \<triangleq> ls
+              \<and> currentProc S' i \<triangleq> impl
               \<and> currentTransaction S' i \<triangleq> t
               \<and> transactionStatus S' t \<triangleq> Uncommited
               \<and> transactionOrigin S' t \<triangleq> i
@@ -83,6 +85,98 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
             )
         ))
 "
+
+definition "checkCorrectAll progr S i \<equiv> \<forall>bound. checkCorrect progr S i bound"
+
+lemma checkCorrectAll_simps:
+"checkCorrectAll progr S i =
+(case currentProc S i of
+    None \<Rightarrow> True
+  | Some impl \<Rightarrow>
+      (case impl (the (localState S i)) of
+          LocalStep ls \<Rightarrow> 
+            checkCorrectAll progr (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>) i
+        | BeginAtomic ls \<Rightarrow> 
+            currentTransaction S i = None
+            \<and> (\<forall>t S'.
+                transactionStatus S t = None
+              \<and> invariant_all S'
+              \<and> state_wellFormed S'
+              \<and> state_monotonicGrowth S S'
+              \<and> localState S' i \<triangleq> ls
+              \<and> currentProc S' i \<triangleq> impl
+              \<and> currentTransaction S' i \<triangleq> t
+              \<and> transactionStatus S' t \<triangleq> Uncommited
+              \<and> transactionOrigin S' t \<triangleq> i
+              \<longrightarrow> checkCorrectAll progr S' i)
+        | EndAtomic ls \<Rightarrow> 
+            (case currentTransaction S i of
+                None \<Rightarrow> False
+              | Some t \<Rightarrow>
+                let S' = (S\<lparr>
+                  localState := (localState S)(i \<mapsto> ls), 
+                  currentTransaction := (currentTransaction S)(i := None),
+                  transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
+                invariant_all S'
+                \<and> checkCorrectAll progr S' i
+            )
+        | NewId ls \<Rightarrow> 
+          (\<forall>uid.
+            uid \<notin> generatedIds S
+            \<longrightarrow> checkCorrectAll progr (S\<lparr>localState := (localState S)(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid} \<rparr>) i
+          )
+        | DbOperation Op args ls \<Rightarrow> 
+           (case currentTransaction S i of
+                None \<Rightarrow> False
+              | Some t \<Rightarrow>
+                  (\<exists>res. querySpec progr Op args (getContext S i) res)
+                  \<and>
+                  (\<forall>c res vis. 
+                      calls S c = None
+                    \<and> querySpec progr Op args (getContext S i) res
+                    \<and> visibleCalls S i \<triangleq> vis
+                    \<longrightarrow> checkCorrectAll progr (S\<lparr>
+                          localState := (localState S)(i \<mapsto> ls res), 
+                          calls := (calls S)(c \<mapsto> Call Op args res ),
+                          callOrigin := (callOrigin S)(c \<mapsto> t),
+                          visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
+                          happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>) i
+                  )
+           )
+        | Return res \<Rightarrow> 
+            currentTransaction S i = None
+            \<and> (let S' = (S\<lparr>
+                 localState := (localState S)(i := None),
+                 currentProc := (currentProc S)(i := None),
+                 visibleCalls := (visibleCalls S)(i := None),
+                 invocationRes := (invocationRes S)(i \<mapsto> res),
+                 knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
+               invariant_all S'    
+            )
+        ))
+"
+  apply (auto simp add: checkCorrectAll_def)  
+   apply (auto simp add: checkCorrectAll_def Let_def split: option.splits localAction.splits action.splits)
+                    apply (drule_tac x="Suc bound" in spec; force)
+                   apply (drule_tac x="Suc 0" in spec; force)
+                  apply (drule_tac x="Suc bound" in spec; force split: option.splits)
+                 apply (drule_tac x="Suc 0" in spec; auto split: option.splits)
+                apply (drule_tac x="Suc 0" in spec; force split: option.splits)
+               apply (drule_tac x="Suc x" in spec; (auto simp add: Let_def split: option.splits)[1])
+              apply (drule_tac x="Suc bound" in spec; force)
+             apply (drule_tac x="Suc 0" in spec; force split: option.splits)
+            apply (drule_tac x="Suc 0" in spec; force)
+           apply (drule_tac x="Suc bound" in spec; force)
+          apply (drule_tac x="Suc 0" in spec; force)
+         apply (drule_tac x="Suc 0" in spec; force)
+        apply (case_tac bound, auto)
+       apply (case_tac bound; auto)
+      apply (case_tac bound; auto)
+     apply (case_tac bound; auto)
+    apply (case_tac bound; auto)
+   apply (case_tac bound; force)
+  apply (case_tac bound; force)
+  done
 
 
 lemma prog_invariant:
@@ -171,7 +265,8 @@ next
     case (beginAtomic ls f ls' t txns)
     then show ?thesis 
       using checkCorrect_S apply auto
-      using local.beginAtomic(13) by blast
+      using local.beginAtomic(13)
+      using local.beginAtomic(14) by blast
   next
     case (endAtomic ls f ls' t valid)
     then show ?thesis using checkCorrect_S by auto
@@ -518,9 +613,9 @@ lemma "\<lbrakk>\<not>P; P\<rbrakk> \<Longrightarrow> False"
 by simp
   
     
-lemma show_program_correct_single_invocation:
+lemma show_program_correct_single_invocation':
 assumes initialCorrect: "\<And>S i. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
-    and check: "\<And>bound S i. S\<in>initialStates program i \<Longrightarrow> checkCorrect program S i bound"
+    and check: "\<And>bound S i. \<lbrakk>S\<in>initialStates program i; invariant_all S; state_wellFormed S\<rbrakk> \<Longrightarrow> checkCorrect program S i bound"
 shows "programCorrect_s program"
 proof (auto simp add: programCorrect_s_def)
   fix trace i S_fin
@@ -573,8 +668,40 @@ proof (auto simp add: programCorrect_s_def)
         show "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S_fin" using steps' .
         show "\<And>S. S \<in> initialStates program i \<Longrightarrow> invariant_all S"
           using initialCorrect by blast
-        show "\<And>bound S. S \<in> initialStates program i \<Longrightarrow> checkCorrect program S i bound"
-          by (simp add: check)
+        show "checkCorrect program S i bound" if " S \<in> initialStates program i" for bound S
+          using `S \<in> initialStates program i` proof (rule check)
+          show " invariant_all S"
+            using initialCorrect `S \<in> initialStates program i` by blast
+          show "state_wellFormed S"
+          proof -
+            from `S \<in> initialStates program i` obtain S_pre initState impl procName args tr
+              where S_def: "S = S_pre\<lparr>localState := localState S_pre(i \<mapsto> initState), currentProc := currentProc S_pre(i \<mapsto> impl), visibleCalls := visibleCalls S_pre(i \<mapsto> {}),
+                 invocationOp := invocationOp S_pre(i \<mapsto> (procName, args))\<rparr>"
+                and "program = prog S_pre"
+                and implproc: "procedure (prog S_pre) procName args \<triangleq> (initState, impl)"
+                and uids: "uniqueIdsInList args \<subseteq> knownIds S_pre"
+                and "invariant_all S_pre"
+                and noInvOp: "invocationOp S_pre i = None"
+                and steps_pre: "initialState (prog S_pre) ~~ tr \<leadsto>* S_pre" 
+              apply (atomize_elim)
+              apply (auto simp add: initialStates_def state_wellFormed_def)
+              by blast
+
+            have "S_pre ~~ (i, AInvoc procName args) \<leadsto> S"
+              apply (auto simp add: step_simps S_def)
+              apply (rule_tac x="initState" in exI)
+              apply (rule_tac x="impl" in exI)
+              apply auto
+              using steps_pre noInvOp invocation_ops_if_localstate_nonempty apply blast
+              apply (simp add: implproc)
+              using uids apply auto[1]
+              by (simp add: noInvOp)
+
+            with steps_pre
+            show "state_wellFormed S"
+              using state_wellFormed_combine state_wellFormed_init steps_step by blast
+          qed
+        qed
         show "length tr < Suc (length tr)"
           by simp  
         show "0 < length tr" using `0 < length tr` .
@@ -601,7 +728,16 @@ proof (auto simp add: programCorrect_s_def)
 qed  
   
 
-
+lemma show_program_correct_single_invocation:
+assumes initialCorrect: "\<And>S i. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
+    and check: "\<And>bound S i. \<lbrakk>S\<in>initialStates program i; invariant_all S; state_wellFormed S\<rbrakk> \<Longrightarrow> checkCorrectAll program S i"
+shows "programCorrect_s program"
+proof (rule show_program_correct_single_invocation')
+  show "\<And>S i. S \<in> initialStates program i \<Longrightarrow> invariant_all S"
+    using initialCorrect by blast
+  show "\<And>bound S i. \<lbrakk>S \<in> initialStates program i; invariant_all S; state_wellFormed S\<rbrakk> \<Longrightarrow> checkCorrect program S i bound"
+    using check by (auto simp add: checkCorrectAll_def)
+qed  
 
 
 end

@@ -827,16 +827,16 @@ next
          apply atomize_elim
         using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
   have commitedSame: "commitedCalls B = commitedCalls A"        
-    apply (auto simp add: commitedCallsH_def  B_def)
+    apply (auto simp add: commitedCallsH_def isCommittedH_def  B_def)
     using "8" origin_inv by auto
   
   have commitedCallsSame: "\<And>x. x \<in> commitedCalls A \<Longrightarrow> calls A x = calls B x"
     apply (auto simp add: B_def)
-    using "8" commitedCallsH_def origin_inv
+    using "8" commitedCallsH_def isCommittedH_def origin_inv
     by (smt domI domIff mem_Collect_eq) 
   
   have [simp]: "callId \<notin> commitedCalls A"
-    by (smt "8" domIff commitedCallsH_def domI mem_Collect_eq origin_inv) 
+    by (smt "8" domIff commitedCallsH_def isCommittedH_def domI mem_Collect_eq origin_inv) 
     
         
   show ?thesis 
@@ -979,37 +979,37 @@ shows "(invContextSnapshot A txns) = (invContextSnapshot B txns)"
 proof (auto simp add: invContextH_def invContextSame_h[OF exec wellFormed 1 aIsNotCommit])
   have committed_same: "commitedCalls B = commitedCalls A"
     using exec apply (rule step.cases)
-    apply (auto simp add: commitedCallsH_def aIsNotCommit wellFormed)
+    apply (auto simp add: commitedCallsH_def  isCommittedH_def aIsNotCommit wellFormed)
     apply force
     done
     
   have committed_subset: "commitedCalls A \<subseteq> dom (calls A)"
-    apply (auto simp add: commitedCallsH_def aIsNotCommit wellFormed)
+    apply (auto simp add: commitedCallsH_def isCommittedH_def aIsNotCommit wellFormed)
     using wellFormed wellFormed_callOrigin_dom by fastforce
     
   
     
   show "calls A |` commitedCalls A = calls B |` commitedCalls B"
     using exec apply (rule step.cases)
-    apply (auto simp add: commitedCallsH_def aIsInTransaction aIsNotCommit )
+    apply (auto simp add: commitedCallsH_def isCommittedH_def aIsInTransaction aIsNotCommit )
     apply (metis option.inject transactionStatus.distinct(1) txIsUncommited)
     by (metis (no_types, lifting) option.distinct(1) wellFormed wellFormed_callOrigin_dom2)
   
   show "\<And>a b. (a, b) \<in> happensBefore A |r commitedCalls A \<Longrightarrow> (a, b) \<in> happensBefore B |r commitedCalls B"
     apply (simp add: committed_same)
     using exec apply (rule step.cases)
-    by (auto simp add: restrict_relation_def commitedCallsH_def)
+    by (auto simp add: restrict_relation_def )
     
   
   show "\<And>a b. (a, b) \<in> happensBefore B |r commitedCalls B \<Longrightarrow> (a, b) \<in> happensBefore A |r commitedCalls A"
     apply (simp add: committed_same)
     using exec apply (rule step.cases)
-    by (auto simp add: restrict_relation_def commitedCallsH_def wellFormed)
+    by (auto simp add: restrict_relation_def commitedCallsH_def isCommittedH_def wellFormed)
     
   show "callOrigin A |` commitedCalls A = callOrigin B |` commitedCalls B"
     apply (simp add: committed_same)
     using exec apply (rule step.cases)
-    apply (auto simp add:  commitedCallsH_def )
+    apply (auto simp add:  commitedCallsH_def isCommittedH_def)
     by (meson domI domIff wellFormed wellFormed_callOrigin_dom2)
     
     
@@ -1220,7 +1220,7 @@ assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
 shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs
     = invContextH co to ts hbOld cs ki io ir vcs"
 apply (simp add: invContextH_def)
-using assms apply (auto simp add: restrict_relation_def commitedCallsH_def)
+using assms apply (auto simp add: restrict_relation_def commitedCallsH_def isCommittedH_def)
 done  
 
 lemma invContext_unchanged_happensBefore2[simp]:
@@ -1228,14 +1228,14 @@ assumes "co c = None"
 shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs 
     = invContextH co to ts hbOld cs ki io ir vcs "
 apply (simp add: invContextH_def)
-using assms apply (auto simp add: restrict_relation_def commitedCallsH_def)
+using assms apply (auto simp add: restrict_relation_def commitedCallsH_def isCommittedH_def)
 done  
 
 lemma commitedCalls_uncommitedNotIn:
 assumes "callOrigin S c \<triangleq> t"
    and "transactionStatus S t \<triangleq> Uncommited"
 shows  "c \<notin> commitedCalls S"
-using assms by (auto simp add: commitedCallsH_def)
+using assms by (auto simp add: commitedCallsH_def isCommittedH_def)
     
    
 find_consts "'a \<Rightarrow> 'a option \<Rightarrow> 'a"
@@ -1251,11 +1251,11 @@ assumes a1: "calls S c = None"
     and a2: "state_wellFormed S"
 shows "c \<notin> commitedCalls S"
 using a1 a2
-  by (smt commitedCallsH_def domIff mem_Collect_eq option.simps(3) wellFormed_callOrigin_dom) 
+  by (smt commitedCallsH_def isCommittedH_def domIff mem_Collect_eq option.simps(3) wellFormed_callOrigin_dom) 
     
 lemma noOrigin_notCommited:
   "callOrigin S c = None \<Longrightarrow> c \<notin> commitedCalls S"  
-by (auto simp add: commitedCallsH_def)
+by (auto simp add: commitedCallsH_def isCommittedH_def)
   
 
   
@@ -1275,11 +1275,11 @@ shows "commutativeS S (sa, a) (sb, ALocal)"
 lemma commitedCallsH_notin[simp]:
 assumes "co c = None"
 shows "c \<notin> commitedCallsH co ts"
-  by (simp add: assms commitedCallsH_def)
+  by (simp add: assms commitedCallsH_def isCommittedH_def)
                                                      
 lemma commitedCallsH_in:
 shows "(c \<in> commitedCallsH co ts) \<longleftrightarrow> (case co c of None \<Rightarrow> False | Some t \<Rightarrow> ts t \<triangleq> Commited) "
-  by (auto simp add: commitedCallsH_def split: option.splits)
+  by (auto simp add: commitedCallsH_def isCommittedH_def split: option.splits)
     
 lemma invContextH_update_callOrigin[simp]:
 assumes "co c = None" and "ts t \<triangleq> Uncommited"
@@ -1297,7 +1297,7 @@ lemma commitedCallsH_update_uncommited[simp]:
 assumes "ts t = None"
 shows "commitedCallsH co (ts(t \<mapsto> Uncommited))
      = commitedCallsH co ts"
-using assms apply (auto simp add: commitedCallsH_def)
+using assms apply (auto simp add: commitedCallsH_def isCommittedH_def)
   by force
 
 

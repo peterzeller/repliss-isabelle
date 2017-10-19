@@ -182,7 +182,7 @@ lemma commitedCalls_unchanged_callOrigin[simp]:
 assumes a1: "ts t \<triangleq> Uncommited"
     and a2: "co c = None"
 shows "commitedCallsH (co(c \<mapsto> t)) ts = commitedCallsH co ts"
-using a1 a2 by (auto simp add: commitedCallsH_def)
+using a1 a2 by (auto simp add: commitedCallsH_def isCommittedH_def)
 
 lemma callOrigin_same_committed: 
 assumes exec: "A ~~ (sa, a) \<leadsto> B"

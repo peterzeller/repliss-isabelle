@@ -492,7 +492,9 @@ next
       show "state_monotonicGrowth S2 newS"
         using ih3 by (auto simp add: state_coupling_def state_monotonicGrowth_def S2_invocationOp newS_def a6 split: if_splits)
         
-        
+      show "currentProc newS s \<triangleq> f"
+        by (simp add: a3 newS_def)
+  
     qed
     
     moreover have "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
@@ -885,6 +887,8 @@ next
           using S_wf state_wellFormed_combine steps' by blast
         show "state_monotonicGrowth S2 S''"
           using ih3 by (auto simp add:  map_le_def a1 state_coupling_def state_monotonicGrowth_def \<open>transactionStatus S2 tx = None\<close>)
+        show "currentProc S'' s \<triangleq> f"
+          by (simp add: a1 a3)
       qed
         
       thus "S ~~ (s, tr'@[(ABeginAtomic tx txns, True)]) \<leadsto>\<^sub>S*  S''"
@@ -1183,7 +1187,7 @@ next
     have "transactionConsistent (callOrigin S) (transactionStatus S) vis'"
       apply (subst transactionConsistent_def)
       apply auto
-      using transactionConsistent_Commited \<open>c \<notin> vis'\<close> apply fastforce
+      using transactionConsistent_Commited \<open>c \<notin> vis'\<close> apply (metis (mono_tags, lifting) map_upd_Some_unfold)
       by (smt S_wellformed \<open>vis' \<subseteq> dom (calls S)\<close> domIff fun_upd_idem_iff fun_upd_triv fun_upd_twist local.dbop(7) subset_eq transactionConsistent_all_from_same wellFormed_callOrigin_dom)
       
       

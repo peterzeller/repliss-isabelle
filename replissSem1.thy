@@ -206,9 +206,14 @@ abbreviation "emptyInvariantContext \<equiv> \<lparr>
         i_invocationRes = empty
 \<rparr>"
 
+definition isCommittedH where
+"isCommittedH state_callOrigin state_transactionStatus c \<equiv> \<exists>tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Commited"
+
+abbreviation isCommitted :: "('localState, 'any) state \<Rightarrow> callId \<Rightarrow> bool" where
+"isCommitted state \<equiv> isCommittedH (callOrigin state) (transactionStatus state)"
 
 definition "commitedCallsH state_callOrigin state_transactionStatus \<equiv> 
-   {c | c tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Commited }"
+   {c. isCommittedH state_callOrigin state_transactionStatus c}"
 
 abbreviation commitedCalls :: "('localState, 'any) state \<Rightarrow> callId set" where
 "commitedCalls state \<equiv> commitedCallsH (callOrigin state) (transactionStatus state)"

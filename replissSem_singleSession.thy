@@ -14,7 +14,7 @@ definition
   \<and> (\<forall>c1 c2. c1\<in>vis \<and> origin c1 = origin c2 \<longrightarrow> c2\<in>vis)"
 
 lemma transactionConsistent_Commited:
-shows "\<lbrakk>transactionConsistent origin txStatus vis; c\<in>vis \<and> origin c \<triangleq> tx; origin c \<triangleq> tx\<rbrakk> \<Longrightarrow> txStatus tx \<triangleq> Commited"
+shows "\<lbrakk>transactionConsistent origin txStatus vis; c\<in>vis; origin c \<triangleq> tx; origin c \<triangleq> tx\<rbrakk> \<Longrightarrow> txStatus tx \<triangleq> Commited"
 by (auto simp add:  transactionConsistent_def) 
 
 lemma transactionConsistent_all_from_same:
@@ -177,6 +177,7 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    state_monotonicGrowth C C';   
    (* local changes: *)
    localState C' s \<triangleq> ls';
+   currentProc C' s \<triangleq> f;
    currentTransaction C' s \<triangleq> t;
    transactionStatus C' t \<triangleq> Uncommited;
    transactionOrigin C' t \<triangleq> s
