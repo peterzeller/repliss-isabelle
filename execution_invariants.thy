@@ -253,5 +253,23 @@ next
   then show ?case by (auto simp add: step.simps split: if_splits)
 qed
 
+lemma finite_dom_spit:
+  assumes "finite (dom A \<inter> {x. P x})" and "finite (dom B \<inter> {x. \<not>P x})"
+  shows "finite (dom (\<lambda>x. if P x then A x else B x))"
+  apply (rule_tac B="(dom A \<inter> {x. P x}) \<union> (dom B \<inter> {x. \<not>P x})" in finite_subset)
+  using assms by (auto split: if_splits)
+
+
+lemma wf_finite_calls:
+  assumes wf: "state_wellFormed S"
+shows "finite (dom (calls S))" 
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case by (auto simp add: step.simps intro!: finite_dom_spit split: if_splits)
+qed
+
 
 end
