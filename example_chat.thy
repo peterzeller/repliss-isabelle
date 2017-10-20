@@ -154,7 +154,7 @@ definition crdtSpec_message_exists :: "val list \<Rightarrow> val operationConte
 definition crdtSpec_chat_contains_h :: "val list \<Rightarrow> val operationContext \<Rightarrow> bool" where
   "crdtSpec_chat_contains_h args ctxt \<equiv> 
   (\<exists>c. calls ctxt c \<triangleq> Call ''chat_add'' args Undef
-      \<and> (\<nexists>c'. calls ctxt c \<triangleq> Call ''chat_remove'' args Undef \<and> (c,c') \<in> happensBefore ctxt))"
+      \<and> (\<nexists>c'. calls ctxt c' \<triangleq> Call ''chat_remove'' args Undef \<and> (c,c') \<in> happensBefore ctxt))"
 
 definition crdtSpec_chat_contains :: "val list \<Rightarrow> val operationContext \<Rightarrow> val \<Rightarrow> bool" where
   "crdtSpec_chat_contains args ctxt res \<equiv> 
@@ -649,18 +649,19 @@ proof (rule show_correctness_via_single_session)
                           (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa))
                           (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
 
+
               from this obtain cc 
-                where cc1: "isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) cc"
-                  and cc2: "cc \<in> visa"
+                where [simp]: "cc \<noteq> c"
+                  and [simp]: "cc \<noteq> ca"
                   and cc3: "calls S' cc \<triangleq> Call ''chat_add'' [cb, m] Undef"
+                  and cc2: "cc \<in> visa"
+                  and cc1: "isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) cc"
+                  and "\<forall>c'. c' \<in> visa \<longrightarrow>
+                          calls S' c' \<triangleq> Call ''chat_remove'' [cb, m] Undef \<longrightarrow>
+                          isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) c' \<longrightarrow>
+                          c' = c \<or> c' = ca \<or> (cc, c') \<notin> happensBefore S' \<and> (cc \<in> vis \<longrightarrow> c' \<noteq> c) \<and> (cc \<in> vis \<longrightarrow> c' \<noteq> ca)"
                 by (auto simp add: crdtSpec_chat_contains_h_def mkContext_simps split: if_splits)
 
-              have [simp]: "cc \<noteq> ca" 
-                using `calls S' cc \<triangleq> Call ''chat_add'' [cb, m] Undef`
-                using c12 by auto
-              have [simp]: "cc \<noteq> c" 
-                using `calls S' cc \<triangleq> Call ''chat_add'' [cb, m] Undef`
-                using c8 by auto
 
               hence "crdtSpec_chat_contains_h [cb, m] (mkContext (invContextVis S' (visa - {c, ca})))"
                 apply (auto simp add: crdtSpec_chat_contains_h_def mkContext_simps)
@@ -812,11 +813,13 @@ proof (rule show_correctness_via_single_session)
                           (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] res)) (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
 
 
+
                 from this obtain cc 
-                  where cc1: "isCommittedH (callOrigin S'(c \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) cc"
-                    and cc2: "cc \<in> visa"
+                  where cc4: "cc \<noteq> c"
                     and cc3: "calls S' cc \<triangleq> Call ''chat_add'' [ca, m] Undef"
-                    and cc4: "cc \<noteq> c"
+                    and cc2: "cc \<in> visa"
+                    and cc1: "isCommittedH (callOrigin S'(c \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) cc"
+                    and cc5: "\<forall>c'. isCommittedH (callOrigin S'(c \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) c' \<longrightarrow> calls S' c' \<triangleq> Call ''chat_remove'' [ca, m] Undef \<longrightarrow> c' \<in> visa \<longrightarrow> c' = c \<or> (cc, c') \<notin> happensBefore S' \<and> (cc \<in> vis \<longrightarrow> c' \<noteq> c)"
                   by (auto simp add: crdtSpec_chat_contains_h_def mkContext_simps split: if_splits)
 
 
@@ -940,7 +943,167 @@ proof (rule show_correctness_via_single_session)
                 and c17: "\<And>ctxt procName args. finite (dom (calls ctxt)) \<Longrightarrow> Ex (crdtSpec procName args ctxt)"
                 and c18: "consistentSnapshot (S'\<lparr>calls := calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto> Call ''message_delete'' [MessageId x4] Undef), callOrigin := callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t), visibleCalls := visibleCalls S'(i \<mapsto> insert cb (insert ca (insert c vis))), happensBefore := insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb}))), localState := localState S'(i \<mapsto> lsInit\<lparr>ls_id := MessageId x4, ls_c := res, ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S')(i := None), transactionStatus := transactionStatus S'(t \<mapsto> Commited)\<rparr>) visa"
               for  t S' c res vis ca cb visa
-              sorry
+            proof (auto simp add: inv_def)
+              have [simp]: "prog S' = progr"
+                by (simp add: c3)
+
+
+              hence no_calls_in_t: "callOrigin S' c \<noteq> Some t" for c
+                using c8 by blast
+              
+              have "consistentSnapshot S' (visa - {c,ca,cb})"
+                apply (rule consistentSnapshot_subset[OF c18], auto)
+                using c2 c9 wellFormed_happensBefore_calls_l apply blast
+                using c13 c2 wellFormed_happensBefore_calls_l apply blast
+                using c16 c2 wellFormed_happensBefore_calls_l apply blast
+                    apply (simp add: c2 c9)
+                   apply (simp add: c13 c2)
+                using c16 c2 wellFormed_callOrigin_dom2 apply blast
+                using c8 apply auto[1]
+                by (simp add: c2 domD domI wellFormed_callOrigin_dom)
+              with `invariant_all S'` 
+              have oldInv: "inv (invContextVis S' (visa - {c,ca,cb}))"
+                by (auto simp add: invariant_all_def)
+              hence old_inv1: "inv1 (invContextVis S' (visa - {c, ca, cb}))"
+                and old_inv2: "inv2 (invContextVis S' (visa - {c, ca, cb}))"
+                and old_inv2_h1: "inv2_h1 (invContextVis S' (visa - {c, ca, cb}))"
+                by (auto simp add: inv_def)
+
+
+              show "inv1 (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                       (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb}))))
+                       (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto> Call ''message_delete'' [MessageId x4] Undef))
+                       (knownIds S') (invocationOp S') (invocationRes S') (Some visa))"
+              proof (auto simp add: inv1_def)
+                fix cc m
+                assume a0: "crdtSpec_chat_contains_h [cc, m] (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))                           
+                                            (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb})))) (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto>                            Call ''message_delete'' [MessageId x4] Undef))                           (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
+
+                define new_hb where "new_hb \<equiv> (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb}))))"
+                define new_calls where "new_calls = (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto>                            Call ''message_delete'' [MessageId x4] Undef))"
+
+                from a0 
+                have a0': "crdtSpec_chat_contains_h [cc, m] (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))                           
+                                            new_hb new_calls             (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
+                  by (auto simp add: new_hb_def new_calls_def)
+
+
+                
+
+                from a0' obtain cd 
+                  where cd1: "isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) cd"
+                    and cd2: "cd \<in> visa"
+                    and cd3: "new_calls cd \<triangleq> Call ''chat_add'' [cc, m] Undef"
+                    and cd4: "\<And>c'. isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) c' \<longrightarrow>
+                (cd, c') \<in> new_hb \<longrightarrow> new_calls c' \<triangleq> Call ''chat_remove'' [cc, m] Undef \<longrightarrow> c' \<notin> visa"
+                  by (auto simp add: crdtSpec_chat_contains_h_def mkContext_simps split: if_splits)
+
+                have  [simp]: "cd \<noteq> ca" 
+                  and [simp]: "cd \<noteq> c"
+                  and [simp]: "cd \<noteq> cb"
+                  using cd3 by (auto simp add: new_calls_def split: if_splits)
+
+                have "cd \<in> commitedCalls S'"
+                  using cd1 by (auto simp add: isCommittedH_def commitedCallsH_def no_calls_in_t split: if_splits)
+
+                have "m \<noteq> MessageId x4" 
+
+
+
+              (*we removed a chat message, so if something exists afterwards it should exist before: *)
+                have "crdtSpec_chat_contains_h [cc, m] (mkContext (invContextVis S' (visa - {c, ca, cb})))"
+                  apply (auto simp add: crdtSpec_chat_contains_h_def mkContext_def) 
+                  apply (rule_tac x=cd in exI)
+                  apply (auto simp add: invContextH_def restrict_map_def restrict_relation_def cd2 `cd \<in> commitedCalls S'`)
+                proof -
+                  show "calls S' cd \<triangleq> Call ''chat_add'' [cc, m] Undef"
+                    using cd3 by (auto simp add: new_calls_def)
+
+                  show "False"
+                    if c0: "c' \<in> commitedCalls S'"
+                      and c1: "c' \<in> visa"
+                      and c2: "c' \<noteq> c"
+                      and c3: "c' \<noteq> ca"
+                      and c4: "c' \<noteq> cb"
+                      and c5: "calls S' c' \<triangleq> Call ''chat_remove'' [cc, m] Undef"
+                      and c6: "(cd, c') \<in> happensBefore S'"
+                    for  c'
+                    using that cd4[where c'=c'] by (auto simp add: commitedCallsH_def isCommittedH_def new_calls_def new_hb_def split: if_splits)
+                qed
+
+                with old_inv1 
+                have "crdtSpec_message_exists_h [m] (mkContext (invContextVis S' (visa - {c, ca, cb})))"
+                  by (auto simp add: inv1_def)
+
+                from this obtain cc 
+                  where [simp]: "cc \<noteq> c" 
+                    and [simp]: "cc \<noteq> ca"
+                    and [simp]: "cc \<noteq> cb"
+                    and allDeletesOverridden: "\<And>cc. cc \<in> visa \<longrightarrow>
+                calls S' cc \<triangleq> Call ''message_delete'' [m] Undef \<longrightarrow>
+                isCommitted S' cc \<longrightarrow>
+                cc = c \<or> cc = ca \<or> cc = cb \<or> (\<exists>c'. (cc, c') \<in> happensBefore S' |r Collect (isCommitted S') |r (visa - {c, ca, cb})) \<and>
+                                              is_message_updateH m (Call ''message_delete'' [m] Undef)"
+                    and [simp]: "cc \<in> visa"
+                    and "isCommitted S' cc"
+                    and "is_message_update S' cc m"
+                  by (auto simp add: crdtSpec_message_exists_h_def is_message_update_vis_simps mkContext_def invContextH_def  restrict_map_def commitedCallsH_def split: if_splits)
+
+                have "(c, cb) \<notin> happensBefore S'" for c
+                  using c16 c2 wellFormed_happensBefore_calls_r by blast
+
+
+
+
+
+
+                show "crdtSpec_message_exists_h [m]              (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))                           (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb}))))                           (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto>                            Call ''message_delete'' [MessageId x4] Undef))                           (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
+                proof (simp add: crdtSpec_message_exists_h_def, intro conjI exI allI; clarsimp?)
+                  show "is_message_update
+                     (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                                  (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb}))))
+                                  (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto> Call ''message_delete'' [MessageId x4] Undef))
+                                  (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))
+                     cc m"
+                    using `is_message_update S' cc m`  apply (auto simp add: is_message_update_vis_simps is_message_updateH_simp split: option.splits)
+                    by (smt \<open>isCommitted S' cc\<close> fun_upd_other fun_upd_same isCommittedH_def)
+
+                  show " (\<exists>c'. (cc, c') \<in> happensBefore
+                                               (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                                                            (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb}))))
+                                                            (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto>
+                                                             Call ''message_delete'' [MessageId x4] Undef))
+                                                            (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))) \<and>
+                            is_message_updateH m (Call ''message_delete'' [m] Undef)" 
+                    if "calls (mkContext (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                             (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb}))))
+                             (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto>
+                              Call ''message_delete'' [MessageId x4] Undef))
+                             (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))
+                             cc \<triangleq>  Call ''message_delete'' [m] Undef"
+                    for cc
+                  proof -
+                    from that have ???
+                      apply (auto simp add: mkContext_def invContextH_def commitedCallsH_def split: if_splits)
+
+                    using allDeletesOverridden[where cc=cc]
+                    apply (auto simp add: mkContext_def invContextH_def commitedCallsH_def )
+                              apply (auto split: if_splits)[1]
+
+                    find_theorems invContextH
+
+                sorry
+              show "inv2 (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                       (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb}))))
+                       (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto> Call ''message_delete'' [MessageId x4] Undef))
+                       (knownIds S') (invocationOp S') (invocationRes S') (Some visa))"
+                sorry
+              show "inv2_h1 (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited))
+                    (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb}))))
+                    (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto> Call ''message_delete'' [MessageId x4] Undef))
+                    (knownIds S') (invocationOp S') (invocationRes S') (Some visa))"
+                sorry
+            qed
 
 
             show "example_chat.inv (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t, cb \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited)) (insert (c, ca) (insert (ca, cb) (insert (c, cb) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca} \<union> vis \<times> {cb})))) (calls S'(c \<mapsto> Call ''message_chat_read'' [MessageId x4] res, ca \<mapsto> Call ''chat_remove'' [res, MessageId x4] Undef, cb \<mapsto> Call ''message_delete'' [MessageId x4] Undef)) (knownIds S' \<union> uniqueIds Undef) (invocationOp S') (invocationRes S'(i \<mapsto> Undef)) (Some visa))"
