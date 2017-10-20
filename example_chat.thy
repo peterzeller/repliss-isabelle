@@ -153,8 +153,8 @@ definition crdtSpec_message_exists :: "val list \<Rightarrow> val operationConte
 (* ignores map-deletes as they are not used *)
 definition crdtSpec_chat_contains_h :: "val list \<Rightarrow> val operationContext \<Rightarrow> bool" where
   "crdtSpec_chat_contains_h args ctxt \<equiv> 
-  (\<exists>c. calls ctxt c \<triangleq> Call ''chat_add'' args Undef
-      \<and> (\<nexists>c'. calls ctxt c' \<triangleq> Call ''chat_remove'' args Undef \<and> (c,c') \<in> happensBefore ctxt))"
+  (\<exists>ca. calls ctxt ca \<triangleq> Call ''chat_add'' args Undef)
+  \<and> (\<forall>cr. calls ctxt cr \<triangleq> Call ''chat_remove'' args Undef \<longrightarrow> (\<exists>ca. (cr,ca) \<in> happensBefore ctxt \<and> calls ctxt ca \<triangleq> Call ''chat_add'' args Undef))"
 
 definition crdtSpec_chat_contains :: "val list \<Rightarrow> val operationContext \<Rightarrow> val \<Rightarrow> bool" where
   "crdtSpec_chat_contains args ctxt res \<equiv> 
@@ -542,9 +542,8 @@ proof (rule show_correctness_via_single_session)
       thus "inv1 (invContextVis S vis)"
         apply (auto simp add: inv1_def  split: if_splits)
         apply (auto simp add:  crdtSpec_chat_contains_h_def crdtSpec_message_exists_h_def)
-             apply (auto simp add: mkContext_simps  S_def)
-           apply (auto simp add: mkContext_calls_simps )
-        by fastforce+
+          apply (auto simp add: mkContext_simps  S_def)
+        by (auto simp add: mkContext_calls_simps )
 
       from pre_inv 
       have "inv2 (invContextVis Spre vis)"
@@ -650,25 +649,51 @@ proof (rule show_correctness_via_single_session)
                           (knownIds S') (invocationOp S') (invocationRes S') (Some visa)))"
 
 
-              from this obtain cc 
-                where [simp]: "cc \<noteq> c"
-                  and [simp]: "cc \<noteq> ca"
-                  and cc3: "calls S' cc \<triangleq> Call ''chat_add'' [cb, m] Undef"
-                  and cc2: "cc \<in> visa"
-                  and cc1: "isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) cc"
-                  and "\<forall>c'. c' \<in> visa \<longrightarrow>
-                          calls S' c' \<triangleq> Call ''chat_remove'' [cb, m] Undef \<longrightarrow>
-                          isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) c' \<longrightarrow>
-                          c' = c \<or> c' = ca \<or> (cc, c') \<notin> happensBefore S' \<and> (cc \<in> vis \<longrightarrow> c' \<noteq> c) \<and> (cc \<in> vis \<longrightarrow> c' \<noteq> ca)"
+
+(*
+ \<lbrakk>\<forall>cr. isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) cr \<longrightarrow>
+                   cr \<in> visa \<longrightarrow>
+                   calls S' cr \<triangleq> Call ''chat_remove'' [cb, m] Undef \<longrightarrow>
+                   cr = c \<or> cr = ca \<or> (\<exists>caa. caa \<noteq> c \<and>
+                                              (caa = c \<or>
+                                               caa \<noteq> ca \<and>
+                                               (caa = ca \<or>
+                                                isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) caa \<and>
+                                                caa \<in> visa \<and>
+                                                (cr = c \<and> caa = ca \<or> (cr, caa) \<in> happensBefore S' \<or> cr \<in> vis \<and> caa = c \<or> cr \<in> vis \<and> caa = ca) \<and>
+                                                calls S' caa \<triangleq> Call ''chat_add'' [cb, m] Undef)));
+              ; ; ; 
+              \<rbrakk>
+*)
+
+              from this obtain c_add 
+                where [simp]: "c_add \<noteq> c"
+                  and [simp]: "c_add \<noteq> ca"
+                  and cc3: "calls S' c_add \<triangleq> Call ''chat_add'' [cb, m] Undef"
+                  and cc2: "c_add \<in> visa"
+                  and cc1: "isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) c_add"
+                  and cc4: "\<forall>cr. isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) cr \<longrightarrow>
+                   cr \<in> visa \<longrightarrow>
+                   calls S' cr \<triangleq> Call ''chat_remove'' [cb, m] Undef \<longrightarrow>
+                   cr = c \<or> cr = ca \<or> (\<exists>caa. caa \<noteq> c \<and>
+                                              (caa = c \<or>
+                                               caa \<noteq> ca \<and>
+                                               (caa = ca \<or>
+                                                isCommittedH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) caa \<and>
+                                                caa \<in> visa \<and>
+                                                (cr = c \<and> caa = ca \<or> (cr, caa) \<in> happensBefore S' \<or> cr \<in> vis \<and> caa = c \<or> cr \<in> vis \<and> caa = ca) \<and>
+                                                calls S' caa \<triangleq> Call ''chat_add'' [cb, m] Undef)))"
                 by (auto simp add: crdtSpec_chat_contains_h_def mkContext_simps split: if_splits)
 
 
               hence "crdtSpec_chat_contains_h [cb, m] (mkContext (invContextVis S' (visa - {c, ca})))"
                 apply (auto simp add: crdtSpec_chat_contains_h_def mkContext_simps)
-                apply (rule_tac x=cc in exI)
+                apply (rule_tac x=c_add in exI)
                 apply (auto simp add: cc2 cc3)
                 using cc1 apply (auto simp add: isCommittedH_def no_calls_in_t split: if_splits)
-                done
+                apply (drule_tac x=cr in spec)
+                apply auto
+                using no_calls_in_t by blast
 
               with old_inv1
               have "crdtSpec_message_exists_h [m] (mkContext (invContextVis S' (visa - {c, ca})))"
