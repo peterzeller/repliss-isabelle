@@ -139,6 +139,59 @@ proof -
 qed    
 
 
+lemma 
+  assumes  steps: "S ~~ tr \<leadsto>* S'"
+    and wf: "state_wellFormed S"
+    and packed: "packed_trace tr"
+    and status: "transactionStatus S' tx \<triangleq> Uncommited"
+    and tr_len: "length tr > 0"
+    and initial: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+  shows "currentTransaction S' (fst (last tr)) \<triangleq> tx " 
+using steps packed status tr_len proof (induct arbitrary: tx  rule: steps_induct)
+  case initial
+  then show ?case by auto
+next
+  case (step S' tr a S'')
+
+  show ?case
+  proof (cases "length tr")
+    case 0
+    then show ?thesis sorry
+  next
+    case (Suc nat)
+    hence IH: "\<lbrakk>transactionStatus S' tx \<triangleq> Uncommited\<rbrakk> \<Longrightarrow> currentTransaction S' (fst (last tr)) \<triangleq> tx" for tx
+      using isPrefix_appendI prefixes_are_packed step.IH step.prems(1) by fastforce 
+
+    obtain i action where a_split[simp]: "a = (i,action)"
+      by fastforce
+
+    from `packed_trace (tr @ [a])`
+    have "(fst (last tr)) = i" if "\<not>allowed_context_switch action"
+      by (smt One_nat_def Suc Zero_not_Suc a_split append.assoc append_Cons append_butlast_last_id diff_Suc_Suc diff_zero fst_conv length_0_conv length_append_singleton lessI nth_append_length snd_conv that use_packed_trace zero_less_Suc)
+
+    hence  IH': "currentTransaction S' i \<triangleq> tx" if "transactionStatus S' tx \<triangleq> Uncommited" and "\<not> allowed_context_switch action" for tx
+      using IH[where tx=tx] that by blast 
+
+    from `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
+    show ?thesis 
+      apply (auto simp add: step.simps split: if_splits)
+              apply (erule IH', simp add: allowed_context_switch_def)
+             apply (erule IH', simp add: allowed_context_switch_def)
+
+
+      
+  qed
+  {
+    assume "length tr > 0"
+
+    
+  
+    from `S' ~~ a \<leadsto> S''`
+    show "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx"
+      apply (auto simp add: step.simps)
+
+qed
+
            
 text {*
 If we have an execution on a a single invocation starting with state satisfying the invariant, then we can convert 
@@ -506,6 +559,16 @@ next
 
       thus "\<And>c. callOrigin newS c \<noteq> Some txId"
         by (simp add: newS_def)
+
+
+      have "\<And>tx. tx \<noteq> txId \<Longrightarrow> transactionStatus S' tx \<noteq> Some Uncommited"
+
+
+      show "\<And>tx. tx \<noteq> txId \<Longrightarrow> transactionStatus newS tx \<noteq> Some Uncommited"
+        apply (auto simp add: newS_def)
+
+
+
 
     qed
     

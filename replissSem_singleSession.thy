@@ -170,9 +170,10 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    (* we assume a nondeterministic state change to C' here *) (* TODO add more restrictions *)
    prog C' = prog C;
    (* new transaction has no calls yet *)
-   (* well formed history *)
    (* invariant maintained *)
    invariant_all C';
+   \<And>tx. tx\<noteq>t \<Longrightarrow> transactionStatus C' tx \<noteq> Some Uncommited;
+   (* well formed history *)
    state_wellFormed C';
    state_monotonicGrowth C C';   
    (* local changes: *)
@@ -224,6 +225,7 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    uniqueIdsInList args \<subseteq> knownIds C';
    (*  TODO add welformedness? *)
    state_wellFormed C';
+   \<And>tx. tx\<noteq>t \<Longrightarrow> transactionStatus C' tx \<noteq> Some Uncommited;
    invariant_all C';
    invocationOp C' s = None;
    prog C' = prog C;
@@ -234,7 +236,6 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
                  invocationOp := (invocationOp C')(s \<mapsto> (procName, args)) \<rparr>);
    valid = invariant_all C''  (* TODO check invariant in C ? *)            
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvoc procName args, valid) \<leadsto>\<^sub>S C''"       
-(* TODO do we have to consider concurrent actions here? *)                 
 | return:
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -247,19 +248,6 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
                  knownIds := knownIds C \<union> uniqueIds res\<rparr>);
    valid = invariant_all C'                   
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AReturn res, valid) \<leadsto>\<^sub>S C'"
-(*                  
-| fail:
-  "      C ~~ (s, AFail) \<leadsto>\<^sub>S (C\<lparr>localState := (localState C)(s := None),
-                 currentProc := (currentProc C)(s := None),
-                 visibleCalls := (visibleCalls C)(s := None) \<rparr>)"                  
-*)
-(* TODO integrate invariant check at right places
-| invCheck:
-  "\<lbrakk>currentTransaction C s = None;
-   visibleCalls C s \<triangleq> vis;
-   invariant (prog C) (invContext C s) = res
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto>\<^sub>S C"   
-*)
   
 inductive steps_s :: "('localState, 'any) state \<Rightarrow> invocation \<times> ('any action \<times> bool) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_s_refl:

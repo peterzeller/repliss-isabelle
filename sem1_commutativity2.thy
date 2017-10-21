@@ -3744,9 +3744,476 @@ unfolding programCorrect_def proof -
   qed  
 qed
 
+lemma use_Greatest:
+  assumes "\<exists>x. P x"
+and "\<exists>bound. \<forall>x. P x \<longrightarrow> x \<le> bound"
+shows "P (GREATEST x::nat. P x)
+\<and> (\<forall>y. P y \<longrightarrow> y \<le> (GREATEST x::nat. P x))"
+  using GreatestI_nat Greatest_le_nat assms by auto
+
+lemma Greatest_smaller:
+  assumes "\<exists>x::nat. P x"
+    and "\<exists>bound. \<forall>x. P x \<longrightarrow> x \<le> bound"
+    and "\<And>y. P y \<Longrightarrow> y < x"
+  shows "Greatest P < x"
+  using assms
+  using GreatestI_nat by auto  
+
+lemma Greatest_bigger:
+  fixes P :: "nat \<Rightarrow> bool"
+  assumes "P y"
+    and "\<exists>bound. \<forall>x. P x \<longrightarrow> x \<le> bound"
+    and "x < y"
+  shows "x < Greatest P"
+proof -
+  from `P y` have "\<exists>x. P x" by auto
+
+  from use_Greatest[OF `\<exists>x. P x` `\<exists>bound. \<forall>x. P x \<longrightarrow> x \<le> bound`] assms
+  show "x < Greatest P"
+    by auto
+qed
+
+
+definition allTransactionsEnd :: "'any trace \<Rightarrow> bool" where
+"allTransactionsEnd tr \<equiv> \<forall>i j tx txns. j<length tr \<and> tr!j = (i, ABeginAtomic tx txns) \<longrightarrow> (\<exists>k. k>j \<and> k<length tr \<and> tr!k = (i, AEndAtomic))"
+
+lemma transfer_execution_local_difference:
+  assumes steps: "S1 ~~ tr \<leadsto>* S1'"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and S2_def: "S2 = S1\<lparr>localState := (localState S1)(i := ls),
+      currentTransaction := (currentTransaction S1)(i := tx)\<rparr>"
+    and S2'_def: "S2' = S1'\<lparr>localState := (localState S1')(i := ls),
+      currentTransaction := (currentTransaction S1')(i := tx)\<rparr>"
+  shows "S2 ~~ tr \<leadsto>* S2'"
+  using steps no_i S2'_def proof (induct arbitrary: S2' rule: steps_induct)
+  case initial
+  then show ?case
+    using steps_refl S2_def by blast 
+next
+  case (step S' tr a S'')
+
+  define S_mid where "S_mid \<equiv> S'\<lparr>localState := (localState S')(i := ls), currentTransaction := (currentTransaction S')(i := tx)\<rparr>"
+
+  have "S2 ~~ tr \<leadsto>* S_mid"
+  proof (rule step.IH)
+    show "\<And>a. a \<in> set tr \<Longrightarrow> fst a \<noteq> i"
+      using step.prems(1) by auto
+    show " S_mid = S'\<lparr>localState := (localState S')(i := ls), currentTransaction := (currentTransaction S')(i := tx)\<rparr>"
+      by (simp add: S_mid_def)
+  qed
+
+  have [simp]: "fst a \<noteq> i" 
+    by (auto simp add: step.prems(1))
+  hence [simp]: "i\<noteq>fst a"
+    by blast
+
+
+  from `S' ~~ a \<leadsto> S''`
+  have "S_mid ~~ a \<leadsto> S2'"
+  proof (induct rule: step.cases)
+    case (local C s ls f ls')
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (newId C s ls f ls' uid)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (endAtomic C s ls f ls' t)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (dbop C s ls f Op args ls' t c res vis)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (invocation C s procName args initialState impl)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (return C s ls f res)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (fail C s ls)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (invCheck txns C res s)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+       apply (subst state_ext)
+       apply (auto simp add: step  split: if_splits)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  qed
+  thus "S2 ~~ tr @ [a] \<leadsto>* S2'"
+    using \<open>S2 ~~ tr \<leadsto>* S_mid\<close> steps_step by blast
+
+qed
+
+
+lemma transfer_execution_local_difference':
+  assumes steps: "S1 ~~ tr \<leadsto>* S1'"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and S2_def: "\<exists>ls tx. S2 = S1\<lparr>localState := (localState S1)(i := ls),
+      currentTransaction := (currentTransaction S1)(i := tx)\<rparr>"
+  shows "\<exists>S2'. S2 ~~ tr \<leadsto>* S2'"
+  using transfer_execution_local_difference[OF steps no_i]
+  using S2_def by blast
+
+text {*
+ To show that a program is correct, we only have to consider packed and finished transactions
+*}
+theorem show_programCorrect_noTransactionInterleaving':
+assumes packedTracesCorrect: 
+  "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+shows "programCorrect program"
+proof (rule show_programCorrect_noTransactionInterleaving)
+  fix trace :: "(invocation \<times> 'a action) list"
+  fix s
+  assume steps: "initialState program ~~ trace \<leadsto>* s"
+    and packed: "packed_trace trace" 
+    and nofail: "\<And>s. (s, AFail) \<notin> set trace"
+
+
+  define "induct_measure" where "induct_measure  \<equiv> \<lambda>trace::(invocation \<times> 'a action) list. \<lambda>pos'.
+    case pos' of
+        0 \<Rightarrow> True
+      | Suc pos \<Rightarrow>  pos<length trace \<and> (\<exists>i j tx txns. fst(trace!pos) = i \<and>  j\<le>pos \<and> trace!j = (i, ABeginAtomic tx txns) \<and> (\<nexists>k. k>j \<and> k<length trace \<and> trace!k = (i, AEndAtomic)))" 
+
+  have induct_measure_ex: "\<exists>x. induct_measure trace x" for trace
+    by (rule_tac x=0 in exI, auto simp add: induct_measure_def)
+
+  have induct_measure_bound: "\<exists>bound. \<forall>x. induct_measure trace x \<longrightarrow> x \<le> bound" for trace
+    by (rule_tac x="length trace" in exI, auto simp add: induct_measure_def split: nat.split)
+
+  from steps packed nofail
+  show "traceCorrect trace"
+  proof (induct "GREATEST pos'. induct_measure trace pos'"
+      arbitrary: trace s rule: less_induct)
+    case (less trace')
+    show ?case
+    proof (cases "Greatest (induct_measure trace')")
+      case (0)
+      hence [simp]: "(GREATEST a. induct_measure trace' a) = 0" by simp
+      have "induct_measure trace' (GREATEST x. induct_measure trace' x) \<and> (\<forall>y. induct_measure trace' y \<longrightarrow> y \<le> (GREATEST x. induct_measure trace' x))"
+        by (rule use_Greatest[OF induct_measure_ex induct_measure_bound])
+      hence "\<nexists>pos. pos < length trace' \<and>
+                         (\<exists>i j tx txns. fst (trace' ! pos) = i \<and> j \<le> pos \<and> trace' ! j = (i, ABeginAtomic tx txns) \<and> \<not> (\<exists>k>j. k < length trace' \<and> trace' ! k = (i, AEndAtomic)))"
+        apply simp
+        by (auto simp add: induct_measure_def split: nat.splits)
+      hence "allTransactionsEnd trace'"
+        apply (auto simp add: allTransactionsEnd_def)
+        by force
+      thus "traceCorrect trace'"
+        using "less.prems" packedTracesCorrect by blast
+    next
+      case (Suc pos )
+      hence [simp]: "(GREATEST x. induct_measure trace' x) = Suc pos" by simp
+
+      have "induct_measure trace' (GREATEST x. induct_measure trace' x) \<and> (\<forall>y. induct_measure trace' y \<longrightarrow> y \<le> (GREATEST x. induct_measure trace' x))"
+        by (rule use_Greatest[OF induct_measure_ex induct_measure_bound])
+      hence m: "induct_measure trace' (Suc pos)"
+        and  m_max: "\<And>y. induct_measure trace' y \<Longrightarrow> y \<le> Suc pos"
+        by auto
+
+      from m have "pos<length trace' \<and> (\<exists>i j tx txns. fst(trace'!pos) = i \<and>  j\<le>pos \<and> trace'!j = (i, ABeginAtomic tx txns) \<and> (\<nexists>k. k>j \<and> k<length trace' \<and> trace'!k = (i, AEndAtomic)))"
+        by (auto simp add: induct_measure_def split: nat.splits)
+      from this obtain j tx txns
+        where "pos < length trace'"
+          and "j \<le> pos"
+          and "\<forall>k<length trace'. j < k \<longrightarrow> trace' ! k \<noteq> (fst (trace' ! pos), AEndAtomic)"
+          and "trace' ! j = (fst (trace' ! pos), ABeginAtomic tx txns)"
+        by auto
+
+      with m_max 
+      have maxPos: "fst (trace'!pos') \<noteq> fst(trace'!pos)" if "pos' > pos" and "pos' < length trace'" for pos'
+        using that apply (auto simp add: induct_measure_def split: nat.splits)
+        apply (drule_tac x="Suc pos'" in meta_spec)
+        apply auto
+        apply (erule meta_mp)
+        using less_imp_le order_trans by blast
+
+(* get new trace by removing action at pos *)
+      define newTrace where "newTrace = take pos trace' @ drop (Suc pos) trace'"
+
+      have newTraceLen: "length newTrace = length trace' - 1"
+        using \<open>pos < length trace'\<close> newTrace_def by auto
+
+      have [simp]: "min (length trace') pos = pos"
+        using \<open>pos < length trace'\<close> by auto
+
+
+      have newTraceIth: "newTrace!i = (if i<pos then trace'!i else trace'!Suc i)" if "i<length newTrace"  for i
+        using that \<open>pos < length trace'\<close> by (auto simp add: newTrace_def nth_append)
+
+      have IH: " \<lbrakk>Greatest (induct_measure trace) < Greatest (induct_measure trace'); \<exists>S. initialState program ~~ trace \<leadsto>* S; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace\<rbrakk>
+     \<Longrightarrow> traceCorrect trace" for trace
+        using less.hyps by auto
+
+
+      have "traceCorrect newTrace"
+      proof (rule IH, simp)
+        show "Greatest (induct_measure newTrace) < Suc pos"
+        proof (rule Greatest_smaller[OF induct_measure_ex induct_measure_bound])
+          fix y
+          assume a0: "induct_measure newTrace y"
+          {
+            assume "y > 0" and "y > pos"
+            
+            with a0 obtain j tx txns
+              where a1: "y < Suc (length newTrace)" 
+                and a2: "j < y"
+                and a3: "\<forall>k<length newTrace. j < k \<longrightarrow> newTrace ! k \<noteq> (fst (newTrace ! (y-1)), AEndAtomic)"
+                and a4: "newTrace ! j = (fst (newTrace ! (y-1)), ABeginAtomic tx txns)"
+              apply (auto simp add: induct_measure_def split: nat.splits )
+              using le_imp_less_Suc by blast
+
+            have [simp]: "j < length newTrace"
+              using a1 a2 by linarith
+
+            have [simp]: "y - Suc 0 < length newTrace"
+              using \<open>0 < y\<close> a1 by linarith
+
+            have [simp]: " \<not>(y - Suc 0 < pos)"
+              using \<open>pos < y\<close> by linarith
+
+            have [simp]: "Suc (y - Suc 0) = y"
+              by (simp add: \<open>0 < y\<close>)
+
+            from a4 have a4': "newTrace ! j = (fst (trace' ! y), ABeginAtomic tx txns)"
+              by (simp add: newTraceIth)
+
+            have [simp]: "y < length trace'"
+              using \<open>pos < length trace'\<close> a1 newTraceLen by linarith
+
+            have "induct_measure trace' (Suc y)"
+              apply (auto simp add: induct_measure_def)
+              using a4 a3
+            proof (auto simp add: newTraceIth split: if_splits)
+              show "\<exists>j\<le>y. (\<exists>tx txns. trace' ! j = (fst (trace' ! y), ABeginAtomic tx txns)) \<and> (\<forall>k<length trace'. j < k \<longrightarrow> trace' ! k \<noteq> (fst (trace' ! y), AEndAtomic))" 
+                if c1: "\<forall>k. (j < k \<longrightarrow> k < length newTrace \<longrightarrow> k < pos \<longrightarrow> trace' ! k \<noteq> (fst (trace' ! y), AEndAtomic)) 
+                      \<and> (j < k \<longrightarrow> k < length newTrace \<longrightarrow> k < pos \<or> trace' ! Suc k \<noteq> (fst (trace' ! y), AEndAtomic))"
+                  and c2: "j < pos" 
+                  and c3: "trace' ! j = (fst (trace' ! y), ABeginAtomic tx txns)"
+              proof (rule_tac x=j in exI, auto simp add: c3)
+                show "j \<le> y"
+                  using a2 by linarith
+                show "False" 
+                  if "k < length trace'" 
+                    and "j < k" 
+                    and "trace' ! k = (fst (trace' ! y), AEndAtomic)" for k
+                proof (cases "k < pos")
+                  case True
+                  with c1 have "trace' ! k \<noteq> (fst (trace' ! y), AEndAtomic)"
+                    using \<open>pos < y\<close> a1 that(2) by auto
+                  thus False
+                    using that(3) by blast
+                next
+                  case False
+                  with c1[rule_format, where k="k - 1"]
+                  have "trace' ! k \<noteq> (fst (trace' ! y), AEndAtomic)"
+                    by (smt One_nat_def Suc_pred \<open>pos < y\<close> \<open>y < length trace'\<close> c2 fst_conv less_Suc_eq maxPos newTraceLen not_less0 not_less_iff_gr_or_eq that(1) that(2))
+                  thus False
+                    using that(3) by blast
+                qed
+              qed
+              show "\<exists>j\<le>y. (\<exists>tx txns. trace' ! j = (fst (trace' ! y), ABeginAtomic tx txns)) \<and> (\<forall>k<length trace'. j < k \<longrightarrow> trace' ! k \<noteq> (fst (trace' ! y), AEndAtomic))"
+                if c1: "\<forall>k<length newTrace. j < k \<longrightarrow> trace' ! Suc k \<noteq> (fst (trace' ! y), AEndAtomic)"
+                  and c2: "\<not> j < pos"
+                  and c3: "trace' ! Suc j = (fst (trace' ! y), ABeginAtomic tx txns)"
+              proof (rule exI[where x="Suc j"], auto simp add: c3)
+                show "Suc j \<le> y"
+                  using a2 by auto
+                show "False" if "k < length trace'"
+                  and "Suc j < k"
+                  and "trace' ! k = (fst (trace' ! y), AEndAtomic)"
+                for k
+                proof -
+                  from c1[rule_format, where k="k-1"]
+                  have "trace' ! k \<noteq> (fst (trace' ! y), AEndAtomic)"
+                    by (metis One_nat_def Suc_less_eq Suc_pred linorder_neqE_nat newTraceLen not_less0 that(1) that(2))
+                  thus False
+                    using that(3) by linarith
+                qed
+              qed
+            qed
+            hence "y < Suc pos"
+              using Suc_le_lessD m_max by blast
+            hence False
+              using \<open>pos < y\<close> not_less_eq by blast
+          }
+          thus "y < Suc pos"
+            using not_less_eq by blast
+        qed
+        show "\<exists>S_newEnd. initialState program ~~ newTrace \<leadsto>* S_newEnd"
+        proof -
+          find_theorems "initialState program" trace'
+          have "trace' = take pos trace' @ [trace'!pos] @ drop (Suc pos) trace'"
+            by (simp add: \<open>pos < length trace'\<close> id_take_nth_drop)
+
+          with `initialState program ~~ trace' \<leadsto>* s`
+          obtain S_pos S_pos2 S_end 
+            where  "initialState program ~~ take pos trace' \<leadsto>* S_pos"
+              and "S_pos ~~ trace'!pos \<leadsto> S_pos2"
+              and "S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end"
+            by (smt append_Cons self_append_conv2 steps_append steps_appendFront)
+
+          define invoc where "invoc = fst(trace'!pos)"
+          have inTx: "currentTransaction S_pos2 invoc \<noteq> None"
+            sorry
+
+          have "\<exists>S_new_end. S_pos ~~ drop (Suc pos) trace' \<leadsto>* S_new_end"
+          proof (rule transfer_execution_local_difference'[OF `S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end`])
+            
+            show "\<And>a. a \<in> set (drop (Suc pos) trace') \<Longrightarrow> fst a \<noteq> invoc"
+              apply (auto simp add: in_set_conv_nth invoc_def)
+              by (metis add.commute add_Suc fst_conv less_add_Suc1 less_diff_conv maxPos)
+
+            have S_pos_wf: "state_wellFormed S_pos"
+              using \<open>initialState program ~~ take pos trace' \<leadsto>* S_pos\<close> state_wellFormed_combine state_wellFormed_init by blast
+
+
+            from `S_pos ~~ trace'!pos \<leadsto> S_pos2`
+            show "\<exists>ls tx. S_pos = S_pos2\<lparr>localState := (localState S_pos2)(invoc := ls), currentTransaction := (currentTransaction S_pos2)(invoc := tx)\<rparr>"
+            proof (induct rule: step.cases)
+              case (local C s ls f ls')
+              then show ?case 
+                by (auto simp add: state_ext invoc_def, fastforce+)
+
+            next
+              case (newId C s ls f ls' uid)
+              then show ?case 
+                apply auto
+                sorry
+
+            next
+              case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+              then show ?case sorry
+            next
+              case (endAtomic C s ls f ls' t)
+              then show ?case
+                using inTx by (auto simp add: invoc_def)
+                
+            next
+              case (dbop C s ls f Op args ls' t c res vis)
+              then show ?case sorry
+            next
+              case (invocation C s procName args initialState impl)
+              then show ?case 
+                using inTx  apply (auto simp add: invoc_def)
+                using S_pos_wf inTransaction_localState by blast
+
+            next
+              case (return C s ls f res)
+              then show ?case 
+                using inTx by (auto simp add: invoc_def)
+            next
+              case (fail C s ls)
+              then show ?case
+                by (metis \<open>pos < length trace'\<close> in_set_conv_nth less.prems(3)) 
+
+            next
+              case (invCheck txns C res s)
+              then show ?case 
+                apply (auto simp add: invoc_def state_ext)
+                by force+
+            qed
 
 
 
+              find_theorems name: "set" "_!_"
+
+            thm transfer_execution_local_difference
+            sorry
+
+
+          with `initialState program ~~ take pos trace' \<leadsto>* S_pos`
+          show "\<exists>S_newEnd. initialState program ~~ newTrace \<leadsto>* S_newEnd"
+            by (auto simp add: newTrace_def  steps_append)
+        qed
+
+        show "packed_trace newTrace"
+          using `packed_trace trace'` apply (auto simp add: newTrace_def packed_trace_def nth_append)
+          using \<open>pos < length trace'\<close> dual_order.strict_trans apply blast
+          by (smt Suc_eq_plus1_left add_diff_inverse_nat diff_add_zero lessI maxPos not_less_eq not_less_zero)
+        show " \<And>s. (s, AFail) \<notin> set newTrace"
+          using `\<And>s. (s, AFail) \<notin> set trace'` by (auto simp add: newTrace_def dest: in_set_takeD in_set_dropD )
+      qed
+
+      (* because no inv-checks in transaction *)
+      have removedNoInvCheck: "snd (trace'!pos) \<noteq> AInvcheck txns v" for txns v
+        sorry
+
+
+
+      show "traceCorrect trace'"
+      proof (auto simp add: traceCorrect_def newTrace_def in_set_conv_nth)
+        fix s txns i
+        assume  "i < length trace'" and "trace' ! i = (s, AInvcheck txns False)"
+
+        {
+          assume "i<pos"
+          hence "newTrace ! i \<noteq> (s, AInvcheck txns False)"
+            using `traceCorrect newTrace` apply (auto simp add: traceCorrect_def in_set_conv_nth)
+            using \<open>pos < length trace'\<close> newTrace_def by auto
+          hence "trace' ! i \<noteq> (s, AInvcheck txns False)"
+            using \<open>i < pos\<close> \<open>pos < length trace'\<close> newTraceIth newTraceLen by force
+        }
+        moreover
+        {
+          assume "i = pos"
+          hence "newTrace ! i \<noteq> (s, AInvcheck txns False)"
+            using \<open>trace' ! i = (s, AInvcheck txns False)\<close> removedNoInvCheck by auto
+          hence "trace' ! i \<noteq> (s, AInvcheck txns False)"
+            using \<open>i = pos\<close> removedNoInvCheck by fastforce
+        }
+        moreover
+        {
+          assume "i>pos"
+          hence "newTrace ! i \<noteq> (s, AInvcheck txns False)"
+            by (smt Suc_leI Suc_less_SucD \<open>i < length trace'\<close> \<open>trace' ! i = (s, AInvcheck txns False)\<close> \<open>traceCorrect newTrace\<close> diff_Suc_1 in_set_conv_nth leD less_imp_Suc_add newTraceIth newTraceLen traceCorrect_def)
+          hence "trace' ! i \<noteq> (s, AInvcheck txns False)"
+            by (smt Suc_leI Suc_less_SucD \<open>i < length trace'\<close> \<open>pos < i\<close> \<open>traceCorrect newTrace\<close> diff_Suc_1 in_set_conv_nth leD less_imp_Suc_add newTraceIth newTraceLen traceCorrect_def)
+        }
+        ultimately have "trace' ! i \<noteq> (s, AInvcheck txns False)"
+          using antisym_conv3 by blast
+        thus False
+          using \<open>trace' ! i = (s, AInvcheck txns False)\<close> by blast
+      qed
+    qed
+  qed
+qed
 
 end
 
