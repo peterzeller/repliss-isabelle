@@ -276,4 +276,60 @@ next
 qed
 
 
+lemma inTransaction_trace:
+  assumes  steps: "S ~~ trace \<leadsto>* S'"
+and beginPos: "trace ! beginPos = (invoc, ABeginAtomic tx txns)"
+and beginPosBound: "beginPos < length trace"
+and noEnd: "\<And>k. \<lbrakk>k < length trace; beginPos < k\<rbrakk> \<Longrightarrow> trace ! k \<noteq> (invoc, AEndAtomic)"
+
+and noFail: "\<And>i. (i, AFail)\<notin>set trace"
+shows "currentTransaction S' invoc \<noteq> None"
+  using steps beginPos beginPosBound noEnd noFail proof (induct rule: steps_induct)
+case initial
+then show ?case by auto
+next
+  case (step S' tr a S'')
+  {
+    assume a1:"beginPos < length tr"
+    from a1 have a2: "tr ! beginPos = (invoc, ABeginAtomic tx txns)"
+      by (metis nth_append step.prems(1)) 
+
+
+    from a1 
+    have a3: "\<And>k. \<lbrakk>k < length tr; beginPos < k\<rbrakk> \<Longrightarrow> tr ! k \<noteq> (invoc, AEndAtomic)"
+      by (metis butlast_snoc length_append_singleton lessI less_imp_le less_le_trans nth_butlast step.prems(3))
+
+    from a1 a2 a3 
+    have IH: "currentTransaction S' invoc \<noteq> None"
+      using step.IH step.prems(4) by auto 
+
+    from this obtain y where [simp]: "currentTransaction S' invoc \<triangleq> y"
+      by blast
+
+
+    from step.prems(3)[where k="length tr"] 
+    have [simp]: "a \<noteq> (invoc, AEndAtomic)"
+      by (auto simp add: a1)
+
+
+    with `S' ~~ a \<leadsto> S''`
+    have ?case 
+      apply (auto simp add: step.simps)
+      using step.prems(4) by force
+  }
+  moreover
+  {
+    assume "beginPos = length tr"
+    hence "a = (invoc, ABeginAtomic tx txns)"
+      using step.prems(1) by auto
+
+    with `S' ~~ a \<leadsto> S''`
+    have ?case 
+      by (auto simp add: step.simps)
+  }
+  ultimately show ?case
+    using less_SucE step.prems(2) by auto
+qed
+
+
 end

@@ -19,6 +19,7 @@ definition initialStates :: "('localState, 'any) prog \<Rightarrow> invocation \
   \<and> invariant_all S
   \<and> state_wellFormed S (*  TODO add wellformed? *)
   \<and> invocationOp S i = None
+  \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommited)
 }"
 
 

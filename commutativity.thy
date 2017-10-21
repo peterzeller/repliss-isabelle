@@ -4093,8 +4093,28 @@ proof (rule show_programCorrect_noTransactionInterleaving)
               and "S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end"
             by (smt append_Cons self_append_conv2 steps_append steps_appendFront)
 
+          hence S_pos2_steps: "initialState program ~~ take (Suc pos) trace' \<leadsto>* S_pos2"
+            by (metis \<open>pos < length trace'\<close> steps_step take_Suc_conv_app_nth)
+
+
+
           define invoc where "invoc = fst(trace'!pos)"
+
+          from `trace' ! j = (fst (trace' ! pos), ABeginAtomic tx txns)`
+          have beginAtomic: "trace' ! j = (invoc, ABeginAtomic tx txns)"
+            by (simp add: invoc_def)
+
+          from `\<forall>k<length trace'. j < k \<longrightarrow> trace' ! k \<noteq> (fst (trace' ! pos), AEndAtomic)`
+          have noEndAtomic: "\<And>k. \<lbrakk>k<length trace'; j < k\<rbrakk> \<Longrightarrow> trace' ! k \<noteq> (invoc, AEndAtomic)"
+            by (simp add: invoc_def)
+
           have inTx: "currentTransaction S_pos2 invoc \<noteq> None"
+          proof (rule inTransaction_trace[OF S_pos2_steps])
+            using beginAtomic noEndAtomic S_pos2_steps 
+
+            find_theorems steps trace' 
+            find_theorems trace' ABeginAtomic
+
             sorry
 
           have "\<exists>S_new_end. S_pos ~~ drop (Suc pos) trace' \<leadsto>* S_new_end"
@@ -4153,14 +4173,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
                 apply (auto simp add: invoc_def state_ext)
                 by force+
             qed
-
-
-
-              find_theorems name: "set" "_!_"
-
-            thm transfer_execution_local_difference
-            sorry
-
+          qed
 
           with `initialState program ~~ take pos trace' \<leadsto>* S_pos`
           show "\<exists>S_newEnd. initialState program ~~ newTrace \<leadsto>* S_newEnd"
@@ -4177,6 +4190,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
 
       (* because no inv-checks in transaction *)
       have removedNoInvCheck: "snd (trace'!pos) \<noteq> AInvcheck txns v" for txns v
+(* TODO prove that it is not necessary to check invariants in transactions: Can check before the transaction *)
         sorry
 
 
