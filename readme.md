@@ -29,3 +29,6 @@ The lemmas and theorems from the paper can be found under the following names in
 - Lemma 5.2: `convert_to_single_session_trace_invFail` in `approach`
 - Lemma 5.3: `show_correctness_via_single_session` in `approach`
 
+# Repliss verification tool
+
+The Repliss verification tool, which is based on this Isabelle development, is available at https://github.com/peterzeller/repliss/ .
