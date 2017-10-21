@@ -1,7 +1,7 @@
 theory repliss_sem
-imports Main
-  "~~/src/HOL/Library/Multiset"
-  "~~/src/HOL/Library/Option_ord"
+  imports Main
+    "~~/src/HOL/Library/Multiset"
+    "~~/src/HOL/Library/Option_ord"
 begin
 
 section {* Semantics *}
@@ -12,18 +12,18 @@ text {* This theory describes the distributed semantics used by Repliss. *}
 abbreviation todo ("???") where "??? \<equiv> undefined"
 
 abbreviation eqsome :: "'a option \<Rightarrow> 'a \<Rightarrow> bool" (infixr "\<triangleq>" 69) where
- "x \<triangleq> y \<equiv> x = Some y"
+  "x \<triangleq> y \<equiv> x = Some y"
 
 abbreviation orElse :: "'a option \<Rightarrow> 'a \<Rightarrow> 'a" (infixr "orElse" 70) where
-"x orElse y \<equiv> case x of Some a \<Rightarrow> a | None \<Rightarrow> y"
- 
+  "x orElse y \<equiv> case x of Some a \<Rightarrow> a | None \<Rightarrow> y"
+
 typedecl invocation
 
 definition uniqueIds :: "'any \<Rightarrow> 'any set" where 
-"uniqueIds = ???"
+  "uniqueIds = ???"
 
 definition 
-"uniqueIdsInList xs = (\<Union>x\<in>set xs. uniqueIds x)"
+  "uniqueIdsInList xs = (\<Union>x\<in>set xs. uniqueIds x)"
 
 
 type_synonym operation = string
@@ -36,7 +36,7 @@ typedecl callId
 datatype 'any call = Call operation (call_args:"'any list") (call_res:"'any")
 
 datatype ('localState, 'any) localAction =
-    LocalStep 'localState
+  LocalStep 'localState
   | BeginAtomic 'localState
   | EndAtomic 'localState
   | NewId "'any \<Rightarrow> 'localState"
@@ -54,15 +54,15 @@ begin
 definition "less_eq_transactionStatus x y \<equiv> x = Uncommited \<or> y = Commited"
 definition "less_transactionStatus x y \<equiv> x = Uncommited \<and> y = Commited"
 instance 
-apply standard
-using transactionStatus.exhaust by (auto simp add: less_eq_transactionStatus_def less_transactionStatus_def )
+  apply standard
+  using transactionStatus.exhaust by (auto simp add: less_eq_transactionStatus_def less_transactionStatus_def )
 end  
 
 lemmas transactionStatus_less_simps[simp] = less_eq_transactionStatus_def less_transactionStatus_def
 
 lemma onlyCommitedGreater: "a \<triangleq> Commited" if "a\<ge>Some Commited" for a
   by (smt dual_order.antisym dual_order.trans less_eq_option_None_is_None less_eq_option_Some less_eq_transactionStatus_def order_refl split_option_ex that)
-    
+
 
 
 record 'any operationContext = 
@@ -97,8 +97,8 @@ record ('localState, 'any) state = "('localState, 'any) distributed_state" +
   currentProc :: "invocation \<rightharpoonup> ('localState, 'any) procedureImpl"
   visibleCalls :: "invocation \<rightharpoonup> callId set"
   currentTransaction :: "invocation \<rightharpoonup> txid"
-  
-  
+
+
 lemma state_ext: "((x::('localState, 'any) state) = y) \<longleftrightarrow> (
     calls x = calls y
   \<and> happensBefore x = happensBefore y
@@ -115,11 +115,11 @@ lemma state_ext: "((x::('localState, 'any) state) = y) \<longleftrightarrow> (
   \<and> invocationOp x = invocationOp y
   \<and> invocationRes x = invocationRes y
 )"
-by auto
+  by auto
 
 lemma state_ext_exI: 
-fixes P :: "('localState, 'any) state \<Rightarrow> bool"
-assumes "
+  fixes P :: "('localState, 'any) state \<Rightarrow> bool"
+  assumes "
 \<exists>
 s_calls
 s_happensBefore
@@ -150,42 +150,42 @@ currentProc = s_currentProc,
 visibleCalls = s_visibleCalls,
 currentTransaction = s_currentTransaction
 \<rparr>"
-shows "\<exists>s. P s"
+  shows "\<exists>s. P s"
   using assms by blast
 
 thm state.defs  
 
 definition restrict_relation :: "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a rel" (infixl "|r"  110)
-where "r |r A \<equiv> r Int (A \<times> A)"
+  where "r |r A \<equiv> r Int (A \<times> A)"
 
 
 abbreviation "commitedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Commited }"
-  
+
 find_consts "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a set"
 
 definition downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100)  where 
-"S \<down> R \<equiv> S \<union> {x | x y . (x,y)\<in>R \<and> y\<in>S}"
+  "S \<down> R \<equiv> S \<union> {x | x y . (x,y)\<in>R \<and> y\<in>S}"
 
 lemma downwardsClosure_in:
-"x \<in> S \<down> R \<longleftrightarrow> (x\<in>S \<or> (\<exists>y\<in>S. (x,y)\<in>R))"
-by (auto simp add: downwardsClosure_def)
+  "x \<in> S \<down> R \<longleftrightarrow> (x\<in>S \<or> (\<exists>y\<in>S. (x,y)\<in>R))"
+  by (auto simp add: downwardsClosure_def)
 
 lemma downwardsClosure_subset:
-"S \<down> R \<subseteq> S \<union> fst ` R"
-apply (auto simp add: downwardsClosure_in)
-using image_iff tranclD by fastforce
+  "S \<down> R \<subseteq> S \<union> fst ` R"
+  apply (auto simp add: downwardsClosure_in)
+  using image_iff tranclD by fastforce
 
 lemma downwardsClosure_subset2:
-"x \<in> S \<down> R \<Longrightarrow> x \<in> S \<union> fst ` R"
+  "x \<in> S \<down> R \<Longrightarrow> x \<in> S \<union> fst ` R"
   by (meson downwardsClosure_subset subsetCE)
 
 
 abbreviation "emptyOperationContext \<equiv> \<lparr> calls = empty, happensBefore = {}\<rparr>"
 
-  
-  
+
+
 definition "getContextH" where
-"getContextH state_calls state_happensBefore state_vis = (case state_vis of
+  "getContextH state_calls state_happensBefore state_vis = (case state_vis of
       None \<Rightarrow> emptyOperationContext
     | Some vis => \<lparr>
         calls = state_calls |` vis,
@@ -194,7 +194,7 @@ definition "getContextH" where
   )"
 
 abbreviation 
-"getContext state s
+  "getContext state s
  \<equiv> getContextH (calls state) (happensBefore state) (visibleCalls state s) "
 
 abbreviation "emptyInvariantContext \<equiv> \<lparr>
@@ -209,19 +209,19 @@ abbreviation "emptyInvariantContext \<equiv> \<lparr>
 \<rparr>"
 
 definition isCommittedH where
-"isCommittedH state_callOrigin state_transactionStatus c \<equiv> \<exists>tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Commited"
+  "isCommittedH state_callOrigin state_transactionStatus c \<equiv> \<exists>tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Commited"
 
 abbreviation isCommitted :: "('localState, 'any) state \<Rightarrow> callId \<Rightarrow> bool" where
-"isCommitted state \<equiv> isCommittedH (callOrigin state) (transactionStatus state)"
+  "isCommitted state \<equiv> isCommittedH (callOrigin state) (transactionStatus state)"
 
 definition "commitedCallsH state_callOrigin state_transactionStatus \<equiv> 
    {c. isCommittedH state_callOrigin state_transactionStatus c}"
 
 abbreviation commitedCalls :: "('localState, 'any) state \<Rightarrow> callId set" where
-"commitedCalls state \<equiv> commitedCallsH (callOrigin state) (transactionStatus state)"
-  
+  "commitedCalls state \<equiv> commitedCallsH (callOrigin state) (transactionStatus state)"
+
 definition invContextH  where
-"invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+  "invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes vis = \<lparr>
         calls = state_calls |` commitedCallsH state_callOrigin state_transactionStatus , 
         happensBefore = state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus , 
@@ -234,7 +234,7 @@ definition invContextH  where
       \<rparr>"
 
 abbreviation invContext where
-"invContext state s \<equiv>
+  "invContext state s \<equiv>
   invContextH
   (callOrigin state)
   (transactionOrigin state)
@@ -247,7 +247,7 @@ abbreviation invContext where
   (visibleCalls state s)"
 
 abbreviation invContextVis where
-"invContextVis state vis \<equiv>
+  "invContextVis state vis \<equiv>
   invContextH
   (callOrigin state)
   (transactionOrigin state)
@@ -258,19 +258,19 @@ abbreviation invContextVis where
   (invocationOp state)
   (invocationRes state)
   (Some vis)"
-  
+
 definition callsInTransactionH :: "(callId \<rightharpoonup> txid) \<Rightarrow> txid set \<Rightarrow> callId set" where
-"callsInTransactionH origins txns  \<equiv> {c. \<exists>txn\<in>txns. origins c \<triangleq> txn }"
+  "callsInTransactionH origins txns  \<equiv> {c. \<exists>txn\<in>txns. origins c \<triangleq> txn }"
 
 lemma callsInTransactionH_contains:
-"c\<in>callsInTransactionH origins txns \<longleftrightarrow> (case origins c of Some txn \<Rightarrow>  txn \<in> txns | None \<Rightarrow> False)"
-by (auto simp add: callsInTransactionH_def split: option.splits)
+  "c\<in>callsInTransactionH origins txns \<longleftrightarrow> (case origins c of Some txn \<Rightarrow>  txn \<in> txns | None \<Rightarrow> False)"
+  by (auto simp add: callsInTransactionH_def split: option.splits)
 
 abbreviation 
-"callsInTransaction S txns \<equiv> callsInTransactionH (callOrigin S) txns"  
-  
+  "callsInTransaction S txns \<equiv> callsInTransactionH (callOrigin S) txns"  
+
 abbreviation invContextSnapshot where
-"invContextSnapshot state txns \<equiv>
+  "invContextSnapshot state txns \<equiv>
   invContextH
   (callOrigin state)
   (transactionOrigin state)
@@ -281,12 +281,12 @@ abbreviation invContextSnapshot where
   (invocationOp state)
   (invocationRes state)
   (Some (callsInTransaction state txns \<down> happensBefore state))"  
-  
+
 lemma invContextSnapshot_eq:
-assumes "c_calls = commitedCallsH (callOrigin state) (transactionStatus state)"
+  assumes "c_calls = commitedCallsH (callOrigin state) (transactionStatus state)"
     and "c_txns = {t. transactionStatus state t \<triangleq> Commited}"
-shows
-"invContextSnapshot state snapshot =  \<lparr>
+  shows
+    "invContextSnapshot state snapshot =  \<lparr>
         calls = calls state |` c_calls , 
         happensBefore = happensBefore state |r c_calls , 
         i_visibleCalls = callsInTransaction state snapshot \<down> happensBefore state,
@@ -295,10 +295,10 @@ shows
         i_knownIds = knownIds state,
         i_invocationOp = invocationOp state,
         i_invocationRes = invocationRes state\<rparr>"
-by (auto simp add: assms  invContextH_def)
+  by (auto simp add: assms  invContextH_def)
 
-        
-  
+
+
 lemma invariantContext_eqI: "\<lbrakk>
 calls x = calls y;
 happensBefore x = happensBefore y;
@@ -309,14 +309,14 @@ i_knownIds x = i_knownIds y;
 i_invocationOp x = i_invocationOp y;
 i_invocationRes x = i_invocationRes y
 \<rbrakk> \<Longrightarrow> x = (y::'any invariantContext)"
-by auto
+  by auto
 
 
 (*
 abbreviation isUndef :: "'a option \<Rightarrow> bool" ("_ = \<bottom>" [0]60) where
  "x = \<bottom> \<equiv> x = None"
 *)
-  
+
 
 
 
@@ -380,7 +380,7 @@ done
 *)
 
 datatype 'any action =
-    ALocal
+  ALocal
   | ANewId 'any
   | ABeginAtomic txid "txid set"
   | AEndAtomic
@@ -390,9 +390,9 @@ datatype 'any action =
   | AFail  
   | AInvcheck "txid set" bool
 
-  
+
 definition "is_AInvcheck a \<equiv> \<exists>txns r. a = AInvcheck txns r"
-  
+
 inductive step :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
   "\<lbrakk>localState C s \<triangleq> ls; 
@@ -445,7 +445,7 @@ inductive step :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 
                 callOrigin := (callOrigin C)(c \<mapsto> t),
                 visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> {c}),
                 happensBefore := happensBefore C \<union> vis \<times> {c}  \<rparr>)"                
-                     
+
 | invocation:
   "\<lbrakk>localState C s = None; (* TODO this might not be necessary *)
    procedure (prog C) procName args \<triangleq> (initialState, impl);
@@ -529,20 +529,20 @@ inductive steps :: "('localState, 'any) state \<Rightarrow> (invocation \<times>
 
 (* with a given trace, the execution is deterministic *)
 lemma stepDeterministic:
-assumes e1: "S ~~ tr \<leadsto> Sa" 
+  assumes e1: "S ~~ tr \<leadsto> Sa" 
     and e2: "S ~~ tr \<leadsto> Sb"
-shows "Sa = Sb"
-using e1 e2 apply (induct rule: step.induct)
-apply (erule step.cases; force)+
-done
+  shows "Sa = Sb"
+  using e1 e2 apply (induct rule: step.induct)
+          apply (erule step.cases; force)+
+  done
 
 
 lemma traceDeterministic:
-assumes e1: "S ~~ tr \<leadsto>* Sa" 
+  assumes e1: "S ~~ tr \<leadsto>* Sa" 
     and e2: "S ~~ tr \<leadsto>* Sb"
-shows "Sa = Sb"
-using e1 e2 proof (induct S tr Sa arbitrary: Sb rule: steps.induct)
-thm steps.induct
+  shows "Sa = Sb"
+  using e1 e2 proof (induct S tr Sa arbitrary: Sb rule: steps.induct)
+  thm steps.induct
   case (steps_refl S)
   then show ?case
     using steps.cases by fastforce 
@@ -553,7 +553,7 @@ next
 qed
 
 definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state" where
-"initialState program \<equiv> \<lparr>
+  "initialState program \<equiv> \<lparr>
   calls = empty,
   happensBefore = {},
   prog = program,
@@ -573,13 +573,13 @@ definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState,
 type_synonym 'any trace = "(invocation\<times>'any action) list"
 
 definition traces where
-"traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
+  "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
 
 definition traceCorrect where
-"traceCorrect trace \<equiv> (\<forall>s txns. (s, AInvcheck txns False) \<notin> set trace)"
+  "traceCorrect trace \<equiv> (\<forall>s txns. (s, AInvcheck txns False) \<notin> set trace)"
 
 definition programCorrect where
-"programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"
+  "programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"
 
 definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rightarrow> True | _ \<Rightarrow> False)"
 
@@ -609,25 +609,25 @@ fun splitTrace :: "invocation \<Rightarrow> 'any trace \<Rightarrow> ('any trace
 
 
 lemma splitTrace_complete: 
-"splitTrace s tr = (h,c,t) \<Longrightarrow> mset tr= mset h + mset c + mset t"
-apply (induct arbitrary: h c t rule: splitTrace.induct)
-by (auto split: if_splits prod.splits)
+  "splitTrace s tr = (h,c,t) \<Longrightarrow> mset tr= mset h + mset c + mset t"
+  apply (induct arbitrary: h c t rule: splitTrace.induct)
+  by (auto split: if_splits prod.splits)
 
 lemma splitTrace_len[simp]: 
-assumes a: "splitTrace s tr = (h,c,t)"
-shows "length h \<le> length tr"
-  and "length c \<le> length tr"
-  and "length t \<le> length tr"
-using a apply (induct arbitrary: h c t rule: splitTrace.induct)
-by (auto simp add: le_SucI split: if_splits prod.splits)
+  assumes a: "splitTrace s tr = (h,c,t)"
+  shows "length h \<le> length tr"
+    and "length c \<le> length tr"
+    and "length t \<le> length tr"
+  using a apply (induct arbitrary: h c t rule: splitTrace.induct)
+  by (auto simp add: le_SucI split: if_splits prod.splits)
 
 lemma splitTrace_len2[simp]: 
-assumes a: "(h,c,t) = splitTrace s tr"
-shows "length h \<le> length tr"
-  and "length c \<le> length tr"
-  and "length t \<le> length tr"
-using a by (metis splitTrace_len(1), metis splitTrace_len(2), metis splitTrace_len(3))
-  
+  assumes a: "(h,c,t) = splitTrace s tr"
+  shows "length h \<le> length tr"
+    and "length c \<le> length tr"
+    and "length t \<le> length tr"
+  using a by (metis splitTrace_len(1), metis splitTrace_len(2), metis splitTrace_len(3))
+
 declare splitTrace.simps[simp del]
 
 
@@ -645,23 +645,23 @@ fun compactTrace :: "invocation \<Rightarrow> 'any trace \<Rightarrow> 'any trac
 
 
 lemma compactTrace_complete: 
-"mset (compactTrace s tr) = mset tr"
-apply (induct rule: compactTrace.induct)
-apply (auto simp add: splitTrace_complete split: prod.splits)
-done
+  "mset (compactTrace s tr) = mset tr"
+  apply (induct rule: compactTrace.induct)
+   apply (auto simp add: splitTrace_complete split: prod.splits)
+  done
 
 declare compactTrace_step[simp del]
 
 
 lemma steps_appendBack:
-"(A ~~ tr @ [a] \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ tr \<leadsto>* B) \<and> (B ~~ a \<leadsto> C))"
-apply auto
-apply (metis snoc_eq_iff_butlast steps.cases)
-using steps_step by blast
+  "(A ~~ tr @ [a] \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ tr \<leadsto>* B) \<and> (B ~~ a \<leadsto> C))"
+  apply auto
+   apply (metis snoc_eq_iff_butlast steps.cases)
+  using steps_step by blast
 
 
 lemma steps_append: 
-"(A ~~ tra@trb \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ tra \<leadsto>* B) \<and> (B ~~ trb \<leadsto>* C))"
+  "(A ~~ tra@trb \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ tra \<leadsto>* B) \<and> (B ~~ trb \<leadsto>* C))"
 proof (induct trb arbitrary: C rule: rev_induct)
   case Nil
   then show ?case 
@@ -674,20 +674,20 @@ next
 qed
 
 lemma steps_append2: 
-assumes "A ~~ tra \<leadsto>* B"
-shows "(A ~~ tra@trb \<leadsto>* C) \<longleftrightarrow> (B ~~ trb \<leadsto>* C)"
+  assumes "A ~~ tra \<leadsto>* B"
+  shows "(A ~~ tra@trb \<leadsto>* C) \<longleftrightarrow> (B ~~ trb \<leadsto>* C)"
   using assms steps_append traceDeterministic by blast
 
 
 lemma steps_single[simp]: "(A ~~ [a] \<leadsto>* B) \<longleftrightarrow> (A ~~ a \<leadsto> B)"
-by (metis append_Nil steps_appendBack steps_refl traceDeterministic)
+  by (metis append_Nil steps_appendBack steps_refl traceDeterministic)
 
 lemma steps_empty[simp]: "(A ~~ [] \<leadsto>* B) \<longleftrightarrow> (A = B)"
   using steps_refl traceDeterministic by blast
 
 
 lemma steps_appendFront:
-"(A ~~ a# tr \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ a \<leadsto> B) \<and> (B ~~ tr \<leadsto>* C))"
+  "(A ~~ a# tr \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ a \<leadsto> B) \<and> (B ~~ tr \<leadsto>* C))"
 proof -
   have "(A ~~ a# tr \<leadsto>* C) 
                      = (A ~~ [a]@tr \<leadsto>* C)" by simp
@@ -697,5 +697,5 @@ proof -
 qed  
 
 
-  
+
 end
