@@ -1,8 +1,11 @@
-theory replissSem_singleSession
-imports replissSem1 execution_invariants
+theory repliss_sem_single_invocation
+imports repliss_sem execution_invariants
 begin
 
+
 section {* Single invocation semantics *}
+
+text {* This theory describes the single-invocation semantics used for our proof approach. *}
 
 definition 
 "causallyConsistent hb vis \<equiv>

@@ -1,6 +1,10 @@
 theory execution_invariants
-  imports replissSem1
+  imports repliss_sem
 begin
+
+section {* Execution Invariants *}
+
+text {* This theory includes proof for invariants that hold for all executions. *}
 
 
 definition state_wellFormed :: "('localState, 'any) state \<Rightarrow> bool" where

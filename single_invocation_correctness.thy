@@ -2,6 +2,10 @@ theory single_invocation_correctness
 imports approach execution_invariants_s
 begin
 
+section {* Single-invocation corrrectness *}
+
+text {* This theory includes techniques to prove that a program is correct in the single-invocation semantics. *}
+
 text {*
   Start with initial state,
   

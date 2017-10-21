@@ -11,11 +11,10 @@ session "repliss" = "HOL" +
     "~~/src/HOL/Library/Sublist"
     "~~/src/HOL/Library/LaTeXsugar"
     "~~/src/HOL/Library/OptionalSugar"
-    (*"replissSem1"*)
-    (* customSyntax *)
-    replissSem1
+    "~~/src/HOL/Library/Multiset"
+    "~~/src/HOL/Library/Option_ord"
   theories [show_question_marks = false, names_short]
-    doc
+    invariant_simps
   document_files
     "root.tex"
     "mathpartir.sty"

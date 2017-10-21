@@ -1,11 +1,13 @@
-theory replissSem1
+theory repliss_sem
 imports Main
   "~~/src/HOL/Library/Multiset"
   "~~/src/HOL/Library/Option_ord"
-  "~/work/afp/thys/Proof_Strategy_Language/PSL" 
 begin
 
-strategy Hammers =  RepeatN ( Ors [Hammer, Defer]  )
+section {* Semantics *}
+
+text {* This theory describes the distributed semantics used by Repliss. *}
+
 
 abbreviation todo ("???") where "??? \<equiv> undefined"
 

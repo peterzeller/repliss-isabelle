@@ -1,7 +1,10 @@
 theory execution_invariants_s
-imports replissSem_singleSession execution_invariants
+imports repliss_sem_single_invocation execution_invariants
 begin
 
+section {* Invariants of single-invocation executions. *}
+
+text {* This theory includes proof for invariants that hold for all single-invocation executions  *}
 
 definition initialStates :: "('localState, 'any) prog \<Rightarrow> invocation \<Rightarrow> ('localState, 'any) state set"  where
 "initialStates progr i \<equiv> {

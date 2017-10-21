@@ -2,8 +2,10 @@ theory invariant_simps
 imports approach single_invocation_correctness
 begin
 
+section {* Invariant simplifications *}
+
 text {* 
- Helpers for working with invariants.
+ This theory includes helpers for working with invariants.
 *}
 
 

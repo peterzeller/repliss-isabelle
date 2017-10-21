@@ -2,8 +2,11 @@ theory prefix
 imports Main
 begin
 
-text {* Function describing that a list is a prefix of another list.  *}
-definition 
+section {* Prefixes *}
+
+text {* This Function describes that a list is a prefix of another list.  *}
+
+definition
 "isPrefix xs ys \<equiv> xs = take (length xs) ys"
 
 lemma isPrefix_append:
