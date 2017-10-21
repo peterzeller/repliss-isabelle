@@ -1,8 +1,11 @@
-theory replissSem_singleSession
-imports replissSem1 execution_invariants
+theory repliss_sem_single_invocation
+  imports repliss_sem execution_invariants
 begin
 
+
 section {* Single invocation semantics *}
+
+text {* This theory describes the single-invocation semantics used for our proof approach. *}
 
 definition 
 "causallyConsistent hb vis \<equiv>
@@ -248,7 +251,7 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
                  knownIds := knownIds C \<union> uniqueIds res\<rparr>);
    valid = invariant_all C'                   
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AReturn res, valid) \<leadsto>\<^sub>S C'"
-  
+
 inductive steps_s :: "('localState, 'any) state \<Rightarrow> invocation \<times> ('any action \<times> bool) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_s_refl:
   "S ~~ (s, []) \<leadsto>\<^sub>S* S"

@@ -1,8 +1,12 @@
 theory approach
-imports Main sem1_commutativity2
-  replissSem_singleSession
+  imports Main commutativity
+    repliss_sem_single_invocation
 begin
 
+
+section {* Proof approach *}
+
+text {* This theory includes the soundness proof of our proof approach. *}
 
 (*
 TODO:
