@@ -3781,6 +3781,233 @@ qed
 definition allTransactionsEnd :: "'any trace \<Rightarrow> bool" where
 "allTransactionsEnd tr \<equiv> \<forall>i j tx txns. j<length tr \<and> tr!j = (i, ABeginAtomic tx txns) \<longrightarrow> (\<exists>k. k>j \<and> k<length tr \<and> tr!k = (i, AEndAtomic))"
 
+
+text {*
+If only the local states in invocation i differ,
+we can transfer an execution to the different state,
+when the execution trace contains no action in i.
+*}
+
+find_consts "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b)"
+
+
+
+lemma transfer_execution_local_difference:
+  assumes steps: "S1 ~~ tr \<leadsto>* S1'"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and S2_def: "S2 = S1\<lparr>
+          localState := (localState S1)(i := ls),
+          generatedIds := generatedIds S1 \<union> MoreGeneratedIds,
+          currentTransaction := (currentTransaction S1)(i \<mapsto> tx),
+          transactionStatus := (transactionStatus S1)(tx \<mapsto> Uncommited),
+          transactionOrigin := (transactionOrigin S1)(tx \<mapsto> i),
+          visibleCalls := (visibleCalls S1)(i := vis),
+          calls := calls S1 ++ callsInI,
+          callOrigin := callOrigin S1 ++ callsInIOrigin,
+          happensBefore := happensBefore S1 \<union> newHb \<rparr>"
+    and domCallsInI: "dom callsInI = dom callsInIOrigin"
+    and domCallsInI2: "dom callsInI \<inter> dom (calls S1) = {}"
+    and rangeCallsInIOrigin: "range callsInIOrigin \<subseteq> {Some tx, None}"
+    and newHb: "newHb \<subseteq> (dom callsInI \<union> dom (calls S1)) \<times> dom callsInI"
+    and MoreGeneratedIds_unused: "\<And>uid i. (i, ANewId uid) \<in> set tr \<Longrightarrow> uid \<notin> MoreGeneratedIds"
+    and new_txns_unused1: "\<And>tx' newTxns i. (i, ABeginAtomic tx' newTxns) \<in> set tr \<Longrightarrow> tx' \<noteq> tx"
+    and new_txns_unused2: "\<And>tx' newTxns tx'' i. \<lbrakk>(i, ABeginAtomic tx' newTxns) \<in> set tr\<rbrakk> \<Longrightarrow> tx \<notin> newTxns"
+    and new_calls_unused: "\<And>cId oper args res i. (i, ADbOp cId oper args res) \<in> set tr \<Longrightarrow> cId \<notin> dom callsInI"
+    
+    and S2'_def: "S2' = S1'\<lparr>
+        localState := (localState S1')(i := ls),
+          generatedIds := generatedIds S1' \<union> MoreGeneratedIds,
+          currentTransaction := (currentTransaction S1')(i \<mapsto> tx),
+          transactionStatus := (transactionStatus S1')(tx \<mapsto> Uncommited),
+          transactionOrigin := (transactionOrigin S1')(tx \<mapsto> i),
+          visibleCalls := (visibleCalls S1')(i := vis),
+          calls := calls S1' ++ callsInI,
+          callOrigin := callOrigin S1' ++ callsInIOrigin,
+          happensBefore := happensBefore S1' \<union> newHb \<rparr>"
+  shows "S2 ~~ tr \<leadsto>* S2'" 
+  using steps no_i S2'_def MoreGeneratedIds_unused new_txns_unused1 new_txns_unused2  new_calls_unused
+  proof (induct arbitrary: S2' rule: steps_induct)
+  case initial
+  then show ?case
+    using steps_refl S2_def by blast 
+next
+  case (step S' tr a S'')
+
+  define S_mid where "S_mid \<equiv> S'\<lparr>
+          localState := (localState S')(i := ls),
+          generatedIds := generatedIds S' \<union> MoreGeneratedIds,
+          currentTransaction := (currentTransaction S')(i \<mapsto> tx),
+          transactionStatus := (transactionStatus S')(tx \<mapsto> Uncommited),
+          transactionOrigin := (transactionOrigin S')(tx \<mapsto> i),
+          visibleCalls := (visibleCalls S')(i := vis),
+          calls := calls S' ++ callsInI,
+          callOrigin := callOrigin S' ++ callsInIOrigin,
+          happensBefore := happensBefore S' \<union> newHb \<rparr>"
+
+  have "S2 ~~ tr \<leadsto>* S_mid"
+  proof (rule step.IH)
+    show "\<And>a. a \<in> set tr \<Longrightarrow> fst a \<noteq> i"
+      using step.prems(1) by auto
+      
+    show " S_mid = S'
+      \<lparr>localState := (localState S')(i := ls), generatedIds := generatedIds S' \<union> MoreGeneratedIds, currentTransaction := currentTransaction S'(i \<mapsto> tx),
+         transactionStatus := transactionStatus S'(tx \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(tx \<mapsto> i), visibleCalls := (visibleCalls S')(i := vis),
+         calls := calls S' ++ callsInI, callOrigin := callOrigin S' ++ callsInIOrigin, happensBefore := happensBefore S' \<union> newHb\<rparr>"
+      by (auto simp add: S_mid_def)
+      
+    show "\<And>i uid. (i, ANewId uid) \<in> set tr \<Longrightarrow> uid \<notin> MoreGeneratedIds"
+      using step.prems(3) by auto
+    show " \<And>i tx' newTxns. (i, ABeginAtomic tx' newTxns) \<in> set tr \<Longrightarrow> tx' \<noteq> tx"
+      using step.prems(4) by fastforce
+    show " \<And>i tx' newTxns. \<lbrakk>(i, ABeginAtomic tx' newTxns) \<in> set tr\<rbrakk> \<Longrightarrow> tx \<notin> newTxns"
+      using step.prems(5) by fastforce
+    show "\<And>i cId oper args res. (i, ADbOp cId oper args res) \<in> set tr \<Longrightarrow> cId \<notin> dom callsInI"
+      using step.prems(6) by fastforce
+        
+  qed
+
+  have [simp]: "fst a \<noteq> i" 
+    by (auto simp add: step.prems(1))
+  hence [simp]: "i\<noteq>fst a"
+    by blast
+
+
+  from `S' ~~ a \<leadsto> S''`
+  have "S_mid ~~ a \<leadsto> S2'"
+  proof (induct rule: step.cases)
+    case (local C s ls f ls')
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits option.splits)
+      done
+  next
+    case (newId C s ls f ls' uid)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits option.splits)
+      using step.prems(3) by fastforce
+      
+  next
+    case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+    
+    have wf: "state_wellFormed C"
+      sorry
+      
+    have h1: "callsInIOrigin c = None"
+      if "callOrigin C c \<triangleq> txn" 
+      for c txn
+      sorry
+    
+    have c_in_extended:  "c \<in> callsInTransactionH (callOrigin C ++ callsInIOrigin) newTxns \<down> (happensBefore C \<union> newHb)"
+      if a2: "c \<in> callsInTransaction C newTxns \<down> happensBefore C"
+      for c        
+      proof -
+      from a2 have
+        twoCases: "c \<in> callsInTransaction C newTxns \<or> (\<exists>c'\<in>callsInTransaction C newTxns. (c,c')\<in>happensBefore C)"
+        by (auto simp add: downwardsClosure_def)
+      
+      {
+        assume "c \<in> callsInTransaction C newTxns"
+        hence "c \<in> callsInTransactionH (callOrigin C ++ callsInIOrigin) newTxns"
+          by (auto simp add: callsInTransactionH_def h1 map_add_def)
+        hence "c \<in> callsInTransactionH (callOrigin C ++ callsInIOrigin) newTxns \<down> (happensBefore C \<union> newHb)"
+          by  (auto simp add: downwardsClosure_def)
+      }
+      moreover
+      {
+        fix c'
+        assume 1: "c'\<in>callsInTransaction C newTxns" 
+          and 2: "(c,c')\<in>happensBefore C"
+
+        from 1
+        have "c' \<in> callsInTransactionH (callOrigin C ++ callsInIOrigin) newTxns"
+          by (auto simp add: callsInTransactionH_def h1 map_add_def)
+
+        with 2
+        have "c \<in> callsInTransactionH (callOrigin C ++ callsInIOrigin) newTxns \<down> (happensBefore C \<union> newHb)"
+          by (auto simp add: downwardsClosure_def)
+      }
+      ultimately show "c \<in> callsInTransactionH (callOrigin C ++ callsInIOrigin) newTxns \<down> (happensBefore C \<union> newHb)"
+        using twoCases by blast
+    qed
+    (* TODO other direction should hold as well*)  
+    have c_in_extended2: "c \<in> callsInTransaction C newTxns \<down> happensBefore C"
+      if a2:  "c \<in> callsInTransactionH (callOrigin C ++ callsInIOrigin) newTxns \<down> (happensBefore C \<union> newHb)"
+      for c    
+      sorry
+    
+    
+    from beginAtomic
+     show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      using step.prems(4) apply fastforce
+      apply (subst state_ext)
+      apply (auto simp add: step c_in_extended c_in_extended2  split: if_splits option.splits intro!: ext)
+      using step.prems(5) apply fastforce
+      done
+  next
+    case (endAtomic C s ls f ls' t)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step intro!: ext  split: if_splits)
+      sorry
+  next
+    case (dbop C s ls f Op args ls' t c res vis)
+    
+    have sameContext: "(getContextH (\<lambda>x. case callsInI x of None \<Rightarrow> calls C x | Some y \<Rightarrow> Some y) (happensBefore C \<union> newHb) (Some vis))
+       = (getContextH (calls C) (happensBefore C) (Some vis))"
+      sorry
+    
+    from dbop
+    show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step map_add_def sameContext  split: if_splits option.splits intro!: ext)
+      apply (metis UnI2 domIff list.set(1) list.simps(15) option.simps(3) set_append singletonI step.prems(6))
+      apply (metis UnI2 domCallsInI domIff list.set(1) list.simps(15) option.distinct(1) set_append singletonI step.prems(6))
+      apply (metis UnI2 domIff list.set(1) list.simps(15) set_append singletonI step.prems(6))
+      done
+  next
+    case (invocation C s procName args initialState impl)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (return C s ls f res)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (fail C s ls)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  next
+    case (invCheck txns C res s)
+    then show ?case 
+      using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
+       apply (subst state_ext)
+       apply (auto simp add: step  split: if_splits)
+       
+      apply (subst state_ext)
+      apply (auto simp add: step  split: if_splits)
+      done
+  qed
+  thus "S2 ~~ tr @ [a] \<leadsto>* S2'"
+    using \<open>S2 ~~ tr \<leadsto>* S_mid\<close> steps_step by blast
+
+qed
+
+
 lemma transfer_execution_local_difference:
   assumes steps: "S1 ~~ tr \<leadsto>* S1'"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
@@ -4110,12 +4337,20 @@ proof (rule show_programCorrect_noTransactionInterleaving)
 
           have inTx: "currentTransaction S_pos2 invoc \<noteq> None"
           proof (rule inTransaction_trace[OF S_pos2_steps])
-            using beginAtomic noEndAtomic S_pos2_steps 
 
-            find_theorems steps trace' 
-            find_theorems trace' ABeginAtomic
+            from `trace' ! j = (invoc, ABeginAtomic tx txns)`
+            show "take (Suc pos) trace' ! j = (invoc, ABeginAtomic tx txns)"
+              by (simp add: \<open>j \<le> pos\<close> le_imp_less_Suc)
 
-            sorry
+            show "j < length (take (Suc pos) trace')"
+              by (simp add: Suc_leI \<open>j \<le> pos\<close> \<open>pos < length trace'\<close> le_imp_less_Suc min.absorb2)
+
+            show "\<And>k. \<lbrakk>k < length (take (Suc pos) trace'); j < k\<rbrakk> \<Longrightarrow> take (Suc pos) trace' ! k \<noteq> (invoc, AEndAtomic)"
+              by (simp add: noEndAtomic)
+
+            show "\<And>i. (i, AFail) \<notin> set (take (Suc pos) trace')"
+              by (meson in_set_takeD less.prems(3))
+          qed
 
           have "\<exists>S_new_end. S_pos ~~ drop (Suc pos) trace' \<leadsto>* S_new_end"
           proof (rule transfer_execution_local_difference'[OF `S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end`])
@@ -4138,7 +4373,12 @@ proof (rule show_programCorrect_noTransactionInterleaving)
             next
               case (newId C s ls f ls' uid)
               then show ?case 
-                apply auto
+                apply (subst state_ext)
+                apply (auto simp add: ) 
+                using invoc_def apply fastforce
+                using invoc_def apply fastforce
+                
+                
                 sorry
 
             next
