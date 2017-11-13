@@ -3792,7 +3792,7 @@ find_consts "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b) \
 
 
 
-lemma transfer_execution_local_difference:
+lemma transfer_execution_local_difference_h:
   assumes steps: "S1 ~~ tr \<leadsto>* S1'"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
     and S2_def: "S2 = S1\<lparr>
@@ -3813,6 +3813,7 @@ lemma transfer_execution_local_difference:
     and new_txns_unused1: "\<And>tx' newTxns i. (i, ABeginAtomic tx' newTxns) \<in> set tr \<Longrightarrow> tx' \<noteq> tx"
     and new_txns_unused2: "\<And>tx' newTxns tx'' i. \<lbrakk>(i, ABeginAtomic tx' newTxns) \<in> set tr\<rbrakk> \<Longrightarrow> tx \<notin> newTxns"
     and new_calls_unused: "\<And>cId oper args res i. (i, ADbOp cId oper args res) \<in> set tr \<Longrightarrow> cId \<notin> dom callsInI"
+    and tx_uncommitted: "transactionStatus S1' tx \<triangleq> Uncommited"
     
     and S2'_def: "S2' = S1'\<lparr>
         localState := (localState S1')(i := ls),
@@ -3993,14 +3994,25 @@ next
       done
   next
     case (invCheck txns C res s)
-    then show ?case 
+
+    have "tx \<notin> commitedTransactions C"
+      apply (auto simp add: )
+      sorry
+    hence "tx \<notin> txns"
+      using invCheck.hyps(4) by blast
+
+      
+
+    from invCheck
+    show ?case 
       using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
        apply (subst state_ext)
        apply (auto simp add: step  split: if_splits)
-       
+       (*
       apply (subst state_ext)
       apply (auto simp add: step  split: if_splits)
-      done
+      done*)
+      sorry
   qed
   thus "S2 ~~ tr @ [a] \<leadsto>* S2'"
     using \<open>S2 ~~ tr \<leadsto>* S_mid\<close> steps_step by blast
@@ -4315,9 +4327,9 @@ proof (rule show_programCorrect_noTransactionInterleaving)
 
           with `initialState program ~~ trace' \<leadsto>* s`
           obtain S_pos S_pos2 S_end 
-            where  "initialState program ~~ take pos trace' \<leadsto>* S_pos"
-              and "S_pos ~~ trace'!pos \<leadsto> S_pos2"
-              and "S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end"
+            where S_pos_steps: "initialState program ~~ take pos trace' \<leadsto>* S_pos"
+              and S_pos_step: "S_pos ~~ trace'!pos \<leadsto> S_pos2"
+              and S_pos2_steps: "S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end"
             by (smt append_Cons self_append_conv2 steps_append steps_appendFront)
 
           hence S_pos2_steps: "initialState program ~~ take (Suc pos) trace' \<leadsto>* S_pos2"
@@ -4351,6 +4363,10 @@ proof (rule show_programCorrect_noTransactionInterleaving)
             show "\<And>i. (i, AFail) \<notin> set (take (Suc pos) trace')"
               by (meson in_set_takeD less.prems(3))
           qed
+
+          find_theorems S_pos
+          find_theorems S_pos2
+  
 
           have "\<exists>S_new_end. S_pos ~~ drop (Suc pos) trace' \<leadsto>* S_new_end"
           proof (rule transfer_execution_local_difference'[OF `S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end`])
