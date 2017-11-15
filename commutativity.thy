@@ -3791,46 +3791,219 @@ when the execution trace contains no action in i.
 find_consts "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b)"
 
 
+lemma show_state_transfer:
+  assumes steps: "S_start ~~ tr \<leadsto>* S_end"
+and step_simulate: "\<And>a S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P S\<rbrakk> \<Longrightarrow> T S ~~ a \<leadsto> T S'"
+and step_preserves: "\<And>a S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P S\<rbrakk> \<Longrightarrow> P S'"
+and prop_initial: "P S_start"
+shows "(T S_start ~~ tr \<leadsto>* T S_end) \<and> P S_end"
+  using steps step_simulate step_preserves prop_initial proof (induct rule: steps_induct)
+  case initial
+  show "(T S_start ~~ [] \<leadsto>* T S_start) \<and> P S_start"
+    using `P S_start` by auto 
+next
+  case (step S' tr a S'')
+  show "(T S_start ~~ tr @ [a] \<leadsto>* T S'') \<and> P S''" 
+  proof (intro conjI)
+    show "P S''"
+      by (metis append_is_Nil_conv butlast_snoc in_set_butlastD last_in_set last_snoc list.simps(3) prop_initial step.IH step.prems(1) step.prems(2) step.step)
+    show " T S_start ~~ tr @ [a] \<leadsto>* T S''"
+      by (metis UnI2 butlast_snoc in_set_butlastD list.set_intros(1) prop_initial set_append step.IH step.prems(1) step.prems(2) step.step steps_step)
+  qed
+qed
+
+lemma show_state_transfer2_noP:
+  assumes steps: "S_start ~~ tr \<leadsto>* S_end"
+and step_simulate: "\<And>i a S S'. \<lbrakk>(i,a)\<in>set tr; S ~~ (i,a) \<leadsto> S'\<rbrakk> \<Longrightarrow> T S ~~ (i,a) \<leadsto> T S'"
+shows "T S_start ~~ tr \<leadsto>* T S_end"
+proof -
+  from steps
+  have "(T S_start ~~ tr \<leadsto>* T S_end) \<and> True"
+    by (rule show_state_transfer; auto simp add: assms)
+  thus ?thesis by simp
+qed
+
+
+
+lemma remove_local_step: 
+  fixes S_start S_end :: "('ls,'any) state" 
+  assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
+    and step_a: "S_start ~~ a \<leadsto> S_mid"
+    and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
+    and a_def: "a = (i, ALocal)"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and S_end'_def: "S_end' = S_end\<lparr>localState := (localState S_end)(i := localState S_start i)\<rparr>"
+  shows "S_start ~~ tr \<leadsto>* S_end'"
+proof -
+  define T where 
+      "T \<equiv> \<lambda>S::('ls,'any) state. S\<lparr>localState := (localState S)(i := localState S_start i)\<rparr>"
+
+  have "T S_mid = S_start"
+    using step_a by (auto simp add: a_def step_simps T_def state_ext)
+
+  from steps_tr
+  have "T S_mid ~~ tr \<leadsto>* T S_end"
+  proof (rule show_state_transfer2_noP)
+    show "T S ~~ (i',a) \<leadsto> T S'" if "(i',a) \<in> set tr" and  "S ~~ (i',a) \<leadsto> S'" for i' a S S'
+    proof -
+
+      have [simp]: "i' \<noteq> i" using `(i',a) \<in> set tr` no_i by force 
+      hence [simp]: "i \<noteq> i'" by blast 
+
+      from `S ~~ (i',a) \<leadsto> S'` 
+      show "T S ~~ (i',a) \<leadsto> T S'"
+        by (induct rule: step.cases, auto simp add: step_simps T_def state_ext)
+    qed
+  qed
+
+  thus "S_start ~~ tr \<leadsto>* S_end'"
+    using S_end'_def T_def \<open>T S_mid = S_start\<close> by auto
+qed
+
+lemma uid_used_only_once:
+  assumes steps:  "S_start ~~ tr \<leadsto>* S_end"
+    and alreadyGenerated: "uid \<in> generatedIds S_start"
+  shows "(i, ANewId uid) \<notin> set tr"
+proof -
+  have "(i, ANewId uid) \<notin> set tr \<and> uid \<in> generatedIds S_end"
+    using steps alreadyGenerated proof (induct rule: steps_induct)
+    case initial
+    then show ?case by simp
+  next
+    case (step S' tr a S'')
+    then show ?case apply (auto simp add: step_simps)
+      by (simp add: generatedIds_mono2)
+  qed
+  thus ?thesis by simp
+qed
+
+
+lemma remove_newId_step: 
+  fixes S_start S_end :: "('ls,'any) state" 
+  assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
+    and step_a: "S_start ~~ a \<leadsto> S_mid"
+    and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
+    and a_def: "a = (i, ANewId uid)"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and wf: "state_wellFormed S_start"
+    and S_end'_def: "S_end' = S_end\<lparr>generatedIds := generatedIds S_end - {uid}, localState := (localState S_end)(i := localState S_start i)\<rparr>"
+  shows "S_start ~~ tr \<leadsto>* S_end'"
+proof -
+  define T where 
+      "T \<equiv> \<lambda>S::('ls,'any) state. S\<lparr>generatedIds := generatedIds S - {uid}, localState := (localState S)(i := localState S_start i)\<rparr>"
+
+  have "T S_mid = S_start"
+    using step_a by (auto simp add: a_def step_simps T_def state_ext)
+
+  have uid_fresh: "uid \<notin> generatedIds S_start"
+    using step_a a_def by (auto simp add: step_simps)
+
+  have "uid \<in> generatedIds S_mid"
+    using step_a by (auto simp add: a_def step_simps T_def state_ext)
+
+  from `S_mid ~~ tr \<leadsto>* S_end` `uid \<in> generatedIds S_mid`
+  have uid_not_used: "(i, ANewId uid) \<notin> set tr" for i
+    by (rule uid_used_only_once)
+
+  from steps_tr
+  have "T S_mid ~~ tr \<leadsto>* T S_end"
+  proof (rule show_state_transfer2_noP)
+    show "T S ~~ (i',a) \<leadsto> T S'" if in_trace: "(i',a) \<in> set tr" and  "S ~~ (i',a) \<leadsto> S'" for i' a S S'
+    proof -
+
+      have [simp]: "i' \<noteq> i" using `(i',a) \<in> set tr` no_i by force 
+      hence [simp]: "i \<noteq> i'" by blast 
+
+      from `S ~~ (i',a) \<leadsto> S'` 
+      show "T S ~~ (i',a) \<leadsto> T S'"
+      proof (induct rule: step.cases)
+        case (local C s ls f ls')
+        then show ?case by (auto simp add: step_simps T_def state_ext)
+      next
+        case (newId C s ls f ls' uid)
+        then show ?case 
+          using in_trace uid_not_used by (auto simp add: step_simps T_def state_ext)
+      next
+        case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+        then show ?case by (auto simp add: step_simps T_def state_ext)
+      next
+        case (endAtomic C s ls f ls' t)
+        then show ?case by (auto simp add: step_simps T_def state_ext)
+      next
+        case (dbop C s ls f Op args ls' t c res vis)
+        then show ?case by (auto simp add: step_simps T_def state_ext)
+      next
+        case (invocation C s procName args initialState impl)
+        then show ?case by (auto simp add: step_simps T_def state_ext)
+      next
+        case (return C s ls f res)
+        then show ?case by (auto simp add: step_simps T_def state_ext)
+      next
+        case (fail C s ls)
+        then show ?case by (auto simp add: step_simps T_def state_ext)
+      next
+        case (invCheck txns C res s)
+        then show ?case by (auto simp add: step_simps T_def state_ext)
+      qed
+    qed
+  qed
+
+  thus "S_start ~~ tr \<leadsto>* S_end'"
+    using S_end'_def T_def \<open>T S_mid = S_start\<close> by (auto simp add: )
+
+qed
+
+
+
+
+
+
+
+
+
 
 lemma transfer_execution_local_difference_h:
   assumes steps: "S1 ~~ tr \<leadsto>* S1'"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
-    and S2_def: "S2 = S1\<lparr>
-          localState := (localState S1)(i := ls),
-          generatedIds := generatedIds S1 \<union> MoreGeneratedIds,
-          currentTransaction := (currentTransaction S1)(i \<mapsto> tx),
-          transactionStatus := (transactionStatus S1)(tx \<mapsto> Uncommited),
-          transactionOrigin := (transactionOrigin S1)(tx \<mapsto> i),
-          visibleCalls := (visibleCalls S1)(i := vis),
-          calls := calls S1 ++ callsInI,
-          callOrigin := callOrigin S1 ++ callsInIOrigin,
-          happensBefore := happensBefore S1 \<union> newHb \<rparr>"
+    and S2_def: "S1 = S2\<lparr>
+          localState := (localState S2)(i := ls),
+          generatedIds := generatedIds S2 \<union> MoreGeneratedIds,
+          currentTransaction := (currentTransaction S2)(i \<mapsto> tx),
+          transactionStatus := (transactionStatus S2)(tx \<mapsto> Uncommited),
+          transactionOrigin := (transactionOrigin S2)(tx \<mapsto> i),
+          visibleCalls := (visibleCalls S2)(i := vis),
+          calls := calls S2 ++ callsInI,
+          callOrigin := callOrigin S2 ++ callsInIOrigin,
+          happensBefore := happensBefore S2 \<union> newHb \<rparr>"
     and domCallsInI: "dom callsInI = dom callsInIOrigin"
-    and domCallsInI2: "dom callsInI \<inter> dom (calls S1) = {}"
+    and domCallsInI2: "dom callsInI \<inter> dom (calls S2) = {}"
     and rangeCallsInIOrigin: "range callsInIOrigin \<subseteq> {Some tx, None}"
-    and newHb: "newHb \<subseteq> (dom callsInI \<union> dom (calls S1)) \<times> dom callsInI"
+    and newHb: "newHb \<subseteq> (dom callsInI \<union> dom (calls S2)) \<times> dom callsInI"
     and MoreGeneratedIds_unused: "\<And>uid i. (i, ANewId uid) \<in> set tr \<Longrightarrow> uid \<notin> MoreGeneratedIds"
     and new_txns_unused1: "\<And>tx' newTxns i. (i, ABeginAtomic tx' newTxns) \<in> set tr \<Longrightarrow> tx' \<noteq> tx"
     and new_txns_unused2: "\<And>tx' newTxns tx'' i. \<lbrakk>(i, ABeginAtomic tx' newTxns) \<in> set tr\<rbrakk> \<Longrightarrow> tx \<notin> newTxns"
     and new_calls_unused: "\<And>cId oper args res i. (i, ADbOp cId oper args res) \<in> set tr \<Longrightarrow> cId \<notin> dom callsInI"
     and tx_uncommitted: "transactionStatus S1' tx \<triangleq> Uncommited"
     
-    and S2'_def: "S2' = S1'\<lparr>
-        localState := (localState S1')(i := ls),
-          generatedIds := generatedIds S1' \<union> MoreGeneratedIds,
-          currentTransaction := (currentTransaction S1')(i \<mapsto> tx),
-          transactionStatus := (transactionStatus S1')(tx \<mapsto> Uncommited),
-          transactionOrigin := (transactionOrigin S1')(tx \<mapsto> i),
-          visibleCalls := (visibleCalls S1')(i := vis),
-          calls := calls S1' ++ callsInI,
-          callOrigin := callOrigin S1' ++ callsInIOrigin,
-          happensBefore := happensBefore S1' \<union> newHb \<rparr>"
+    and S2'_def: "S1' = S2'\<lparr>
+        localState := (localState S2')(i := ls),
+          generatedIds := generatedIds S2' \<union> MoreGeneratedIds,
+          currentTransaction := (currentTransaction S2')(i \<mapsto> tx),
+          transactionStatus := (transactionStatus S2')(tx \<mapsto> Uncommited),
+          transactionOrigin := (transactionOrigin S2')(tx \<mapsto> i),
+          visibleCalls := (visibleCalls S2')(i := vis),
+          calls := calls S2' ++ callsInI,
+          callOrigin := callOrigin S2' ++ callsInIOrigin,
+          happensBefore := happensBefore S2' \<union> newHb \<rparr>"
   shows "S2 ~~ tr \<leadsto>* S2'" 
   using steps no_i S2'_def MoreGeneratedIds_unused new_txns_unused1 new_txns_unused2  new_calls_unused
   proof (induct arbitrary: S2' rule: steps_induct)
   case initial
-  then show ?case
-    using steps_refl S2_def by blast 
+  show ?case
+    using steps_refl S2_def apply auto
+    apply (unfold state_ext)
+    apply auto
+
 next
   case (step S' tr a S'')
 
