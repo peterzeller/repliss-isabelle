@@ -143,58 +143,67 @@ proof -
 qed    
 
 
-lemma 
+(*
+When all transactions are committed in S 
+and we execute some packed trace tr and get to state S'
+where tx is uncommitted in S'
+then the last executed transaction must be tx
+TODO something missing ?????
+*)
+lemma only_one_commmitted_transaction_h:
   assumes  steps: "S ~~ tr \<leadsto>* S'"
     and wf: "state_wellFormed S"
     and packed: "packed_trace tr"
     and status: "transactionStatus S' tx \<triangleq> Uncommited"
-    and tr_len: "length tr > 0"
+    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+(*    and tr_len: "length tr > 0"*)
     and initial: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
   shows "currentTransaction S' (fst (last tr)) \<triangleq> tx " 
-using steps packed status tr_len proof (induct arbitrary: tx  rule: steps_induct)
+using steps packed status noFails proof (induct arbitrary: tx  rule: steps_induct)
   case initial
-  then show ?case by auto
+  with `transactionStatus S tx \<noteq> Some Uncommited` show ?case by blast
 next
   case (step S' tr a S'')
 
-  show ?case
-  proof (cases "length tr")
-    case 0
-    then show ?thesis sorry
-  next
-    case (Suc nat)
     hence IH: "\<lbrakk>transactionStatus S' tx \<triangleq> Uncommited\<rbrakk> \<Longrightarrow> currentTransaction S' (fst (last tr)) \<triangleq> tx" for tx
       using isPrefix_appendI prefixes_are_packed step.IH step.prems(1) by fastforce 
 
     obtain i action where a_split[simp]: "a = (i,action)"
       by fastforce
 
-    from `packed_trace (tr @ [a])`
-    have "(fst (last tr)) = i" if "\<not>allowed_context_switch action"
-      by (smt One_nat_def Suc Zero_not_Suc a_split append.assoc append_Cons append_butlast_last_id diff_Suc_Suc diff_zero fst_conv length_0_conv length_append_singleton lessI nth_append_length snd_conv that use_packed_trace zero_less_Suc)
+    {
+      assume "length tr > 0"
 
-    hence  IH': "currentTransaction S' i \<triangleq> tx" if "transactionStatus S' tx \<triangleq> Uncommited" and "\<not> allowed_context_switch action" for tx
-      using IH[where tx=tx] that by blast 
+      {
+        assume "\<not>allowed_context_switch action" 
+        from `packed_trace (tr @ [a])`
+        have "(fst (last tr)) = i" 
+          using `\<not>allowed_context_switch action`
+          by (metis `length tr > 0` a_split append.assoc append_Cons append_Nil append_butlast_last_id context_switches_in_packed length_greater_0_conv prod.collapse) 
+
+        hence  IH': "currentTransaction S' i \<triangleq> tx" if "transactionStatus S' tx \<triangleq> Uncommited" for tx
+          using IH that by blast 
+
+
+        from `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
+        have "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx" 
+          using IH'[where tx=tx] `(i, AFail) \<notin> set (tr @ [a])` by (auto simp add: step.simps split: if_splits)
+      }
+      moreover 
+      {
+        assume "allowed_context_switch action" 
+        
+      }
 
     from `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
-    show ?thesis 
+    show "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx" 
       apply (auto simp add: step.simps split: if_splits)
               apply (erule IH', simp add: allowed_context_switch_def)
              apply (erule IH', simp add: allowed_context_switch_def)
-
-
-      
+      sorry
   qed
-  {
-    assume "length tr > 0"
-
-    
-  
-    from `S' ~~ a \<leadsto> S''`
-    show "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx"
-      apply (auto simp add: step.simps)
-
 qed
+
 
            
 text {*
@@ -210,13 +219,14 @@ assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
     and noFails: "(s, AFail) \<notin> set tr"
+    and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
     (* invariant holds on all states in the execution *)
     and inv: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S' "
 shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<forall>a. (a, False)\<notin>set tr')
         \<and> (state_coupling S' S2 s (tr = [] \<or> fst (last tr) = s))"
         (* TODO special case for fail, pull (and others?) *)
-using steps S_wellformed packed inv noFails proof (induct rule: steps.induct)
+using steps S_wellformed packed inv noFails noUncommitted proof (induct rule: steps.induct)
   case (steps_refl S)
   
   show ?case
@@ -565,11 +575,48 @@ next
         by (simp add: newS_def)
 
 
-      have "\<And>tx. tx \<noteq> txId \<Longrightarrow> transactionStatus S' tx \<noteq> Some Uncommited"
+      have "transactionStatus S' tx \<noteq> Some Uncommited" if "tx \<noteq> txId" for tx
+      proof (rule notI)
+        assume a: " transactionStatus S' tx \<triangleq> Uncommited"
+
+        {
+          assume "0 < length tr"
+          from `S ~~ tr \<leadsto>* S'` S_wf
+          have "currentTransaction S' (fst (last tr)) \<triangleq> tx "
+          proof (rule only_one_commmitted_transaction_h)
+
+            show "packed_trace tr"
+              using isPrefix_appendI packed prefixes_are_packed by blast 
+            show "transactionStatus S' tx \<triangleq> Uncommited"
+              by (simp add: a)
+
+            show "0 < length tr"
+              using \<open>0 < length tr\<close> by auto
 
 
-      show "\<And>tx. tx \<noteq> txId \<Longrightarrow> transactionStatus newS tx \<noteq> Some Uncommited"
-        apply (auto simp add: newS_def)
+            show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+              using `\<And>tx. transactionStatus S tx \<noteq> Some Uncommited` .
+          qed
+
+          hence False
+            using True \<open>0 < length tr\<close> a5 by fastforce
+        }
+        moreover
+        {
+          assume "tr = []"
+          with `S ~~ tr \<leadsto>* S'`
+          have "S' = S"
+            by auto
+          hence False
+            using a `\<And>tx. transactionStatus S tx \<noteq> Some Uncommited`  by blast
+        }
+        ultimately show "False"
+          by auto
+      qed
+
+
+      thus "\<And>tx. tx \<noteq> txId \<Longrightarrow> transactionStatus newS tx \<noteq> Some Uncommited"
+        by (auto simp add: newS_def S2_transactionStatus)
 
 
 

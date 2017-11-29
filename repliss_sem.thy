@@ -156,7 +156,7 @@ currentTransaction = s_currentTransaction
 thm state.defs  
 
 definition restrict_relation :: "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a rel" (infixl "|r"  110)
-  where "r |r A \<equiv> r Int (A \<times> A)"
+  where "r |r A \<equiv> r \<inter> (A \<times> A)"
 
 
 abbreviation "commitedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Commited }"
