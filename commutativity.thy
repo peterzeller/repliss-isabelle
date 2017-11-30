@@ -4698,6 +4698,27 @@ lemma packed_trace_prefix:
   shows "packed_trace xs"
   using assms isPrefix_appendI prefixes_are_packed by blast
 
+lemma packed_trace_postfix: 
+  assumes "packed_trace (xs@ys)"
+  shows "packed_trace ys"
+  using assms  apply (auto simp add: packed_trace_def )
+  apply (drule_tac x="i + length xs" in spec)
+  apply (auto simp add: nth_append split: if_splits)
+  done
+
+lemma packed_trace_take:
+  assumes "packed_trace tr"
+  shows "packed_trace (take i tr)"
+  by (metis append_take_drop_id assms packed_trace_prefix)
+
+
+lemma packed_trace_drop:
+  assumes "packed_trace tr"
+  shows "packed_trace (drop i tr)"
+  by (metis append_take_drop_id assms packed_trace_postfix)
+
+
+  
 
 lemma packedTraces_stay_in_transaction:
   assumes steps: "S ~~ tr \<leadsto>* S'"
@@ -4764,9 +4785,47 @@ lemmas packedTraces_stay_in_transaction1 = packedTraces_stay_in_transaction[THEN
 lemmas packedTraces_stay_in_transaction2 = packedTraces_stay_in_transaction[THEN conjunct2]
 
 
+lemma drop_nth:
+"drop n xs ! i = (xs ! (min n (length xs) + i))"
+proof (induct xs)
+  case Nil
+  then show ?case 
+    by auto
+
+next
+  case (Cons a xs)
+  then show ?case 
+    apply auto
+    by (metis (no_types, lifting) add_diff_cancel_left' append_take_drop_id length_Cons length_take min.commute not_add_less1 nth_append)
+qed
+
+
+lemma take_nth:
+"take n xs ! i = (if i < n then xs ! i else []!(i - min n (length xs)))"
+proof (induct xs arbitrary: n i)
+  case Nil
+  then show ?case 
+    by auto
+next
+  case (Cons a xs)
+  show ?case 
+  proof (cases n)
+    case 0
+    thus ?thesis by auto
+  next
+    case (Suc n')
+    thus ?thesis 
+      apply auto
+       apply (case_tac i)
+      apply auto
+      by (metis Cons.hyps One_nat_def Suc_pred diff_Suc_eq_diff_pred less_Suc_eq_0_disj neq0_conv)
+  qed
+qed
+
 lemma packedTraces_transactions_same_invocation:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and "packed_trace tr"
+    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
     and beginTx: "tr ! i = (invoc, ABeginAtomic tx txns)"
     and noEndTx: "\<forall>j. i < j \<and> j < k \<longrightarrow> tr ! j \<noteq> (invoc, AEndAtomic)"
     and noContextSwitch: "\<forall>j. i < j \<and> j < k \<longrightarrow> \<not>allowed_context_switch (snd (tr!j))"
@@ -4777,34 +4836,73 @@ lemma packedTraces_transactions_same_invocation:
 proof -
   have "take (Suc i) tr @ drop (Suc i) (take k tr) @ drop k tr = tr"
     apply (auto simp add: drop_take append_eq_conv_conj min_def)
-    using assms(6) assms(7) apply linarith
-    by (metis add_Suc_right assms(6) assms(7) le_add_diff_inverse2 less_imp_le less_trans_Suc)
+    using `i < j` `j < k` apply linarith
+    by (metis add_Suc_right `i < j` `j < k` le_add_diff_inverse2 less_imp_le less_trans_Suc)
 
   from this
   obtain S1 S2
     where "S ~~ take (Suc i) tr \<leadsto>* S1"
       and "S1 ~~ drop (Suc i) (take k tr) \<leadsto>* S2"
       and "S2 ~~ drop k tr \<leadsto>* S'"
+    by (smt steps steps_append)
 
 
+  from `S1 ~~ drop (Suc i) (take k tr) \<leadsto>* S2`
+  have "fst ( drop (Suc i) (take k tr) ! (j - Suc i)) = invoc"
+  proof (rule packedTraces_stay_in_transaction2)
+    show "packed_trace (drop (Suc i) (take k tr))"
+      using `packed_trace tr` packed_trace_drop packed_trace_take by blast 
+    from `S ~~ take (Suc i) tr \<leadsto>* S1`
+    have "S ~~ take i tr @ [tr!i] \<leadsto>* S1"
+      by (metis `i < j` `j < k` `k \<le> length tr` dual_order.strict_trans min.absorb2 min_less_iff_conj take_Suc_conv_app_nth)
+    from this
+    obtain S1_pre where "S1_pre ~~ tr!i \<leadsto> S1"
+      using steps_appendBack by blast
+
+    thus  "currentTransaction S1 invoc \<triangleq> tx"
+      using beginTx by (auto simp add: step_simps)
+      
+    show  "drop (Suc i) (take k tr) \<noteq> [] \<Longrightarrow> fst (hd (drop (Suc i) (take k tr))) = invoc"
+      using `packed_trace tr` by (smt One_nat_def \<open>take (Suc i) tr @ drop (Suc i) (take k tr) @ drop k tr = tr\<close> append_Cons append_eq_append_conv append_is_Nil_conv append_self_conv append_take_drop_id `i < j` `j < k` `k \<le> length tr` beginTx diff_Suc_Suc diff_zero fst_conv hd_Cons_tl lessI less_trans_Suc noContextSwitch not_le_imp_less nth_via_drop packed_trace_def take_all zero_less_Suc)
+      
+    show  "(invoc, AEndAtomic) \<notin> set (drop (Suc i) (take k tr))"
+      by (auto simp add: in_set_conv_nth take_nth drop_nth noEndTx)
+
+    show  "\<And>ia. (ia, AFail) \<notin> set (drop (Suc i) (take k tr))"
+      using noFail by (meson in_set_dropD in_set_takeD )
+
+    show  "\<And>a. a \<in> set (drop (Suc i) (take k tr)) \<Longrightarrow> \<not> allowed_context_switch (snd a)"
+      using noContextSwitch  apply (auto simp add: in_set_conv_nth take_nth drop_nth min_def  split: if_splits)
+         apply (metis less_add_Suc1 snd_conv)
+      apply (metis add.commute add_Suc assms(9) le_antisym less_add_Suc1 less_diff_conv snd_conv)
+      apply (metis less_add_Suc1 snd_conv)
+      by (metis add_Suc le_add_diff_inverse less_add_Suc1 nat_add_left_cancel_less snd_conv)
+
+    show  "j - Suc i < length (drop (Suc i) (take k tr))"
+      by (simp add: Suc_leI diff_less_mono min.absorb2)
+      
+  qed
+  thus "fst (tr ! j) = invoc "
+    using assms(7) assms(8) assms(9) by auto
 qed
 
 lemma noContextSwitchAllowedInTransaction:
   assumes steps: "S ~~ tr \<leadsto>* S'"
-    and  "packed_trace tr"
-    and  "tr ! i = (invoc, ABeginAtomic tx txns)"
-    and "\<forall>j. i < j \<and> j < k \<longrightarrow> snd (tr!j) \<noteq> AEndAtomic"
-    and "\<forall>j. i < j \<and> j < k \<longrightarrow> fst (tr!j) = invoc"
-    and "i<j" 
-    and "j<k"
-    and "k\<le>length tr"
+    and  packed: "packed_trace tr"
+    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
+    and beginAtomic: "tr ! i = (invoc, ABeginAtomic tx txns)"
+    and noEndAtomic: "\<forall>j. i < j \<and> j < k \<longrightarrow> snd (tr!j) \<noteq> AEndAtomic"
+    and sameInvoc: "\<forall>j. i < j \<and> j < k \<longrightarrow> fst (tr!j) = invoc"
+    and i_less_j: "i<j" 
+    and k_less_k: "j<k"
+    and k_length: "k\<le>length tr"
   shows "\<not>allowed_context_switch (snd (tr ! j))"
 proof 
   assume a0: "allowed_context_switch (snd (tr ! j))"
 
   from steps
   have "S ~~ take j tr @ (tr!j # drop (Suc j) tr) \<leadsto>* S'"
-    by (metis assms(7) assms(8) id_take_nth_drop min.absorb2 min_less_iff_conj)
+    by (metis id_take_nth_drop k_length k_less_k less_le_trans)
 
   from this
   obtain S1 S2
@@ -4813,12 +4911,13 @@ proof
     using steps_append steps_appendFront by blast 
 
   have "fst (tr!j) = invoc"
-    by (simp add: assms(5) assms(6) assms(7) less_imp_le)
+    using i_less_j k_less_k sameInvoc by blast
 
   moreover have "currentTransaction S1 invoc \<triangleq> tx"
-    sorry (* transaction not ended *)
+    by (smt currentTransaction \<open>S ~~ take j tr \<leadsto>* S1\<close>  i_less_j k_length k_less_k length_take less_imp_le less_le_trans local.beginAtomic min.absorb2 noEndAtomic noFail nth_mem nth_take snd_conv)
 
   moreover have "localState S1 invoc \<noteq> None"
+
     sorry (* transaction/invocation not ended *)
 
   ultimately 
