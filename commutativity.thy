@@ -4126,66 +4126,87 @@ lemma remove_DBOp_step:
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
-    and a_def: "a = (i, ABeginAtomic t txns)"
+    and a_def: "a = (i, ADbOp cId operation args res)"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
     and wf: "state_wellFormed S_start"
-    and newCalls_def: "newCalls = callsInTransaction C newTxns \<down> happensBefore C"
-    and snapshot_def: "snapshot = vis \<union> newCalls"
     and S_end'_def: "S_end' = S_end\<lparr>
+                localState := (localState S_end)(i := localState S_start i), 
+                calls := (calls S_end)(cId := None),
+                callOrigin := (callOrigin S_end)(cId := None),
+                visibleCalls := (visibleCalls S_end)(i := visibleCalls S_start i),
+                happensBefore := happensBefore S_end - {cId} \<times> UNIV - UNIV \<times> {cId}
+(*
                 localState := (localState S_end)(i := localState S_start i), 
                 currentTransaction := (currentTransaction S_end)(i := None),
                 transactionStatus := (transactionStatus S_end)(t := None),
                 transactionOrigin := (transactionOrigin S_end)(t := None),
                 visibleCalls := (visibleCalls S_end)(i := visibleCalls S_start i)
+*)
       \<rparr>"
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
+
+  have calls_S_start_cId: "calls S_start cId = None"
+    using a_def preconditionI precondition_dbop step_a by fastforce
+
+  find_theorems calls happensBefore state_wellFormed
+
+  with wellFormed_visibleCallsSubsetCalls_h(1)[OF wf]
+  have hb1: "(c, cId) \<notin> happensBefore S_start" for c
+    by blast
+
+  from calls_S_start_cId wellFormed_visibleCallsSubsetCalls_h(1)[OF wf]
+  have hb2: "(cId, c) \<notin> happensBefore S_start" for c
+    by blast
+
+  from calls_S_start_cId
+  have callOrigin_S_start_cId: "callOrigin S_start cId = None"
+    by (simp add: local.wf)
+
+
+
   define T where 
     "T \<equiv> \<lambda>S::('ls,'any) state. S\<lparr>
                 localState := (localState S)(i := localState S_start i), 
-                currentTransaction := (currentTransaction S)(i := None),
-                transactionStatus := (transactionStatus S)(t := None),
-                transactionOrigin := (transactionOrigin S)(t := None),
-                visibleCalls := (visibleCalls S)(i := visibleCalls S_start i) \<rparr>"
+                calls := (calls S)(cId := None),
+                callOrigin := (callOrigin S)(cId := None),
+                visibleCalls := (visibleCalls S)(i := visibleCalls S_start i),
+                happensBefore := happensBefore S - {cId} \<times> UNIV - UNIV \<times> {cId}
+    \<rparr>"
 
 
-
-  have noOrig: "transactionOrigin S_start t = None"
-    using step_a local.wf wf_transaction_status_iff_origin by (auto simp add: a_def step_simps)
 
 
   hence "T S_mid = S_start"
-    using step_a by (auto simp add: a_def step_simps T_def state_ext)
+    using step_a apply (auto simp add: a_def step_simps T_def )
+    apply (subst state_ext)
+    apply (intro conjI)
+    using hb1 hb2 callOrigin_S_start_cId by auto
+
+
 
   define P where
-    p_def: "P \<equiv> \<lambda>S::('ls,'any) state. t \<notin> commitedTransactions S \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow>  currentTransaction S i' \<noteq> Some t)"
-
-  have "currentTransaction S_start i \<noteq> Some t" for i
-    by (metis local.wf noOrig option.simps(3) wellFormed_currentTransactionUncommited wf_transaction_status_iff_origin)
-
-  hence "P S_mid"
-    using step_a
-    by (auto simp add: p_def step.simps precondition_beginAtomic a_def  split: if_splits)
+    p_def: "P \<equiv> \<lambda>S::('ls,'any) state. callOrigin S cId = currentTransaction S_start i"
 
 
+  from steps
+  have cId_not_used_again: "(s, ADbOp cId Op args res) \<notin> set tr" for s Op args res
+    sorry (* TODO trace property *)
 
 
-  from `S_mid ~~ tr \<leadsto>* S_end` 
-  have t_not_used1: "(i, ABeginAtomic t txns) \<notin> set tr" for i txns
-    using a_def no_i steps transactionIdsUnique2 by fastforce
-
-
-  thm show_state_transfer
 
   from steps_tr
   have "(T S_mid ~~ tr \<leadsto>* T S_end) \<and> P S_end"
   proof (rule show_state_transfer)
 
-    show "P S_mid"
-      using `P S_mid` .
+    from step_a
+    show "P S_mid" by (auto simp add: p_def step_simps a_def)
+
+
 
     show "\<And>a S S'. \<lbrakk>a \<in> set tr; S ~~ a \<leadsto> S'; P S\<rbrakk> \<Longrightarrow> P S'"
-      using no_i by (auto simp add: step.simps p_def t_not_used1  split: if_splits)
+      using no_i cId_not_used_again by (auto simp add: step.simps p_def  split: if_splits)
+
 
     have "T S ~~ (i',a) \<leadsto> T S'" if in_trace: "(i',a) \<in> set tr" and  a_step: "S ~~ (i',a) \<leadsto> S'" and P_S: "P S" for i' a S S'
     proof -
@@ -4201,12 +4222,88 @@ proof -
       next
         case (newId C s ls f ls' uid)
         then show ?case 
-          using in_trace t_not_used1 by (auto simp add: step_simps T_def state_ext)
+          using in_trace  by (auto simp add: step_simps T_def state_ext)
       next
         case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
-        then show ?case 
-          using in_trace t_not_used1 apply (auto simp add: step_simps T_def state_ext)
-          using p_def `P S` by auto
+
+        have "x \<in> callsInTransactionH ((callOrigin C)(cId := None)) newTxns \<down> (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId})
+         \<longleftrightarrow>  x \<in> callsInTransaction C newTxns \<down> happensBefore C" if "x \<noteq> cId" for x
+          using that apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
+          apply (drule_tac x=y in spec)
+          apply auto
+        proof -
+          fix txn
+          assume "x \<noteq> cId" "(x, cId) \<in> happensBefore C" "txn \<in> newTxns" "callOrigin C cId \<triangleq> txn"
+
+          have "state_wellFormed C"
+            sorry
+
+          moreover have "calls C x \<noteq> None"
+            sorry
+
+
+          with wellFormed_callOrigin_dom3[OF `state_wellFormed C`, where c=x]
+          show "\<exists>txn\<in>newTxns. callOrigin C x \<triangleq> txn"
+            apply auto
+
+
+            find_theorems state_wellFormed calls callOrigin
+
+
+
+          apply (rule_tac x=txn in bexI)
+           apply auto
+
+          
+          
+
+        from beginAtomic show ?case 
+          apply (auto simp add: step_simps T_def)
+          apply (subst state_ext)
+          apply (intro conjI ext)
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+          apply auto[1]
+
+
+
+          using in_trace  apply (auto simp add: step_simps T_def state_ext callsInTransactionH_def downwardsClosure_def intro!: ext)
+          using `P S` apply (auto simp add: p_def)
+
+          sorry
       next
         case (endAtomic C s ls f ls' t)
         then show ?case 

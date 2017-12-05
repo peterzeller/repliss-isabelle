@@ -129,6 +129,12 @@ lemma wellFormed_callOrigin_dom2[simp]:
   using wellFormed_callOrigin_dom by force
 
 
+lemma wellFormed_callOrigin_dom3:
+  assumes a1: "state_wellFormed S"
+  shows "(calls S c = None) \<longleftrightarrow> (callOrigin S c = None)"
+  using assms wellFormed_callOrigin_dom by force
+
+
 lemma wellFormed_visibleCallsSubsetCalls_h:
   assumes a1: "state_wellFormed S"
   shows "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
