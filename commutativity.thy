@@ -3851,8 +3851,8 @@ qed
 
 lemma remove_local_step: 
   fixes S_start S_end :: "('ls,'any) state" 
-  assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
-    and step_a: "S_start ~~ a \<leadsto> S_mid"
+  assumes step_a: "S_start ~~ a \<leadsto> S_mid"
+    and steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
     and a_def: "a = (i, ALocal)"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
@@ -4525,7 +4525,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
               and S_pos2_steps: "S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end"
             by (smt append_Cons self_append_conv2 steps_append steps_appendFront)
 
-          hence S_pos2_steps: "initialState program ~~ take (Suc pos) trace' \<leadsto>* S_pos2"
+          hence S_pos2_steps_initial: "initialState program ~~ take (Suc pos) trace' \<leadsto>* S_pos2"
             by (metis \<open>pos < length trace'\<close> steps_step take_Suc_conv_app_nth)
 
 
@@ -4541,7 +4541,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
             by (simp add: invoc_def)
 
           have inTx: "currentTransaction S_pos2 invoc \<noteq> None"
-          proof (rule inTransaction_trace[OF S_pos2_steps])
+          proof (rule inTransaction_trace[OF S_pos2_steps_initial])
 
             from `trace' ! j = (invoc, ABeginAtomic tx txns)`
             show "take (Suc pos) trace' ! j = (invoc, ABeginAtomic tx txns)"
@@ -4560,7 +4560,92 @@ proof (rule show_programCorrect_noTransactionInterleaving)
           find_theorems S_pos
           find_theorems S_pos2
 
+          find_theorems "steps S_pos"
 
+          obtain pos_action where pos_action_def[simp]: "trace'!pos = (invoc, pos_action)"
+            by (metis invoc_def prod.collapse)
+
+          from S_pos_step
+          have S_pos_step': "S_pos ~~ (invoc, pos_action) \<leadsto> S_pos2" 
+            by simp
+
+          have other_invocation: "\<And>a. a \<in> set (drop (Suc pos) trace') \<Longrightarrow> fst a \<noteq> invoc"
+            by (smt \<open>min (length trace') pos = pos\<close> add.commute add_Suc_right append_eq_append_conv_if gr_implies_not_zero in_set_conv_nth invoc_def le_eq_less_or_eq length_drop length_take less_diff_conv list.size(3) maxPos not_less_eq nth_drop self_append_conv2)
+
+          have other_invocation'[simp]: "\<And>a. (invoc, a) \<notin> set (drop (Suc pos) trace')" 
+            by (meson fst_conv other_invocation)
+
+
+          thm S_pos2_steps
+
+          from `S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end`
+          have S_pos_steps_to_S_end: "S_pos ~~ (invoc, pos_action) # drop (Suc pos) trace' \<leadsto>* S_end"
+            using S_pos_step' steps_appendFront by blast
+
+
+          from `initialState program ~~ take pos trace' \<leadsto>* S_pos`
+          have S_pos_wf[simp]: "state_wellFormed S_pos"
+            using state_wellFormed_combine state_wellFormed_init by blast
+
+          have "\<exists>S_new_end. S_pos ~~ drop (Suc pos) trace' \<leadsto>* S_new_end"
+          proof (cases "pos_action")
+            case ALocal
+            hence [simp]: "pos_action = ALocal" by simp
+
+            show ?thesis
+              apply (rule exI, rule remove_local_step[OF S_pos_step' S_pos_steps_to_S_end S_pos2_steps])
+              by (auto simp add: other_invocation)
+
+          next
+            case (ANewId x2)
+
+            show ?thesis 
+              apply (rule exI)
+              apply (rule remove_newId_step[OF S_pos_steps_to_S_end S_pos_step' S_pos2_steps])
+              using ANewId by (auto simp add: other_invocation)
+
+
+          next
+            case (ABeginAtomic x31 x32)
+
+            then show ?thesis
+              using S_pos_step inTx apply (auto simp add: step.simps inTx)
+              (* TODO add rule remove_beginAtomic *)
+
+              sorry
+          next
+            case AEndAtomic
+            then show ?thesis 
+              using \<open>j \<le> pos\<close> \<open>pos < length trace'\<close> local.beginAtomic noEndAtomic by fastforce
+          next
+            case (ADbOp x51 x52 x53 x54)
+            then show ?thesis 
+              (* TODO add rule remove_ADbOp*)
+              sorry
+          next
+            case (AInvoc x61 x62)
+            then show ?thesis
+              using S_pos_step inTx apply (auto simp add: step.simps inTx)
+                (* TODO we already have an beginAtomic before, so we cannot have an invocation*)
+              sorry
+          next
+            case (AReturn x7)
+            then show ?thesis 
+              using S_pos_step inTx by (auto simp add: step.simps inTx)
+          next
+            case AFail
+            then show ?thesis
+              using \<open>pos < length trace'\<close> `\<And>s. (s, AFail) \<notin> set trace'` nth_mem by fastforce
+          next
+            case (AInvcheck x91 x92)
+            hence "S_pos2 = S_pos"
+              using S_pos_step by (auto simp add: step.simps)
+            with `S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end` 
+            show ?thesis by blast
+          qed
+
+
+(* old proof attempt*)
           have "\<exists>S_new_end. S_pos ~~ drop (Suc pos) trace' \<leadsto>* S_new_end"
           proof (rule transfer_execution_local_difference'[OF `S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end`])
 
