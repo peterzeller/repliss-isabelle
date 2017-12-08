@@ -1709,6 +1709,17 @@ lemma currentTransaction_unchangedInternalSteps2:
   using assms apply (induct arbitrary: a tx ntxn rule: steps.induct)  
   using currentTransaction_unchangedInternalSteps by (auto simp add: step_simps_all split: if_splits, blast+)
 
+lemma currentTransaction_unchangedInternalSteps4:
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "\<And>a.  a \<in> set tr \<Longrightarrow> a \<noteq> (s, AEndAtomic)"
+    and "\<And>a.  a \<in> set tr \<Longrightarrow> a \<noteq> (s, AFail)"
+    and "currentTransaction S s = Some t"  
+    and wf: "state_wellFormed S"
+  shows "currentTransaction S' s = Some t"  and "a \<in> set tr \<Longrightarrow> a \<noteq> (s, ABeginAtomic tx ntxn)" 
+  using assms apply (induct arbitrary: a tx ntxn rule: steps.induct)  
+  using currentTransaction_unchangedInternalSteps by (auto simp add: step_simps_all split: if_splits, blast+)
+
+
 
 
 
@@ -4533,12 +4544,32 @@ lemma transfer_execution_local_difference':
   using transfer_execution_local_difference[OF steps no_i]
   using S2_def by blast
 
+
+definition no_invariant_checks_in_transaction where
+"no_invariant_checks_in_transaction tr \<equiv> \<forall>ib i s c tx txns txns'. 
+    tr!ib = (s, ABeginAtomic tx txns)
+  \<and> (\<forall>j. ib<j \<and> j<i \<longrightarrow> tr!j \<noteq> (s, AEndAtomic))
+  \<and> tr!i = (s, AInvcheck txns' c) "
+
+
+lemma maintain_no_invariant_checks_in_transaction:
+  assumes "no_invariant_checks_in_transaction tr"
+    and "snd (tr!pos) \<noteq> AEndAtomic"
+    and "pos < length tr"
+  shows "no_invariant_checks_in_transaction (take pos tr @ drop (Suc pos) tr)"
+  apply (case_tac "tr!pos")
+  using assms apply (auto simp add: no_invariant_checks_in_transaction_def nth_append min_def)
+  by (metis append_take_drop_id nth_append_length_plus)+
+
+
+
 text {*
- To show that a program is correct, we only have to consider packed and finished transactions
+ To show that a program is correct, we only have to consider packed transactions 
+ with no invariant checks 
 *}
 theorem show_programCorrect_noTransactionInterleaving':
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving)
   fix trace :: "(invocation \<times> 'a action) list"
@@ -4546,6 +4577,28 @@ proof (rule show_programCorrect_noTransactionInterleaving)
   assume steps: "initialState program ~~ trace \<leadsto>* s"
     and packed: "packed_trace trace" 
     and nofail: "\<And>s. (s, AFail) \<notin> set trace"
+
+
+
+  show "traceCorrect trace"
+    sorry
+qed
+
+
+text {*
+ To show that a program is correct, we only have to consider packed and finished transactions
+*}
+theorem show_programCorrect_noTransactionInterleaving'':
+  assumes packedTracesCorrect: 
+    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+  shows "programCorrect program"
+proof (rule show_programCorrect_noTransactionInterleaving')
+  fix trace :: "(invocation \<times> 'a action) list"
+  fix s
+  assume steps: "initialState program ~~ trace \<leadsto>* s"
+    and packed: "packed_trace trace" 
+    and nofail: "\<And>s. (s, AFail) \<notin> set trace"
+    and no_inv_checks: "no_invariant_checks_in_transaction trace"
 
 
   define "induct_measure" where "induct_measure  \<equiv> \<lambda>trace::(invocation \<times> 'a action) list. \<lambda>pos'.
@@ -4559,7 +4612,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
   have induct_measure_bound: "\<exists>bound. \<forall>x. induct_measure trace x \<longrightarrow> x \<le> bound" for trace
     by (rule_tac x="length trace" in exI, auto simp add: induct_measure_def split: nat.split)
 
-  from steps packed nofail
+  from steps packed nofail no_inv_checks
   show "traceCorrect trace"
   proof (induct "GREATEST pos'. induct_measure trace pos'"
       arbitrary: trace s rule: less_induct)
@@ -4619,9 +4672,9 @@ proof (rule show_programCorrect_noTransactionInterleaving)
       have newTraceIth: "newTrace!i = (if i<pos then trace'!i else trace'!Suc i)" if "i<length newTrace"  for i
         using that \<open>pos < length trace'\<close> by (auto simp add: newTrace_def nth_append)
 
-      have IH: " \<lbrakk>Greatest (induct_measure trace) < Greatest (induct_measure trace'); \<exists>S. initialState program ~~ trace \<leadsto>* S; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace\<rbrakk>
+      have IH: " \<lbrakk>Greatest (induct_measure trace) < Greatest (induct_measure trace'); \<exists>S. initialState program ~~ trace \<leadsto>* S; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk>
      \<Longrightarrow> traceCorrect trace" for trace
-        using less.hyps by auto
+        using less.hyps   by auto (* TODO prove no_invariant_checks_in_transaction trace'*)
 
 
       have "traceCorrect newTrace"
@@ -4870,12 +4923,28 @@ proof (rule show_programCorrect_noTransactionInterleaving)
           by (smt Suc_eq_plus1_left add_diff_inverse_nat diff_add_zero lessI maxPos not_less_eq not_less_zero)
         show " \<And>s. (s, AFail) \<notin> set newTrace"
           using `\<And>s. (s, AFail) \<notin> set trace'` by (auto simp add: newTrace_def dest: in_set_takeD in_set_dropD )
-      qed
+
+        show "no_invariant_checks_in_transaction newTrace"
+        proof (cases "snd (trace' ! pos) \<noteq> AEndAtomic")
+          case True
+          show ?thesis 
+            unfolding newTrace_def
+            by (rule maintain_no_invariant_checks_in_transaction[OF `no_invariant_checks_in_transaction trace'` True \<open>pos < length trace'\<close>])
+          next
+            case False
+            with `no_invariant_checks_in_transaction trace'`
+            show ?thesis 
+              apply (case_tac "trace' ! pos")
+              apply (auto simp add: newTrace_def no_invariant_checks_in_transaction_def nth_append )
+              by (metis action.distinct(31) eq_snd_iff)+
+          qed
+        qed
 
 (* because no inv-checks in transaction *)
       have removedNoInvCheck: "snd (trace'!pos) \<noteq> AInvcheck txns v" for txns v
-        (* TODO prove that it is not necessary to check invariants in transactions: Can check before the transaction *)
-        sorry
+        find_theorems trace'
+        using `no_invariant_checks_in_transaction trace'`
+        by (metis action.distinct(41) no_invariant_checks_in_transaction_def snd_conv)
 
 
 
@@ -5121,13 +5190,16 @@ proof -
     using assms(7) assms(8) assms(9) by auto
 qed
 
+
+
+
 lemma noContextSwitchAllowedInTransaction:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and  packed: "packed_trace tr"
     and noFail: "\<And>i. (i, AFail) \<notin> set tr"
     and beginAtomic: "tr ! i = (invoc, ABeginAtomic tx txns)"
     and noEndAtomic: "\<forall>j. i < j \<and> j < k \<longrightarrow> snd (tr!j) \<noteq> AEndAtomic"
-    and sameInvoc: "\<forall>j. i < j \<and> j < k \<longrightarrow> fst (tr!j) = invoc"
+    and sameInvoc: "fst (tr!j) = invoc"
     and i_less_j: "i<j" 
     and k_less_k: "j<k"
     and k_length: "k\<le>length tr"
@@ -5167,6 +5239,8 @@ lemma noContextSwitchesInTransaction_when_packed_and_all_end:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and "allTransactionsEnd tr"
     and "packed_trace tr"
+    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
+    and wf: "state_wellFormed S"
   shows "noContextSwitchesInTransaction tr"
 proof (auto simp add: noContextSwitchesInTransaction_def)
   fix i k j invoc tx txns
@@ -5178,36 +5252,160 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
     and a6: "allowed_context_switch (snd (tr ! j))"
 
 
+  obtain j_min 
+    where a4_min: "i < j_min"
+      and a5_min: "j_min < k"
+      and a6_min: "allowed_context_switch (snd(tr!j_min))"
+      and j_min_min: "\<forall>j. i<j \<and> j<k \<and> allowed_context_switch (snd (tr ! j)) \<longrightarrow> j_min \<le> j"
+    apply atomize_elim
+    apply (rule_tac x="Least (\<lambda>j. i<j \<and> j<k \<and> allowed_context_switch (snd (tr ! j)))" in exI)
+    apply (rule LeastI2_wellorder_ex)
+    using a4 a5 a6 by auto
 
+  have tr_split: "tr = take j_min tr @ [tr!j_min] @ drop (Suc j_min) tr"
+    apply auto
+    using a0 a5_min id_take_nth_drop order.strict_trans by blast
+  with steps have tr_split_steps: "S ~~ take j_min tr @ [tr!j_min] @ drop (Suc j_min) tr \<leadsto>* S'" by simp
+  from this
+  obtain S_j_min_pre S_j_min 
+    where S_j_min_pre_steps: "S ~~ take j_min tr \<leadsto>* S_j_min_pre"
+      and j_min_step: "S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min"
+      and S_j_min_steps: "S_j_min ~~ drop (Suc j_min) tr \<leadsto>* S'"
+    by (auto simp add: steps_append steps_appendFront  )
+
+
+  have S_j_min_pre_wf: "state_wellFormed S_j_min_pre"
+    using S_j_min_pre_steps local.wf state_wellFormed_combine by auto
+
+  hence "state_wellFormed S_j_min"
+    using S_j_min_pre_steps j_min_step local.wf state_wellFormed_combine steps_step by blast
+
+
+
+  (* we are still in a transaction: *)
+  obtain tx 
+    where currentTx: "currentTransaction S_j_min_pre invoc \<triangleq> tx"
+    by (smt \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> a0 a1 a3 a4_min a5_min append_take_drop_id currentTransaction length_take less_imp_le less_le_trans min.absorb2 noFail nth_append_first nth_mem)
+
+  hence ls: "localState S_j_min_pre invoc \<noteq> None"
+    using \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> inTransaction_localState local.wf state_wellFormed_combine by blast
+
+
+  with `S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min` 
+    and `allowed_context_switch (snd(tr!j_min))`
+  have "fst (tr!j_min) \<noteq> invoc"
+    by (auto simp add: step.simps currentTx)
+
+
+  (* there must be an endAtomic for the beginAtomic  *)
   from `allTransactionsEnd tr` 
   obtain i_end 
-    where "tr!i_end = (invoc, AEndAtomic)" and "i_end \<ge> k"
+    where "tr!i_end = (invoc, AEndAtomic)" and "i_end \<ge> k" and "i_end < length tr"
     apply (auto simp add: allTransactionsEnd_def)
     by (meson a0 a1 a3 a4 a5 not_le_imp_less order.strict_trans)
 
 
-  from steps `packed_trace tr` a1
-  have "~allowed_context_switch (snd (tr ! j))"
-  proof (rule noContextSwitchAllowedInTransaction)
-    show " \<forall>j. i < j \<and> j < k \<longrightarrow> fst (tr ! j) = invoc"
-      using packedTraces_transactions_same_invocation[OF steps `packed_trace tr` a1] a3 by blast
-    show "\<forall>j. i < j \<and> j < k \<longrightarrow> snd (tr ! j) \<noteq> AEndAtomic"
-      apply auto 
-      using a3
-      by (metis \<open>\<forall>j. i < j \<and> j < k \<longrightarrow> fst (tr ! j) = invoc\<close> surjective_pairing)  
+  (* this means, we must go back to invoc. Take the first index where we go back to invoc *)
+  from this
+  obtain back_min 
+    where "back_min > j_min"
+      and "back_min < length tr"
+      and "fst (tr!back_min) = invoc"
+      and back_min_min: "\<forall>i. i > j_min \<and> i < length tr \<and> fst (tr!i) = invoc \<longrightarrow> i\<ge> back_min"
+    apply atomize_elim
+    apply (rule_tac x="Least (\<lambda>i. i > j_min \<and> i < length tr \<and> fst (tr!i) = invoc)" in exI)
+    apply (rule LeastI2_wellorder_ex)
+     apply auto
+    using a5_min fst_conv by fastforce
 
-    show "i < j" and "j < k" and "k \<le> length tr"
-      using a0 a4 a5  by linarith+
+
+  (* this must be a valid context switch, since it is the first to change back *)
+  from `packed_trace tr`
+  have "allowed_context_switch (snd (tr ! back_min))"
+  proof (rule use_packed_trace)
+    show "0 < back_min"
+      using \<open>j_min < back_min\<close> gr_implies_not0 by blast
+
+    show "back_min < length tr"
+      by (simp add: \<open>back_min < length tr\<close>)
+    have "fst (tr ! (back_min - 1)) \<noteq> invoc"
+      using back_min_min[rule_format, where i="back_min-1"]
+      apply auto
+      using \<open>back_min < length tr\<close> \<open>fst (tr ! j_min) \<noteq> invoc\<close> \<open>j_min < back_min\<close> not_less_less_Suc_eq by fastforce
+
+    thus "fst (tr ! (back_min - 1)) \<noteq> fst (tr ! back_min)"
+      by (auto simp add: `fst (tr!back_min) = invoc`)
+  qed
+
+  (* but since we are already in a transaction, that cannot work  *)
+
+  have "drop (Suc j_min) tr = take (back_min - Suc j_min) (drop (Suc j_min) tr) @ drop back_min tr"
+    by (smt Suc_diff_Suc \<open>back_min < length tr\<close> \<open>j_min < back_min\<close> append_Cons append_take_drop_id drop_Suc_Cons drop_append drop_eq_Nil dual_order.strict_trans length_take less_imp_le min.absorb2 self_append_conv2 tr_split)
+  hence "drop (Suc j_min) tr = take (back_min - Suc j_min) (drop (Suc j_min) tr) @ tr!back_min # drop (Suc back_min) tr"
+    using Cons_nth_drop_Suc \<open>back_min < length tr\<close> by fastforce
+
+  with `S_j_min ~~ drop (Suc j_min) tr \<leadsto>* S'`
+  have "S_j_min ~~ take (back_min - Suc j_min) (drop (Suc j_min) tr) @ tr!back_min # drop (Suc back_min) tr \<leadsto>* S'"
+    by force
+  from this
+  obtain S_back_min_pre S_back_min
+    where S_back_min_pre_steps: "S_j_min ~~ take (back_min - Suc j_min) (drop (Suc j_min) tr) \<leadsto>* S_back_min_pre"
+      and back_min_step: "S_back_min_pre ~~ tr!back_min \<leadsto> S_back_min"
+      and S_back_min_steps: "S_back_min ~~ drop (Suc back_min) tr \<leadsto>* S'"
+    by  (auto simp add: steps_append steps_appendFront )
+
+
+  from S_back_min_pre_steps `state_wellFormed S_j_min`
+  have "state_wellFormed S_back_min_pre"
+    using state_wellFormed_combine by blast
+
+  from `currentTransaction S_j_min_pre invoc \<triangleq> tx`
+  have "currentTransaction S_j_min invoc \<triangleq> tx"
+    using `S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min` 
+    using \<open>fst (tr ! j_min) \<noteq> invoc\<close> by (auto simp add: step.simps )
+
+
+  from  `S_j_min ~~ take (back_min - Suc j_min) (drop (Suc j_min) tr) \<leadsto>* S_back_min_pre`
+  have "currentTransaction S_back_min_pre invoc \<triangleq> tx"
+    find_theorems currentTransaction steps
+  proof (rule currentTransaction_unchangedInternalSteps4(1))
+    show "currentTransaction S_j_min invoc \<triangleq> tx"
+      by (simp add: \<open>currentTransaction S_j_min invoc \<triangleq> tx\<close>) 
+    show "state_wellFormed S_j_min"
+    proof (rule state_wellFormed_combine[OF wf])
+      show " S ~~ take j_min tr @ [tr ! j_min] \<leadsto>* S_j_min"
+        using `S ~~ take j_min tr \<leadsto>* S_j_min_pre` `S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min`
+        using steps_step by blast 
+    qed
+
+    show "\<And>a. a \<in> set (take (back_min - Suc j_min) (drop (Suc j_min) tr)) \<Longrightarrow> a \<noteq> (invoc, AEndAtomic)"
+      apply (auto simp add: in_set_conv_nth)
+      by (metis add.commute add_Suc back_min_min fst_conv less_add_Suc1 less_diff_conv linorder_not_le)
+
+    show "\<And>a. a \<in> set (take (back_min - Suc j_min) (drop (Suc j_min) tr)) \<Longrightarrow> a \<noteq> (invoc, AFail)"
+      by (meson in_set_dropD in_set_takeD noFail)
   qed
 
 
 
 
 
+  hence "localState S_back_min_pre invoc \<noteq> None"
+    using `state_wellFormed S_back_min_pre`
+    using inTransaction_localState by blast
 
-  thus "False"
-    using a6 by blast
+
+
+  (* a contradiction *)
+  with `S_back_min_pre ~~ tr!back_min \<leadsto> S_back_min`
+    and `allowed_context_switch (snd (tr ! back_min))`
+    and \<open>fst (tr ! back_min) = invoc\<close>
+    and `currentTransaction S_back_min_pre invoc \<triangleq> tx`
+    and `localState S_back_min_pre invoc \<noteq> None`
+  show "False"
+    by (auto simp add:step.simps )
 qed
+
 
 
 end
