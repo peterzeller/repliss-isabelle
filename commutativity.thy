@@ -4581,7 +4581,20 @@ proof (rule show_programCorrect_noTransactionInterleaving)
 
 
   show "traceCorrect trace"
-    sorry
+  proof (rule ccontr)
+    assume "\<not> traceCorrect trace"
+
+    (* get the first failing invariant check *)
+
+    (* if it is not in a transaction: remove all others and use packedTracesCorrect  *)
+
+    (* if it is in a transaction, move it right before the transaction and adapt it to the correct invocation
+      then remove all others and use packedTracesCorrect  *)
+
+
+    show False
+      sorry
+  qed
 qed
 
 
