@@ -4119,6 +4119,49 @@ proof -
 qed
 
 
+lemma callIds_unique:
+  assumes steps: "S ~~ tr \<leadsto>* S'"
+    and "calls S cId \<noteq> None"
+  shows "(s, ADbOp cId Op args res) \<notin> set tr" and "calls S' cId \<noteq> None"
+using steps proof (induct rule: steps_induct)
+  case initial
+  thus "calls S cId \<noteq> None" using `calls S cId \<noteq> None` .
+  show "(s, ADbOp cId Op args res) \<notin> set []" by simp
+next
+  case (step S' tr a S'')
+  from step
+  show "(s, ADbOp cId Op args res) \<notin> set (tr @ [a])" and "calls S'' cId \<noteq> None"
+    by (auto simp add: step.simps)
+qed
+
+lemma callIds_unique2:
+  assumes steps: "S ~~ tr \<leadsto>* S'"
+    and "tr ! i = (s, ADbOp cId Op args res)"
+    and "i<j"
+    and "j < length tr"
+  shows  "tr ! j  \<noteq> (s', ADbOp cId Op' args' res')"
+  using assms 
+proof -
+  have "tr = take (Suc i) tr @ drop (Suc i) tr"
+    by simp
+  from this
+  obtain Si 
+    where "S ~~ take (Suc i) tr \<leadsto>* Si"
+      and "Si ~~ drop (Suc i) tr \<leadsto>* S'"
+    using steps steps_append by fastforce
+  from `S ~~ take (Suc i) tr \<leadsto>* Si`
+  obtain Si_pre where "Si_pre ~~ (s, ADbOp cId Op args res) \<leadsto> Si"
+    by (smt Suc_less_eq append1_eq_conv append_is_Nil_conv assms(2) assms(3) assms(4) length_Cons less_SucI less_trans_Suc n_not_Suc_n steps.cases take_Suc_conv_app_nth)
+
+  hence "calls Si cId \<noteq> None"
+    by (auto simp add: step_simps)
+  with callIds_unique[OF `Si ~~ drop (Suc i) tr \<leadsto>* S'`]
+  have "(s', ADbOp cId Op' args' res') \<notin> set (drop (Suc i) tr)"
+    by blast
+  thus "tr ! j  \<noteq> (s', ADbOp cId Op' args' res')"
+    by (smt Suc_leI \<open>tr = take (Suc i) tr @ drop (Suc i) tr\<close> assms(3) assms(4) in_set_conv_nth le_add_diff_inverse2 length_drop length_take less_diff_conv min_def min_less_iff_conj not_less_eq nth_append)
+    
+qed
 
 (* TODO *)
 lemma remove_DBOp_step: 
@@ -4197,9 +4240,9 @@ proof -
                    \<and> (\<forall>i' vis. i\<noteq>i' \<and> visibleCalls S i' \<triangleq> vis \<longrightarrow> cId \<notin> vis)"
 
 
-  from steps
   have cId_not_used_again: "(s, ADbOp cId Op args res) \<notin> set tr" for s Op args res
-    sorry (* TODO trace property *)
+    using callIds_unique2[OF steps, where i=0] apply (simp add: a_def)
+    by (metis One_nat_def Suc_mono diff_Suc_1 in_set_conv_nth zero_less_Suc)
 
 
 
@@ -5088,6 +5131,7 @@ lemma noContextSwitchAllowedInTransaction:
     and i_less_j: "i<j" 
     and k_less_k: "j<k"
     and k_length: "k\<le>length tr"
+    and wf: "state_wellFormed S"
   shows "\<not>allowed_context_switch (snd (tr ! j))"
 proof 
   assume a0: "allowed_context_switch (snd (tr ! j))"
@@ -5109,9 +5153,7 @@ proof
     by (smt currentTransaction \<open>S ~~ take j tr \<leadsto>* S1\<close>  i_less_j k_length k_less_k length_take less_imp_le less_le_trans local.beginAtomic min.absorb2 noEndAtomic noFail nth_mem nth_take snd_conv)
 
   moreover have "localState S1 invoc \<noteq> None"
-
-    sorry (* transaction/invocation not ended *)
-
+    using \<open>S ~~ take j tr \<leadsto>* S1\<close> `currentTransaction S1 invoc \<triangleq> tx` inTransaction_localState local.wf state_wellFormed_combine by blast
   ultimately 
   show False
     using  `S1 ~~ tr!j \<leadsto> S2` and `allowed_context_switch (snd (tr ! j))`
