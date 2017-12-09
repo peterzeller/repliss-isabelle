@@ -4548,8 +4548,9 @@ lemma transfer_execution_local_difference':
 definition no_invariant_checks_in_transaction where
 "no_invariant_checks_in_transaction tr \<equiv> \<forall>ib i s c tx txns txns'. 
     tr!ib = (s, ABeginAtomic tx txns)
+  \<and> ib < i
   \<and> (\<forall>j. ib<j \<and> j<i \<longrightarrow> tr!j \<noteq> (s, AEndAtomic))
-  \<and> tr!i = (s, AInvcheck txns' c) "
+  \<longrightarrow> tr!i \<noteq> (s, AInvcheck txns' c) "
 
 
 lemma maintain_no_invariant_checks_in_transaction:
@@ -4563,6 +4564,55 @@ lemma maintain_no_invariant_checks_in_transaction:
 
 
 
+definition
+"isNoInvCheck a \<equiv> case a of (s, AInvcheck tx txns) \<Rightarrow> False | _ \<Rightarrow> True"
+
+definition 
+"removeInvChecks \<equiv> filter isNoInvCheck"
+
+
+lemma removeInvChecks_same:
+  assumes "S ~~ trace \<leadsto>* S'"
+shows "S ~~ removeInvChecks trace \<leadsto>* S'"
+using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case  by (auto simp add: removeInvChecks_def )
+next
+  case (step S' tr a S'')
+  then show ?case 
+    by (auto simp add: removeInvChecks_def isNoInvCheck_def steps_append step_simps split: action.splits)
+qed
+
+lemma packed_trace_removeInvChecks:
+  assumes "packed_trace trace"
+   shows "packed_trace (removeInvChecks trace)"
+proof (auto simp add: packed_trace_def)
+  fix i
+  assume a1: "0 < i"
+    and "i < length (removeInvChecks trace)"
+    and "fst (removeInvChecks trace ! (i - Suc 0)) \<noteq> fst (removeInvChecks trace ! i)"
+
+(* get corresponding indexes in trace 
+then get allowed from there
+*)
+
+  show "allowed_context_switch (snd (removeInvChecks trace ! i))"
+    sorry
+qed
+
+lemma removeInvChecks_no_invcheck:
+  assumes "ia < length (removeInvChecks trace)"
+  shows "removeInvChecks trace ! ia \<noteq> (s, AInvcheck txns' c)"
+proof 
+  assume "removeInvChecks trace ! ia = (s, AInvcheck txns' c)"
+  hence " (s, AInvcheck txns' c) \<in> set (removeInvChecks trace)"
+    using assms
+    using nth_mem by force 
+  thus False
+    by (auto simp add: removeInvChecks_def  isNoInvCheck_def)
+qed
+
+
 text {*
  To show that a program is correct, we only have to consider packed transactions 
  with no invariant checks 
@@ -4573,8 +4623,8 @@ theorem show_programCorrect_noTransactionInterleaving':
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving)
   fix trace :: "(invocation \<times> 'a action) list"
-  fix s
-  assume steps: "initialState program ~~ trace \<leadsto>* s"
+  fix S
+  assume steps: "initialState program ~~ trace \<leadsto>* S"
     and packed: "packed_trace trace" 
     and nofail: "\<And>s. (s, AFail) \<notin> set trace"
 
@@ -4582,18 +4632,56 @@ proof (rule show_programCorrect_noTransactionInterleaving)
 
   show "traceCorrect trace"
   proof (rule ccontr)
-    assume "\<not> traceCorrect trace"
+    assume a: "\<not> traceCorrect trace"
 
     (* get the first failing invariant check *)
+    obtain i 
+      where i1: "\<exists>s txns. trace ! i = (s, AInvcheck txns False)"
+        and i2: "i < length trace"
+        and i_min: "\<forall>i'. (\<exists> s' txns'. trace ! i' = (s', AInvcheck txns' False)) \<and> i' < length trace \<longrightarrow> i\<le>i'"
+      apply atomize_elim
+      apply (rule_tac x="LEAST i'. (\<exists>s' txns'. trace ! i' = (s', AInvcheck txns' False)) \<and> i' < length trace" in exI)
+      apply (rule LeastI2_wellorder_ex)
+      using a by (auto simp add: traceCorrect_def in_set_conv_nth)
 
-    (* if it is not in a transaction: remove all others and use packedTracesCorrect  *)
+    from i1
+    obtain s txns where i1': "trace ! i = (s, AInvcheck txns False)"
+      by blast
 
+    show "False"
+    proof (cases "\<exists>ib s tx txns. trace!ib = (s, ABeginAtomic tx txns) \<and> (\<forall>j. ib<j \<and> j<i \<longrightarrow> trace!j \<noteq> (s, AEndAtomic))")
+      case False
+        (* if it is not in a transaction: remove all others and use packedTracesCorrect  *)
+
+      have "trace = take i trace @ trace!i # drop (Suc i) trace"
+        by (simp add: \<open>i < length trace\<close> id_take_nth_drop)
+
+      define trace' where "trace' \<equiv> removeInvChecks (take i trace) @ trace!i # removeInvChecks (drop (Suc i) trace)"
+
+      have "traceCorrect trace'"
+      proof (rule packedTracesCorrect)
+        show "initialState program ~~ trace' \<leadsto>* S"
+          by (smt \<open>trace = take i trace @ trace ! i # drop (Suc i) trace\<close> removeInvChecks_same steps steps_append steps_appendFront trace'_def)
+        show "packed_trace trace'"
+          sorry
+        show "\<And>s. (s, AFail) \<notin> set trace'"
+          using nofail  \<open>\<exists>s txns. trace ! i = (s, AInvcheck txns False)\<close> by (auto simp add: trace'_def removeInvChecks_def isNoInvCheck_def dest: in_set_takeD in_set_dropD)
+        show "no_invariant_checks_in_transaction trace'"
+          apply (auto simp add: no_invariant_checks_in_transaction_def trace'_def nth_append nth_Cons removeInvChecks_no_invcheck split: if_splits nat.splits)
+          using False apply auto
+          sorry
+      qed
+
+      with i1'
+      show ?thesis 
+        by (auto simp add: traceCorrect_def trace'_def)
+    next
+      case True
     (* if it is in a transaction, move it right before the transaction and adapt it to the correct invocation
       then remove all others and use packedTracesCorrect  *)
 
-
-    show False
-      sorry
+      then show ?thesis sorry
+    qed
   qed
 qed
 
