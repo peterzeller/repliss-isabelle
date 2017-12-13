@@ -4660,6 +4660,7 @@ next
     by (auto simp add: removeInvChecks_def isNoInvCheck_def steps_append step_simps split: action.splits)
 qed
 
+(*
 lemma packed_trace_removeInvChecks:
   assumes "packed_trace trace"
    shows "packed_trace (removeInvChecks trace)"
@@ -4676,6 +4677,7 @@ then get allowed from there
   show "allowed_context_switch (snd (removeInvChecks trace ! i))"
     sorry
 qed
+*)
 
 lemma removeInvChecks_no_invcheck:
   assumes "ia < length (removeInvChecks trace)"
@@ -4836,7 +4838,7 @@ lemma move_invariant_checks_out_of_transactions:
     from noEndAtomic1
     have noEndAtomic: "trace ! j \<noteq> (s, AEndAtomic)" if "ib\<le>j" and "j<length trace" for j
       using that
-      by (metis Pair_inject Suc_lessI Suc_less_eq Suc_pred \<open>trace ! i = (s, AInvcheck txns' c)\<close> action.distinct(31) action.distinct(51) diff_Suc_1 i_def ib1 le_eq_less_or_eq less.prems(6)) 
+      by (metis One_nat_def Pair_inject Suc_pred \<open>s' = s\<close> \<open>trace ! i = (s', AInvcheck txns' c)\<close> action.distinct(31) action.distinct(51) i_def ib1 le_eq_less_or_eq less.prems(6) less_antisym)
 
 
     (* Let action a be the action before the invariant check.
@@ -5213,321 +5215,10 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
       thus False
         apply auto
         by (metis last_in_set packedTracesCorrect traceCorrect_def)
-
-
-      from steps_Si  packed  nofail  noTrueInvs ib1 ib2 ib3 i1' i2 i_min
-      have "traceCorrect (take (Suc i) trace)"
-      proof (induct "length trace" arbitrary: trace i Si s txns)
-        case (0 trace' i')
-        hence ?thesis
-          by linarith
-      next case (Suc n trace' i')
-        hence ?thesis
-(*
-
-        hence "i = Suc ib"
-          by linarith
-
-
-
-       
-        have take_i_split: "take (Suc i) trace = take ib trace @ [(s, ABeginAtomic tx txns'), (s, AInvcheck txns False)]"
-          apply (rule nth_equalityI)
-           apply (auto simp add: nth_append)
-          using `i < length trace` \<open>i = Suc ib\<close> apply linarith
-          thm "0.hyps" "0.prems"(5) "0.prems"(8)
-          by (smt `  0 = i - ib - 1`  `trace ! ib = (s, ABeginAtomic tx txns')` `trace ! i = (s, AInvcheck txns False)` \<open>i = Suc ib\<close> diff_Suc_1 diff_commute less_SucE less_imp_le less_trans linorder_neqE_nat min.absorb2 nth_Cons' zero_less_diff)
-
-        define s' where "s' = fst (trace ! (ib-1))"
-
-        define trace' where "trace' = take ib trace @ [(s', AInvcheck txns False), (s, ABeginAtomic tx txns')]"
-
-        have "traceCorrect trace'"
-        proof (rule packedTracesCorrect)
-          from `initialState program ~~ take (Suc i) trace \<leadsto>* Si`
-          obtain S_pre 
-            where S_pre_steps1: "initialState program ~~ take ib trace \<leadsto>* S_pre"
-              and S_pre_steps2: "S_pre ~~ [(s, ABeginAtomic tx txns'), (s, AInvcheck txns False)] \<leadsto>* Si"
-            using steps_append take_i_split by fastforce
-
-          from S_pre_steps2
-          have S_pre_steps2': "S_pre ~~ [(s', AInvcheck txns False), (s, ABeginAtomic tx txns')] \<leadsto>* Si"
-            apply (auto simp add: steps_appendFront step_simps )
-            apply (metis (mono_tags, lifting) map_upd_eqD1 mem_Collect_eq subset_h1 transactionStatus.distinct(1))
-            apply (auto simp add: invContextH_def)
-            done
-
-          show "initialState program ~~ trace' \<leadsto>* Si"
-            using S_pre_steps1 S_pre_steps2' steps_append2 trace'_def by blast 
-
-          show "packed_trace trace'"
-            apply (auto simp add: packed_trace_def trace'_def nth_append nth_Cons' s'_def)
-             apply (simp add:  use_packed_trace[OF `packed_trace trace`])
-            using `i < length trace` Suc_lessD \<open>i = Suc ib\<close> leD by blast
-
-          show "\<And>s. (s, AFail) \<notin> set trace'"
-            using `\<And>s. (s, AFail) \<notin> set trace` by (auto simp add: trace'_def dest: in_set_takeD)
-
-
-          have noInvCheckBeforeIb: "take ib trace ! i \<noteq> (s, AInvcheck txns c)" if "i<ib" for s txns c
-            using `ib < i` dual_order.asym that by blast
-
-          have [simp]: "min (length trace) ib = ib"
-            using "0.prems"(6) "0.prems"(9) by auto
-
-
-          show "no_invariant_checks_in_transaction trace'"
-            apply (auto simp add: no_invariant_checks_in_transaction_def trace'_def )
-            apply (auto simp add: noInvCheckBeforeIb nth_append nth_Cons' split: if_splits)
-            apply (metis (full_types) "0.prems"(10) "0.prems"(4) "0.prems"(6) "0.prems"(8) "0.prems"(9) dual_order.asym le_less_Suc_eq less_trans nth_mem)
-            using "0.prems"(6) "0.prems"(9) apply linarith
-            apply (auto simp add: min_def)
-
-
-        then show ?case sorry*)
-      next
-        case (Suc x)
-
-
-
-        then show ?case sorry
-      qed
-
-
-
-
-(* OLD try *)
-text {*
- To show that a program is correct, we only have to consider packed transactions 
- with no invariant checks 
-*}
-theorem show_programCorrect_noTransactionInterleaving':
-  assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
-  shows "programCorrect program"
-proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
-  fix trace :: "(invocation \<times> 'a action) list"
-  fix S
-  assume steps: "initialState program ~~ trace \<leadsto>* S"
-    and packed: "packed_trace trace" 
-    and nofail: "\<And>s. (s, AFail) \<notin> set trace"
-    and noTrueInvs: "\<And>s txns. (s, AInvcheck txns True) \<notin> set trace"
-
-
-
-  show "traceCorrect trace"
-  proof (rule ccontr)
-    assume a: "\<not> traceCorrect trace"
-
-    (* get the first failing invariant check *)
-    obtain i 
-      where i1: "\<exists>s txns. trace ! i = (s, AInvcheck txns False)"
-        and i2: "i < length trace"
-        and i_min: "\<forall>i'. (\<exists> s' txns'. trace ! i' = (s', AInvcheck txns' False)) \<and> i' < length trace \<longrightarrow> i\<le>i'"
-      apply atomize_elim
-      apply (rule_tac x="LEAST i'. (\<exists>s' txns'. trace ! i' = (s', AInvcheck txns' False)) \<and> i' < length trace" in exI)
-      apply (rule LeastI2_wellorder_ex)
-      using a by (auto simp add: traceCorrect_def in_set_conv_nth)
-
-    from i1
-    obtain s txns where i1': "trace ! i = (s, AInvcheck txns False)"
-      by blast
-
-    show "False"
-    proof (cases "\<exists>ib (*s*) tx txns. trace!ib = (s, ABeginAtomic tx txns) \<and> ib < i \<and> (\<forall>j. ib<j \<and> j<i \<longrightarrow> trace!j \<noteq> (s, AEndAtomic))")
-      case False
-        (* if it is not in a transaction: remove all others and use packedTracesCorrect  *)
-
-      have trace_split: "trace = take i trace @ trace!i # drop (Suc i) trace"
-        by (simp add: \<open>i < length trace\<close> id_take_nth_drop)
-
-      define trace' where "trace' \<equiv> take (Suc i) trace"
-
-      from steps 
-      obtain Si where steps': "initialState program ~~ trace' \<leadsto>* Si"
-        apply (auto simp add: trace'_def)
-        by (metis append_take_drop_id steps_append)
-
-
-
-      have "traceCorrect trace'"
-      proof (rule packedTracesCorrect[OF steps'])
-        show "packed_trace trace'"
-          apply (auto simp add: trace'_def)
-          by (metis append_take_drop_id isPrefix_appendI packed prefixes_are_packed)
-        show "\<And>s. (s, AFail) \<notin> set trace'"
-          using nofail  \<open>\<exists>s txns. trace ! i = (s, AInvcheck txns False)\<close> by (auto simp add: trace'_def removeInvChecks_def isNoInvCheck_def dest: in_set_takeD in_set_dropD)
-        show "no_invariant_checks_in_transaction trace'"
-        proof (induct rule: show_no_invariant_checks_in_transaction)
-          case (hasEndatomic i' s2 tx txns txns' c ib)
-          from `trace' ! i' = (s2, AInvcheck txns' c)`
-          have "i' = i"
-            apply (auto simp add: trace'_def nth_append removeInvChecks_no_invcheck nth_Cons' split: if_splits)
-            by (smt Suc_leI append_take_drop_id hasEndatomic.lessLength i2 i_min le_less_Suc_eq length_take less_trans min.absorb2 noTrueInvs not_less_less_Suc_eq nth_append_first nth_mem trace'_def)
-
-
-          from `trace' ! ib = (s2, ABeginAtomic tx txns)` `ib < i'`
-          obtain ib' 
-            where "trace' ! ib' = (s2, ABeginAtomic tx txns)"
-              and "ib' < i"
-            apply (auto simp add: trace'_def)
-            by (simp add: \<open>i' = i\<close>)
-
-          have "s2 = s"
-            using \<open>i' = i\<close> hasEndatomic.invcheck i1' trace'_def by auto
-
-
-
-          with `\<nexists>ib tx txns. trace ! ib = (s, ABeginAtomic tx txns) \<and> ib < i \<and> (\<forall>j. ib < j \<and> j < i \<longrightarrow> trace ! j \<noteq> (s, AEndAtomic))`
-          show ?case 
-            using \<open>i' = i\<close> `s2 = s`  hasEndatomic.beginBefore hasEndatomic.beginatomic trace'_def by force
-        qed
-      qed
-
-      with i1'
-      show ?thesis
-        by (metis i2 length_take lessI min_less_iff_conj nth_mem nth_take trace'_def traceCorrect_def) 
-    next
-      case True
-    (* if it is in a transaction, move it right before the transaction and adapt it to the correct invocation
-      then remove all others and use packedTracesCorrect  *)
-
-      from this 
-      obtain  ib  tx txns'
-        where ib1: "trace ! ib = (s, ABeginAtomic tx txns')"
-          and ib2: "ib < i"
-          and ib3: "\<forall>j. ib < j \<and> j < i \<longrightarrow> trace ! j \<noteq> (s, AEndAtomic)"
-        by auto
-
-      have trace_split1: "trace = take i trace  @ trace!i # drop (Suc i) trace"
-        using `ib < i` \<open>i < length trace\<close>  id_take_nth_drop by blast 
-
-      have trace_split2: "trace = take ib trace @ drop ib (take i trace)  @ trace!i # drop (Suc i) trace"
-        using `ib < i` \<open>i < length trace\<close>
-        by (metis add_Suc_right add_diff_cancel_left' append.assoc drop_take id_take_nth_drop less_imp_Suc_add take_add)
-
-      find_theorems "trace!i"
-
-      define s'' where "s'' = fst (trace ! (ib -1))"
-      define trace' where "trace' \<equiv> take ib trace @ [(s'', AInvcheck txns False)]"
-
-
-
-      from steps
-      have "initialState program ~~ take ib trace @ drop ib (take i trace) @ trace ! i # drop (Suc i) trace \<leadsto>* S"
-        by (subst(asm) trace_split2, simp) 
-
-      from this
-      obtain Sib Si Si' where steps_to_Sib: "initialState program ~~ take ib trace \<leadsto>* Sib"
-        and Sib_steps: "Sib ~~ drop ib (take i trace) \<leadsto>* Si"
-        and step': "Si ~~ trace!i \<leadsto> Si'"
-        by (auto simp add:  steps_append steps_appendFront)
-
-
-      hence steps': "initialState program ~~ take i trace \<leadsto>* Si"
-        by (smt append.assoc append_same_eq steps_append2 trace_split1 trace_split2)
-
-      from step' i1'
-      have "Si' = Si"
-        by (auto simp add: step_simps)
-      with `Si ~~ trace!i \<leadsto> Si'`
-      have "Si ~~ trace!i \<leadsto> Si"
-        by simp
-
-
-(* TODO use Sib_steps, show that these steps are only within a transaction *)
-
-      have commitedTransactions_same: "commitedTransactions Sib = commitedTransactions Si"
-        sorry
-
-      have snapshot_same: "callsInTransaction Sib txns \<down> happensBefore Sib = callsInTransaction Si txns \<down> happensBefore Si"
-        sorry
-
-      have invContext_same: "invContextVis Sib (callsInTransaction Sib txns \<down> happensBefore Sib)
-                          = (invContextVis Si (callsInTransaction Si txns \<down> happensBefore Si))"
-        sorry
-
-      have prog_same: "prog Sib = prog Si"
-        using Sib_steps steps_do_not_change_prog by fastforce 
-
-
-      from `Si ~~ trace!i \<leadsto> Si`
-      have "Sib ~~ (s'', AInvcheck txns False) \<leadsto> Sib"
-        by (auto simp add: step_simps i1' commitedTransactions_same invContext_same prog_same)
-
-      with `initialState program ~~ take ib trace \<leadsto>* Sib`
-      have "initialState program ~~ trace' \<leadsto>* Sib"
-        using steps_step trace'_def by blast
-
-
-
-
-      have "traceCorrect trace'"
-      proof (rule packedTracesCorrect[OF `initialState program ~~ trace' \<leadsto>* Sib`])
-        show "packed_trace trace'"
-          apply (auto simp add: trace'_def)
-          by (smt One_nat_def diff_Suc_less fst_conv i2 ib2 length_append_singleton length_take less_SucE less_imp_le less_trans min.absorb2 nth_append_first nth_append_length packed packed_trace_def s''_def trace_split2)
-        show "\<And>s. (s, AFail) \<notin> set trace'"
-          using nofail  \<open>\<exists>s txns. trace ! i = (s, AInvcheck txns False)\<close> by (auto simp add: trace'_def removeInvChecks_def isNoInvCheck_def dest: in_set_takeD in_set_dropD)
-        show "no_invariant_checks_in_transaction trace'"
-        proof (induct rule: show_no_invariant_checks_in_transaction)
-          case (hasEndatomic i2 s2 tx2 txns2 txns2' c2 ib2)
-
-          have "i2 < length trace'"
-            by (simp add: hasEndatomic.lessLength)
-
-          have "(s2, AInvcheck txns2' c2) \<notin> set (take ib trace)"
-            using i_min apply (auto simp add: in_set_conv_nth)
-            by (metis (full_types) ib2 leD less_trans noTrueInvs nth_mem)
-
-          with `trace' ! i2 = (s2, AInvcheck txns2' c2)` `i2 < length trace'`
-          have "i2 = ib"
-            using hasEndatomic.lessLength trace'_def i2 ib2  apply (auto simp add: trace'_def nth_append removeInvChecks_no_invcheck nth_Cons' split: if_splits)
-            by (metis (full_types) i_min ib2 leD less_trans noTrueInvs nth_mem)
-
-          from `trace' ! ib2 = (s2, ABeginAtomic tx2 txns2)`
-          have "trace ! ib2 = (s2, ABeginAtomic tx2 txns2)"
-            using \<open>i2 = ib\<close> hasEndatomic.beginBefore i2 ib2 by (auto simp add: trace'_def nth_append split: if_splits)
-
-          have "s2 = s''"
-            by (metis Pair_inject \<open>(s2, AInvcheck txns2' c2) \<notin> set (take ib trace)\<close> hasEndatomic.invcheck hasEndatomic.lessLength length_append_singleton less_SucE nth_append_first nth_append_length nth_mem trace'_def)
-
-
-          hence "s2 = s"
-            find_theorems s
-            sorry
-
-
-            find_theorems "s'"
-            sorry
-
-
-(* we were able to do a beginAtomic here, so previous *)
-          find_theorems ABeginAtomic trace
-          thm noNestedTransactions
-          have "\<exists>k>ib2. k < ib \<and> (trace ! k = (s2, AEndAtomic) \<or> trace ! k = (s2, AFail))"
-          proof (rule noNestedTransactions[OF steps `trace ! ib2 = (s2, ABeginAtomic tx2 txns2)`])
-            show "trace ! ib = (s2, ABeginAtomic tx txns')"
-              by (simp add: \<open>s2 = s\<close> ib1)
-            show "ib2 < ib"
-              using \<open>i2 = ib\<close> hasEndatomic.beginBefore by auto
-            show "ib < length trace"
-              using i2 ib2 less_trans by blast
-          qed
-
-          thus ?case 
-            apply auto
-            apply (metis (no_types, lifting) Suc_leI Suc_less_SucD Suc_mono \<open>i2 = ib\<close> dual_order.strict_trans1 hasEndatomic.lessLength length_append_singleton nth_append_first trace'_def trace_split2)
-            by (metis i2 ib2 less_trans nofail nth_mem)
-        qed
-      qed
-
-      with i1'
-      show ?thesis
-        by (metis length_append_singleton lessI nth_append_length nth_mem trace'_def traceCorrect_def)
     qed
   qed
 qed
+
 
 
 text {*
