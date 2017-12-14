@@ -157,51 +157,115 @@ lemma only_one_commmitted_transaction_h:
     and status: "transactionStatus S' tx \<triangleq> Uncommited"
     and noFails: "\<And>s. (s, AFail) \<notin> set tr"
 (*    and tr_len: "length tr > 0"*)
+(*    and allEnd: "allTransactionsEnd tr"*)
+    and noSwitch: "noContextSwitchesInTransaction tr"
     and initial: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
-  shows "currentTransaction S' (fst (last tr)) \<triangleq> tx " 
-using steps packed status noFails proof (induct arbitrary: tx  rule: steps_induct)
+  shows "(currentTransaction S' (fst (last tr)) \<triangleq> tx) 
+      \<and> (\<exists>i txns. i<length tr \<and> tr!i = (fst (last tr), ABeginAtomic tx txns)
+           \<and> (\<forall>j. i<j \<and> j<length tr \<longrightarrow> tr!j \<noteq> (fst (last tr), AEndAtomic)))" 
+using steps packed status noFails noSwitch proof (induct arbitrary: tx  rule: steps_induct)
   case initial
   with `transactionStatus S tx \<noteq> Some Uncommited` show ?case by blast
 next
-  case (step S' tr a S'')
+  case (step S' tr a S'' tx)
 
-    hence IH: "\<lbrakk>transactionStatus S' tx \<triangleq> Uncommited\<rbrakk> \<Longrightarrow> currentTransaction S' (fst (last tr)) \<triangleq> tx" for tx
-      using isPrefix_appendI prefixes_are_packed step.IH step.prems(1) by fastforce 
+  from `noContextSwitchesInTransaction (tr @ [a])`
+  have noContextSwitch: "noContextSwitchesInTransaction tr"
+    using isPrefix_appendI prefixes_noContextSwitchesInTransaction by blast
+
+  { 
+    assume "transactionStatus S' tx \<triangleq> Uncommited"
+    with ` S ~~ tr \<leadsto>* S'`
+    have IH: "currentTransaction S' (fst (last tr)) \<triangleq> tx 
+          \<and> (\<exists>i txns. i<length tr \<and> tr!i = (fst (last tr), ABeginAtomic tx txns)
+                   \<and> (\<forall>j. i<j \<and> j<length tr \<longrightarrow> tr!j \<noteq> (fst (last tr), AEndAtomic)))"
+      using isPrefix_appendI prefixes_are_packed step.IH `\<And>s. (s, AFail) \<notin> set (tr @ [a])` `packed_trace (tr @ [a])` noContextSwitch
+      by (metis butlast_snoc in_set_butlastD) 
+
+
 
     obtain i action where a_split[simp]: "a = (i,action)"
       by fastforce
 
-    {
-      assume "length tr > 0"
+    from IH
+    obtain i txns
+      where i1: "i<length tr"
+        and i2: "tr!i = (fst (last tr), ABeginAtomic tx txns)"
+        and i3: "\<forall>j. i<j \<and> j<length tr \<longrightarrow> tr!j \<noteq> (fst (last tr), AEndAtomic)"
+      by fastforce
 
-      {
-        assume "\<not>allowed_context_switch action" 
-        from `packed_trace (tr @ [a])`
-        have "(fst (last tr)) = i" 
-          using `\<not>allowed_context_switch action`
-          by (metis `length tr > 0` a_split append.assoc append_Cons append_Nil append_butlast_last_id context_switches_in_packed length_greater_0_conv prod.collapse) 
+    hence "(tr @ [a]) ! i = (fst (last tr), ABeginAtomic tx txns)"
+      by (simp add: nth_append_first)
 
-        hence  IH': "currentTransaction S' i \<triangleq> tx" if "transactionStatus S' tx \<triangleq> Uncommited" for tx
-          using IH that by blast 
-
-
-        from `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
-        have "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx" 
-          using IH'[where tx=tx] `(i, AFail) \<notin> set (tr @ [a])` by (auto simp add: step.simps split: if_splits)
-      }
-      moreover 
-      {
-        assume "allowed_context_switch action" 
-        
-      }
-
-    from `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
-    show "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx" 
-      apply (auto simp add: step.simps split: if_splits)
-              apply (erule IH', simp add: allowed_context_switch_def)
-             apply (erule IH', simp add: allowed_context_switch_def)
+    have "a \<noteq> (fst (last tr), AEndAtomic)"
       sorry
+
+
+    from `noContextSwitchesInTransaction (tr @ [a])` `(tr @ [a]) ! i = (fst (last tr), ABeginAtomic tx txns)`
+    have "\<not>allowed_context_switch (snd ((tr@[a])!length tr))" 
+    proof (rule use_noContextSwitchesInTransaction)
+      show "\<forall>j. i < j \<and> j < Suc (length tr) \<longrightarrow> (tr @ [a]) ! j \<noteq> (fst (last tr), AEndAtomic)"
+        using \<open>a \<noteq> (fst (last tr), AEndAtomic)\<close> i3 less_Suc_eq nth_append_first by fastforce
+      show "i < Suc (length tr)"
+        sledgehammer
+        sorry
+        show "Suc (length tr) < length (tr @ [a])"
+          sledgehammer
+          sorry
+  show "i < length tr"
+    sledgehammer
+    sorry
+  show "length tr < Suc (length tr)"
+    sledgehammer
+    sorry
   qed
+
+
+  {
+    assume "length tr > 0"
+
+    
+
+
+
+    from `noContextSwitchesInTransaction (tr @ [a])`
+    have "\<not>allowed_context_switch (snd ((tr@[a])!length tr))" 
+    proof (rule use_noContextSwitchesInTransaction)
+
+
+
+    {
+      assume "\<not>allowed_context_switch action" 
+      from `packed_trace (tr @ [a])`
+      have "(fst (last tr)) = i" 
+        using `\<not>allowed_context_switch action`
+        by (metis `length tr > 0` a_split append.assoc append_Cons append_Nil append_butlast_last_id context_switches_in_packed length_greater_0_conv prod.collapse) 
+
+      hence  IH': "currentTransaction S' i \<triangleq> tx" if "transactionStatus S' tx \<triangleq> Uncommited" for tx
+        using IH that by blast 
+
+
+      from `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
+      have "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx" 
+        using IH'[where tx=tx] `(i, AFail) \<notin> set (tr @ [a])` by (auto simp add: step.simps split: if_splits)
+    }
+    moreover 
+    {
+      assume "allowed_context_switch action" 
+      hence False
+
+      thm noContextSwitchesInTransaction_when_packed_and_all_end
+
+    }
+  }
+
+  from `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
+  show "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx" 
+    apply (auto simp add: step.simps split: if_splits)
+    apply (erule IH', simp add: allowed_context_switch_def)
+    apply (erule IH', simp add: allowed_context_switch_def)
+    sorry
+qed
 qed
 
 

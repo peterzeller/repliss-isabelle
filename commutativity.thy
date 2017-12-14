@@ -5281,10 +5281,10 @@ proof (rule show_programCorrect_noTransactionInterleaving')
       from m have "pos<length trace' \<and> (\<exists>i j tx txns. fst(trace'!pos) = i \<and>  j\<le>pos \<and> trace'!j = (i, ABeginAtomic tx txns) \<and> (\<nexists>k. k>j \<and> k<length trace' \<and> trace'!k = (i, AEndAtomic)))"
         by (auto simp add: induct_measure_def split: nat.splits)
       from this obtain j tx txns
-        where "pos < length trace'"
-          and "j \<le> pos"
-          and "\<forall>k<length trace'. j < k \<longrightarrow> trace' ! k \<noteq> (fst (trace' ! pos), AEndAtomic)"
-          and "trace' ! j = (fst (trace' ! pos), ABeginAtomic tx txns)"
+        where pos_less: "pos < length trace'"
+          and j_leq_pos: "j \<le> pos"
+          and noEndAtomic_trace': "\<forall>k<length trace'. j < k \<longrightarrow> trace' ! k \<noteq> (fst (trace' ! pos), AEndAtomic)"
+          and beginAtomic_trace': "trace' ! j = (fst (trace' ! pos), ABeginAtomic tx txns)"
         by auto
 
       with m_max 
@@ -5572,7 +5572,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
             show ?thesis 
               apply (case_tac "trace' ! pos")
               apply (auto simp add: newTrace_def no_invariant_checks_in_transaction_def nth_append )
-              by (metis action.distinct(31) eq_snd_iff)+
+              using beginAtomic_trace' j_leq_pos le_eq_less_or_eq noEndAtomic_trace' pos_less by auto
           qed
         qed
 
@@ -5580,7 +5580,8 @@ proof (rule show_programCorrect_noTransactionInterleaving')
       have removedNoInvCheck: "snd (trace'!pos) \<noteq> AInvcheck txns v" for txns v
         find_theorems trace'
         using `no_invariant_checks_in_transaction trace'`
-        by (metis action.distinct(41) no_invariant_checks_in_transaction_def snd_conv)
+        apply (auto simp add: no_invariant_checks_in_transaction_def)
+        by (smt \<open>pos < length trace' \<and> (\<exists>i j tx txns. fst (trace' ! pos) = i \<and> j \<le> pos \<and> trace' ! j = (i, ABeginAtomic tx txns) \<and> \<not> (\<exists>k>j. k < length trace' \<and> trace' ! k = (i, AEndAtomic)))\<close> allowed_context_switch_def allowed_context_switch_simps(9) le_eq_less_or_eq min_def min_less_iff_conj prod.collapse prod.inject)
 
 
 
@@ -5632,6 +5633,51 @@ definition noContextSwitchesInTransaction :: "'any trace \<Rightarrow> bool" whe
    \<and> (\<forall>j. i<j \<and> j<k \<longrightarrow> tr!j \<noteq> (invoc, AEndAtomic) )
    \<longrightarrow> (\<forall>j. i < j \<and> j < k \<longrightarrow>  \<not> allowed_context_switch (snd (tr!j)))"
 
+lemma use_noContextSwitchesInTransaction:
+  assumes "noContextSwitchesInTransaction tr"
+    and " tr!i = (invoc, ABeginAtomic tx txns)"
+    and "i < k" 
+    and "k < length tr "
+    and "\<forall>j. i<j \<and> j<k \<longrightarrow> tr!j \<noteq> (invoc, AEndAtomic)"
+    and "i < j"
+    and "j < k"
+  shows "\<not>allowed_context_switch (snd (tr!j))"
+  using assms apply (auto simp add: allowed_context_switch_def)
+  apply (smt allowed_context_switch_simps(3) assms(3) noContextSwitchesInTransaction_def)
+  by (smt allowed_context_switch_simps(6) assms(3) noContextSwitchesInTransaction_def)
+
+
+
+lemma prefixes_noContextSwitchesInTransaction:
+  assumes "noContextSwitchesInTransaction tr'" 
+    and "isPrefix tr tr'"
+  shows "noContextSwitchesInTransaction tr"
+proof (auto simp add: noContextSwitchesInTransaction_def)
+fix i k j invoc tx txns
+assume a0: "k < length tr"
+   and a1: "\<forall>j. i < j \<and> j < k \<longrightarrow> tr ! j \<noteq> (invoc, AEndAtomic)"
+   and a2: "tr ! i = (invoc, ABeginAtomic tx txns)"
+   and a3: "i < j"
+   and a4: "j < k"
+   and a5: "allowed_context_switch (snd (tr ! j))"
+
+
+  have "\<not>allowed_context_switch (snd (tr' ! j))"
+  proof (rule use_noContextSwitchesInTransaction[OF `noContextSwitchesInTransaction tr'`, where i=i and j=j and k=k])
+    show "tr' ! i = (invoc, ABeginAtomic tx txns)"
+      using a0 a2 a3 a4 assms(2) isPrefix_same by fastforce
+    show "i < j " using a3 .
+    show "j < k" using a4 .
+    show "i < k"
+      using a3 a4 less_trans by blast 
+    show " k < length tr'"
+      using a0 assms(2) isPrefix_len le_trans not_le by blast 
+    show " \<forall>j. i < j \<and> j < k \<longrightarrow> tr' ! j \<noteq> (invoc, AEndAtomic)"
+      using a0 a1 assms(2) isPrefix_same by fastforce
+  qed
+  thus "False"
+    using a0 a4 a5 assms(2) isPrefix_same by fastforce
+qed
 
 lemma packed_trace_prefix: 
   assumes "packed_trace (xs@ys)"
