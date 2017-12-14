@@ -371,6 +371,121 @@ next
 qed
 
 
+lemma at_most_one_current_tx:
+  assumes steps: "S ~~ tr \<leadsto>* S'"
+    and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
+    and packed: "packed_trace tr"
+    and wf: "state_wellFormed S"
+    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+  shows "\<forall>i. currentTransaction S' i \<noteq> None \<longrightarrow> i = fst (last tr)"
+  using steps noCtxtSwitchInTx packed  noFails
+proof (induct rule: steps_induct)
+  case initial
+  hence "currentTransaction S i = None" for i
+    using noUncommitted
+    by (meson local.wf option.exhaust wellFormed_currentTransactionUncommited) 
+  then show ?case
+    by simp
+next
+  case (step S' tr a S'')
+  have IH: "\<forall>i. currentTransaction S' i \<noteq> None \<longrightarrow> i = fst (last tr)"
+  proof (rule step)
+    show " noContextSwitchesInTransaction tr"
+      using isPrefix_appendI prefixes_noContextSwitchesInTransaction step.prems(1) by blast
+    show "packed_trace tr"
+      using packed_trace_prefix step.prems(2) by blast
+    show "\<And>s. (s, AFail) \<notin> set tr"
+      using step.prems(3) by auto
+  qed
+
+  show ?case
+  proof (cases tr)
+    case Nil
+    hence "currentTransaction S' i = None" for i
+      using noUncommitted `S ~~ tr \<leadsto>* S'`
+      apply auto
+      by (metis local.wf option.exhaust wellFormed_currentTransaction_unique_h(2))
+
+    with `S' ~~ a \<leadsto> S''`
+    show ?thesis 
+      by (auto simp add: step.simps split: if_splits)
+
+  next
+    case (Cons x xs)
+    hence tr_nonempty[simp]: "tr \<noteq> []" by simp
+
+    have last_same: "fst (last tr) = fst a" if "\<not> allowed_context_switch (snd a)" 
+      using use_packed_trace[OF `packed_trace (tr@[a])`, where i="length tr"] that
+      by (auto simp add: nth_append last_conv_nth)
+
+    have no_tx_if_context_switch: "currentTransaction S' i = None" if "allowed_context_switch (snd a)" for i
+    proof (rule ccontr, clarsimp)
+      fix tx
+      assume tx: "currentTransaction S' i \<triangleq> tx"
+
+      have "currentTransaction S i = None"
+        by (meson local.wf noUncommitted option.exhaust wellFormed_currentTransaction_unique_h(2))
+
+
+      from tx
+      obtain ib txns
+        where ib: "tr!ib = (i, ABeginAtomic tx txns)"
+          and ib_len: "ib < length tr" 
+          and ib_no_end: "\<forall>j. ib<j \<and> j<length tr \<longrightarrow> tr!j \<noteq> (i, AEndAtomic)"
+        using `currentTransaction S i = None` `S ~~ tr \<leadsto>* S'`
+        sorry
+      find_theorems currentTransaction ABeginAtomic
+
+      have "\<not> allowed_context_switch (snd ((tr @ [a]) ! length tr))"
+      proof (rule use_noContextSwitchesInTransaction[OF `noContextSwitchesInTransaction (tr @ [a])`, where j="length tr"])
+        show "(tr @ [a]) ! ib = (i, ABeginAtomic tx txns)"
+          using ib by (simp add: ib_len nth_append) 
+        show "\<forall>j. ib < j \<and> j < Suc (length tr) \<longrightarrow> (tr @ [a]) ! j \<noteq> (i, AEndAtomic)"
+          using that by (auto simp add: ib_no_end nth_append)
+        show "ib < Suc (length tr)"
+          by (simp add: ib_len less_Suc_eq)
+          apply_end (auto simp add: ib_len)
+      qed
+      thus False
+        using that by simp
+    qed
+
+
+    from `S' ~~ a \<leadsto> S''`
+    show ?thesis
+    proof (cases rule: step.cases)
+      case (local s ls f ls')
+      then show ?thesis using IH last_same by auto
+    next
+      case (newId s ls f ls' uid)
+      then show ?thesis using IH last_same by auto
+    next
+      case (beginAtomic s ls f ls' t vis newTxns newCalls snapshot)
+      then show ?thesis using IH no_tx_if_context_switch by auto
+    next
+      case (endAtomic s ls f ls' t)
+      then show ?thesis using IH last_same by auto
+    next
+      case (dbop s ls f Op args ls' t c res vis)
+      then show ?thesis using IH by auto
+    next
+      case (invocation s procName args initialState impl)
+      then show ?thesis using IH no_tx_if_context_switch by auto
+    next
+      case (return s ls f res)
+      then show ?thesis using IH last_same by auto
+    next
+      case (fail s ls)
+      then show ?thesis using IH
+        using step.prems(3) by auto
+    next
+      case (invCheck txns res s)
+      then show ?thesis using IH last_same by auto
+    qed
+  qed
+qed
+
            
 text {*
 If we have an execution on a a single invocation starting with state satisfying the invariant, then we can convert 
@@ -961,7 +1076,8 @@ next
 
 
     find_theorems steps tr
-    
+
+
     have at_most_one_tx: "(\<forall>i tx. ((i, tx) \<in> openTransactions tr) = currentTransaction S' i \<triangleq> tx) \<and> (\<forall>i j. currentTransaction S' i \<noteq> None \<and> currentTransaction S' j \<noteq> None \<longrightarrow> i = j)"
     proof (rule at_most_one_active_tx[OF ` S ~~ tr \<leadsto>* S'`])
       show "state_wellFormed S"
@@ -976,10 +1092,27 @@ next
         using isPrefix_appendI noContextSwitch prefixes_noContextSwitchesInTransaction by blast
     qed
 
-    hence noOpenTxns: "openTransactions tr = {}"
-      apply auto
-        (* use noContextSwitchesInTransaction + context switch a *)
+
+    have noCurrentTransaction: "currentTransaction S' i = None" for i
+      using `S' ~~ a \<leadsto> S''`
+      using \<open>fst a = s\<close> a2 `snd a = AInvoc procName args` apply (auto simp add: step.simps)
+
+      using at_most_one_current_tx[OF `S ~~ tr \<leadsto>* S'` ]
+ (* TODO with this, we get that only the current invocation can haven an active transaction,
+   if it's active we cannot switch *)
+
+
+      find_theorems "a"
+
+      using `S ~~ tr @ [a] \<leadsto>* S''` `noContextSwitchesInTransaction (tr @ [a])` `packed_trace (tr@[a])`
+      find_theorems currentTransaction steps
       sorry
+
+    from at_most_one_tx and noCurrentTransaction
+    have noOpenTxns: "openTransactions tr = {}" (* TODO allgemeines lemma raus ziehen *)
+      by auto
+
+
 
     with at_most_one_tx
     have currentTxNone: "\<And>i. currentTransaction S' i = None"
