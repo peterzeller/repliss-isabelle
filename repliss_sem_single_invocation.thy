@@ -228,7 +228,7 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    uniqueIdsInList args \<subseteq> knownIds C';
    (*  TODO add welformedness? *)
    state_wellFormed C';
-   \<And>tx. tx\<noteq>t \<Longrightarrow> transactionStatus C' tx \<noteq> Some Uncommited;
+   \<And>tx. transactionStatus C' tx \<noteq> Some Uncommited;
    invariant_all C';
    invocationOp C' s = None;
    prog C' = prog C;

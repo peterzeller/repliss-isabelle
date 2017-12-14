@@ -3822,8 +3822,69 @@ proof -
 qed
 
 
+definition openTransactions :: "'any trace \<Rightarrow> (invocation \<times> txid) set" where
+"openTransactions tr \<equiv> {(i, tx) | i j tx txns. j<length tr \<and> tr!j = (i, ABeginAtomic tx txns) \<and> (\<forall>k. k>j \<and> k<length tr \<longrightarrow> tr!k \<noteq> (i, AEndAtomic))}"
+
+
+lemma open_transactions_empty[simp]:
+  shows "openTransactions [] = {}"
+  by (auto simp add: openTransactions_def)
+
+lemma open_transactions_append_one: 
+  shows "openTransactions (tr@[a]) =
+(case a of
+    (i, AEndAtomic) \<Rightarrow> openTransactions tr - ({i} \<times> UNIV)
+  | (i, ABeginAtomic tx txns) \<Rightarrow> openTransactions tr \<union> {(i, tx)}
+  | _ \<Rightarrow> openTransactions tr
+)"
+proof -
+  obtain invoc action where a_def[simp]: "a = (invoc, action)"
+    using prod.exhaust_sel by blast
+  show ?thesis
+  proof (cases action)
+    case ALocal
+    then show ?thesis 
+      by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
+  next
+    case (ANewId x2)
+    then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
+  next
+    case (ABeginAtomic x31 x32)
+    then show ?thesis 
+      apply (auto simp add: openTransactions_def nth_append split: prod.splits action.splits)
+        apply blast
+       apply blast
+      by fastforce
+  next
+    case AEndAtomic
+    then show ?thesis
+      by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast+)
+  next
+    case (ADbOp x51 x52 x53 x54)
+    then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
+  next
+    case (AInvoc x61 x62)
+    then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
+  next
+    case (AReturn x7)
+    then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
+  next
+    case AFail
+    then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
+  next
+    case (AInvcheck x91 x92)
+    then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
+  qed
+qed
+
+
 definition allTransactionsEnd :: "'any trace \<Rightarrow> bool" where
   "allTransactionsEnd tr \<equiv> \<forall>i j tx txns. j<length tr \<and> tr!j = (i, ABeginAtomic tx txns) \<longrightarrow> (\<exists>k. k>j \<and> k<length tr \<and> tr!k = (i, AEndAtomic))"
+
+lemma allTransactionsEnd_def_alt: 
+"allTransactionsEnd tr \<longleftrightarrow> (openTransactions tr = {})"
+  by (auto simp add: allTransactionsEnd_def openTransactions_def, blast)
+
 
 
 text {*

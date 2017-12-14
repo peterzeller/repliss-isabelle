@@ -269,6 +269,107 @@ next
     by auto
 qed
 
+find_theorems noContextSwitchesInTransaction
+
+
+find_consts name: "transaction"
+
+
+
+
+lemma at_most_one_active_tx:
+  assumes steps: "S ~~ tr \<leadsto>* S'"
+    and S_wellformed: "state_wellFormed S"
+    and packed: "packed_trace tr"
+    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+    and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
+  shows "(\<forall>i tx. (i,tx) \<in> openTransactions tr \<longleftrightarrow> currentTransaction S' i = Some tx)
+       \<and> (\<forall>i j. currentTransaction S' i \<noteq> None \<and> currentTransaction S' j \<noteq> None \<longrightarrow> i = j)"
+  using steps  packed noFails noCtxtSwitchInTx proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    using wellFormed_currentTransaction_unique_h(2) noUncommitted S_wellformed  apply auto
+    by (meson not_None_eq wellFormed_currentTransaction_unique_h(2))
+
+next
+  case (step S' tr a S'')
+
+  have IH: "(\<forall>i tx. (i,tx) \<in> openTransactions tr \<longleftrightarrow> currentTransaction S' i = Some tx)
+            \<and> (\<forall>i j. currentTransaction S' i \<noteq> None \<and> currentTransaction S' j \<noteq> None \<longrightarrow> i = j)"
+  proof (rule step)
+    show "packed_trace tr"
+      using packed_trace_prefix step.prems(1) by auto
+    show "\<And>s. (s, AFail) \<notin> set tr"
+      using step.prems(2) by auto
+    show "noContextSwitchesInTransaction tr"
+      using isPrefix_appendI prefixes_noContextSwitchesInTransaction step.prems(3) by blast
+  qed
+
+  from `S' ~~ a \<leadsto> S''`
+  show ?case
+  proof (cases rule: step.cases)
+    case (local s ls f ls')
+    then show ?thesis 
+      using IH by (auto simp add: open_transactions_append_one)
+  next
+    case (newId s ls f ls' uid)
+    then show ?thesis using IH by (auto simp add: open_transactions_append_one)
+  next
+    case (beginAtomic s ls f ls' t vis newTxns newCalls snapshot)
+
+    have openTransactions_empty: "openTransactions tr = {}"
+    proof (auto simp add: openTransactions_def)
+      fix i' tx' j txns
+      assume a0: "j < length tr"
+        and a1: "\<forall>k<length tr. j < k \<longrightarrow> tr ! k \<noteq> (i', AEndAtomic)"
+        and a2: "tr ! j = (i', ABeginAtomic tx' txns)"
+
+      have "\<not> allowed_context_switch (snd ((tr @ [a]) ! length tr))"
+      proof (rule use_noContextSwitchesInTransaction[OF `noContextSwitchesInTransaction (tr @ [a])`])
+        show "(tr @ [a]) ! j = (i', ABeginAtomic tx' txns)"
+          by (simp add: a0 a2 nth_append_first)
+        show "\<forall>ja. j < ja \<and> ja < Suc (length tr) \<longrightarrow> (tr @ [a]) ! ja \<noteq> (i', AEndAtomic)"
+          by (simp add: a1 local.beginAtomic(1) nth_append)
+        show "j < Suc (length tr)"
+          by (simp add: a0 less_SucI)
+        show " j < length tr"
+          by (simp add: a0) 
+        show "Suc (length tr) \<le> length (tr @ [a])" 
+          by simp
+        show "length tr < Suc (length tr)"
+          by simp
+      qed
+
+      thus "False"
+        by (simp add: `a = (s, ABeginAtomic t newTxns)`)
+    qed
+
+    from beginAtomic
+    show ?thesis using IH 
+      by (auto simp add: open_transactions_append_one openTransactions_empty )
+  next
+    case (endAtomic s ls f ls' t)
+    then show ?thesis using IH by (auto simp add: open_transactions_append_one)
+  next
+    case (dbop s ls f Op args ls' t c res vis)
+    then show ?thesis using IH by (auto simp add: open_transactions_append_one)
+  next
+    case (invocation s procName args initialState impl)
+    then show ?thesis using IH by (auto simp add: open_transactions_append_one)
+  next
+    case (return s ls f res)
+    then show ?thesis using IH by (auto simp add: open_transactions_append_one)
+  next
+    case (fail s ls)
+    then show ?thesis
+      using step.prems(2) by auto 
+  next
+    case (invCheck txns res s)
+    then show ?thesis using IH by (auto simp add: open_transactions_append_one)
+  qed
+qed
+
 
            
 text {*
@@ -283,15 +384,16 @@ fixes tr :: "'any trace"
 assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
-    and noFails: "(s, AFail) \<notin> set tr"
+    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
     and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+    and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
     (* invariant holds on all states in the execution *)
     and inv: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S' "
 shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<forall>a. (a, False)\<notin>set tr')
         \<and> (state_coupling S' S2 s (tr = [] \<or> fst (last tr) = s))"
         (* TODO special case for fail, pull (and others?) *)
-using steps S_wellformed packed inv noFails noUncommitted proof (induct rule: steps.induct)
+using steps S_wellformed packed inv noFails noUncommitted noCtxtSwitchInTx proof (induct rule: steps.induct)
   case (steps_refl S)
   
   show ?case
@@ -315,7 +417,8 @@ next
     and  packed: "packed_trace (tr @ [a])"
     and prefix_invariant: "\<And>tr' S'.  \<lbrakk>isPrefix tr' (tr @ [a]); S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
     and noFails: "(s, AFail) \<notin> set (tr @ [a])"
-    by auto
+    and noContextSwitch: "noContextSwitchesInTransaction (tr @ [a])"
+    using isPrefix_appendI prefixes_noContextSwitchesInTransaction by (auto, blast)
 
   
   have steps': "S ~~ tr @ [a] \<leadsto>* S''"
@@ -648,19 +751,23 @@ next
           assume "0 < length tr"
           from `S ~~ tr \<leadsto>* S'` S_wf
           have "currentTransaction S' (fst (last tr)) \<triangleq> tx "
-          proof (rule only_one_commmitted_transaction_h)
-
+          proof (rule only_one_commmitted_transaction_h[THEN conjunct1])
+            
             show "packed_trace tr"
               using isPrefix_appendI packed prefixes_are_packed by blast 
             show "transactionStatus S' tx \<triangleq> Uncommited"
               by (simp add: a)
 
-            show "0 < length tr"
-              using \<open>0 < length tr\<close> by auto
 
+            show "\<And>s. (s, AFail) \<notin> set tr"
+              using `\<And>s. (s, AFail) \<notin> set (tr@[a])` by auto
 
             show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
               using `\<And>tx. transactionStatus S tx \<noteq> Some Uncommited` .
+
+            show "noContextSwitchesInTransaction tr"
+              using `noContextSwitchesInTransaction (tr @ [a])` isPrefix_appendI prefixes_noContextSwitchesInTransaction by blast 
+
           qed
 
           hence False
@@ -851,7 +958,33 @@ next
       
     hence invContextSame: "invContext S2 s =  invContext S' s"
       by (auto simp add: S2_simps vis_None invContextH_def)
-      
+
+
+    find_theorems steps tr
+    
+    have at_most_one_tx: "(\<forall>i tx. ((i, tx) \<in> openTransactions tr) = currentTransaction S' i \<triangleq> tx) \<and> (\<forall>i j. currentTransaction S' i \<noteq> None \<and> currentTransaction S' j \<noteq> None \<longrightarrow> i = j)"
+    proof (rule at_most_one_active_tx[OF ` S ~~ tr \<leadsto>* S'`])
+      show "state_wellFormed S"
+        using S_wf by auto
+      show "packed_trace tr"
+        using packed packed_trace_prefix by auto
+      show " \<And>s. (s, AFail) \<notin> set tr"
+        using steps_step.prems(4) by auto
+      show  " \<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+        using steps_step.prems(5) by blast
+      show  "noContextSwitchesInTransaction tr"
+        using isPrefix_appendI noContextSwitch prefixes_noContextSwitchesInTransaction by blast
+    qed
+
+    hence noOpenTxns: "openTransactions tr = {}"
+      apply auto
+        (* use noContextSwitchesInTransaction + context switch a *)
+      sorry
+
+    with at_most_one_tx
+    have currentTxNone: "\<And>i. currentTransaction S' i = None"
+      by auto
+
       
     find_theorems S
     have step_s': "S ~~ (s, (AInvoc procName args, True)) \<leadsto>\<^sub>S S'' "
@@ -878,6 +1011,12 @@ next
         using steps steps_do_not_change_prog by blast
       show "state_wellFormed S'"
         using S_wf state_wellFormed_combine steps by auto
+
+
+      show "\<And>tx. transactionStatus S' tx \<noteq> Some Uncommited"
+        using currentTxNone `state_wellFormed S'` wellFormed_currentTransaction_back
+        by (metis S_wf butlast_snoc in_set_butlastD option.distinct(1) steps steps_step.prems(4) steps_step.prems(5))
+
     qed
     
     
@@ -1082,6 +1221,10 @@ next
           by (simp add: a1 a3)
         show "\<And>c. callOrigin S'' c \<noteq> Some tx"
           using S_wf a6 state_wellFormed_combine steps wf_callOrigin_implies_transactionStatus_defined a1 by (auto, blast)
+
+        show "\<And>txa. txa \<noteq> tx \<Longrightarrow> transactionStatus S'' txa \<noteq> Some Uncommited"
+          sledgehammer
+          sorry
 
       qed
         

@@ -171,6 +171,9 @@ lemma wellFormed_visibleCallsSubsetCalls:
   shows "vis \<subseteq> dom (calls A)"
   using a1 a2 wellFormed_visibleCallsSubsetCalls_h(2) by blast
 
+
+
+
 lemma wellFormed_currentTransaction_unique_h:
   assumes a1: "state_wellFormed S"
   shows "\<forall>sa sb t. currentTransaction S sa \<triangleq> t \<longrightarrow> currentTransaction S sb \<triangleq> t \<longrightarrow>  sa = sb"
@@ -184,8 +187,84 @@ lemma wellFormed_currentTransaction_unique_h:
           apply (auto split: if_splits)
   done   
 
+
+
 lemmas wellFormed_currentTransaction_unique = wellFormed_currentTransaction_unique_h(1)[rule_format]
 lemmas wellFormed_currentTransactionUncommited[simp] = wellFormed_currentTransaction_unique_h(2)[rule_format]
+
+
+
+lemma wellFormed_currentTransaction_back:
+  assumes steps: "steps  S_init tr S"
+    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
+    and noUncommitted: "\<And>tx. transactionStatus S_init tx \<noteq> Some Uncommited"
+    and wf: "state_wellFormed S_init"
+  shows "transactionStatus S t \<triangleq> Uncommited \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
+  using steps noFail proof (induct  rule: steps_induct)
+  case initial
+  then show ?case by (simp add: initialState_def noUncommitted)
+next
+  case (step S' tr a S'')
+  then show ?case 
+  proof clarsimp
+    assume a0: "S_init ~~ tr \<leadsto>* S'"
+      and a1: "transactionStatus S' t \<triangleq> Uncommited \<longrightarrow> (\<exists>!i. currentTransaction S' i \<triangleq> t)"
+      and a2: "S' ~~ a \<leadsto> S''"
+      and a3: "transactionStatus S'' t \<triangleq> Uncommited"
+
+    have "state_wellFormed S'"
+      using state_wellFormed_combine state_wellFormed_init step.steps local.wf by blast 
+
+    have "state_wellFormed S''"
+      using state_wellFormed_combine state_wellFormed_init step.step step.steps steps_step local.wf by blast
+
+    from a2
+    show "\<exists>!i. currentTransaction S'' i \<triangleq> t"
+    proof (cases rule: step.cases)
+      case (local ls f ls')
+      then show ?thesis using a1 a3 by (auto split: if_splits)
+    next
+      case (newId ls f ls' uid)
+      then show ?thesis using a1 a3 by (auto split: if_splits)
+    next
+      case (beginAtomic ls f ls' t vis newTxns newCalls snapshot)
+      then show ?thesis using a0 a1 a3 \<open>state_wellFormed S'\<close> apply (auto split: if_splits )
+        by (metis option.simps(3))
+
+    next
+      case (endAtomic ls f ls' t)
+      then show ?thesis using a1 a3 a0 apply (auto split: if_splits)
+        by force
+
+    next
+      case (dbop ls f Op args ls' t c res vis)
+      then show ?thesis using a1 a3 by (auto split: if_splits)
+    next
+      case (invocation procName args initialState impl)
+      then show ?thesis using a1 a3 by (auto split: if_splits)
+    next
+      case (return ls f res)
+      then show ?thesis using a1 a3 by (auto split: if_splits)
+    next
+      case (fail ls)
+      then show ?thesis
+        using step.prems by force 
+    next
+      case (invCheck txns res)
+      then show ?thesis using a1 a3 by (auto split: if_splits)
+    qed
+  qed
+qed
+
+
+lemma wellFormed_currentTransaction_back2:
+  assumes steps: "steps  (initialState progr) tr S"
+    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
+  shows "transactionStatus S t \<triangleq> Uncommited \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
+  using steps noFail  apply (rule wellFormed_currentTransaction_back)
+   apply (simp add: initialState_def)
+  apply simp
+done
 
 
 lemma commitedCalls_unchanged_callOrigin[simp]:
