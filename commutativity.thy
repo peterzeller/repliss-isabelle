@@ -5628,7 +5628,7 @@ find_consts name: allowed
 
 definition noContextSwitchesInTransaction :: "'any trace \<Rightarrow> bool" where
   "noContextSwitchesInTransaction tr \<equiv> \<forall>i k invoc. 
-    i < k \<and> k < length tr 
+    i < k \<and> k \<le> length tr 
    \<and> (\<exists>tx txns.  tr!i = (invoc, ABeginAtomic tx txns))
    \<and> (\<forall>j. i<j \<and> j<k \<longrightarrow> tr!j \<noteq> (invoc, AEndAtomic) )
    \<longrightarrow> (\<forall>j. i < j \<and> j < k \<longrightarrow>  \<not> allowed_context_switch (snd (tr!j)))"
@@ -5637,7 +5637,7 @@ lemma use_noContextSwitchesInTransaction:
   assumes "noContextSwitchesInTransaction tr"
     and " tr!i = (invoc, ABeginAtomic tx txns)"
     and "i < k" 
-    and "k < length tr "
+    and "k \<le> length tr "
     and "\<forall>j. i<j \<and> j<k \<longrightarrow> tr!j \<noteq> (invoc, AEndAtomic)"
     and "i < j"
     and "j < k"
@@ -5654,7 +5654,7 @@ lemma prefixes_noContextSwitchesInTransaction:
   shows "noContextSwitchesInTransaction tr"
 proof (auto simp add: noContextSwitchesInTransaction_def)
 fix i k j invoc tx txns
-assume a0: "k < length tr"
+assume a0: "k \<le> length tr"
    and a1: "\<forall>j. i < j \<and> j < k \<longrightarrow> tr ! j \<noteq> (invoc, AEndAtomic)"
    and a2: "tr ! i = (invoc, ABeginAtomic tx txns)"
    and a3: "i < j"
@@ -5670,8 +5670,8 @@ assume a0: "k < length tr"
     show "j < k" using a4 .
     show "i < k"
       using a3 a4 less_trans by blast 
-    show " k < length tr'"
-      using a0 assms(2) isPrefix_len le_trans not_le by blast 
+    show " k \<le> length tr'"
+      by (meson a0 assms(2) isPrefix_len leD le_trans nat_le_linear)
     show " \<forall>j. i < j \<and> j < k \<longrightarrow> tr' ! j \<noteq> (invoc, AEndAtomic)"
       using a0 a1 assms(2) isPrefix_same by fastforce
   qed
@@ -5926,7 +5926,7 @@ lemma noContextSwitchesInTransaction_when_packed_and_all_end:
   shows "noContextSwitchesInTransaction tr"
 proof (auto simp add: noContextSwitchesInTransaction_def)
   fix i k j invoc tx txns
-  assume a0: "k < length tr"
+  assume a0: "k \<le> length tr"
     and a1: "tr ! i = (invoc, ABeginAtomic tx txns)"
     and a3: "\<forall>j. i < j \<and> j < k \<longrightarrow> tr ! j \<noteq> (invoc, AEndAtomic)"
     and a4: "i < j"
@@ -5946,7 +5946,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
 
   have tr_split: "tr = take j_min tr @ [tr!j_min] @ drop (Suc j_min) tr"
     apply auto
-    using a0 a5_min id_take_nth_drop order.strict_trans by blast
+    using a0 a5_min id_take_nth_drop less_le_trans by blast
   with steps have tr_split_steps: "S ~~ take j_min tr @ [tr!j_min] @ drop (Suc j_min) tr \<leadsto>* S'" by simp
   from this
   obtain S_j_min_pre S_j_min 
@@ -5982,23 +5982,26 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
   (* there must be an endAtomic for the beginAtomic  *)
   from `allTransactionsEnd tr` 
   obtain i_end 
-    where "tr!i_end = (invoc, AEndAtomic)" and "i_end \<ge> k" and "i_end < length tr"
+    where "tr!i_end = (invoc, AEndAtomic)" and "i_end \<ge> k" and "i_end \<le> length tr"
     apply (auto simp add: allTransactionsEnd_def)
-    by (meson a0 a1 a3 a4 a5 not_le_imp_less order.strict_trans)
+    by (smt a0 a1 a3 a4 a5 dual_order.order_iff_strict dual_order.strict_trans not_less_eq not_less_less_Suc_eq)
 
 
   (* this means, we must go back to invoc. Take the first index where we go back to invoc *)
   from this
   obtain back_min 
     where "back_min > j_min"
-      and "back_min < length tr"
+      and "back_min \<le> length tr"
       and "fst (tr!back_min) = invoc"
       and back_min_min: "\<forall>i. i > j_min \<and> i < length tr \<and> fst (tr!i) = invoc \<longrightarrow> i\<ge> back_min"
     apply atomize_elim
     apply (rule_tac x="Least (\<lambda>i. i > j_min \<and> i < length tr \<and> fst (tr!i) = invoc)" in exI)
     apply (rule LeastI2_wellorder_ex)
      apply auto
-    using a5_min fst_conv by fastforce
+    by (smt a1 a3 a4_min a5_min allTransactionsEnd_def assms(2) dual_order.strict_trans dual_order.strict_trans1 fstI not_le_imp_less)
+
+  have "back_min < length tr"
+      by (smt \<open>back_min \<le> length tr\<close> \<open>j_min < back_min\<close> a1 a3 a4_min a5_min allTransactionsEnd_def assms(2) back_min_min dual_order.strict_trans fst_conv le_neq_implies_less not_le_imp_less)
 
 
   (* this must be a valid context switch, since it is the first to change back *)
@@ -6022,7 +6025,8 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
   (* but since we are already in a transaction, that cannot work  *)
 
   have "drop (Suc j_min) tr = take (back_min - Suc j_min) (drop (Suc j_min) tr) @ drop back_min tr"
-    by (smt Suc_diff_Suc \<open>back_min < length tr\<close> \<open>j_min < back_min\<close> append_Cons append_take_drop_id drop_Suc_Cons drop_append drop_eq_Nil dual_order.strict_trans length_take less_imp_le min.absorb2 self_append_conv2 tr_split)
+    using [[smt_solver=cvc4]]
+    by (smt Suc_diff_Suc \<open>back_min \<le> length tr\<close> \<open>j_min < back_min\<close> append_Cons append_eq_conv_conj drop_Suc_Cons drop_all drop_append dual_order.strict_trans length_take less_not_refl min.absorb2 not_less self_append_conv2 take_all tr_split)
   hence "drop (Suc j_min) tr = take (back_min - Suc j_min) (drop (Suc j_min) tr) @ tr!back_min # drop (Suc back_min) tr"
     using Cons_nth_drop_Suc \<open>back_min < length tr\<close> by fastforce
 

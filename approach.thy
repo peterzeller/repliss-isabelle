@@ -184,8 +184,13 @@ next
 
 
 
-    obtain i action where a_split[simp]: "a = (i,action)"
+    obtain i' action where a_split[simp]: "a = (i',action)"
       by fastforce
+
+    from IH
+    have IH1: "currentTransaction S' (fst (last tr)) \<triangleq> tx"
+      by blast
+
 
     from IH
     obtain i txns
@@ -197,8 +202,9 @@ next
     hence "(tr @ [a]) ! i = (fst (last tr), ABeginAtomic tx txns)"
       by (simp add: nth_append_first)
 
-    have "a \<noteq> (fst (last tr), AEndAtomic)"
-      sorry
+    have "a \<noteq> (fst (last tr), AEndAtomic)" 
+      using `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
+      by (auto simp add: step.simps IH1 split: if_splits )
 
 
     from `noContextSwitchesInTransaction (tr @ [a])` `(tr @ [a]) ! i = (fst (last tr), ABeginAtomic tx txns)`
@@ -206,66 +212,61 @@ next
     proof (rule use_noContextSwitchesInTransaction)
       show "\<forall>j. i < j \<and> j < Suc (length tr) \<longrightarrow> (tr @ [a]) ! j \<noteq> (fst (last tr), AEndAtomic)"
         using \<open>a \<noteq> (fst (last tr), AEndAtomic)\<close> i3 less_Suc_eq nth_append_first by fastforce
+      show "i < length tr"
+        by (simp add: i1)
+      show "Suc (length tr) \<le> length (tr @ [a])"
+        by simp
       show "i < Suc (length tr)"
-        sledgehammer
-        sorry
-        show "Suc (length tr) < length (tr @ [a])"
-          sledgehammer
-          sorry
-  show "i < length tr"
-    sledgehammer
-    sorry
-  show "length tr < Suc (length tr)"
-    sledgehammer
-    sorry
-  qed
+        by (simp add: i1 less_SucI)
+      show "length tr < Suc (length tr)"
+        by simp
+    qed
+    hence "\<not>allowed_context_switch action"
+      by simp 
 
-
-  {
-    assume "length tr > 0"
-
-    
+    hence i'_simps: "i' = fst (last tr)"
+      using use_packed_trace[OF `packed_trace (tr@[a])`, where i="length tr"]
+      apply (auto simp add: nth_append)
+      by (metis i1 One_nat_def gr_implies_not_zero last_conv_nth length_0_conv)
 
 
 
-    from `noContextSwitchesInTransaction (tr @ [a])`
-    have "\<not>allowed_context_switch (snd ((tr@[a])!length tr))" 
-    proof (rule use_noContextSwitchesInTransaction)
 
+    from `S' ~~ a \<leadsto> S''` IH1
+    have "currentTransaction S'' (fst (last (tr@[a]))) \<triangleq> tx"
+      using \<open>a \<noteq> (fst (last tr), AEndAtomic)\<close>  `\<And>s. (s, AFail) \<notin> set (tr @ [a])` by (auto simp add: step.simps  i'_simps)
 
+    moreover have "(\<exists>i txns. i < length (tr @ [a]) \<and>
+                     (tr @ [a]) ! i = (fst (last (tr @ [a])), ABeginAtomic tx txns) \<and>
+                     (\<forall>j. i < j \<and> j < length (tr @ [a]) \<longrightarrow> (tr @ [a]) ! j \<noteq> (fst (last (tr @ [a])), AEndAtomic)))"
+      apply (rule_tac x=i in exI)
+      apply (rule_tac x=txns in exI)
+      apply (auto simp add: )
+      using i1 less_SucI apply blast
+      using \<open>(tr @ [a]) ! i = (fst (last tr), ABeginAtomic tx txns)\<close> a_split i'_simps apply blast
+      by (metis \<open>a \<noteq> (fst (last tr), AEndAtomic)\<close> a_split i'_simps i3 less_SucE nth_append_first nth_append_length)
 
-    {
-      assume "\<not>allowed_context_switch action" 
-      from `packed_trace (tr @ [a])`
-      have "(fst (last tr)) = i" 
-        using `\<not>allowed_context_switch action`
-        by (metis `length tr > 0` a_split append.assoc append_Cons append_Nil append_butlast_last_id context_switches_in_packed length_greater_0_conv prod.collapse) 
-
-      hence  IH': "currentTransaction S' i \<triangleq> tx" if "transactionStatus S' tx \<triangleq> Uncommited" for tx
-        using IH that by blast 
-
-
-      from `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
-      have "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx" 
-        using IH'[where tx=tx] `(i, AFail) \<notin> set (tr @ [a])` by (auto simp add: step.simps split: if_splits)
-    }
-    moreover 
-    {
-      assume "allowed_context_switch action" 
-      hence False
-
-      thm noContextSwitchesInTransaction_when_packed_and_all_end
-
-    }
+    ultimately have "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx \<and>
+           (\<exists>i txns. i < length (tr @ [a]) \<and>
+                     (tr @ [a]) ! i = (fst (last (tr @ [a])), ABeginAtomic tx txns) \<and>
+                     (\<forall>j. i < j \<and> j < length (tr @ [a]) \<longrightarrow> (tr @ [a]) ! j \<noteq> (fst (last (tr @ [a])), AEndAtomic)))"
+      by simp
   }
-
-  from `S' ~~ a \<leadsto> S''` `transactionStatus S'' tx \<triangleq> Uncommited`
-  show "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx" 
-    apply (auto simp add: step.simps split: if_splits)
-    apply (erule IH', simp add: allowed_context_switch_def)
-    apply (erule IH', simp add: allowed_context_switch_def)
-    sorry
-qed
+  moreover
+  {
+    assume "transactionStatus S' tx \<noteq> Some Uncommited"
+    hence  "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx \<and>
+           (\<exists>i txns. i < length (tr @ [a]) \<and>
+                     (tr @ [a]) ! i = (fst (last (tr @ [a])), ABeginAtomic tx txns) \<and>
+                     (\<forall>j. i < j \<and> j < length (tr @ [a]) \<longrightarrow> (tr @ [a]) ! j \<noteq> (fst (last (tr @ [a])), AEndAtomic)))"
+      using `S' ~~ a \<leadsto> S''` ` transactionStatus S'' tx \<triangleq> Uncommited`
+      by (auto simp add: step.simps split: if_splits)
+  }
+  ultimately show "currentTransaction S'' (fst (last (tr @ [a]))) \<triangleq> tx \<and>
+           (\<exists>i txns. i < length (tr @ [a]) \<and>
+                     (tr @ [a]) ! i = (fst (last (tr @ [a])), ABeginAtomic tx txns) \<and>
+                     (\<forall>j. i < j \<and> j < length (tr @ [a]) \<longrightarrow> (tr @ [a]) ! j \<noteq> (fst (last (tr @ [a])), AEndAtomic)))"
+    by auto
 qed
 
 
