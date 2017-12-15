@@ -3,7 +3,7 @@ theory approach
     repliss_sem_single_invocation
 begin
 
-
+find_consts name: fold
 section {* Proof approach *}
 
 text {* This theory includes the soundness proof of our proof approach. *}
