@@ -1652,6 +1652,7 @@ assumes step: "S ~~ (s,a) \<leadsto> S'"
     and not_inv: "\<not>invariant_all S'"
     and coupling: "state_coupling S S2 s sameSession"
     and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" (* (\<exists>tx txns. a = ABeginAtomic tx txns) \<or> (\<exists>p ar. a = AInvoc p ar) *)
+    and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
     (* we assume that we are not in a transaction (inside a transaction it is not necessary for invariants to hold)*)
     (* and not_in_transaction: "currentTransaction S s = None " *)
 shows "\<exists>tr' S2'. (S2 ~~ (s, tr') \<leadsto>\<^sub>S* S2') 
@@ -1868,6 +1869,8 @@ next
       using coupling by (auto simp add: state_coupling_def state_monotonicGrowth_prog split: if_splits)
     show "state_wellFormed S"
       by (simp add: S_wellformed)
+    show " \<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+      by (simp add: noUncommitted)
   qed    
     
   then show ?thesis
