@@ -2331,6 +2331,7 @@ proof (intro if_cases2; clarsimp)
       by (auto simp add: nth_append sessionsInTransaction_def inTransaction_def  split: if_splits)[1]
     show "\<And>aa x. \<lbrakk>a = (aa, ABeginAtomic t ts); i = length tr; x \<in> sessionsInTransaction tr (length tr - Suc 0)\<rbrakk> \<Longrightarrow> x \<in> sessionsInTransaction (tr @ [(aa, ABeginAtomic t ts)]) (length tr)"
       apply (auto simp add: nth_append sessionsInTransaction_def  split: if_splits)[1]
+      using [[smt_solver=cvc4]]
       by (smt Nitpick.size_list_simp(2) One_nat_def butlast_snoc fst_conv inTransaction_def le_SucI le_less_Suc_eq le_less_trans length_append_singleton length_greater_0_conv length_tl not_less_eq_eq nth_append_length nth_butlast)
   qed
 next
