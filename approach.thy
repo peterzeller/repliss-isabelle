@@ -1936,6 +1936,24 @@ next
     using inv not_inv by blast (* same state *)
 qed
 
+lemma uncommitted_tx_is_current_somewhere:
+  assumes steps: "S ~~ tr \<leadsto>* S'"
+    and S_wellformed: "state_wellFormed S"
+    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noUncommittedTx: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+    and tx_uncommitted: "transactionStatus S' tx \<triangleq> Uncommited"
+  shows "\<exists>invoc. currentTransaction S' invoc \<triangleq> tx" 
+using steps noFails tx_uncommitted proof (induct rule: steps_induct)
+  case initial
+  then show ?case
+    using noUncommittedTx by blast 
+next
+  case (step S' tr a S'')
+  then show ?case 
+    by (auto simp add: step.simps split: if_splits, force+)
+qed
+
+
 lemma convert_to_single_session_trace_invFail:
 fixes tr :: "'any trace"
   and S S' :: "('ls, 'any) state"
@@ -1943,6 +1961,8 @@ assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
     and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noUncommittedTx: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+    and noContextSwitches: "noContextSwitchesInTransaction tr"
     (* invariant holds in the initial state *)
     and inv: "invariant_all S"
     (* invariant no longer holds *)
@@ -2030,9 +2050,14 @@ proof -
     show "state_wellFormed S" using S_wellformed .
     show "packed_trace tr1"
       using isPrefix_appendI packed prefixes_are_packed tr_split by blast 
-    show "(as, AFail) \<notin> set tr1" using tr_split noFails by auto
+    show "\<And>s. (s, AFail) \<notin> set tr1"
+      using noFails tr_split by auto
     show "\<And>S' tr1'. \<lbrakk>isPrefix tr1' tr1; S ~~ tr1' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
       using inv_before by auto
+    show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+      by (simp add: noUncommittedTx)
+    show "noContextSwitchesInTransaction tr1"
+      using isPrefix_appendI noContextSwitches prefixes_noContextSwitchesInTransaction tr_split by blast
   qed
 
 
@@ -2059,7 +2084,55 @@ proof -
       by (simp add: first_not_inv)
     show "state_coupling S1 S1' as (tr1 = [] \<or> fst (last tr1) = as)"  
       using tr1'_coupling .
-      
+
+
+
+    show "\<And>tx. transactionStatus S1 tx \<noteq> Some Uncommited"
+    proof -
+      have  noFails_tr1: "\<And>s. (s, AFail) \<notin> set tr1"
+        using noFails tr_split by auto
+
+      have current_tx:  "\<forall>i. currentTransaction S1 i \<noteq> None \<longrightarrow> i = fst (last tr1)"
+      proof (rule at_most_one_current_tx[OF `S ~~ tr1 \<leadsto>* S1`])
+        show "noContextSwitchesInTransaction tr1"
+          using isPrefix_appendI noContextSwitches prefixes_noContextSwitchesInTransaction tr_split by blast
+
+        show "packed_trace tr1"
+          using packed_trace_prefix tr1_packed by blast
+
+        show "state_wellFormed S"
+          by (simp add: S_wellformed)
+
+        show "\<And>s. (s, AFail) \<notin> set tr1" using noFails_tr1 .
+
+        show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+          by (simp add: noUncommittedTx)
+      qed
+
+      have noCurrentTx: "currentTransaction S1 (fst (last tr1)) = None"
+          (* TODO we know that actions inside a transaction cannot make an invariant fail
+          thus we are currently outside of a transaction
+          *)
+
+        sorry
+
+      show "transactionStatus S1 tx \<noteq> Some Uncommited" for tx
+      proof 
+        assume a: "transactionStatus S1 tx \<triangleq> Uncommited"
+
+        obtain invoc where "currentTransaction S1 invoc = Some tx"
+          using uncommitted_tx_is_current_somewhere[OF `S ~~ tr1 \<leadsto>* S1` `state_wellFormed S` noFails_tr1 noUncommittedTx a] by blast
+
+        hence "invoc = fst (last tr1)"
+          by (simp add: current_tx)
+
+        with `currentTransaction S1 invoc = Some tx` show False
+          by (simp add: noCurrentTx)
+      qed
+    qed
+
+
+
        
     assume "\<not> (tr1 = [] \<or> fst (last tr1) = as)"
     hence "tr1 \<noteq> []" and "fst (last tr1) \<noteq> as"
