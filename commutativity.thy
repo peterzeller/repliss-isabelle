@@ -2344,6 +2344,7 @@ next
       apply (smt Suc_pred inc_induct less_Suc_eq less_imp_le_nat linorder_neqE_nat not_less_zero)
      apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def sndI split: if_splits)[1]
     apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
+    using [[smt_solver=cvc4]]
     by (smt Nitpick.size_list_simp(2) One_nat_def le_SucI length_tl less_Suc_eq_le not_less_eq_eq not_less_zero)
 next
   assume a0: "i = length tr"
@@ -5282,13 +5283,13 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
 qed
 
 
-
+thm show_programCorrect_noTransactionInterleaving'
 text {*
  To show that a program is correct, we only have to consider packed and finished transactions
 *}
 theorem show_programCorrect_noTransactionInterleaving'':
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving')
   fix trace :: "(invocation \<times> 'a action) list"

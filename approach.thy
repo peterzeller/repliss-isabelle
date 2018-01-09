@@ -3,7 +3,6 @@ theory approach
     repliss_sem_single_invocation
 begin
 
-find_consts name: fold
 section {* Proof approach *}
 
 text {* This theory includes the soundness proof of our proof approach. *}
@@ -1953,6 +1952,14 @@ next
     by (auto simp add: step.simps split: if_splits, force+)
 qed
 
+lemma no_current_transaction_when_invariant_fails:
+  assumes "S ~~ a \<leadsto> S_fail"
+    and "\<not> invariant_all S_fail"
+    and "state_wellFormed S"
+    and " invariant_all S"
+  shows "currentTransaction S1 (fst a) = None"
+  sorry
+
 
 lemma convert_to_single_session_trace_invFail:
 fixes tr :: "'any trace"
@@ -2109,12 +2116,98 @@ proof -
           by (simp add: noUncommittedTx)
       qed
 
-      have noCurrentTx: "currentTransaction S1 (fst (last tr1)) = None"
-          (* TODO we know that actions inside a transaction cannot make an invariant fail
-          thus we are currently outside of a transaction
-          *)
 
-        sorry
+
+      have noCurrentTx_a: "currentTransaction S1 (fst a) = None"
+      proof (rule no_current_transaction_when_invariant_fails[OF `S1 ~~ a \<leadsto> S_fail` `\<not> invariant_all S_fail`])
+        show "state_wellFormed S1"
+          by (simp add: \<open>state_wellFormed S1\<close>) 
+        show "invariant_all S1"
+          by (simp add: \<open>invariant_all S1\<close>)
+      qed
+
+      have noCurrentTx: "currentTransaction S1 (fst (last tr1)) = None"
+      proof (cases "tr1")
+        case Nil
+        hence "S1 = S"
+          using steps1 steps_refl traceDeterministic by blast
+        then show ?thesis 
+          by (meson S_wellformed noUncommittedTx not_Some_eq wellFormed_currentTransactionUncommited)
+      next
+        case (Cons tr1_first tr1_rest)
+        hence tr1_len: "0 < length tr1"
+          by simp
+
+        show ?thesis 
+        proof (cases "fst (last tr1) = fst a")
+          case True
+          then show ?thesis
+            by (simp add: noCurrentTx_a) 
+        next
+          case False
+          show ?thesis
+          proof (rule ccontr)
+            assume a0: "currentTransaction S1 (fst (last tr1)) \<noteq> None"
+
+            define invoc where "invoc \<equiv> fst (last tr1)"
+
+            from a0 obtain tx where "currentTransaction S1 invoc \<triangleq> tx"
+              by (metis not_Some_eq invoc_def)
+
+
+            have "\<exists>ib txns. tr1 ! ib = (invoc, ABeginAtomic tx txns) \<and> ib < length tr1 \<and> (\<forall>j. ib < j \<and> j < length tr1 \<longrightarrow> tr1 ! j \<noteq> (invoc, AEndAtomic))"
+            proof (rule currentTransaction_exists_beginAtomic[OF `S ~~ tr1 \<leadsto>* S1` `currentTransaction S1 invoc \<triangleq> tx`])
+              show "currentTransaction S invoc = None"
+                by (metis S_wellformed noUncommittedTx option.exhaust wellFormed_currentTransaction_unique_h(2))
+              show "state_wellFormed S"
+                by (metis S_wellformed)
+            qed
+            from this obtain ib txns 
+              where ib1: "tr1 ! ib = (invoc, ABeginAtomic tx txns)"
+                and ib2: "ib < length tr1"
+                and ib3: "\<forall>j. ib < j \<and> j < length tr1 \<longrightarrow> tr1 ! j \<noteq> (invoc, AEndAtomic)"
+              by blast
+
+
+            have steps_fail: "S ~~ tr1@[a] \<leadsto>* S_fail"
+              using stepA steps1 steps_step by blast
+
+            have "allowed_context_switch (snd ((tr1@[a]) ! length tr1))"
+            proof (rule use_packed_trace)  
+              show " packed_trace (tr1 @ [a])"
+                by (simp add: tr1_packed)
+              show "0 < length tr1"
+                using tr1_len .
+              show "length tr1 < length (tr1 @ [a])"
+                by simp
+              show "fst ((tr1 @ [a]) ! (length tr1 - 1)) \<noteq> fst ((tr1 @ [a]) ! length tr1)"
+                by (metis False One_nat_def diff_Suc_less last_conv_nth list.simps(3) local.Cons nth_append nth_append_length tr1_len)
+            qed
+
+            find_theorems "allowed_context_switch" packed_trace
+
+            moreover have "\<not> allowed_context_switch (snd ((tr1@[a]) ! length tr1))"
+            proof (rule use_noContextSwitchesInTransaction)
+              show "noContextSwitchesInTransaction (tr1 @ [a])"
+                by (metis append.assoc append_Cons append_Nil isPrefix_appendI noContextSwitches prefixes_noContextSwitchesInTransaction tr_split)
+              show "(tr1 @ [a]) ! ib = (invoc, ABeginAtomic tx txns)"
+                by (metis ib1 ib2 nth_append)
+              show " ib < length (tr1@[a])"
+                using ib2  by simp
+              show "length (tr1 @ [a]) \<le> length (tr1 @ [a])" 
+                by simp
+              show "\<forall>j. ib < j \<and> j < length (tr1 @ [a]) \<longrightarrow> (tr1 @ [a]) ! j \<noteq> (invoc, AEndAtomic)"
+                apply (auto simp add: nth_append ib3)
+                by (metis False fst_conv invoc_def)
+              show "ib < length tr1" using ib2 .
+              show "length tr1 < length (tr1 @ [a])"
+                by simp
+            qed
+            ultimately show False by simp
+          qed
+        qed
+      qed
+
 
       show "transactionStatus S1 tx \<noteq> Some Uncommited" for tx
       proof 
@@ -2831,7 +2924,9 @@ theorem show_correctness_via_single_session:
 assumes works_in_single_session: "programCorrect_s program"
     and inv_init: "invariant_all (initialState program)"
 shows "programCorrect program"
-proof (rule show_programCorrect_noTransactionInterleaving)
+proof (rule show_programCorrect_noTransactionInterleaving'')
+(* \<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace *)
+  thm show_programCorrect_noTransactionInterleaving''
   text {* Assume we have a trace and a final state S *}
   fix trace S
   text {* Such that executing the trace finishes in state S. *}
@@ -2842,7 +2937,11 @@ proof (rule show_programCorrect_noTransactionInterleaving)
   
   text {* We may also assume that there are no failures *}
   assume noFail: "\<And>s. (s, AFail) \<notin> set trace"
-  
+
+  assume "allTransactionsEnd trace"
+
+  assume noInvchecksInTxns: "no_invariant_checks_in_transaction trace"
+
   text {* We show that the trace must be correct (proof by contradiction). *}
   show "traceCorrect trace"
   proof (rule ccontr)
@@ -2889,6 +2988,11 @@ proof (rule show_programCorrect_noTransactionInterleaving)
           using inv_init .
         show "\<not> invariant_all S_fail"
           by (simp add: \<open>\<not> invariant_all S_fail\<close>)
+        show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommited"
+          by (simp add: initialState_def)
+        show " noContextSwitchesInTransaction tr'"
+          by (metis \<open>allTransactionsEnd trace\<close> \<open>isPrefix tr' trace\<close> \<open>state_wellFormed (initialState program)\<close> noContextSwitchesInTransaction_when_packed_and_all_end noFail packed prefixes_noContextSwitchesInTransaction steps)
+
       qed
       thus "\<exists>s' tr'_s S_fail_s. (initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s) \<and> (\<exists>a. (a, False) \<in> set tr'_s)"
         by blast
