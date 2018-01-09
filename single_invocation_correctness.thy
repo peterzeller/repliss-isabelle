@@ -19,7 +19,6 @@ text {*
 
 
 
-
 (* check program (with a given start-state, bound by a number of steps) *)
 fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> nat \<Rightarrow> bool" where
   "checkCorrect progr S i 0 = True"
@@ -52,8 +51,9 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
                   localState := (localState S)(i \<mapsto> ls), 
                   currentTransaction := (currentTransaction S)(i := None),
                   transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
-                invariant_all S'
-                \<and> checkCorrect progr S' i bound
+                  (\<forall>t. transactionStatus S' t \<triangleq> Uncommited) 
+                    \<longrightarrow> (invariant_all S'
+                         \<and> (invariant_all S' \<longrightarrow> checkCorrect progr S' i bound))
             )
         | NewId ls \<Rightarrow> 
           (\<forall>uid.
@@ -86,7 +86,7 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
                  visibleCalls := (visibleCalls S)(i := None),
                  invocationRes := (invocationRes S)(i \<mapsto> res),
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
-               invariant_all S'    
+               (\<forall>t. transactionStatus S' t \<triangleq> Uncommited) \<longrightarrow> invariant_all S'    
             )
         ))
 "
@@ -123,8 +123,9 @@ lemma checkCorrectAll_simps:
                   localState := (localState S)(i \<mapsto> ls), 
                   currentTransaction := (currentTransaction S)(i := None),
                   transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
-                invariant_all S'
-                \<and> checkCorrectAll progr S' i
+              (\<forall>t. transactionStatus S' t \<triangleq> Uncommited) 
+              \<longrightarrow> (invariant_all S'
+                   \<and> (invariant_all S' \<longrightarrow> checkCorrectAll progr S' i))
             )
         | NewId ls \<Rightarrow> 
           (\<forall>uid.
@@ -157,32 +158,31 @@ lemma checkCorrectAll_simps:
                  visibleCalls := (visibleCalls S)(i := None),
                  invocationRes := (invocationRes S)(i \<mapsto> res),
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
-               invariant_all S'    
+              (\<forall>t. transactionStatus S' t \<triangleq> Uncommited) 
+              \<longrightarrow> (invariant_all S')
             )
         ))
 "
-  apply (auto simp add: checkCorrectAll_def)  
-   apply (auto simp add: checkCorrectAll_def Let_def split: option.splits localAction.splits action.splits)
-                    apply (drule_tac x="Suc bound" in spec; force)
-                   apply (drule_tac x="Suc 0" in spec; force)
-                  apply (drule_tac x="Suc bound" in spec; force split: option.splits)
-                 apply (drule_tac x="Suc 0" in spec; auto split: option.splits)
-                apply (drule_tac x="Suc 0" in spec; force split: option.splits)
-               apply (drule_tac x="Suc x" in spec; (auto simp add: Let_def split: option.splits)[1])
-              apply (drule_tac x="Suc bound" in spec; force)
-             apply (drule_tac x="Suc 0" in spec; force split: option.splits)
-            apply (drule_tac x="Suc 0" in spec; force)
-           apply (drule_tac x="Suc bound" in spec; force)
-          apply (drule_tac x="Suc 0" in spec; force)
-         apply (drule_tac x="Suc 0" in spec; force)
-        apply (case_tac bound, auto)
-       apply (case_tac bound; auto)
-      apply (case_tac bound; auto)
-     apply (case_tac bound; auto)
-    apply (case_tac bound; auto)
-   apply (case_tac bound; force)
-  apply (case_tac bound; force)
-  done
+proof (induct rule: iffI)
+  case 1
+  hence allBounds: "checkCorrect progr S i (Suc bound)" for bound
+    by (metis checkCorrectAll_def)
+  show ?case
+    apply (auto split: localAction.splits option.splits)
+    using allBounds apply (auto simp add: checkCorrectAll_def split: localAction.splits option.splits )
+     apply (metis wellFormed_currentTransactionUncommited)
+    by metis
+next
+  case 2
+  thus ?case
+    apply (auto simp add: checkCorrectAll_def split: option.splits)
+     apply (case_tac x)
+      apply auto
+    apply (case_tac bound)
+     apply (auto simp add: Let_def checkCorrectAll_def split: localAction.splits option.splits )
+    by (metis option.distinct(1))
+
+qed
 
 
 lemma prog_invariant:
@@ -271,11 +271,14 @@ next
     case (beginAtomic ls f ls' t txns)
     then show ?thesis 
       using checkCorrect_S apply auto
-      using local.beginAtomic(13)
-      using local.beginAtomic(14) by blast
+      by (metis local.beginAtomic(15))
+
   next
     case (endAtomic ls f ls' t valid)
-    then show ?thesis using checkCorrect_S by auto
+    then show ?thesis 
+      using checkCorrect_S apply auto
+      sorry
+
   next
     case (dbop ls f Op args ls' t c res vis)
     then show ?thesis 
@@ -287,7 +290,10 @@ next
   next
     case (return ls f res valid)
     then show ?thesis using checkCorrect_S 
-      by (case_tac bound', auto)
+      apply (case_tac bound', auto)
+      apply (metis Suc.prems(3) \<open>bound - length trace = bound'\<close> less_numeral_extra(3) zero_less_diff)
+
+      sorry
   qed
   thus "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
     apply auto

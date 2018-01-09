@@ -497,7 +497,7 @@ proof (rule show_correctness_via_single_session)
   have [simp]: "S \<in> initialStates progr i \<Longrightarrow> prog S = progr" for S i
     by (auto simp add: initialStates_def)
 
-  show "invariant_all (replissSem1.initialState progr)"
+  show "invariant_all (initialState progr)"
     by (auto simp add: initialState_def invariant_all_def inv_def inv1_def inv2_def inv2_h1_def invContextH_def crdtSpec_message_exists_h_def crdtSpec_chat_contains_h_def mkContext_def is_message_updateH_def)
 
 

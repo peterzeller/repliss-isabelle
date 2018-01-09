@@ -1651,7 +1651,7 @@ assumes step: "S ~~ (s,a) \<leadsto> S'"
     and not_inv: "\<not>invariant_all S'"
     and coupling: "state_coupling S S2 s sameSession"
     and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" (* (\<exists>tx txns. a = ABeginAtomic tx txns) \<or> (\<exists>p ar. a = AInvoc p ar) *)
-    and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+    and noUncommitted:  "a \<noteq> AEndAtomic \<Longrightarrow>  \<forall>tx. transactionStatus S tx \<noteq> Some Uncommited"
     (* we assume that we are not in a transaction (inside a transaction it is not necessary for invariants to hold)*)
     (* and not_in_transaction: "currentTransaction S s = None " *)
 shows "\<exists>tr' S2'. (S2 ~~ (s, tr') \<leadsto>\<^sub>S* S2') 
@@ -1869,7 +1869,7 @@ next
     show "state_wellFormed S"
       by (simp add: S_wellformed)
     show " \<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
-      by (simp add: noUncommitted)
+      by (metis local.invocation(3) local.step noUncommitted option.distinct(1) preconditionI precondition_endAtomic)
   qed    
     
   then show ?thesis
@@ -1957,8 +1957,122 @@ lemma no_current_transaction_when_invariant_fails:
     and "\<not> invariant_all S_fail"
     and "state_wellFormed S"
     and " invariant_all S"
-  shows "currentTransaction S1 (fst a) = None"
-  sorry
+    and wf: "state_wellFormed S"
+    and noEndAtomic: "snd a \<noteq> AEndAtomic"
+  shows "currentTransaction S (fst a) = None"
+proof (rule ccontr)
+  assume " currentTransaction S (fst a) \<noteq> None"
+  from this obtain tx where ctx: "currentTransaction S (fst a) \<triangleq> tx"
+    by (metis not_None_eq)
+
+  have uncommitted: "transactionStatus S tx \<triangleq> Uncommited"
+    by (metis ctx local.wf wellFormed_currentTransactionUncommited)
+
+
+  have snapshotSame: "consistentSnapshot S_fail vis \<longleftrightarrow> consistentSnapshot S vis" for vis
+    using `S ~~ a \<leadsto> S_fail`
+  proof (cases rule: step.cases)
+    case (local s ls f ls')
+    then show ?thesis by (auto simp add: consistentSnapshot_def)
+  next
+    case (newId s ls f ls' uid)
+    then show ?thesis by (auto simp add: consistentSnapshot_def)
+  next
+    case (beginAtomic s ls f ls' t vis newTxns newCalls snapshot)
+    then show ?thesis
+      by (metis \<open>currentTransaction S (fst a) \<noteq> None\<close> fst_conv) 
+
+  next
+    case (endAtomic s ls f ls' t)
+    then show ?thesis
+      by (metis noEndAtomic sndI) 
+  next
+    case (dbop s ls f Op args ls' t c res vis')
+    show ?thesis 
+    proof (auto simp add: consistentSnapshot_def dbop)
+
+      show "\<exists>y. calls S x \<triangleq> y" 
+        if a1: "vis \<subseteq> insert c (dom (calls S))" 
+          and a2: "causallyConsistent (happensBefore S \<union> vis' \<times> {c}) vis" 
+          and a3: "transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis"
+          and a4: "x \<in> vis" for x
+      proof (cases "x=c")
+        case True
+        hence "c \<in> vis"
+          by (metis a4)
+        with transactionConsistent_Commited[OF a3] have False
+          apply auto
+          by (metis local.dbop(6) local.wf option.inject transactionStatus.distinct(1) wellFormed_currentTransactionUncommited)
+        thus ?thesis by simp
+      next case False
+        thus ?thesis
+          by (metis a1 a4 domD insertE set_rev_mp)
+      qed
+
+      show "\<lbrakk>vis \<subseteq> insert c (dom (calls S)); causallyConsistent (happensBefore S \<union> vis' \<times> {c}) vis; transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis\<rbrakk>
+    \<Longrightarrow> causallyConsistent (happensBefore S) vis"
+        by (auto simp add: causallyConsistent_def)
+
+      show " \<lbrakk>vis \<subseteq> dom (calls S); causallyConsistent (happensBefore S) vis; transactionConsistent (callOrigin S) (transactionStatus S) vis\<rbrakk>
+    \<Longrightarrow> causallyConsistent (happensBefore S \<union> vis' \<times> {c}) vis"
+        apply (auto simp add: causallyConsistent_def)
+        by (metis domIff local.dbop(7) set_mp)
+
+
+      show "\<lbrakk>vis \<subseteq> insert c (dom (calls S)); causallyConsistent (happensBefore S \<union> vis' \<times> {c}) vis; transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis\<rbrakk>
+    \<Longrightarrow> transactionConsistent (callOrigin S) (transactionStatus S) vis"
+        apply (subst transactionConsistent_def)
+        apply (auto simp add: )
+         apply (metis (mono_tags, lifting) domI domIff local.dbop(7) local.wf map_upd_Some_unfold transactionConsistent_Commited wellFormed_callOrigin_dom2)
+        by (metis \<open>\<And>x. \<lbrakk>vis \<subseteq> insert c (dom (calls S)); causallyConsistent (happensBefore S \<union> vis' \<times> {c}) vis; transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis; x \<in> vis\<rbrakk> \<Longrightarrow> \<exists>y. calls S x \<triangleq> y\<close> fun_upd_same fun_upd_triv fun_upd_twist local.dbop(7) local.wf option.distinct(1) transactionConsistent_all_from_same wellFormed_callOrigin_dom3)
+
+      show " \<lbrakk>vis \<subseteq> dom (calls S); causallyConsistent (happensBefore S) vis; transactionConsistent (callOrigin S) (transactionStatus S) vis\<rbrakk>
+    \<Longrightarrow> transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis"
+        apply (subst transactionConsistent_def)
+        apply (auto simp add: )
+            apply (metis domIff in_mono local.dbop(7))
+           apply (metis transactionConsistent_Commited)
+          apply (metis domIff local.dbop(7) subsetD)
+         apply (metis ctx fst_conv local.dbop(1) local.dbop(6) option.inject transactionConsistent_Commited transactionStatus.distinct(1) uncommitted)
+        by (metis transactionConsistent_all_from_same)
+
+    qed
+
+  next
+    case (invocation s procName args initialState impl)
+    then show ?thesis by (auto simp add: consistentSnapshot_def)
+  next
+    case (return s ls f res)
+    then show ?thesis by (auto simp add: consistentSnapshot_def)
+  next
+    case (fail s ls)
+    then show ?thesis by (auto simp add: consistentSnapshot_def)
+  next
+    case (invCheck txns res s)
+    then show ?thesis by (auto simp add: consistentSnapshot_def)
+  qed
+
+  have commitedCallsH_same: "commitedCallsH (callOrigin S_fail) (transactionStatus S_fail) = commitedCallsH (callOrigin S) (transactionStatus S)"
+    using `S ~~ a \<leadsto> S_fail`
+    using \<open>currentTransaction S (fst a) \<noteq> None\<close> noEndAtomic apply (auto simp add: step.simps commitedCallsH_def )
+     apply (auto simp add: isCommittedH_def split: if_splits)
+    using wellFormed_currentTransactionUncommited[OF wf] apply auto
+    by (metis local.wf option.distinct(1) wellFormed_callOrigin_dom2)
+
+
+  have commitedCallsExist: "calls S c = None \<Longrightarrow> c \<notin> commitedCalls S" for c
+    by (metis local.wf wellFormed_commitedCallsExist)
+
+
+  have "invContextVis S_fail vis = invContextVis S vis"  if "consistentSnapshot S_fail vis" for vis
+    apply (auto simp add: invContextH_def commitedCallsH_same)
+    using `S ~~ a \<leadsto> S_fail` noEndAtomic \<open>currentTransaction S (fst a) \<noteq> None\<close>
+    by (auto simp add: step.simps restrict_map_def restrict_relation_def commitedCallsExist inTransaction_localState[OF wf] intro!: ext)
+
+  with   `\<not> invariant_all S_fail` `invariant_all S`
+  show False
+    by (metis (no_types, lifting) invariant_all_def prog_inv[OF `S ~~ a \<leadsto> S_fail`] snapshotSame)
+qed
 
 
 lemma convert_to_single_session_trace_invFail:
@@ -2094,7 +2208,7 @@ proof -
 
 
 
-    show "\<And>tx. transactionStatus S1 tx \<noteq> Some Uncommited"
+    show "\<forall>tx. transactionStatus S1 tx \<noteq> Some Uncommited " if "aa \<noteq> AEndAtomic"
     proof -
       have  noFails_tr1: "\<And>s. (s, AFail) \<notin> set tr1"
         using noFails tr_split by auto
@@ -2124,6 +2238,10 @@ proof -
           by (simp add: \<open>state_wellFormed S1\<close>) 
         show "invariant_all S1"
           by (simp add: \<open>invariant_all S1\<close>)
+        show "state_wellFormed S1"
+          by (metis \<open>state_wellFormed S1\<close>)
+        show "snd a \<noteq> AEndAtomic"
+          by (metis a_def sndI that) 
       qed
 
       have noCurrentTx: "currentTransaction S1 (fst (last tr1)) = None"
@@ -2209,7 +2327,7 @@ proof -
       qed
 
 
-      show "transactionStatus S1 tx \<noteq> Some Uncommited" for tx
+      have "transactionStatus S1 tx \<noteq> Some Uncommited" for tx
       proof 
         assume a: "transactionStatus S1 tx \<triangleq> Uncommited"
 
@@ -2222,6 +2340,8 @@ proof -
         with `currentTransaction S1 invoc = Some tx` show False
           by (simp add: noCurrentTx)
       qed
+      thus "\<forall>tx. transactionStatus S1 tx \<noteq> Some Uncommited"
+        by simp
     qed
 
 
