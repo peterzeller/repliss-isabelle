@@ -1744,7 +1744,8 @@ proof -
 
     from wf 1
     show "state_wellFormed S"
-      using state_wellFormed_combine steps_refl steps_step by blast
+      using state_wellFormed_combine  
+      by (metis action.distinct(39) empty_iff insert_iff list.set(1) list.simps(15) snd_conv steps_single)
   qed
 qed
 
@@ -1802,7 +1803,8 @@ next
         using snoc 
         by (metis list.set_intros(1) rotate1.simps(2) set_rotate1 surjective_pairing)  
       show "state_wellFormed S'"
-        using wf that state_wellFormed_combine by blast 
+        using wf that apply (rule state_wellFormed_combine)
+        using snoc.prems(2) by fastforce
       show " \<not> is_AInvcheck (snd a)"
         by (metis list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1 snoc.prems(2))
     qed
@@ -1823,9 +1825,10 @@ lemma one_compaction_step2:
     and xOutside: "fst x \<noteq> s"
     and wf: "state_wellFormed s_init"
     and no_endatomic: "snd x \<noteq> AEndAtomic"
+    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
   shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ trStart @ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C)"
-  apply (auto simp add: steps_append splitTrace)
-  using local.wf one_compaction_step state_wellFormed_combine txaInTx xOutside no_endatomic by blast+
+  using [[smt_solver=cvc4]]
+  by (smt Un_iff local.wf noFail no_endatomic one_compaction_step set_append splitTrace state_wellFormed_combine steps_append txaInTx xOutside)
 
 
 lemma one_compaction_step3:
@@ -1835,8 +1838,9 @@ lemma one_compaction_step3:
     and xOutside: "fst x \<noteq> s"
     and wf: "state_wellFormed s_init"
     and no_endatomic: "snd x \<noteq> AEndAtomic"
+    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
   shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr' \<leadsto>* C)"
-  using local.wf one_compaction_step2 splitTrace splitTrace' txaInTx xOutside no_endatomic by blast
+  using local.wf one_compaction_step2 splitTrace splitTrace' txaInTx xOutside no_endatomic noFail by blast 
 
 definition indexInOtherTransaction :: "'any trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
   "indexInOtherTransaction tr tx k \<equiv> 
@@ -3150,8 +3154,9 @@ lemma swapMany:
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
     and wf: "state_wellFormed C1"
+    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
   shows "C1 ~~ [(s,a)] @ tr \<leadsto>* C2"
-  using steps tr_different_session tr_canSwap 
+  using steps tr_different_session tr_canSwap noFail
 proof (induct tr arbitrary: C2 rule: rev_induct)
   case Nil
   then show ?case
@@ -3162,6 +3167,7 @@ next
     and steps: "C1 ~~ (tr' @ [a']) @ [(s, a)] \<leadsto>* C2"
     and tr_different_session: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> fst x \<noteq> s"
     and tr_canSwap: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> canSwap t (snd x) a"
+    and noFail2a: "\<And>i. (i, AFail) \<notin> set (tr' @ [a'])"
     by auto
 
   from steps
@@ -3171,7 +3177,7 @@ next
     by (auto simp add: steps_append)
 
   have wf': "state_wellFormed C'"
-    using local.wf state_wellFormed_combine steps1 by blast
+    using local.wf state_wellFormed_combine steps1 noFail2a by auto 
 
   from steps2
   have steps2': "C' ~~ [(s, a), a'] \<leadsto>* C2"
@@ -3203,6 +3209,8 @@ lemma swapMany_middle:
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
     and wf: "state_wellFormed C1"
+    and nofail1: "\<And>i. (i,AFail)\<notin> set tr_start"
+    and nofail2: "\<And>i. (i,AFail)\<notin> set tr"
   shows "C1 ~~ tr_start @ [(s,a)] @ tr @ tr_end \<leadsto>* C2"
 proof -
   from steps
@@ -3211,7 +3219,7 @@ proof -
     by (meson steps_append)
 
   hence "C1' ~~ [(s,a)] @ tr  \<leadsto>* C2'"
-    using local.wf state_wellFormed_combine swapMany tr_canSwap tr_different_session by blast
+    using local.wf state_wellFormed_combine swapMany tr_canSwap tr_different_session nofail1 nofail2  by blast 
 
   thus "C1 ~~ tr_start @ [(s,a)] @ tr @ tr_end \<leadsto>* C2"
     using \<open>C1 ~~ tr_start \<leadsto>* C1'\<close> \<open>C2' ~~ tr_end \<leadsto>* C2\<close>
@@ -3224,6 +3232,8 @@ lemma swapMany_middle':
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> (fst a)"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) (snd a)"
     and wf: "state_wellFormed C1"
+    and nofail1: "\<And>i. (i,AFail)\<notin> set tr_start"
+    and nofail2: "\<And>i. (i,AFail)\<notin> set tr"
   shows "C1 ~~ tr_start @ [a] @ tr @ tr_end \<leadsto>* C2"
   using assms apply (cases a)
   apply (rule ssubst, assumption, rule swapMany_middle)
@@ -3514,6 +3524,13 @@ proof (induct "max_natset {length tr - i  | i.
 
       show "state_wellFormed (initialState program)"
         by auto
+
+      from noFail
+      show "\<And>i. (i, AFail) \<notin> set (take prev tr @ [tr ! prev])"
+        by (metis \<open>prev < length tr\<close> hd_drop_conv_nth in_set_takeD take_hd_drop)
+      from noFail
+      show "\<And>ia. (ia, AFail) \<notin> set (drop (Suc prev) (take i tr))"
+        by (meson in_set_dropD in_set_takeD)
     qed    
 
 
@@ -4958,7 +4975,8 @@ lemma move_invariant_checks_out_of_transactions:
 
 
     have wf: "state_wellFormed S1"
-      using state_wellFormed_combine state_wellFormed_init steps_S1 by blast
+      using state_wellFormed_combine state_wellFormed_init steps_S1
+      by (metis contra_subsetD less.prems(3) set_take_subset) 
 
 
 
@@ -5543,7 +5561,8 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 
           from `initialState program ~~ take pos trace' \<leadsto>* S_pos`
           have S_pos_wf[simp]: "state_wellFormed S_pos"
-            using state_wellFormed_combine state_wellFormed_init by blast
+            using state_wellFormed_combine state_wellFormed_init
+            by (metis contra_subsetD less.prems(3) set_take_subset) 
 
           have "\<exists>S_new_end. S_pos ~~ drop (Suc pos) trace' \<leadsto>* S_new_end"
           proof (cases "pos_action")
@@ -5970,7 +5989,8 @@ proof
     by (smt currentTransaction \<open>S ~~ take j tr \<leadsto>* S1\<close>  i_less_j k_length k_less_k length_take less_imp_le less_le_trans local.beginAtomic min.absorb2 noEndAtomic noFail nth_mem nth_take snd_conv)
 
   moreover have "localState S1 invoc \<noteq> None"
-    using \<open>S ~~ take j tr \<leadsto>* S1\<close> `currentTransaction S1 invoc \<triangleq> tx` inTransaction_localState local.wf state_wellFormed_combine by blast
+    using \<open>S ~~ take j tr \<leadsto>* S1\<close> `currentTransaction S1 invoc \<triangleq> tx` inTransaction_localState local.wf state_wellFormed_combine
+    by (metis noFail set_rev_mp set_take_subset) 
   ultimately 
   show False
     using  `S1 ~~ tr!j \<leadsto> S2` and `allowed_context_switch (snd (tr ! j))`
@@ -6020,10 +6040,11 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
 
 
   have S_j_min_pre_wf: "state_wellFormed S_j_min_pre"
-    using S_j_min_pre_steps local.wf state_wellFormed_combine by auto
+    by (meson S_j_min_pre_steps local.wf noFail rev_subsetD set_take_subset state_wellFormed_combine)
 
   hence "state_wellFormed S_j_min"
-    using S_j_min_pre_steps j_min_step local.wf state_wellFormed_combine steps_step by blast
+    using S_j_min_pre_steps j_min_step local.wf state_wellFormed_combine steps_step
+    by (metis (no_types, lifting) append_assoc append_same_eq append_take_drop_id in_set_takeD noFail tr_split) 
 
 
 
@@ -6033,7 +6054,8 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
     by (smt \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> a0 a1 a3 a4_min a5_min append_take_drop_id currentTransaction length_take less_imp_le less_le_trans min.absorb2 noFail nth_append_first nth_mem)
 
   hence ls: "localState S_j_min_pre invoc \<noteq> None"
-    using \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> inTransaction_localState local.wf state_wellFormed_combine by blast
+    using \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> inTransaction_localState local.wf state_wellFormed_combine
+    using S_j_min_pre_wf by blast
 
 
   with `S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min` 
@@ -6106,7 +6128,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
 
   from S_back_min_pre_steps `state_wellFormed S_j_min`
   have "state_wellFormed S_back_min_pre"
-    using state_wellFormed_combine by blast
+    by (meson state_wellFormed_combine in_set_dropD in_set_takeD noFail)
 
   from `currentTransaction S_j_min_pre invoc \<triangleq> tx`
   have "currentTransaction S_j_min invoc \<triangleq> tx"
@@ -6125,6 +6147,10 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
       show " S ~~ take j_min tr @ [tr ! j_min] \<leadsto>* S_j_min"
         using `S ~~ take j_min tr \<leadsto>* S_j_min_pre` `S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min`
         using steps_step by blast 
+      show "\<And>i. (i, AFail) \<notin> set (take j_min tr @ [tr ! j_min])"
+        using noFail \<open>back_min < length tr\<close> \<open>j_min < back_min\<close> apply auto
+        apply (metis a6_min allowed_context_switch_simps(8) snd_conv)
+        by (meson in_set_takeD)
     qed
 
     show "\<And>a. a \<in> set (take (back_min - Suc j_min) (drop (Suc j_min) tr)) \<Longrightarrow> a \<noteq> (invoc, AEndAtomic)"

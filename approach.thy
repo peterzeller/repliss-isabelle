@@ -274,14 +274,20 @@ lemma currentTransaction_exists_beginAtomic:
     and inTx: "currentTransaction S' i \<triangleq> tx"
     and noTx: "currentTransaction S i = None"
     and wf: "state_wellFormed S"
+    and noFails: "\<And>i. (i, AFail) \<notin> set tr"
   shows "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
-  using steps inTx proof (induct arbitrary: tx rule: steps_induct)
+  using steps inTx noFails proof (induct arbitrary: tx rule: steps_induct)
   case initial
   then show ?case
     by (simp add: noTx)
 
 next
   case (step S' tr a S'')
+
+  from step 
+  have IH: "\<lbrakk>currentTransaction S' i \<triangleq> tx\<rbrakk> \<Longrightarrow> \<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))" for tx
+    by auto
+
 
   from ` S' ~~ a \<leadsto> S''`
   show ?case
@@ -291,6 +297,9 @@ next
     proof (rule step)
       show "currentTransaction S' i \<triangleq> tx"
         using `currentTransaction S'' i \<triangleq> tx` by (simp add:  local)
+      show "\<And>i. (i, AFail) \<notin> set tr"
+        using step.prems(2) by auto
+
     qed
 
     then show ?thesis
@@ -302,6 +311,8 @@ next
     proof (rule step)
       show "currentTransaction S' i \<triangleq> tx"
         using `currentTransaction S'' i \<triangleq> tx` by (simp add:  newId)
+      show "\<And>i. (i, AFail) \<notin> set tr"
+        using step.prems(2) by auto
     qed
 
     then show ?thesis
@@ -324,6 +335,9 @@ next
       proof (rule step)
         show "currentTransaction S' i \<triangleq> tx"
           using `currentTransaction S'' i \<triangleq> tx` by (auto simp add: False  beginAtomic split: if_splits)
+        show " \<And>i. (i, AFail) \<notin> set tr"
+          using step.prems(2) by auto
+
       qed
 
       then show ?thesis
@@ -333,7 +347,7 @@ next
     case (endAtomic s ls f ls' t)
 
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
-    proof (rule step)
+    proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
         using `currentTransaction S'' i \<triangleq> tx` by (auto simp add: endAtomic split: if_splits)
     qed
@@ -345,7 +359,7 @@ next
   next
     case (dbop s ls f Op args ls' t c res vis)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
-    proof (rule step)
+    proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
         using `currentTransaction S'' i \<triangleq> tx` by (simp add:  dbop)
     qed
@@ -355,7 +369,7 @@ next
   next
     case (invocation s procName args initialState impl)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
-    proof (rule step)
+    proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
         using `currentTransaction S'' i \<triangleq> tx` by (simp add:  invocation)
     qed
@@ -365,7 +379,7 @@ next
   next
     case (return s ls f res)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
-    proof (rule step)
+    proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
         using `currentTransaction S'' i \<triangleq> tx` by (simp add:  return)
     qed
@@ -375,7 +389,7 @@ next
   next
     case (fail s ls)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
-    proof (rule step)
+    proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
         using `currentTransaction S'' i \<triangleq> tx` 
         by (auto simp add:  fail split: if_splits)
@@ -386,7 +400,7 @@ next
   next
     case (invCheck txns res s)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
-    proof (rule step)
+    proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
         using `currentTransaction S'' i \<triangleq> tx` by (simp add:  invCheck)
     qed
@@ -519,6 +533,16 @@ next
       using step.prems(3) by auto
   qed
 
+  have noFail_tr: "(i, AFail) \<notin> set tr" for i
+    using step.prems(3) by auto
+
+  have noFail_a: "snd a \<noteq> AFail"
+    using step.prems(3)
+    by (metis list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1) 
+
+
+
+
   show ?case
   proof (cases tr)
     case Nil
@@ -553,7 +577,9 @@ next
         where ib: "tr!ib = (i, ABeginAtomic tx txns)"
           and ib_len: "ib < length tr" 
           and ib_no_end: "\<forall>j. ib<j \<and> j<length tr \<longrightarrow> tr!j \<noteq> (i, AEndAtomic)"
-        using `currentTransaction S i = None` `S ~~ tr \<leadsto>* S'` currentTransaction_exists_beginAtomic local.wf by blast 
+        using `currentTransaction S i = None` `S ~~ tr \<leadsto>* S'` currentTransaction_exists_beginAtomic local.wf  noFail_tr by blast
+
+      thm step.prems(3)
 
       have "\<not> allowed_context_switch (snd ((tr @ [a]) ! length tr))"
       proof (rule use_noContextSwitchesInTransaction[OF `noContextSwitchesInTransaction (tr @ [a])`, where j="length tr"])
@@ -649,10 +675,12 @@ next
     and  step: "S' ~~ a \<leadsto> S''"
     and  packed: "packed_trace (tr @ [a])"
     and prefix_invariant: "\<And>tr' S'.  \<lbrakk>isPrefix tr' (tr @ [a]); S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
-    and noFails: "(s, AFail) \<notin> set (tr @ [a])"
+    and noFails: "\<And>s. (s, AFail) \<notin> set (tr @ [a])"
     and noContextSwitch: "noContextSwitchesInTransaction (tr @ [a])"
     using isPrefix_appendI prefixes_noContextSwitchesInTransaction by (auto, blast)
 
+  have noFails_tr: "\<And>i. (i, AFail) \<notin> set tr"
+    using steps_step.prems(4) by auto
 
   have steps': "S ~~ tr @ [a] \<leadsto>* S''"
     using steps step steps.steps_step by blast 
@@ -721,8 +749,13 @@ next
         S2_calls S2_happensBefore S2_prog S2_localState S2_currentProc S2_currentTransaction
         S2_transactionStatus S2_callOrigin S2_transactionOrigin S2_generatedIds S2_knownIds S2_invocationOp S2_invocationRes
 
+
+      have S'_wf: "state_wellFormed S'"
+        using S_wf steps noFails_tr by (rule state_wellFormed_combine)
+
+
       have vis_defined: "visibleCalls S' s \<noteq> None" if "currentTransaction S' s \<noteq> None"
-        using state_wellFormed_combine[OF S_wf] state_wellFormed_tx_to_visibleCalls S_wf steps that by fastforce
+        using S'_wf state_wellFormed_tx_to_visibleCalls that by auto
 
       obtain vis'
         where vis'_sub: "vis' orElse {} \<subseteq>visibleCalls S' s orElse {}"
@@ -960,12 +993,18 @@ next
             apply (auto simp add: consistentSnapshot_def newS_def a6' transactionConsistent_def)
             by (metis S2_transactionStatus option.inject transactionStatus.distinct(1))
 
+          have noFail1: "(i, AFail) \<notin> set (tr @ [a])" for i
+            using steps_step.prems by blast
+          hence noFail2: "(i, AFail) \<notin> set tr" for i
+            by force
+
+
           show "invariant_all newS" 
             using inv' apply (auto simp add: invariant_all_def)
             using S2_currentTransaction S2_localState S2_transactionStatus newS_def a1 inv'' invariant_all_def S2_transactionOrigin  by fastforce
 
           show "state_wellFormed newS"
-            using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' by auto
+            using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' noFail2 by fastforce
 
           show "state_monotonicGrowth S2 newS"
             using ih3 by (auto simp add: state_coupling_def state_monotonicGrowth_def S2_invocationOp newS_def a6 split: if_splits)
@@ -975,7 +1014,7 @@ next
 
 
           have "state_wellFormed S'"
-            using S_wf state_wellFormed_combine steps by auto
+            using S'_wf by blast 
 
           have "\<And>c. callOrigin S' c \<noteq> Some txId"
             using `transactionStatus S' txId = None` `state_wellFormed S'`
@@ -1188,11 +1227,12 @@ next
             and a5: "invocationOp S' s = None"
           by metis
 
+
         have inv_S': "invariant_all S'"
           using step_prog_invariant steps steps_step.prems(3) by force  
 
         have vis_None: "visibleCalls S' s = None"
-          using  S_wf a2 state_wellFormed_combine steps state_wellFormed_ls_visibleCalls by blast 
+          using  S_wf a2 state_wellFormed_combine steps state_wellFormed_ls_visibleCalls tr_noFail by blast 
 
         have "visibleCalls S2 s = None \<or> visibleCalls S2 s \<triangleq> {}"
           using S2_vis' option.sel vis'_sub vis_None by fastforce
@@ -1270,7 +1310,7 @@ next
           show "prog S' = prog S"
             using steps steps_do_not_change_prog by blast
           show "state_wellFormed S'"
-            using S_wf state_wellFormed_combine steps by auto
+            using S_wf state_wellFormed_combine steps tr_noFail by auto
 
 
           show "\<And>tx. transactionStatus S' tx \<noteq> Some Uncommited"
@@ -1350,8 +1390,8 @@ next
         case AFail
         hence "a = (s, AFail)"
           by (simp add: prod_eqI steps_step.prems(2))
-        with noFails have "False"
-          by simp
+        with `\<And>i. (i, AFail) \<notin> set (tr @ [a])`  have "False"
+          by auto
         thus ?thesis ..
       next
         case (AInvcheck txns res)
@@ -1474,13 +1514,13 @@ next
             show "transactionOrigin S'' tx \<triangleq> s"
               using a1 by auto
             show "state_wellFormed S''"
-              using S_wf state_wellFormed_combine steps' by blast
+              using S_wf state_wellFormed_combine steps' noFails by blast
             show "state_monotonicGrowth S2 S''"
               using ih3 by (auto simp add:  map_le_def a1 state_coupling_def state_monotonicGrowth_def \<open>transactionStatus S2 tx = None\<close>)
             show "currentProc S'' s \<triangleq> f"
               by (simp add: a1 a3)
             show "\<And>c. callOrigin S'' c \<noteq> Some tx"
-              using S_wf a6 state_wellFormed_combine steps wf_callOrigin_implies_transactionStatus_defined a1 by (auto, blast)
+              using S_wf a6 state_wellFormed_combine steps wf_callOrigin_implies_transactionStatus_defined a1 noFails by (auto, blast)
 
             show "\<And>txa. txa \<noteq> tx \<Longrightarrow> transactionStatus S'' txa \<noteq> Some Uncommited"
               by (metis (no_types, lifting) S_wf \<open>currentTransaction S'' s \<triangleq> tx\<close> at_most_one_current_tx noContextSwitch option.discI option.inject packed steps' steps_step.prems(4) steps_step.prems(5) wellFormed_currentTransaction_back)
@@ -1534,7 +1574,7 @@ next
             show "prog S' = prog S2"
               by simp
             show "state_wellFormed S'"
-              using S_wf state_wellFormed_combine steps by auto
+              using S_wf state_wellFormed_combine steps noFails by auto
 
             have "currentTransaction S' s = None"
               by (simp add: \<open>state_wellFormed S'\<close> a5 wellFormed_invoc_notStarted(1))
@@ -1598,7 +1638,7 @@ next
     
     have "callOrigin C c = None"
       using `calls C c = None`
-      using S_wf dbop.hyps(1) state_wellFormed_combine steps wellFormed_callOrigin_dom2 by blast
+      using S_wf dbop.hyps(1) state_wellFormed_combine steps wellFormed_callOrigin_dom2 noFails_tr by blast
       
     hence "callOrigin S2 c = None"
       using dbop.hyps(1) old_coupling state_coupling_def state_monotonicGrowth_callOrigin2 by force
@@ -1612,7 +1652,7 @@ next
     case (return C s ls f res)
     
     have "state_wellFormed S'"
-      using S_wf state_wellFormed_combine steps by blast
+      using S_wf state_wellFormed_combine steps noFails_tr by blast
       
     
     have "invocationRes C s = None"
@@ -2161,6 +2201,13 @@ proof -
     by force
 
 
+  have noFails_tr1: "\<And>i. (i, AFail) \<notin> set tr1"
+    using noFails tr_split by auto
+
+  have noFails_tr2: "\<And>i. (i, AFail) \<notin> set tr2"
+    using noFails tr_split by auto
+
+
   thm convert_to_single_session_trace
   obtain tr1' S1' 
     where tr1'_steps: "S ~~ (as, tr1') \<leadsto>\<^sub>S* S1'"
@@ -2196,7 +2243,7 @@ proof -
     show "S1 ~~ (as,aa) \<leadsto> S_fail"
       using a_def stepA by blast
     show "state_wellFormed S1"
-      using S_wellformed state_wellFormed_combine steps1 by blast
+      using S_wellformed state_wellFormed_combine steps1 noFails_tr1 by blast
     show "aa \<noteq> AFail"
       using a_def noFails tr_split by auto
     show "invariant_all S1"
@@ -2279,6 +2326,8 @@ proof -
                 by (metis S_wellformed noUncommittedTx option.exhaust wellFormed_currentTransaction_unique_h(2))
               show "state_wellFormed S"
                 by (metis S_wellformed)
+              show "\<And>i. (i, AFail) \<notin> set tr1"
+                by (simp add: noFails_tr1) 
             qed
             from this obtain ib txns 
               where ib1: "tr1 ! ib = (invoc, ABeginAtomic tx txns)"
@@ -2864,13 +2913,19 @@ lemma invCheck_to_failing_state:
 assumes steps: "S ~~ trace \<leadsto>* S'"
     and inv_fail: "(s, AInvcheck txns False) \<in> set trace"
     and state_wf: "state_wellFormed S"
+    and noFail: "\<And>i. (i, AFail) \<notin> set trace"
 shows "\<exists>tr' S_fail. isPrefix tr' trace \<and> (S ~~ tr' \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail" 
-using steps inv_fail proof (induct rule: steps_induct)
+using steps inv_fail noFail proof (induct rule: steps_induct)
   case initial
   then show ?case
     by auto 
 next
   case (step S' tr a S'')
+
+  have noFail_tr: "\<And>i. (i, AFail) \<notin> set tr"
+    using step by auto
+
+
   show ?case 
   proof (cases "(s, AInvcheck txns False) \<in> set tr")
     case True
@@ -2879,7 +2934,7 @@ next
       where "isPrefix tr' tr" 
         and"S ~~ tr' \<leadsto>* S_fail" 
         and "\<not> invariant_all S_fail"
-      by blast
+      using noFail_tr by blast
       
     then show ?thesis
       using isPrefix_append by blast 
@@ -2913,7 +2968,7 @@ next
           
         
         have "state_wellFormed S'"
-          using state_wellFormed_combine state_wf step.steps by blast
+          using state_wellFormed_combine state_wf step.steps noFail noFail_tr by blast 
           
         show "consistentSnapshot S' vis"
           apply (auto simp add: vis_def)
@@ -3075,7 +3130,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
        where "isPrefix tr' trace"
          and "initialState program ~~ tr' \<leadsto>* S_fail"
          and "\<not> invariant_all S_fail"
-      using \<open>(s, AInvcheck txns False) \<in> set trace\<close> invCheck_to_failing_state state_wellFormed_init steps by blast
+      using \<open>(s, AInvcheck txns False) \<in> set trace\<close> invCheck_to_failing_state state_wellFormed_init steps noFail by blast 
     
     text {* No take the first state where the invariant fails *}
     from this

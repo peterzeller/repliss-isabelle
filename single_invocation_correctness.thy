@@ -51,7 +51,7 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
                   localState := (localState S)(i \<mapsto> ls), 
                   currentTransaction := (currentTransaction S)(i := None),
                   transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
-                  (\<forall>t. transactionStatus S' t \<triangleq> Uncommited) 
+                  (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
                     \<longrightarrow> (invariant_all S'
                          \<and> (invariant_all S' \<longrightarrow> checkCorrect progr S' i bound))
             )
@@ -86,7 +86,7 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
                  visibleCalls := (visibleCalls S)(i := None),
                  invocationRes := (invocationRes S)(i \<mapsto> res),
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
-               (\<forall>t. transactionStatus S' t \<triangleq> Uncommited) \<longrightarrow> invariant_all S'    
+               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant_all S'    
             )
         ))
 "
@@ -123,7 +123,7 @@ lemma checkCorrectAll_simps:
                   localState := (localState S)(i \<mapsto> ls), 
                   currentTransaction := (currentTransaction S)(i := None),
                   transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
-              (\<forall>t. transactionStatus S' t \<triangleq> Uncommited) 
+              (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
               \<longrightarrow> (invariant_all S'
                    \<and> (invariant_all S' \<longrightarrow> checkCorrectAll progr S' i))
             )
@@ -158,7 +158,7 @@ lemma checkCorrectAll_simps:
                  visibleCalls := (visibleCalls S)(i := None),
                  invocationRes := (invocationRes S)(i \<mapsto> res),
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
-              (\<forall>t. transactionStatus S' t \<triangleq> Uncommited) 
+              (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
               \<longrightarrow> (invariant_all S')
             )
         ))
@@ -169,9 +169,8 @@ proof (induct rule: iffI)
     by (metis checkCorrectAll_def)
   show ?case
     apply (auto split: localAction.splits option.splits)
-    using allBounds apply (auto simp add: checkCorrectAll_def split: localAction.splits option.splits )
-     apply (metis wellFormed_currentTransactionUncommited)
-    by metis
+    using allBounds apply (auto simp add: checkCorrectAll_def Let_def split: localAction.splits option.splits )
+    by (metis wellFormed_currentTransactionUncommited)
 next
   case 2
   thus ?case
@@ -179,7 +178,7 @@ next
      apply (case_tac x)
       apply auto
     apply (case_tac bound)
-     apply (auto simp add: Let_def checkCorrectAll_def split: localAction.splits option.splits )
+     apply (auto simp add: Let_def checkCorrectAll_def split: localAction.splits option.splits if_splits)
     by (metis option.distinct(1))
 
 qed
@@ -435,6 +434,7 @@ lemma show_traceCorrect_s_1:
     and initS: "initS \<in> initialStates program i"
     and trace_len: "length trace < bound"
     and trace_len2: "0 < length trace"
+    and initS_wf: "state_wellFormed initS"
   shows "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
   using steps check trace_len trace_len2 proof (induct "length trace" arbitrary: trace S_fin)
   case 0
@@ -499,9 +499,20 @@ next
        apply blast
       using Suc.prems(3) Suc_diff_Suc \<open>traceCorrect_s program tr \<and> checkCorrect program S_pre i (bound - length tr)\<close> tr_def by auto 
 
-    with step_final  
+    obtain tx
+      where tx1: "currentTransaction S_pre i \<triangleq> tx"
+        and tx2: "transactionStatus S_pre tx \<triangleq> Uncommited"
+      sorry
+    have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommited" if "t \<noteq> tx" for t
+      find_theorems "transactionStatus ?S_pre ?t \<noteq> Some Uncommited"
+      using that tx2 
+      sorry
+
+    from S_pre_correct tr_correct step_final  
     have "a_inv = True" (*and "checkCorrect program S_fin i (bound - length trace)" *)
-      by (auto simp add: step_s.simps Let_def hasInvocation split: option.splits)
+      by (auto simp add: tx1 step_s.simps Let_def hasInvocation onlyOneTx split: option.splits if_splits)
+
+
 
     from S_pre_correct step_final
     have cc: "checkCorrect program S_fin i (bound - length trace)" 

@@ -8,11 +8,11 @@ text {* This theory includes proof for invariants that hold for all executions. 
 
 
 definition state_wellFormed :: "('localState, 'any) state \<Rightarrow> bool" where
-  "state_wellFormed state \<equiv> \<exists>tr. initialState (prog state) ~~ tr \<leadsto>* state"
+  "state_wellFormed state \<equiv> \<exists>tr. (\<forall>i. (i, AFail) \<notin> set tr) \<and>  initialState (prog state) ~~ tr \<leadsto>* state"
 
 lemma state_wellFormed_init[simp]:
   "state_wellFormed (initialState program)"
-  by (metis distributed_state.select_convs(1) initialState_def state_wellFormed_def steps_refl)
+  unfolding state_wellFormed_def by (rule exI[where x="[]"], auto simp add: initialState_def)
 
 lemma steps_do_not_change_prog: 
   assumes "S ~~ tr \<leadsto>* S'"
@@ -33,21 +33,24 @@ qed
 lemma state_wellFormed_combine:
   assumes wf: "state_wellFormed S"
     and steps: "S ~~ tr \<leadsto>* S'"
+    and noFails: "\<And>i. (i, AFail) \<notin> set tr"
   shows "state_wellFormed S'"
 proof -
   from steps 
   have "prog S' = prog S"
     using steps_do_not_change_prog by auto
 
-  from wf obtain tr1 where "initialState (prog S) ~~ tr1 \<leadsto>* S"
+  from wf obtain tr1 where "initialState (prog S) ~~ tr1 \<leadsto>* S" and "(\<forall>i. (i, AFail) \<notin> set tr1)"
     using state_wellFormed_def by blast 
   with steps
   have "initialState (prog S) ~~ tr1@tr \<leadsto>* S'"
     using steps_append by blast
   with `prog S' = prog S`
   have "initialState (prog S') ~~ tr1@tr \<leadsto>* S'" by simp
-  thus "state_wellFormed S'"
-    using state_wellFormed_def by auto 
+  moreover have "(\<forall>i. (i, AFail) \<notin> set (tr1@tr))"
+    by (simp add: \<open>\<forall>i. (i, AFail) \<notin> set tr1\<close> noFails)
+  ultimately show "state_wellFormed S'"
+    using state_wellFormed_def by blast
 qed  
 
 lemma step_prog_invariant:
@@ -107,10 +110,35 @@ lemma steps_induct2[consumes 1, case_names initial step[steps IH step]]:
 
 
 lemma wellFormed_induct[consumes 1, case_names initial step]:
-  "\<lbrakk>state_wellFormed s; P (initialState (prog s)); \<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s\<rbrakk> \<Longrightarrow> P s\<rbrakk> \<Longrightarrow> P s"
-  apply (auto simp add: state_wellFormed_def)
-  apply (erule(1) steps_induct)
-  by (metis prod.collapse state_wellFormed_def state_wellFormed_init step_prog_invariant steps_append)
+  assumes wf: "state_wellFormed s"
+    and P_initial: "P (initialState (prog s))"
+    and P_step: "\<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s; snd a \<noteq> AFail\<rbrakk> \<Longrightarrow> P s"
+  shows "P s"
+  using wf proof (auto simp add: state_wellFormed_def)
+  fix tr 
+  assume noFail: "\<forall>i. (i, AFail) \<notin> set tr"
+  and steps: "initialState (prog s) ~~ tr \<leadsto>* s"
+
+  from steps noFail
+  show "P s"
+  proof (induct rule: steps_induct)
+    case initial
+    then show ?case
+      using P_initial by auto 
+  next
+    case (step S' tr a S'')
+    show ?case 
+    proof (rule P_step)
+      show "S' ~~ a \<leadsto> S''" using `S' ~~ a \<leadsto> S''` .
+      show "state_wellFormed S'"
+        by (metis butlast_snoc in_set_butlastD state_wellFormed_combine state_wellFormed_init step.prems step.steps) 
+      show "P S'"
+        using step.IH step.prems by auto 
+      show "snd a \<noteq> AFail"
+        by (metis append_is_Nil_conv last_in_set last_snoc list.distinct(1) step.prems surjective_pairing)
+    qed
+  qed
+qed
 
 
 
@@ -148,12 +176,11 @@ lemma wellFormed_visibleCallsSubsetCalls_h:
    apply blast
   apply (erule step.cases)
           apply (auto split: if_splits)
-             apply blast
             apply blast
            apply blast
-          apply (auto simp add: callsInTransactionH_contains downwardsClosure_in split: option.splits)[1]
-          apply (metis not_None_eq wellFormed_callOrigin_dom2)
-         apply blast
+          apply blast
+         apply (auto simp add: callsInTransactionH_contains downwardsClosure_in split: option.splits)[1]
+         apply (metis not_None_eq wellFormed_callOrigin_dom2)
         apply blast
        apply blast
       apply blast
@@ -213,10 +240,10 @@ next
       and a3: "transactionStatus S'' t \<triangleq> Uncommited"
 
     have "state_wellFormed S'"
-      using state_wellFormed_combine state_wellFormed_init step.steps local.wf by blast 
+      using state_wellFormed_combine state_wellFormed_init step.steps local.wf step.prems by fastforce 
 
     have "state_wellFormed S''"
-      using state_wellFormed_combine state_wellFormed_init step.step step.steps steps_step local.wf by blast
+      using state_wellFormed_combine state_wellFormed_init step.step step.steps steps_step local.wf step.prems by blast
 
     from a2
     show "\<exists>!i. currentTransaction S'' i \<triangleq> t"
@@ -265,6 +292,13 @@ lemma wellFormed_currentTransaction_back2:
    apply (simp add: initialState_def)
   apply simp
 done
+
+lemma wellFormed_currentTransaction_back3:
+  assumes wf: "state_wellFormed S"
+    and uncommitted: "transactionStatus S t \<triangleq> Uncommited"
+  shows "\<exists>!i. currentTransaction S i \<triangleq> t"
+  using local.wf state_wellFormed_def uncommitted wellFormed_currentTransaction_back2 by blast
+
 
 
 lemma commitedCalls_unchanged_callOrigin[simp]:
