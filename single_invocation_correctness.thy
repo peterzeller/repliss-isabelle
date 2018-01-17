@@ -93,6 +93,12 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
 
 definition "checkCorrectAll progr S i \<equiv> \<forall>bound. checkCorrect progr S i bound"
 
+lemma checkCorrect_noProc:
+  assumes "currentProc S i = None"
+  shows "checkCorrect progr S i bound"
+  using assms  by (case_tac bound, auto simp add: assms split: option.splits) 
+
+
 lemma checkCorrectAll_simps:
   "checkCorrectAll progr S i =
 (case currentProc S i of
@@ -196,8 +202,9 @@ next
     by (auto simp add: step_s.simps)
 qed
 
+(*
 
-lemma 
+lemma checkCorrect_traceCorrect:
   assumes check: "checkCorrect program S_start i bound"
     and steps: "S_start ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
     and trace_len: "length trace < bound"
@@ -276,6 +283,8 @@ next
     case (endAtomic ls f ls' t valid)
     then show ?thesis 
       using checkCorrect_S apply auto
+        apply (auto simp add: split: if_splits)
+
       sorry
 
   next
@@ -300,6 +309,8 @@ next
 
 qed  
 
+
+*)
 (*
 now we have it without invocations, so we have to prove that invocations can only be at the beginning, then we are in initial states ...
 *)
@@ -483,7 +494,7 @@ next
 
 
   have  wf: "state_wellFormed_s initS i"
-    using initS initialStates_wf steps_s_refl by blast
+    using initS initialStates_wf steps_s_refl  by blast
 
 
   from `initS ~~ (i, trace) \<leadsto>\<^sub>S* S_fin`
@@ -530,43 +541,73 @@ next
        apply blast
       using Suc.prems(3) Suc_diff_Suc \<open>traceCorrect_s program tr \<and> checkCorrect program S_pre i (bound - length tr)\<close> tr_def by auto 
 
-
-    obtain tx
-      where tx1: "currentTransaction S_pre i \<triangleq> tx"
-        and tx2: "transactionStatus S_pre tx \<triangleq> Uncommited"
-
-
-      sorry
-    have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommited" if "t \<noteq> tx" for t
-
-      find_theorems "transactionStatus ?S_pre ?t \<noteq> Some Uncommited"
-      using that tx2 
-      sorry
-
-    from S_pre_correct tr_correct step_final  
-    have "a_inv = True" (*and "checkCorrect program S_fin i (bound - length trace)" *)
-      by (auto simp add: tx1 step_s.simps Let_def hasInvocation onlyOneTx split: option.splits if_splits)
+    show "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
+    proof (cases "currentTransaction S_pre i")
+      case (Some tx)
+      hence tx1: "currentTransaction S_pre i \<triangleq> tx"
+        by simp
 
 
 
-    from S_pre_correct step_final
-    have cc: "checkCorrect program S_fin i (bound - length trace)" 
-      apply (auto simp add: step_s.simps Let_def hasInvocation \<open>a_inv = True\<close> split: option.splits if_splits)
-      using wellFormed_currentTransactionUncommited apply blast
-      using onlyOneTx tx1 apply auto[1]
-       apply (drule_tac x=c in spec)
-       apply auto
-      apply (case_tac "bound - length trace")
-       apply auto
-      done
+
+      have tx2: "transactionStatus S_pre tx \<triangleq> Uncommited"
+        using initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre tx1 by blast 
+
+      have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommited" if "t \<noteq> tx" for t
+        using initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre that tx1 by fastforce
+
+      from S_pre_correct tr_correct step_final  
+      have "a_inv = True" (*and "checkCorrect program S_fin i (bound - length trace)" *)
+        by (auto simp add: tx1 step_s.simps Let_def hasInvocation onlyOneTx split: option.splits if_splits)
 
 
-    from tr_correct `a_inv = True`
-    have "traceCorrect_s program trace"
-      by (auto simp add: traceCorrect_s_def tr_def)
 
-    with cc
-    show ?thesis by blast
+      from S_pre_correct step_final
+      have cc: "checkCorrect program S_fin i (bound - length trace)" 
+        apply (auto simp add: step_s.simps Let_def hasInvocation \<open>a_inv = True\<close> split: option.splits if_splits)
+        using wellFormed_currentTransactionUncommited apply blast
+        using onlyOneTx tx1 apply auto[1]
+         apply (drule_tac x=c in spec)
+         apply auto
+        apply (case_tac "bound - length trace")
+         apply auto
+        done
+
+
+      from tr_correct `a_inv = True`
+      have "traceCorrect_s program trace"
+        by (auto simp add: traceCorrect_s_def tr_def)
+
+      with cc
+      show ?thesis by blast
+    next
+      case None
+
+      have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommited" for t
+        using None initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre by fastforce
+
+
+      from S_pre_correct tr_correct step_final  
+      have "a_inv = True" (*and "checkCorrect program S_fin i (bound - length trace)" *)
+        by (auto simp add: onlyOneTx step_s.simps Let_def hasInvocation  split: option.splits if_splits)
+
+      from S_pre_correct step_final
+      have cc: "checkCorrect program S_fin i (bound - length trace)" 
+        apply (auto simp add: step_s.simps Let_def hasInvocation \<open>a_inv = True\<close> onlyOneTx None split: option.splits if_splits)
+        using wellFormed_currentTransactionUncommited apply blast
+        apply (simp add: checkCorrect_noProc)
+        done
+
+
+      from tr_correct `a_inv = True`
+      have "traceCorrect_s program trace"
+        by (auto simp add: traceCorrect_s_def tr_def)
+
+
+
+      show "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
+        by (simp add: \<open>traceCorrect_s program trace\<close> cc)
+    qed
 
   next
     case False
@@ -618,7 +659,8 @@ next
       case (return ls f res valid)
       then show ?thesis  
         using initS_correct
-        by (auto simp add: bound_def)
+        apply (auto simp add: bound_def )
+        using initS initialState_noTxns1 by blast
     qed
 
 
@@ -646,7 +688,8 @@ next
         using `transactionStatus S_fin t \<triangleq> Uncommited` by blast
     next
       case (endAtomic ls f ls' t valid)
-      then show ?thesis using initS_correct by (auto simp add: bound_def)
+      then show ?thesis using initS_correct
+        by (simp add: noTransaction)
     next
       case (dbop ls f Op args ls' t c res vis)
       then show ?thesis using initS_correct 
@@ -727,6 +770,10 @@ proof (auto simp add: programCorrect_s_def)
         show "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S_fin" using steps' .
         show "\<And>S. S \<in> initialStates program i \<Longrightarrow> invariant_all S"
           using initialCorrect by blast
+
+        show S_init_wf: "state_wellFormed S_init"
+          using \<open>S_init \<in> initialStates program i\<close> initialStates_wellFormed by blast
+
         show "checkCorrect program S i bound" if " S \<in> initialStates program i" for bound S
           using `S \<in> initialStates program i` proof (rule check)
           show " invariant_all S"
@@ -758,7 +805,7 @@ proof (auto simp add: programCorrect_s_def)
 
             with steps_pre
             show "state_wellFormed S"
-              using state_wellFormed_combine state_wellFormed_init steps_step by blast
+              using initialStates_wellFormed that by blast
           qed
         qed
         show "length tr < Suc (length tr)"

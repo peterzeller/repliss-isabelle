@@ -23,6 +23,34 @@ definition initialStates :: "('localState, 'any) prog \<Rightarrow> invocation \
 }"
 
 
+lemma initialStates_wellFormed:
+"state_wellFormed S" if "S \<in> initialStates progr i"
+  using that proof (auto simp add: initialStates_def)
+  fix Sa procName args initState impl
+  assume S_def: "S = Sa\<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),
+                 invocationOp := invocationOp Sa(i \<mapsto> (procName, args))\<rparr>"
+    and "progr = prog Sa"
+    and "procedure (prog Sa) procName args \<triangleq> (initState, impl)"
+    and "uniqueIdsInList args \<subseteq> knownIds Sa"
+    and "invariant_all Sa"
+    and "state_wellFormed Sa"
+    and "invocationOp Sa i = None"
+    and "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommited"
+
+  have step: "Sa ~~ (i, AInvoc procName args) \<leadsto> S"
+    apply (auto simp add: step.simps S_def)
+    by (metis \<open>invocationOp Sa i = None\<close> \<open>procedure (prog Sa) procName args \<triangleq> (initState, impl)\<close> \<open>state_wellFormed Sa\<close> \<open>uniqueIdsInList args \<subseteq> knownIds Sa\<close> state.surjective state.update_convs(1) state.update_convs(2) wf_localState_to_invocationOp)
+
+  with `state_wellFormed Sa`
+  have "state_wellFormed S"
+    using state_wellFormed_combine_step by fastforce
+
+  thus " state_wellFormed
+            (Sa\<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),
+                  invocationOp := invocationOp Sa(i \<mapsto> (procName, args))\<rparr>)"
+    using S_def by simp
+qed
+
 definition state_wellFormed_s where
   "state_wellFormed_s S i \<equiv> \<exists>prog tr. initialState prog ~~ (i,tr) \<leadsto>\<^sub>S* S"
 
@@ -33,7 +61,6 @@ lemma initialStates_reachable_from_initialState:
   using assms apply (auto simp add: initialStates_def step_s.simps )
    apply (auto simp add: initialState_def)
   by blast
-
 
 
 lemma initialStates_wf:
@@ -127,6 +154,34 @@ next
   then show ?case by (auto simp add: step_s.simps)
 qed
 
+lemma state_wellFormed_s_currentTransactionsOnlyInCurrent:
+  assumes wf: "state_wellFormed_s S i" 
+    and other: "i' \<noteq> i"
+  shows "currentTransaction S i' = None"
+  using assms proof (induct rule: state_wellFormed_s_induct)
+  case (initial progr)
+  show ?case 
+    by (auto simp add: initialState_def)
+next
+  case (step tr S a S' progr)
+  then show ?case 
+    apply (auto simp add: step_s.simps)
+     apply (metis not_None_eq wellFormed_currentTransaction_unique wellFormed_currentTransaction_unique_h(2))
+    by (meson option.exhaust wellFormed_currentTransaction_unique_h(2))
+qed
+
+lemma state_wellFormed_s_currentTransactions_iff_uncommitted:
+  assumes wf: "state_wellFormed_s S i" 
+  shows "currentTransaction S i \<triangleq> tx \<longleftrightarrow> (transactionStatus S tx \<triangleq> Uncommited)"
+  using assms proof (induct rule: state_wellFormed_s_induct)
+case (initial progr)
+  then show ?case 
+    by (auto simp add: initialState_def)
+next
+  case (step tr S a S' progr)
+  then show ?case 
+    by (force simp add: step_s.simps)
+qed
 
 
 end

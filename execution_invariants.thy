@@ -30,6 +30,17 @@ next
     done
 qed
 
+lemma state_wellFormed_combine_step:
+  assumes wf: "state_wellFormed S"
+    and step: "S ~~ a \<leadsto> S'"
+    and noFails: "snd a \<noteq> AFail"
+  shows "state_wellFormed S'"
+  using wf step noFails  apply (auto simp add: state_wellFormed_def)
+  apply (rule_tac x="tr@[a]" in exI)
+  apply auto
+  by (metis steps_do_not_change_prog steps_step)
+
+
 lemma state_wellFormed_combine:
   assumes wf: "state_wellFormed S"
     and steps: "S ~~ tr \<leadsto>* S'"
