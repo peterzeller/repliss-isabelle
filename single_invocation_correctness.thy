@@ -424,8 +424,39 @@ proof -
     by blast
 qed    
 
+lemma initialState_noTxns1:
+  assumes initS: "S \<in> initialStates program i"
+  shows "transactionStatus S tx \<noteq> Some Uncommited"
+  using initS by (auto simp add: initialStates_def)
+
+lemma initialState_noTxns2:
+  assumes initS: "S \<in> initialStates program i"
+  shows "currentTransaction S i' = None"
+  using initS apply (auto simp add: initialStates_def)
+  by (meson option.exhaust wellFormed_currentTransaction_unique_h(2))
 
 
+lemma steps_s_noOtherTx:
+  assumes steps: "initS ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
+    and initS: "initS \<in> initialStates program i"
+    and "i' \<noteq> i"
+  shows "currentTransaction S_fin i' = None"
+  using steps proof (induct rule: step_s_induct)
+  case initial
+  from initS
+  show "currentTransaction initS i' = None"
+    using initialState_noTxns2 by auto
+
+next
+  case (step tr S a S')
+
+
+  from `S ~~ (i, a) \<leadsto>\<^sub>S S'` 
+  show ?case 
+    apply (auto simp add: step_s.simps `currentTransaction S i' = None`)
+    apply (metis assms(3) option.exhaust wellFormed_currentTransaction_unique wellFormed_currentTransaction_unique_h(2))
+    by (meson option.exhaust wellFormed_currentTransaction_unique_h(2))
+qed
 
 lemma show_traceCorrect_s_1:
   assumes initialCorrect: "\<And>S. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
@@ -499,11 +530,15 @@ next
        apply blast
       using Suc.prems(3) Suc_diff_Suc \<open>traceCorrect_s program tr \<and> checkCorrect program S_pre i (bound - length tr)\<close> tr_def by auto 
 
+
     obtain tx
       where tx1: "currentTransaction S_pre i \<triangleq> tx"
         and tx2: "transactionStatus S_pre tx \<triangleq> Uncommited"
+
+
       sorry
     have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommited" if "t \<noteq> tx" for t
+
       find_theorems "transactionStatus ?S_pre ?t \<noteq> Some Uncommited"
       using that tx2 
       sorry
@@ -516,8 +551,9 @@ next
 
     from S_pre_correct step_final
     have cc: "checkCorrect program S_fin i (bound - length trace)" 
-      apply (auto simp add: step_s.simps Let_def hasInvocation split: option.splits)
-      using wellFormed_currentTransactionUncommited apply blast  
+      apply (auto simp add: step_s.simps Let_def hasInvocation \<open>a_inv = True\<close> split: option.splits if_splits)
+      using wellFormed_currentTransactionUncommited apply blast
+      using onlyOneTx tx1 apply auto[1]
        apply (drule_tac x=c in spec)
        apply auto
       apply (case_tac "bound - length trace")

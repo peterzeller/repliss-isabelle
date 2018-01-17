@@ -391,5 +391,15 @@ proof -
   thus "P tr S" by simp
 qed  
 
+lemma step_s_no_Fail: 
+  assumes "S ~~ (i, a) \<leadsto>\<^sub>S S'"
+  shows "a \<noteq> (AFail, t)"
+  using assms  by (auto simp add: step_s.simps)
+
+lemma steps_s_no_Fail: 
+  assumes "S ~~ (i, tr) \<leadsto>\<^sub>S* S'"
+  shows "(AFail, t) \<notin> set tr"
+  using assms apply (induct rule: step_s_induct)
+  using step_s_no_Fail by (auto, blast)
 
 end
