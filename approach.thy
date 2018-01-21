@@ -990,7 +990,7 @@ next
             by (simp add: newS_def)
 
           have [simp]: "consistentSnapshot newS vis \<Longrightarrow> consistentSnapshot S' vis" for vis
-            apply (auto simp add: consistentSnapshot_def newS_def a6' transactionConsistent_def)
+            apply (auto simp add: consistentSnapshotH_def newS_def a6' transactionConsistent_def)
             by (metis S2_transactionStatus option.inject transactionStatus.distinct(1))
 
           have noFail1: "(i, AFail) \<notin> set (tr @ [a])" for i
@@ -1707,7 +1707,7 @@ using step proof (cases rule: step.cases)
     show "prog S' = prog S"
       using local.step prog_inv by auto
     show "consistentSnapshot S' = consistentSnapshot S"
-      using local by (auto simp add: consistentSnapshot_def)
+      using local by (auto simp add: consistentSnapshotH_def)
   qed
   
   with inv and not_inv
@@ -1725,7 +1725,7 @@ next
     show "prog S' = prog S"
       using local.step prog_inv by auto
     show "consistentSnapshot S' = consistentSnapshot S"
-      using newId by (auto simp add: consistentSnapshot_def)
+      using newId by (auto simp add: consistentSnapshotH_def)
   qed
   
   with inv and not_inv
@@ -1743,7 +1743,7 @@ next
     show "prog S' = prog S"
       using local.step prog_inv by auto
     have "consistentSnapshot S' vis = consistentSnapshot S vis" for vis
-      using beginAtomic by (auto simp add: consistentSnapshot_def transactionConsistent_def)
+      using beginAtomic by (auto simp add: consistentSnapshotH_def transactionConsistent_def)
     thus "consistentSnapshot S' = consistentSnapshot S" ..
   qed
   
@@ -1783,7 +1783,7 @@ next
       proof (rule exI[where x=vis], intro conjI)
         from a1
         show "consistentSnapshot S2' vis"
-          by (auto simp add: consistentSnapshot_def S2'_def `S2 = S`  local.endAtomic(2))
+          by (auto simp add: consistentSnapshotH_def S2'_def `S2 = S`  local.endAtomic(2))
           
         from a2
         show "\<not> invariant (prog S2') (invContextVis S2' vis)"  
@@ -1811,13 +1811,13 @@ next
     
     from a1
     have "vis' \<subseteq> insert c (dom (calls S))" 
-      by (auto simp add: consistentSnapshot_def dbop)
+      by (auto simp add: consistentSnapshotH_def dbop)
     
     
       
     from a1  
     have "causallyConsistent (happensBefore S \<union> vis \<times> {c}) vis'" 
-      using hb' by (auto simp add: consistentSnapshot_def causallyConsistent_def)
+      using hb' by (auto simp add: consistentSnapshotH_def causallyConsistent_def)
     
     hence "causallyConsistent (happensBefore S) vis'"
       by (auto simp add: causallyConsistent_def)
@@ -1825,7 +1825,7 @@ next
     
     from a1
     have "transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis'"
-      by (auto simp add: consistentSnapshot_def dbop)
+      by (auto simp add: consistentSnapshotH_def dbop)
     
     hence "c \<notin> vis'"
       by (metis (full_types) S_wellformed fun_upd_same local.dbop(6) map_upd_eqD1 transactionConsistent_def transactionStatus.distinct(1) wellFormed_currentTransaction_unique_h(2)) (* takes long *) 
@@ -1849,7 +1849,7 @@ next
      and `vis' \<subseteq> dom (calls S)`
      and `causallyConsistent (happensBefore S) vis'`
     have "consistentSnapshot S vis'"
-      by (simp add: consistentSnapshot_def)
+      by (simp add: consistentSnapshotH_def)
       
     with a0  
     have "invariant (prog S) (invContextVis S vis')"
@@ -1953,11 +1953,11 @@ next
       show "\<exists>vis. consistentSnapshot S2' vis \<and> \<not> invariant (prog S2') (invContextVis S2' vis)"
       proof (rule exI[where x="vis"], intro conjI)
         show "consistentSnapshot S2' vis"
-          using a0 by (auto simp add: consistentSnapshot_def S2'_def a3  return(2))
+          using a0 by (auto simp add: consistentSnapshotH_def S2'_def a3  return(2))
           
         from a1
         show "\<not> invariant (prog S2') (invContextVis S2' vis)"  
-          using a0 by (auto simp add: consistentSnapshot_def S2'_def a3  return(2))
+          using a0 by (auto simp add: consistentSnapshotH_def S2'_def a3  return(2))
       qed 
     qed
   qed
@@ -2013,10 +2013,10 @@ proof (rule ccontr)
     using `S ~~ a \<leadsto> S_fail`
   proof (cases rule: step.cases)
     case (local s ls f ls')
-    then show ?thesis by (auto simp add: consistentSnapshot_def)
+    then show ?thesis by (auto simp add: consistentSnapshotH_def)
   next
     case (newId s ls f ls' uid)
-    then show ?thesis by (auto simp add: consistentSnapshot_def)
+    then show ?thesis by (auto simp add: consistentSnapshotH_def)
   next
     case (beginAtomic s ls f ls' t vis newTxns newCalls snapshot)
     then show ?thesis
@@ -2029,7 +2029,7 @@ proof (rule ccontr)
   next
     case (dbop s ls f Op args ls' t c res vis')
     show ?thesis 
-    proof (auto simp add: consistentSnapshot_def dbop)
+    proof (auto simp add: consistentSnapshotH_def dbop)
 
       show "\<exists>y. calls S x \<triangleq> y" 
         if a1: "vis \<subseteq> insert c (dom (calls S))" 
@@ -2080,16 +2080,16 @@ proof (rule ccontr)
 
   next
     case (invocation s procName args initialState impl)
-    then show ?thesis by (auto simp add: consistentSnapshot_def)
+    then show ?thesis by (auto simp add: consistentSnapshotH_def)
   next
     case (return s ls f res)
-    then show ?thesis by (auto simp add: consistentSnapshot_def)
+    then show ?thesis by (auto simp add: consistentSnapshotH_def)
   next
     case (fail s ls)
-    then show ?thesis by (auto simp add: consistentSnapshot_def)
+    then show ?thesis by (auto simp add: consistentSnapshotH_def)
   next
     case (invCheck txns res s)
-    then show ?thesis by (auto simp add: consistentSnapshot_def)
+    then show ?thesis by (auto simp add: consistentSnapshotH_def)
   qed
 
   have commitedCallsH_same: "commitedCallsH (callOrigin S_fail) (transactionStatus S_fail) = commitedCallsH (callOrigin S) (transactionStatus S)"
@@ -2820,7 +2820,7 @@ assumes wf: "state_wellFormed S"
 assumes vis: "visibleCalls S s \<triangleq> vis"
 assumes noTx: "currentTransaction S s = None" 
 shows "consistentSnapshot S vis"
-unfolding consistentSnapshot_def proof (intro conjI)
+unfolding consistentSnapshotH_def proof (intro conjI)
   show "vis \<subseteq> dom (calls S)"
     using wf vis
     using wellFormed_visibleCallsSubsetCalls_h(2) by fastforce 
@@ -2881,7 +2881,7 @@ lemma consistentSnapshot_txns:
 assumes wf: "state_wellFormed S"
   and comitted: "txns \<subseteq> commitedTransactions S"
 shows "consistentSnapshot S (callsInTransaction S txns \<down> happensBefore S)"
-unfolding consistentSnapshot_def proof (intro conjI)
+unfolding consistentSnapshotH_def proof (intro conjI)
  
   show "callsInTransaction S txns \<down> happensBefore S \<subseteq> dom (calls S)"
     apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
