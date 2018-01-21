@@ -138,7 +138,7 @@ proof -
 
   ultimately 
   show "invariant_all S' \<longleftrightarrow> invariant_all S"
-    by  (auto simp add: invariant_all_def consistentSnapshot_def)
+    by  (auto simp add: invariant_all_def consistentSnapshotH_def)
 qed    
 
 

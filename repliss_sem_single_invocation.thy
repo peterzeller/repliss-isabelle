@@ -24,14 +24,18 @@ lemma transactionConsistent_all_from_same:
 shows "\<lbrakk>transactionConsistent origin txStatus vis; c1\<in>vis; origin c1 = origin c2\<rbrakk> \<Longrightarrow> c2\<in>vis"
 by (auto simp add:  transactionConsistent_def) 
 
-definition consistentSnapshot where
-"consistentSnapshot state vis \<equiv>
-  vis \<subseteq> dom (calls state)
+definition consistentSnapshotH where
+"consistentSnapshotH s_calls s_happensBefore s_callOrigin s_transactionStatus vis \<equiv>
+  vis \<subseteq> dom s_calls
  (* causally consistent *) 
- \<and> (causallyConsistent (happensBefore state) vis)
+ \<and> (causallyConsistent s_happensBefore vis)
  (*transaction consistent *)
- \<and> (transactionConsistent (callOrigin state) (transactionStatus state) vis)
+ \<and> (transactionConsistent s_callOrigin s_transactionStatus vis)
 "
+
+abbreviation consistentSnapshot where
+"consistentSnapshot state vis \<equiv>
+consistentSnapshotH (calls state) (happensBefore state) (callOrigin state) (transactionStatus state) vis"
 
 
 (* TODO add definitions *)

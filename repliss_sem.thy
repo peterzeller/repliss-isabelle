@@ -233,6 +233,57 @@ definition invContextH  where
         i_invocationRes = state_invocationRes
       \<rparr>"
 
+
+lemma invContextH_calls[simp]:
+"calls (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+= state_calls |` commitedCallsH state_callOrigin state_transactionStatus"
+  by (auto simp add: invContextH_def)
+
+
+lemma invContextH_happensBefore[simp]:
+"happensBefore (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+= state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus "
+  by (auto simp add: invContextH_def)
+
+lemma invContextH_i_visibleCalls[simp]:
+"i_visibleCalls (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+= (case vis of None \<Rightarrow> {} | Some vis \<Rightarrow> vis)"
+  by (auto simp add: invContextH_def)
+
+lemma invContextH_i_callOrigin[simp]:
+"i_callOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+= state_callOrigin |` commitedCallsH state_callOrigin state_transactionStatus"
+by (auto simp add: invContextH_def)
+
+lemma invContextH_i_transactionOrigin[simp]:
+"i_transactionOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+=  state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Commited}"
+  by (auto simp add: invContextH_def)
+
+lemma invContextH_i_knownIds[simp]:
+"i_knownIds (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+= state_knownIds"
+  by (auto simp add: invContextH_def)
+
+lemma invContextH_i_invocationOp[simp]:
+"i_invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+= state_invocationOp"
+by (auto simp add: invContextH_def)
+
+
+lemma invContextH_i_invocationRes[simp]:
+"i_invocationRes (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+=  state_invocationRes"
+by (auto simp add: invContextH_def)
+
 abbreviation invContext where
   "invContext state s \<equiv>
   invContextH

@@ -178,6 +178,15 @@ definition mkContext :: "'a invariantContext \<Rightarrow> 'a operationContext" 
   happensBefore = happensBefore ctxt  |r i_visibleCalls ctxt
 \<rparr>"
 
+lemma mkContext_calls[simp]:
+"calls (mkContext ctxt) = calls ctxt |` i_visibleCalls ctxt"
+  by (auto simp add: mkContext_def)
+
+lemma mkContext_happensBefore[simp]:
+"happensBefore (mkContext ctxt) = happensBefore ctxt  |r i_visibleCalls ctxt"
+  by (auto simp add: mkContext_def)
+
+
 lemma mkContext_calls_simps: "calls (mkContext (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes vis)) 
 = state_calls |` (commitedCallsH state_callOrigin state_transactionStatus \<inter> (vis orElse {}))"
@@ -318,13 +327,13 @@ lemma consistentSnapshot_subset:
     and ts1: "\<And>t. t\<noteq>tx \<Longrightarrow> transactionStatus S' t = transactionStatus S t" 
     and wf: "\<And>c. calls S c \<noteq> None \<Longrightarrow> callOrigin S c \<noteq> None"
   shows "consistentSnapshot S (vis - txCalls)"
-proof (auto simp add: consistentSnapshot_def)
+proof (auto simp add: consistentSnapshotH_def)
   show vis_subset_calls: "\<And>x. \<lbrakk>x \<in> vis; x \<notin> txCalls\<rbrakk> \<Longrightarrow> \<exists>y. calls S x \<triangleq> y"
-    by (metis basic_trans_rules(31) calls1 consistentSnapshot_def cs domD)
+    by (metis basic_trans_rules(31) calls1 consistentSnapshotH_def cs domD)
 
   from cs
   have cc: "causallyConsistent (happensBefore S') vis"
-    by (simp add: consistentSnapshot_def)
+    by (simp add: consistentSnapshotH_def)
   show "causallyConsistent (happensBefore S) (vis - txCalls)"
   proof (auto simp add: causallyConsistent_def)
 
@@ -348,7 +357,7 @@ proof (auto simp add: consistentSnapshot_def)
 
   from cs
   have tc: "transactionConsistent (callOrigin S') (transactionStatus S') vis"
-    by (simp add: consistentSnapshot_def)
+    by (simp add: consistentSnapshotH_def)
 
 
   show "transactionConsistent (callOrigin S) (transactionStatus S) (vis - txCalls)"
@@ -489,10 +498,50 @@ lemma every_query_has_result:
   done
 
 
+lemma commitedCalls_simps[simp]:
+  assumes noUncommitted: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+    and wf: "state_wellFormed S"
+  shows "commitedCalls S = dom (calls S)"
+  using assms apply (auto simp add: commitedCallsH_def isCommittedH_def domD domIff wellFormed_callOrigin_dom3)
+  by (smt not_Some_eq transactionStatus.exhaust wellFormed_callOrigin_dom3 wf_no_transactionStatus_origin_for_nothing)
+
+lemma consistentSnapshot_vis_subset[dest]:
+  assumes "consistentSnapshot S vis"
+  shows "vis \<subseteq> dom (calls S)"
+using assms by (auto simp add: consistentSnapshotH_def)
+
+lemma consistentSnapshot_vis_subset2[simp]:
+  assumes "consistentSnapshot S vis"
+and "c \<in> vis"
+shows "\<exists>call. calls S c \<triangleq> call"
+using assms by (auto simp add: consistentSnapshotH_def)
+
+
+lemma consistentSnapshot_vis_intersect[simp]:
+  assumes "consistentSnapshot S vis"
+  shows "dom (calls S) \<inter> vis = vis"
+  using assms   by auto
+
+
+
+
+  
+lemma invariant_all_def2:
+"invariant_all state =
+ (\<forall>vis. vis \<subseteq> dom (calls state) \<and> consistentSnapshot state vis
+ \<longrightarrow> invariant (prog state) (invContextVis state vis))"
+  by (auto simp add: invariant_all_def)
+
+
+lemma calls_restrict_simps[simp]:
+"((calls S |` vis) c \<triangleq> ci) = (c \<in> vis \<and> calls S c \<triangleq> ci)"
+  by (simp add: restrict_map_def)
+
+
 
 theorem "programCorrect progr"
 proof (rule show_correctness_via_single_session)
-  have [simp]: "invariant progr = inv" by (simp add: progr_def)
+  have [simp]: "invariant progr = inv" by simp
 
   have [simp]: "S \<in> initialStates progr i \<Longrightarrow> prog S = progr" for S i
     by (auto simp add: initialStates_def)
@@ -506,6 +555,19 @@ proof (rule show_correctness_via_single_session)
   proof (rule show_program_correct_single_invocation)
 
     text {* First show that the invariant holds for the initial states (beginning of procedures) *}
+    show "\<And>S i. S \<in> initialStates progr i \<Longrightarrow> invariant_all S"
+      apply  (subst(asm) initialStates_def)
+      apply (auto simp add: invariant_all_def  inv_def)
+        apply (auto simp add: inv1_def crdtSpec_chat_contains_h_def crdtSpec_message_exists_h_def )
+        apply (auto simp add: restrict_relation_def split: option.splits)
+        apply blast
+       apply (auto simp add: inv2_def inv2_h1_def crdtSpec_message_author_read_def crdtSpec_message_exists_h_def)
+      done
+      
+
+
+(*
+
     show "\<And>S i. S \<in> initialStates progr i \<Longrightarrow> invariant_all S"
     proof (auto simp add: invariant_all_def inv_def)
       fix S i vis
@@ -561,7 +623,7 @@ proof (rule show_correctness_via_single_session)
         apply (auto simp add: inv2_h1_def  split: if_splits)
         by (auto simp add: S_def invContextH_def)
     qed
-
+*)
 
 
 
