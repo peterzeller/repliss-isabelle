@@ -317,30 +317,30 @@ lemma inv2_h1_unchanged:
 
 
 lemma consistentSnapshot_subset:
-  assumes cs: "consistentSnapshot S' vis"
-    and calls1: "\<And>c. c\<notin>txCalls \<Longrightarrow> calls S' c = calls S c"
-    and hb1: "\<And>c1 c2. c2\<notin>txCalls \<Longrightarrow>  (c1,c2)\<in>happensBefore S' \<longleftrightarrow> (c1,c2)\<in>happensBefore S"
-    and hb2: "\<And>c1 c2. \<lbrakk>c1\<in>txCalls; c2\<notin>txCalls\<rbrakk> \<Longrightarrow>  (c1,c2)\<notin>happensBefore S"
-    and co1: "\<And>c. c\<notin>txCalls \<Longrightarrow> callOrigin S' c = callOrigin S c"
-    and co3: "\<And>c. c\<in>txCalls \<Longrightarrow> callOrigin S c = None"
-    and co4: "\<And>c. callOrigin S c \<noteq> Some tx"
-    and ts1: "\<And>t. t\<noteq>tx \<Longrightarrow> transactionStatus S' t = transactionStatus S t" 
-    and wf: "\<And>c. calls S c \<noteq> None \<Longrightarrow> callOrigin S c \<noteq> None"
-  shows "consistentSnapshot S (vis - txCalls)"
+  assumes cs: "consistentSnapshotH S'_calls S'_happensBefore S'_callOrigin S'_transactionStatus vis"
+    and calls1: "\<And>c. c\<notin>txCalls \<Longrightarrow> S'_calls c = S_calls c"
+    and hb1: "\<And>c1 c2. c2\<notin>txCalls \<Longrightarrow>  (c1,c2)\<in>S'_happensBefore \<longleftrightarrow> (c1,c2)\<in>S_happensBefore"
+    and hb2: "\<And>c1 c2. \<lbrakk>c1\<in>txCalls; c2\<notin>txCalls\<rbrakk> \<Longrightarrow>  (c1,c2)\<notin>S_happensBefore"
+    and co1: "\<And>c. c\<notin>txCalls \<Longrightarrow> S'_callOrigin c = S_callOrigin c"
+    and co3: "\<And>c. c\<in>txCalls \<Longrightarrow> S_callOrigin c = None"
+    and co4: "\<And>c. S_callOrigin c \<noteq> Some tx"
+    and ts1: "\<And>t. t\<noteq>tx \<Longrightarrow> S'_transactionStatus t = S_transactionStatus t" 
+    and wf: "\<And>c. S_calls c \<noteq> None \<Longrightarrow> S_callOrigin c \<noteq> None"
+  shows "consistentSnapshotH S_calls S_happensBefore S_callOrigin S_transactionStatus (vis - txCalls)"
 proof (auto simp add: consistentSnapshotH_def)
-  show vis_subset_calls: "\<And>x. \<lbrakk>x \<in> vis; x \<notin> txCalls\<rbrakk> \<Longrightarrow> \<exists>y. calls S x \<triangleq> y"
+  show vis_subset_calls: "\<And>x. \<lbrakk>x \<in> vis; x \<notin> txCalls\<rbrakk> \<Longrightarrow> \<exists>y. S_calls x \<triangleq> y"
     by (metis basic_trans_rules(31) calls1 consistentSnapshotH_def cs domD)
 
   from cs
-  have cc: "causallyConsistent (happensBefore S') vis"
+  have cc: "causallyConsistent (S'_happensBefore) vis"
     by (simp add: consistentSnapshotH_def)
-  show "causallyConsistent (happensBefore S) (vis - txCalls)"
+  show "causallyConsistent S_happensBefore (vis - txCalls)"
   proof (auto simp add: causallyConsistent_def)
 
     show "c2 \<in> vis"
       if c0: "c1 \<in> vis"
         and c1: "c1 \<notin> txCalls"
-        and c2: "(c2, c1) \<in> happensBefore S"
+        and c2: "(c2, c1) \<in> S_happensBefore"
       for  c1 c2
       using that
       by (meson causallyConsistent_def cc hb1) 
@@ -349,31 +349,31 @@ proof (auto simp add: consistentSnapshotH_def)
     show "False"
       if c0: "c1 \<in> vis"
         and c1: "c1 \<notin> txCalls"
-        and c2: "(c2, c1) \<in> happensBefore S"
+        and c2: "(c2, c1) \<in> S_happensBefore"
         and c3: "c2 \<in> txCalls"
       for  c1 c2
       using c1 c2 c3 hb2 by auto
   qed
 
   from cs
-  have tc: "transactionConsistent (callOrigin S') (transactionStatus S') vis"
+  have tc: "transactionConsistent S'_callOrigin S'_transactionStatus vis"
     by (simp add: consistentSnapshotH_def)
 
 
-  show "transactionConsistent (callOrigin S) (transactionStatus S) (vis - txCalls)"
+  show "transactionConsistent S_callOrigin S_transactionStatus (vis - txCalls)"
   proof (auto simp add: transactionConsistent_def)
 
-    show "transactionStatus S t \<triangleq> Commited"
+    show "S_transactionStatus t \<triangleq> Commited"
       if c0: "c \<in> vis"
         and c1: "c \<notin> txCalls"
-        and c2: "callOrigin S c \<triangleq> t"
+        and c2: "S_callOrigin c \<triangleq> t"
       for  c t
       using that co1 co4 tc transactionConsistent_Commited ts1 by fastforce 
 
     show "c2 \<in> vis"
       if c0: "c1 \<in> vis"
         and c1: "c1 \<notin> txCalls"
-        and c2: "callOrigin S c1 = callOrigin S c2"
+        and c2: "S_callOrigin c1 = S_callOrigin c2"
       for  c1 c2
       using that
       by (metis co1 co3 local.wf option.distinct(1) tc transactionConsistent_all_from_same vis_subset_calls) 
@@ -381,7 +381,7 @@ proof (auto simp add: consistentSnapshotH_def)
     show "False"
       if c0: "c1 \<in> vis"
         and c1: "c1 \<notin> txCalls"
-        and c2: "callOrigin S c1 = callOrigin S c2"
+        and c2: "S_callOrigin c1 = S_callOrigin c2"
         and c3: "c2 \<in> txCalls"
       for  c1 c2
       using that
@@ -628,10 +628,10 @@ proof (rule show_correctness_via_single_session)
 
 
     text {* Next, check each procedure: *}
-    show "checkCorrectAll progr S i" if "S \<in> initialStates progr i" for S i
+    show "checkCorrect progr S i" if "S \<in> initialStates progr i" for S i
     proof -
       from initialStates_impl[OF `S \<in> initialStates progr i`]
-      have "checkCorrectAll progr S i" 
+      have "checkCorrect progr S i" 
       proof (auto simp add: procedures_def split: if_splits list.splits val.splits)
         text {* Procedure editMessage *}
         fix mId
@@ -646,14 +646,11 @@ proof (rule show_correctness_via_single_session)
           using state_monotonicGrowth_prog that by force
         have [simp]: "currentTransaction S i = None" 
           using `S \<in> initialStates progr i`  initialStates_currentTransaction by blast 
-        show "checkCorrectAll progr S i"
-        proof (auto simp add: checkCorrectAll_simps editMessageImpl_def; (subst invariant_all_def)?; auto? )
+        show "checkCorrect progr S i"
+        proof (auto simp add: checkCorrect_simps editMessageImpl_def; (subst invariant_all_def)?; auto? )
 
 
-
-
-          text {* editMessage, case message does exist *}
-          show h: "example_chat.inv (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited)) (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca})) (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa)) (knownIds S') (invocationOp S') (invocationRes S') (Some visa))"
+          show "example_chat.inv (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited)) (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca})) (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] Undef)) (knownIds S') (invocationOp S') (invocationRes S') (Some visa))"
             if c0: "transactionStatus S t = None"
               and c1: "invariant_all S'"
               and c2: "state_wellFormed S'"
@@ -662,14 +659,15 @@ proof (rule show_correctness_via_single_session)
               and c5: "currentProc S' i \<triangleq> editMessageImpl"
               and c6: "currentTransaction S' i \<triangleq> t"
               and c7: "transactionOrigin S' t \<triangleq> i"
+              and c15: "\<forall>c. callOrigin S' c \<noteq> Some t"
               and c8: "calls S' c = None"
               and c9: "crdtSpec ''message_exists'' [MessageId mId] (getContextH (calls S') (happensBefore S') (Some vis)) (Bool True)"
               and c10: "visibleCalls S' i \<triangleq> vis"
               and c11: "ca \<noteq> c"
               and c12: "calls S' ca = None"
-              and c14: "consistentSnapshot (S'\<lparr>calls := calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] resa), callOrigin := callOrigin S'(c \<mapsto> t, ca \<mapsto> t), visibleCalls := visibleCalls S'(i \<mapsto> insert ca (insert c vis)), happensBefore := insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca}), localState := localState S'(i \<mapsto> lsInit\<lparr>ls_id := MessageId mId, ls_pc := 4\<rparr>), currentTransaction := (currentTransaction S')(i := None), transactionStatus := transactionStatus S'(t \<mapsto> Commited)\<rparr>) visa"
-              and c15: "\<forall>c. callOrigin S' c \<noteq> Some t"
-            for  t S' c vis ca resa visa
+              and no_uncommitted: "\<forall>ta. ta \<noteq> t \<longrightarrow> transactionStatus S' ta \<noteq> Some Uncommited"
+              and c14: "consistentSnapshotH (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] Undef)) (insert (c, ca) (happensBefore S' \<union> vis \<times> {c} \<union> vis \<times> {ca})) (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) visa"
+            for  t S' c vis ca visa
           proof (auto simp add: inv_def)
             have [simp]: "prog S' = progr"
               by (simp add: c3)

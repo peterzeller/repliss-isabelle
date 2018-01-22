@@ -18,17 +18,16 @@ text {*
 *}
 
 
-
 (* check program (with a given start-state, bound by a number of steps) *)
-fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> nat \<Rightarrow> bool" where
-  "checkCorrect progr S i 0 = True"
-| "checkCorrect progr S i (Suc bound) =
+definition checkCorrectF :: "(('localState, 'any) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool) 
+                           \<Rightarrow> ('localState, 'any) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool" where
+"checkCorrectF \<equiv> (\<lambda>checkCorrect' (progr, S, i).
 (case currentProc S i of
     None \<Rightarrow> True
   | Some impl \<Rightarrow>
       (case impl (the (localState S i)) of
           LocalStep ls \<Rightarrow> 
-            checkCorrect progr (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>) i bound
+            checkCorrect' (progr, (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>), i)
         | BeginAtomic ls \<Rightarrow> 
             currentTransaction S i = None
             \<and> (\<forall>t S'.
@@ -42,7 +41,7 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
               \<and> transactionStatus S' t \<triangleq> Uncommited
               \<and> transactionOrigin S' t \<triangleq> i
               \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
-              \<longrightarrow> checkCorrect progr S' i bound)
+              \<longrightarrow> checkCorrect' (progr, S', i))
         | EndAtomic ls \<Rightarrow> 
             (case currentTransaction S i of
                 None \<Rightarrow> False
@@ -53,12 +52,12 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
                   transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
                   (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
                     \<longrightarrow> (invariant_all S'
-                         \<and> (invariant_all S' \<longrightarrow> checkCorrect progr S' i bound))
+                         \<and> (invariant_all S' \<longrightarrow> checkCorrect' (progr, S', i)))
             )
         | NewId ls \<Rightarrow> 
           (\<forall>uid.
             uid \<notin> generatedIds S
-            \<longrightarrow> checkCorrect progr (S\<lparr>localState := (localState S)(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid} \<rparr>) i bound
+            \<longrightarrow> checkCorrect' (progr, (S\<lparr>localState := (localState S)(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid} \<rparr>), i)
           )
         | DbOperation Op args ls \<Rightarrow> 
            (case currentTransaction S i of
@@ -70,12 +69,12 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
                       calls S c = None
                     \<and> querySpec progr Op args (getContext S i) res
                     \<and> visibleCalls S i \<triangleq> vis
-                    \<longrightarrow> checkCorrect progr (S\<lparr>
+                    \<longrightarrow> checkCorrect' (progr, (S\<lparr>
                           localState := (localState S)(i \<mapsto> ls res), 
                           calls := (calls S)(c \<mapsto> Call Op args res ),
                           callOrigin := (callOrigin S)(c \<mapsto> t),
                           visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
-                          happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>) i bound
+                          happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>), i)
                   )
            )
         | Return res \<Rightarrow> 
@@ -88,106 +87,44 @@ fun checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) 
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
                (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant_all S'    
             )
-        ))
+        )))
 "
 
-definition "checkCorrectAll progr S i \<equiv> \<forall>bound. checkCorrect progr S i bound"
+lemma checkCorrectF_mono[simp]:
+"mono checkCorrectF"
+proof (rule monoI)
+  show "checkCorrectF x \<le> checkCorrectF y" if c0: "x \<le> y"  for  x :: "(('localState, 'any) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool)" and y
+    apply (auto simp add: checkCorrectF_def Let_def split: option.splits localAction.splits)
+    using c0 apply fastforce
+    using [[smt_solver=cvc4]]
+       apply (smt le_boolD le_funD that wellFormed_currentTransactionUncommited)
+    apply (smt le_boolD le_funD that)
+    apply (smt le_boolD le_funD that)
+    using le_funD that by force
+
+qed
+
+
+definition checkCorrect :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> bool" where
+ "checkCorrect progr S i \<equiv> lfp checkCorrectF (progr, S, i)"
+
+
+
+schematic_goal checkCorrect_simps:
+  "checkCorrect progr S i = ?F"
+  apply (subst checkCorrect_def)
+  apply (subst lfp_unfold)
+   apply simp
+  apply (subst checkCorrectF_def)
+  apply (fold checkCorrect_def)
+  apply (rule refl)
+  done
+
 
 lemma checkCorrect_noProc:
   assumes "currentProc S i = None"
-  shows "checkCorrect progr S i bound"
-  using assms  by (case_tac bound, auto simp add: assms split: option.splits) 
-
-
-lemma checkCorrectAll_simps:
-  "checkCorrectAll progr S i =
-(case currentProc S i of
-    None \<Rightarrow> True
-  | Some impl \<Rightarrow>
-      (case impl (the (localState S i)) of
-          LocalStep ls \<Rightarrow> 
-            checkCorrectAll progr (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>) i
-        | BeginAtomic ls \<Rightarrow> 
-            currentTransaction S i = None
-            \<and> (\<forall>t S'.
-                transactionStatus S t = None
-              \<and> invariant_all S'
-              \<and> state_wellFormed S'
-              \<and> state_monotonicGrowth S S'
-              \<and> localState S' i \<triangleq> ls
-              \<and> currentProc S' i \<triangleq> impl
-              \<and> currentTransaction S' i \<triangleq> t
-              \<and> transactionStatus S' t \<triangleq> Uncommited
-              \<and> transactionOrigin S' t \<triangleq> i
-              \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
-              \<longrightarrow> checkCorrectAll progr S' i)
-        | EndAtomic ls \<Rightarrow> 
-            (case currentTransaction S i of
-                None \<Rightarrow> False
-              | Some t \<Rightarrow>
-                let S' = (S\<lparr>
-                  localState := (localState S)(i \<mapsto> ls), 
-                  currentTransaction := (currentTransaction S)(i := None),
-                  transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
-              (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
-              \<longrightarrow> (invariant_all S'
-                   \<and> (invariant_all S' \<longrightarrow> checkCorrectAll progr S' i))
-            )
-        | NewId ls \<Rightarrow> 
-          (\<forall>uid.
-            uid \<notin> generatedIds S
-            \<longrightarrow> checkCorrectAll progr (S\<lparr>localState := (localState S)(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid} \<rparr>) i
-          )
-        | DbOperation Op args ls \<Rightarrow> 
-           (case currentTransaction S i of
-                None \<Rightarrow> False
-              | Some t \<Rightarrow>
-                  (\<exists>res. querySpec progr Op args (getContext S i) res)
-                  \<and>
-                  (\<forall>c res vis. 
-                      calls S c = None
-                    \<and> querySpec progr Op args (getContext S i) res
-                    \<and> visibleCalls S i \<triangleq> vis
-                    \<longrightarrow> checkCorrectAll progr (S\<lparr>
-                          localState := (localState S)(i \<mapsto> ls res), 
-                          calls := (calls S)(c \<mapsto> Call Op args res ),
-                          callOrigin := (callOrigin S)(c \<mapsto> t),
-                          visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
-                          happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>) i
-                  )
-           )
-        | Return res \<Rightarrow> 
-            currentTransaction S i = None
-            \<and> (let S' = (S\<lparr>
-                 localState := (localState S)(i := None),
-                 currentProc := (currentProc S)(i := None),
-                 visibleCalls := (visibleCalls S)(i := None),
-                 invocationRes := (invocationRes S)(i \<mapsto> res),
-                 knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
-              (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
-              \<longrightarrow> (invariant_all S')
-            )
-        ))
-"
-proof (induct rule: iffI)
-  case 1
-  hence allBounds: "checkCorrect progr S i (Suc bound)" for bound
-    by (metis checkCorrectAll_def)
-  show ?case
-    apply (auto split: localAction.splits option.splits)
-    using allBounds apply (auto simp add: checkCorrectAll_def Let_def split: localAction.splits option.splits )
-    by (metis wellFormed_currentTransactionUncommited)
-next
-  case 2
-  thus ?case
-    apply (auto simp add: checkCorrectAll_def split: option.splits)
-     apply (case_tac x)
-      apply auto
-    apply (case_tac bound)
-     apply (auto simp add: Let_def checkCorrectAll_def split: localAction.splits option.splits if_splits)
-    by (metis option.distinct(1))
-
-qed
+  shows "checkCorrect progr S i"
+  using assms  by (auto simp add: checkCorrect_simps)
 
 
 lemma prog_invariant:
@@ -471,14 +408,13 @@ qed
 
 lemma show_traceCorrect_s_1:
   assumes initialCorrect: "\<And>S. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
-    and check: "\<And>S. S\<in>initialStates program i \<Longrightarrow> checkCorrect program S i bound"
+    and check: "\<And>S. S\<in>initialStates program i \<Longrightarrow> checkCorrect program S i"
     and steps: "initS ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
     and initS: "initS \<in> initialStates program i"
-    and trace_len: "length trace < bound"
     and trace_len2: "0 < length trace"
     and initS_wf: "state_wellFormed initS"
-  shows "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
-  using steps check trace_len trace_len2 proof (induct "length trace" arbitrary: trace S_fin)
+  shows "traceCorrect_s program trace \<and> checkCorrect program S_fin i"
+  using steps check  trace_len2 proof (induct "length trace" arbitrary: trace S_fin)
   case 0
   thus ?case
     by simp 
@@ -504,8 +440,6 @@ next
     by (auto simp add: tr_def steps_s_append_simp steps_s_single)
 
 
-  obtain bound' where bound_def: "bound = Suc bound'"
-    using `length trace < bound` less_imp_Suc_add by auto  
 
   show ?case
   proof (cases "trLen > 0")
@@ -519,7 +453,7 @@ next
     hence [simp]: "prog S_pre = program"
       using prog_invariant steps_pre by blast
 
-    have "traceCorrect_s program tr \<and> checkCorrect program S_pre i (bound - length tr)"
+    have "traceCorrect_s program tr \<and> checkCorrect program S_pre i"
     proof (rule Suc.hyps)
       show "trLen = length tr"
         using `Suc trLen = length trace` tr_def by auto
@@ -527,21 +461,17 @@ next
       show "initS ~~ (i, tr) \<leadsto>\<^sub>S* S_pre"
         by (simp add: steps_pre)
 
-      show "\<And>S. S \<in> initialStates program i \<Longrightarrow> checkCorrect program S i bound"
+      show "\<And>S. S \<in> initialStates program i \<Longrightarrow> checkCorrect program S i"
         using check by blast
-
-      show "length tr < bound"
-        using Suc.hyps(2) Suc.prems(3) \<open>trLen = length tr\<close> by linarith
 
       show "0 < length tr"
         using True \<open>trLen = length tr\<close> by auto
     qed
     hence tr_correct: "traceCorrect_s program tr"
-      and S_pre_correct: "checkCorrect program S_pre i (Suc (bound - length trace))"
-       apply blast
-      using Suc.prems(3) Suc_diff_Suc \<open>traceCorrect_s program tr \<and> checkCorrect program S_pre i (bound - length tr)\<close> tr_def by auto 
+      and S_pre_correct: "checkCorrect program S_pre i "
+      using \<open>traceCorrect_s program tr \<and> checkCorrect program S_pre i\<close> by blast+
 
-    show "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
+    show "traceCorrect_s program trace \<and> checkCorrect program S_fin i"
     proof (cases "currentTransaction S_pre i")
       case (Some tx)
       hence tx1: "currentTransaction S_pre i \<triangleq> tx"
@@ -558,19 +488,18 @@ next
 
       from S_pre_correct tr_correct step_final  
       have "a_inv = True" (*and "checkCorrect program S_fin i (bound - length trace)" *)
+        apply (subst(asm) checkCorrect_simps)
         by (auto simp add: tx1 step_s.simps Let_def hasInvocation onlyOneTx split: option.splits if_splits)
-
+        
 
 
       from S_pre_correct step_final
-      have cc: "checkCorrect program S_fin i (bound - length trace)" 
-        apply (auto simp add: step_s.simps Let_def hasInvocation \<open>a_inv = True\<close> split: option.splits if_splits)
-        using wellFormed_currentTransactionUncommited apply blast
+      have cc: "checkCorrect program S_fin i" 
+        apply (subst (asm) checkCorrect_simps)
+        apply (auto simp add: step_s.simps Let_def hasInvocation \<open>a_inv = True\<close> tx1 split: option.splits if_splits)
         using onlyOneTx tx1 apply auto[1]
-         apply (drule_tac x=c in spec)
-         apply auto
-        apply (case_tac "bound - length trace")
-         apply auto
+        apply (drule_tac x=c in spec)
+        apply auto
         done
 
 
@@ -589,11 +518,13 @@ next
 
       from S_pre_correct tr_correct step_final  
       have "a_inv = True" (*and "checkCorrect program S_fin i (bound - length trace)" *)
+        apply (subst(asm) checkCorrect_simps)
         by (auto simp add: onlyOneTx step_s.simps Let_def hasInvocation  split: option.splits if_splits)
 
       from S_pre_correct step_final
-      have cc: "checkCorrect program S_fin i (bound - length trace)" 
-        apply (auto simp add: step_s.simps Let_def hasInvocation \<open>a_inv = True\<close> onlyOneTx None split: option.splits if_splits)
+      have cc: "checkCorrect program S_fin i" 
+        apply (subst(asm) checkCorrect_simps)
+        apply (auto simp add: step_s.simps Let_def hasInvocation \<open>a_inv = True\<close> onlyOneTx None  split: option.splits if_splits)
         using wellFormed_currentTransactionUncommited apply blast
         apply (simp add: checkCorrect_noProc)
         done
@@ -605,7 +536,7 @@ next
 
 
 
-      show "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
+      show "traceCorrect_s program trace \<and> checkCorrect program S_fin i"
         by (simp add: \<open>traceCorrect_s program trace\<close> cc)
     qed
 
@@ -620,7 +551,7 @@ next
     hence "initS ~~ (i, a) \<leadsto>\<^sub>S S_fin"
       using step_final by blast
 
-    have initS_correct: "checkCorrect program initS i bound"
+    have initS_correct: "checkCorrect program initS i"
       by (simp add: check initS)  
 
     from `initS \<in> initialStates program i`
@@ -659,7 +590,8 @@ next
       case (return ls f res valid)
       then show ?thesis  
         using initS_correct
-        apply (auto simp add: bound_def )
+        apply (subst(asm) checkCorrect_simps)
+        apply (auto simp add: )
         using initS initialState_noTxns1 by blast
     qed
 
@@ -668,23 +600,21 @@ next
       by (auto simp add: tr_def traceCorrect_s_def)   
 
 
-    have [simp]: "Suc bound' - length trace = bound'"
-      using False Suc.hyps(2) by auto 
 
 
     from step_final   
-    have "checkCorrect program S_fin i bound'"
+    have "checkCorrect program S_fin i "
     proof (cases rule: step_s.cases)
       case (local ls f ls')
       then show ?thesis 
-        using initS_correct by (auto simp add: bound_def)
+        using initS_correct by (auto simp add: checkCorrect_simps)
     next
       case (newId ls f ls' uid)
-      then show ?thesis using initS_correct by (auto simp add: bound_def)
+      then show ?thesis using initS_correct by (auto simp add: checkCorrect_simps)
     next
       case (beginAtomic ls f ls' t txns)
       then show ?thesis using initS_correct 
-        apply (auto simp add: bound_def )
+        apply (auto simp add: checkCorrect_simps )
         using `transactionStatus S_fin t \<triangleq> Uncommited` by blast
     next
       case (endAtomic ls f ls' t valid)
@@ -701,12 +631,12 @@ next
     next
       case (return ls f res valid)
       then show ?thesis using initS_correct 
-        by (case_tac bound', auto)
+        by (auto simp add: checkCorrect_simps)
     qed
 
     with `traceCorrect_s program trace`
     show ?thesis
-      by (simp add: bound_def)
+      by (auto simp add: checkCorrect_simps)
   qed
 qed
 
@@ -715,9 +645,9 @@ lemma "\<lbrakk>\<not>P; P\<rbrakk> \<Longrightarrow> False"
   by simp
 
 
-lemma show_program_correct_single_invocation':
+lemma show_program_correct_single_invocation:
   assumes initialCorrect: "\<And>S i. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
-    and check: "\<And>bound S i. \<lbrakk>S\<in>initialStates program i; invariant_all S; state_wellFormed S\<rbrakk> \<Longrightarrow> checkCorrect program S i bound"
+    and check: "\<And>S i. \<lbrakk>S\<in>initialStates program i; invariant_all S; state_wellFormed S\<rbrakk> \<Longrightarrow> checkCorrect program S i"
   shows "programCorrect_s program"
 proof (auto simp add: programCorrect_s_def)
   fix trace i S_fin
@@ -774,7 +704,7 @@ proof (auto simp add: programCorrect_s_def)
         show S_init_wf: "state_wellFormed S_init"
           using \<open>S_init \<in> initialStates program i\<close> initialStates_wellFormed by blast
 
-        show "checkCorrect program S i bound" if " S \<in> initialStates program i" for bound S
+        show "checkCorrect program S i" if " S \<in> initialStates program i" for S
           using `S \<in> initialStates program i` proof (rule check)
           show " invariant_all S"
             using initialCorrect `S \<in> initialStates program i` by blast
@@ -808,8 +738,6 @@ proof (auto simp add: programCorrect_s_def)
               using initialStates_wellFormed that by blast
           qed
         qed
-        show "length tr < Suc (length tr)"
-          by simp  
         show "0 < length tr" using `0 < length tr` .
       qed
     } 
@@ -834,16 +762,6 @@ proof (auto simp add: programCorrect_s_def)
 qed  
 
 
-lemma show_program_correct_single_invocation:
-  assumes initialCorrect: "\<And>S i. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
-    and check: "\<And>bound S i. \<lbrakk>S\<in>initialStates program i; invariant_all S; state_wellFormed S\<rbrakk> \<Longrightarrow> checkCorrectAll program S i"
-  shows "programCorrect_s program"
-proof (rule show_program_correct_single_invocation')
-  show "\<And>S i. S \<in> initialStates program i \<Longrightarrow> invariant_all S"
-    using initialCorrect by blast
-  show "\<And>bound S i. \<lbrakk>S \<in> initialStates program i; invariant_all S; state_wellFormed S\<rbrakk> \<Longrightarrow> checkCorrect program S i bound"
-    using check by (auto simp add: checkCorrectAll_def)
-qed  
 
 
 end
