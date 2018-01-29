@@ -173,6 +173,10 @@ lemma wellFormed_callOrigin_dom3:
   shows "(calls S c = None) \<longleftrightarrow> (callOrigin S c = None)"
   using assms wellFormed_callOrigin_dom by force
 
+lemma range_empty[simp]: "range Map.empty = {None}"
+  by auto
+
+
 
 lemma wellFormed_visibleCallsSubsetCalls_h:
   assumes a1: "state_wellFormed S"

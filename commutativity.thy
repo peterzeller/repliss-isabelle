@@ -1285,17 +1285,19 @@ lemma commitedCallsH_in:
   shows "(c \<in> commitedCallsH co ts) \<longleftrightarrow> (case co c of None \<Rightarrow> False | Some t \<Rightarrow> ts t \<triangleq> Commited) "
   by (auto simp add: commitedCallsH_def isCommittedH_def split: option.splits)
 
-lemma invContextH_update_callOrigin[simp]:
+lemma invContextH_update_callOrigin:
   assumes "co c = None" and "ts t \<triangleq> Uncommited"
   shows "invContextH (co(c \<mapsto> t)) to ts hb cs ki io ir vis  =
        invContextH co to ts hb cs ki io ir vis "
   using assms by (auto simp add: invContextH_def)
 
-lemma invContextH_update_calls[simp]:
+lemma invContextH_update_calls:
   assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
   shows "invContextH co to ts hb (cs(c \<mapsto> newCall)) ki io ir vis  =
        invContextH co to ts hb cs ki io ir vis "
   using assms by (auto simp add: invContextH_def commitedCallsH_in)
+
+
 
 lemma commitedCallsH_update_uncommited[simp]:
   assumes "ts t = None"
@@ -1305,11 +1307,13 @@ lemma commitedCallsH_update_uncommited[simp]:
   by force
 
 
-lemma invContextH_update_txstatus[simp]:
+lemma invContextH_update_txstatus:
   assumes "ts t = None" 
   shows "invContextH co to (ts(t\<mapsto>Uncommited)) hb cs ki io ir vis =
        invContextH co to ts hb cs ki io ir vis"
   using assms by (auto simp add: invContextH_def restrict_map_def)
+
+lemmas invContextH_simps = invContextH_update_calls invContextH_update_callOrigin invContextH_update_txstatus
 
 lemma test:
   fixes S:: "('localState, 'any) state"
@@ -1417,7 +1421,7 @@ next
   with a2 show ?thesis 
     apply simp
     apply (rule show_commutativeS_pres)
-    by (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist subset_eq)
+    by (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist subset_eq invContextH_simps)
 next
   case (ADbOp c' operation' args' res')
   with a2 show ?thesis 
@@ -1625,7 +1629,7 @@ proof -
   next
     case (AInvcheck x10)
     then show ?thesis 
-      by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits, auto simp add: invContextH_def)
+      by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute invContextH_simps split: if_splits, auto simp add: invContextH_def )
   qed
 qed
 
@@ -4087,7 +4091,7 @@ lemma wf_transaction_status_iff_origin:
 
 lemma wf_transaction_status_iff_origin_dom:
   assumes wf: "state_wellFormed S"
-  shows "dom (transactionStatus S) = dom (transactionOrigin S)"
+  shows "dom (transactionOrigin S) = dom (transactionStatus S)"
   by (smt Collect_cong dom_def local.wf wf_transaction_status_iff_origin)
 
 

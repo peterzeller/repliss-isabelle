@@ -18,6 +18,24 @@ text {*
 *}
 
 
+fun updateHb where
+  updateHb_nil: "updateHb hb vis [] = hb"
+| updateHb_cons[simp del]: "updateHb hb vis (c#cs) = updateHb (hb \<union> vis \<times> {c}) (insert c vis) cs"
+
+lemma updateHb_single: "updateHb hb vis [c] = hb \<union> vis \<times> {c}"
+  by (simp add: updateHb_cons)
+
+lemma updateHb_chain: 
+  assumes "vis' = set cs \<union> vis"
+  shows "updateHb (updateHb hb vis cs) vis' [c] = updateHb hb vis (cs@[c])"
+using assms apply (induct cs arbitrary: hb vis vis' c )
+  by (fastforce simp add:  updateHb_cons)+
+
+
+
+
+
+
 (* check program (with a given start-state, bound by a number of steps) *)
 definition checkCorrectF :: "(('localState, 'any) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool) 
                            \<Rightarrow> ('localState, 'any) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool" where
@@ -74,7 +92,7 @@ definition checkCorrectF :: "(('localState, 'any) prog \<times> ('localState, 'a
                           calls := (calls S)(c \<mapsto> Call Op args res ),
                           callOrigin := (callOrigin S)(c \<mapsto> t),
                           visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
-                          happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>), i)
+                          happensBefore := updateHb (happensBefore S) vis [c]  \<rparr>), i)
                   )
            )
         | Return res \<Rightarrow> 
@@ -500,7 +518,8 @@ next
         using onlyOneTx tx1 apply auto[1]
         apply (drule_tac x=c in spec)
         apply auto
-        done
+        by (simp add: updateHb_single)
+
 
 
       from tr_correct `a_inv = True`
