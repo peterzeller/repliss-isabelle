@@ -94,9 +94,13 @@ definition procedures where
   else 
     None"
 
-definition "callsOfOp ctxt opName = {(c,args). calls ctxt c \<triangleq> Call opName args Undef}"
+definition "callsOfOpH ctxt_calls opName \<equiv> {(c,args). ctxt_calls c \<triangleq> Call opName args Undef}"
 
-definition "callsWithOpArgs ctxt opName args = {c. calls ctxt c \<triangleq> Call opName args Undef}"
+abbreviation "callsOfOp ctxt opName \<equiv> callsOfOpH (calls ctxt) opName"
+
+definition "callsWithOpArgsH ctxt_calls opName args \<equiv> {c. ctxt_calls c \<triangleq> Call opName args Undef}"
+
+abbreviation "callsWithOpArgs ctxt opName args \<equiv> callsWithOpArgsH (calls ctxt) opName args"
 
 
 definition latest_name_assign :: "val operationContext \<Rightarrow> val \<Rightarrow> val set" where
@@ -149,9 +153,13 @@ lemma is_message_updateH_simp3[simp]: "is_message_updateH mid (Call ''message_ch
 lemma is_message_updateH_simp4[simp]: "  \<not>is_message_updateH mid (Call upd (mid'#args) res)" if "upd \<notin> {''message_author_assign'', ''message_content_assign'', ''message_chat_assign''}"
   using that  by (auto simp add: is_message_updateH_def )
 
-definition is_message_update :: "(val, 'b) operationContext_scheme \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where
+definition message_updates :: "(callId \<rightharpoonup> val call) \<Rightarrow> val \<Rightarrow> callId set" where
   (*:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where *)
-  "is_message_update ctxt c mId \<equiv> case calls ctxt c of Some call \<Rightarrow> is_message_updateH mId call | None \<Rightarrow> False "
+  "message_updates ctxt_calls mId \<equiv> {c | c call . ctxt_calls c = Some call \<and> is_message_updateH mId call}"
+
+abbreviation is_message_update :: "(val, 'b) operationContext_scheme \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where
+  (*:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where *)
+  "is_message_update ctxt c mId \<equiv> c \<in> message_updates (calls ctxt) mId "
 
 definition crdtSpec_message_exists_h :: "val list \<Rightarrow> val operationContext \<Rightarrow> bool" where
   "crdtSpec_message_exists_h args ctxt \<equiv> 
@@ -317,7 +325,7 @@ lemma pc_init[simp]: "ls_pc lsInit = 0"
 lemma is_message_update_vis_simps:
   "is_message_update (mkContext (invContextH co   to  ts  hb  cs  kids  iop  ires (Some vis))) c m
 \<longleftrightarrow> (\<exists>call. cs c \<triangleq> call \<and>  is_message_updateH m call \<and> isCommittedH co ts c \<and> c \<in> vis)"
-  by (auto simp add: is_message_update_def mkContext_def invContextH_def restrict_map_def is_message_updateH_def commitedCallsH_def split: option.splits)
+  by (auto simp add: message_updates_def mkContext_def invContextH_def restrict_map_def is_message_updateH_def commitedCallsH_def split: option.splits)
 
 
 
@@ -335,7 +343,7 @@ lemma inv2_unchanged:
 lemma inv2_h1_unchanged:
   assumes "inv2_h1 (invContextH co to ts hb cs kIds iOp iRes (Some visa))"
   shows "inv2_h1 (invContextH co to' ts hb cs kIds' iOp' iRes' (Some visa))"
-  using assms  by (auto simp add: is_message_update_def inv2_h1_def mkContext_def invContextH_def)
+  using assms  by (auto simp add: message_updates_def inv2_h1_def mkContext_def invContextH_def)
 
 
 lemma consistentSnapshot_subset:
@@ -476,7 +484,7 @@ lemma every_query_has_result_message_chat_read:
   apply (rule finite_list_exists)
 
   apply (rule_tac B="{v. \<exists>c. calls ctxt c \<triangleq> Call ''message_chat_assign'' (args @ [v]) Undef}" in finite_subset)
-   apply (auto simp add: callsWithOpArgs_def)
+   apply (auto simp add: callsWithOpArgsH_def)
   apply (rule finite_mapping3[OF `finite (dom (calls ctxt))`])
   by (meson append1_eq_conv call.inject injI)
 
@@ -489,7 +497,7 @@ lemma every_query_has_result_message_author_read:
   apply (auto simp add: crdtSpec_message_author_read_def)
   apply (rule finite_list_exists)
   apply (rule_tac B="{v. \<exists>c. calls ctxt c \<triangleq> Call ''message_author_assign'' (args @ [v]) Undef}" in finite_subset)
-   apply (auto simp add: callsWithOpArgs_def)
+   apply (auto simp add: callsWithOpArgsH_def)
   apply (rule finite_mapping3[OF `finite (dom (calls ctxt))`])
   by (meson append1_eq_conv call.inject injI)
 
@@ -578,7 +586,7 @@ lemma callsWithOpArgs_simps:
 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes (Some vis)
   )) opName args = {c\<in>vis. state_calls c \<triangleq> Call opName args Undef}"
-  apply (auto simp add: callsWithOpArgs_def)
+  apply (auto simp add: callsWithOpArgsH_def)
     apply (auto simp add: commitedCallsH_def isCommittedH_def restrict_map_def  split: if_splits)
   by (metis consistentSnapshotH_def cs domD domI local.wf transactionConsistent_Commited)
 
@@ -609,8 +617,8 @@ lemma callsOfOp_simps:
 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes (Some vis)
   )) opName = {(c,args). c\<in>vis \<and> state_calls c \<triangleq> Call opName args Undef}"
-  apply (auto simp add: callsOfOp_def)
-    apply (auto simp add: commitedCallsH_def isCommittedH_def restrict_map_def  split: if_splits)
+  apply (auto simp add: callsOfOpH_def)
+    apply (auto simp add: commitedCallsH_def isCommittedH_def restrict_map_def   split: if_splits)
   by (metis consistentSnapshotH_def cs domD domI local.wf transactionConsistent_Commited)
 
 lemma is_message_update_simps1: 
@@ -620,7 +628,7 @@ lemma is_message_update_simps1:
 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes (Some vis)
   )) c mId \<longleftrightarrow> c\<in>vis \<and> (\<exists>call.  state_calls c = Some call \<and> is_message_updateH mId call)"
-  apply (auto simp add: is_message_update_def simp add: restrict_map_def split: option.splits)
+  apply (auto simp add: message_updates_def simp add: restrict_map_def split: option.splits)
   by (metis commitedCallsH_true consistentSnapshotH_def cs domD domI local.wf transactionConsistent_Commited)
 
 
@@ -634,7 +642,7 @@ shows "is_message_update
 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes (Some vis)
   ) c mId \<longleftrightarrow>(\<exists>call. state_calls c = Some call \<and> is_message_updateH mId call)"
-  apply (auto simp add: is_message_update_def commitedCallsH_def  isCommittedH_def  simp add: restrict_map_def split: option.splits)
+  apply (auto simp add: message_updates_def commitedCallsH_def  isCommittedH_def  simp add: restrict_map_def split: option.splits)
   by (smt domD domI in_these_eq less_eq_transactionStatus_def local.wf noUncommitted order_refl rangeI set_rev_mp wf2)
 
 lemmas is_message_update_simps = is_message_update_simps1 is_message_update_simps2
@@ -724,6 +732,19 @@ lemma updateHb_fst[simp]: "fst ` updateHb hb vis cs = (if cs = [] then fst`hb el
 lemma updateHb_snd[simp]: "snd ` updateHb hb vis cs = (snd ` hb \<union> (if vis={} then set (tl cs) else set cs))"
   by (induct cs arbitrary: hb vis, auto simp add: updateHb_cons image_Un)
 
+lemma callsWithOpArgsH_update_simps[simp]:
+  assumes "cs c = None"
+  shows  "callsWithOpArgsH (cs(c \<mapsto> Call opName' args' res')) opName args  
+        = callsWithOpArgsH cs opName args \<union> (if opName' = opName \<and> args' = args \<and> res' = Undef then {c} else {})"
+  using assms by (auto simp add: callsWithOpArgsH_def)
+
+
+lemma message_updates_update_simps[simp]:
+  assumes "cs c = None"
+  shows "message_updates (cs(c \<mapsto> Call opName args res)) mId 
+      = message_updates cs mId \<union> (if is_message_updateH mId (Call opName args res) then {c} else {})"
+  using assms  by (auto simp add: message_updates_def)
+
 
 
 theorem "programCorrect progr"
@@ -734,7 +755,7 @@ proof (rule show_correctness_via_single_session)
     by (auto simp add: initialStates_def)
 
   show "invariant_all (initialState progr)"
-    by (auto simp add: is_message_update_def initialState_def invariant_all_def inv_def inv1_def inv2_def inv2_h1_def invContextH_def crdtSpec_message_exists_h_def crdtSpec_chat_contains_h_def mkContext_def is_message_updateH_def callsWithOpArgs_def)
+    by (auto simp add: message_updates_def initialState_def invariant_all_def inv_def inv1_def inv2_def inv2_h1_def invContextH_def crdtSpec_message_exists_h_def crdtSpec_chat_contains_h_def mkContext_def is_message_updateH_def callsWithOpArgsH_def)
 
 
 
@@ -746,9 +767,9 @@ proof (rule show_correctness_via_single_session)
       apply  (subst(asm) initialStates_def)
       apply (auto simp add: invariant_all_def  inv_def)
         apply (auto simp add: invContextH_simps_allCommitted)
-        apply (auto simp add: inv1_def mkContext_def crdtSpec_chat_contains_h_def crdtSpec_message_exists_h_def callsWithOpArgs_def)[1]
-       apply (auto simp add: inv2_def inv2_h1_def mkContext_def   callsWithOpArgs_def)[1]
-      apply (auto simp add: inv2_def inv2_h1_def mkContext_def crdtSpec_message_author_read_def crdtSpec_message_exists_h_def callsWithOpArgs_def callsOfOp_def is_message_update_def)[1]
+        apply (auto simp add: inv1_def mkContext_def crdtSpec_chat_contains_h_def crdtSpec_message_exists_h_def callsWithOpArgsH_def)[1]
+       apply (auto simp add: inv2_def inv2_h1_def mkContext_def   callsWithOpArgsH_def)[1]
+      apply (auto simp add: inv2_def inv2_h1_def mkContext_def crdtSpec_message_author_read_def crdtSpec_message_exists_h_def callsWithOpArgsH_def callsOfOpH_def)[1]
       done
       
 
@@ -855,6 +876,9 @@ proof (rule show_correctness_via_single_session)
               and c14[simp]: "consistentSnapshotH (calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] Undef)) (updateHb (happensBefore S') vis [c, ca]) (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) visa"
             for  t S' c vis ca visa
           proof (subst invContextH_simps_allCommitted; simp?)
+            have [simp]: "c \<noteq> ca"
+                using c11 by blast
+
             show "Option.these (range (callOrigin S')) \<subseteq> insert t (dom (transactionStatus S'))"
               by (simp add: subset_insertI2)
 
@@ -873,15 +897,70 @@ proof (rule show_correctness_via_single_session)
             show "dom (transactionStatus S') = insert t (dom (transactionStatus S'))"
               by (metis c2 c7 insert_dom wf_transaction_status_iff_origin_dom_simp)
 
+
+            have [simp]: "invariant (prog S') = inv"
+              using c3 by auto
+
+
+            from `invariant_all S'`
+            have oldInv: "inv (invContextVis S' vis)" if "consistentSnapshot S' vis" for vis
+              by (auto simp add: invariant_all_def that)
+            have "inv (invContextVis S' (visa - {c,ca}))"
+            proof (rule oldInv)
+              from c14
+              show "consistentSnapshot S' (visa - {c, ca})"
+              proof (auto simp add: consistentSnapshotH_def)
+
+                show "causallyConsistent (updateHb (happensBefore S') vis [c, ca]) visa  \<Longrightarrow> causallyConsistent (happensBefore S') (visa - {c, ca})"
+                  apply (auto simp add: causallyConsistent_def updateHb_cons)
+                  using c2 c8 wellFormed_happensBefore_calls_l apply blast
+                  using c12 c2 wellFormed_happensBefore_calls_l by blast
+
+
+
+                (* TODO this should be done automatically, since it will be needed every time *)
+                find_theorems consistentSnapshot 
+
+              qed
+
             show "example_chat.inv
                \<lparr>calls = calls S'(c \<mapsto> Call ''message_exists'' [MessageId mId] (Bool True), ca \<mapsto> Call ''message_content_assign'' [MessageId mId, ls_content lsInit] Undef),
                   happensBefore = updateHb (happensBefore S') vis [c, ca], i_visibleCalls = visa, i_callOrigin = callOrigin S'(c \<mapsto> t, ca \<mapsto> t), i_transactionOrigin = transactionOrigin S',
                   i_knownIds = knownIds S', i_invocationOp = invocationOp S', i_invocationRes = invocationRes S'\<rparr>" (is "inv ?state")
+            proof (cases "{c,ca} \<subseteq> visa")
+              case True
+              hence [simp]: "c\<in>visa" and [simp]: "ca\<in>visa"
+                by auto
+
+              find_theorems "inv"
+
+              show ?thesis 
+              proof (auto simp add: inv_def)
+                show "inv1 ?state"
+                  apply (auto simp add: inv1_def mkContext_def crdtSpec_chat_contains_h_def crdtSpec_message_exists_h_def callsWithOpArgsH_update_simps)
+
+
+                  find_theorems callsWithOpArgsH
+                  apply (clarsimp simp add: inv1_def mkContext_def operationContext.simps invariantContext.simps crdtSpec_chat_contains_h_def crdtSpec_message_exists_h_def  restrict_fun_upd)
+              qed
+            next
+              case False
+              then show ?thesis sorry
+            qed
+
+
             proof (auto simp add: inv_def)
               show "inv1 ?state"
                 apply (simp only: inv1_def mkContext_def operationContext.simps invariantContext.simps)
-                apply clarify
-                apply clarsimp (* WHY DOES THIS LOOP? *)
+                apply (clarsimp simp del: restrict_fun_upd)
+                (*using [[simp_trace]]*)
+                apply (subst crdtSpec_message_exists_h_def2)
+                apply ( simp del: restrict_fun_upd)
+                (* apply (auto simp add:  crdtSpec_message_exists_h_def del: restrict_fun_upd split: if_splits)*)
+
+                apply (subst restrict_fun_upd)+
+                apply (subst(asm) restrict_fun_upd)+
+
                 find_theorems i_visibleCalls
                 apply clarify
                 sorry
