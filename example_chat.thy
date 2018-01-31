@@ -1117,17 +1117,30 @@ proof (rule show_correctness_via_single_session)
                                     i_transactionOrigin = transactionOrigin S', i_knownIds = knownIds S', i_invocationOp = invocationOp S', i_invocationRes = invocationRes S'\<rparr>)
                       (ListVal [a])"
                      apply (auto simp add: crdtSpec_message_author_read_def callsWithOpArgsH_def callsOfOpH_def restrict_relation_def dom_exists)
-                     apply (auto simp add:  updateHb_cons)
+                      apply (auto simp add:  updateHb_cons)
                      done
 
 
-                     from this
+                   from this
                    show "\<exists>a. crdtSpec_message_author_read [m]
                       (mkContext \<lparr>calls = calls S'(c \<mapsto> Call message_exists [MessageId mId] (Bool True), ca \<mapsto> Call message_content_assign [MessageId mId, ls_content lsInit] Undef),
                                     happensBefore = updateHb (happensBefore S') vis [c, ca], i_visibleCalls = visa, i_callOrigin = callOrigin S'(c \<mapsto> t, ca \<mapsto> t),
                                     i_transactionOrigin = transactionOrigin S', i_knownIds = knownIds S', i_invocationOp = invocationOp S', i_invocationRes = invocationRes S'\<rparr>)
                       (ListVal [a])"
-                     apply auto
+                     by auto
+                 qed
+
+                 from `inv2_h1 (invContextVis S' (visa - {c,ca}))`
+                   and `crdtSpec message_exists [MessageId mId] (getContextH (calls S') (happensBefore S') (Some vis)) (Bool True)`
+                 show "inv2_h1 ?state"
+                   apply (auto simp add: inv2_h1_def mkContext_def  crdtSpec_def crdtSpec_message_exists_def 
+                       crdtSpec_message_exists_h_def getContextH_def callsWithOpArgsH_def
+                       updateHb_cons message_updates_def)
+                   using c12 c2 wellFormed_happensBefore_calls_r by blast
+               qed
+             qed
+           qed
+
 
 
 end
