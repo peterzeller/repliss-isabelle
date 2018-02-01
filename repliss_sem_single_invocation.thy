@@ -187,6 +187,11 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    localState C' s \<triangleq> ls';
    currentProc C' s \<triangleq> f;
    currentTransaction C' s \<triangleq> t;
+   visibleCalls C s \<triangleq> vis;
+   visibleCalls C' s \<triangleq> vis';
+   vis' = vis \<union> callsInTransaction C newTxns \<down> happensBefore C;
+   newTxns \<subseteq> dom (transactionStatus C');
+   consistentSnapshot C' vis';
    transactionStatus C' t \<triangleq> Uncommited;
    \<And>c. callOrigin C' c \<noteq> Some t;
    transactionOrigin C' t \<triangleq> s

@@ -86,9 +86,11 @@ definition state_coupling :: "('ls,'any) state \<Rightarrow> ('ls,'any) state \<
   "state_coupling S S' i sameSession \<equiv> 
    if sameSession then
       (* did a step in the same invocation *)
+      S' = S
+(*
       if currentTransaction S i = None 
       then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S i orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(i := vis') \<rparr> (* TODO maybe can get equality here*)
-      else S' = S
+      else S' = S*)
    else 
       (* did step in a different invocation *)
         state_monotonicGrowth S' S
@@ -96,6 +98,7 @@ definition state_coupling :: "('ls,'any) state \<Rightarrow> ('ls,'any) state \<
       \<and> localState S i = localState S' i
       \<and> currentProc S i = currentProc S' i
       \<and> currentTransaction S i = currentTransaction S' i
+      \<and> visibleCalls S i = visibleCalls S' i
       "
 
 
@@ -1072,7 +1075,9 @@ next
           thus "\<And>tx. tx \<noteq> txId \<Longrightarrow> transactionStatus newS tx \<noteq> Some Uncommited"
             by (auto simp add: newS_def S2_transactionStatus)
 
+          find_theorems S2
 
+          show "visibleCalls S2 s \<triangleq> vis"
 
 
         qed

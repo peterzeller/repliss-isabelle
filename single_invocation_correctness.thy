@@ -896,6 +896,8 @@ schematic_goal checkCorrect2_simps:
   apply (rule refl)
   done
 
+lemma consistentSnapshot_empty: "consistentSnapshot S {}"
+  by (auto simp add: consistentSnapshotH_def causallyConsistent_def transactionConsistent_def)
 
 lemma checkCorrect_eq2:
   assumes "invariant_all S" 
@@ -990,7 +992,36 @@ next
          qed
        qed
     next
-      case (BeginAtomic x2)
+      case (BeginAtomic tx)
+      show ?thesis
+      proof (subst checkCorrect_simps, auto simp add: BeginAtomic)
+        show "currentTransaction S i = None"
+          using use_checkCorrect2[OF consistentSnapshot_empty]
+          apply simp
+          apply (subst(asm) checkCorrect2F_def)
+          apply (auto simp add: BeginAtomic)
+          done
+
+        show "checkCorrect progr S' i"
+          if c0: "transactionStatus S t = None"
+            and c1: "invariant_all S'"
+            and c2: "state_wellFormed S'"
+            and c3: "state_monotonicGrowth S S'"
+            and c4: "localState S' i \<triangleq> tx"
+            and c5: "currentProc S' i \<triangleq> proc"
+            and c6: "currentTransaction S' i \<triangleq> t"
+            and c7: "transactionOrigin S' t \<triangleq> i"
+            and c8: "\<forall>c. callOrigin S' c \<noteq> Some t"
+          for  t S'
+        proof (rule IH[OF c1 c2])
+
+          show "progr = prog S'"
+            using c3 state_monotonicGrowth_prog by force
+
+          show "visibleCalls S' i \<triangleq> txCalls"
+
+
+
       then show ?thesis sorry
     next
       case (EndAtomic x3)
@@ -1006,13 +1037,6 @@ next
       then show ?thesis sorry
     qed
   qed
-
-
-    apply (subst checkCorrect_simps)
-    apply (auto split: option.splits localAction.splits)
-    find_theorems checkCorrect
-
-  then show ?case sorry
 qed
 
 
