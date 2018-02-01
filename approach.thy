@@ -633,6 +633,362 @@ next
   qed
 qed
 
+(*
+lemma wf_happensBefore_trans: 
+  assumes  wf: "state_wellFormed S"
+  shows "trans (happensBefore S)"
+  using assms apply (induct rule: wellFormed_induct)
+   apply (simp add: initialState_def)
+  apply (auto simp add: step.simps)
+  apply (subst trans_def)
+  apply (auto dest: transD)
+proof -
+
+show "(x, c) \<in> happensBefore t"
+    if c0: "state_wellFormed t"
+   and c1: "trans (happensBefore t)"
+   and c2: "localState t sa \<triangleq> ls"
+   and c3: "currentProc t sa \<triangleq> f"
+   and c4: "f ls = DbOperation Op args ls'"
+   and c5: "currentTransaction t sa \<triangleq> ta"
+   and c6: "calls t c = None"
+   and c7: "querySpec (prog t) Op args (getContextH (calls t) (happensBefore t) (Some vis)) res"
+   and c8: "visibleCalls t sa \<triangleq> vis"
+   and c9: "(x, y) \<in> happensBefore t"
+   and c10: "y \<in> vis"
+   and c11: "x \<notin> vis"
+   for  t sa ls f Op args ls' ta c res vis x y
+  using wellFormed_visibleCallsSubsetCalls[OF c0 c8] wellFormed_visibleCallsSubsetCalls_h(1)[OF c0]
+that 
+*)
+
+  
+
+
+
+
+lemma causallyConsistent_downwards:
+  assumes  cs: "causallyConsistent hb vis"
+    and trans: "trans hb"
+  shows "causallyConsistent hb (vis \<union> S \<down> hb)"
+proof -
+  show ?thesis
+    using cs apply (auto simp add: causallyConsistent_def downwardsClosure_def)
+    by (meson local.trans transE)
+qed
+
+lemma wf_vis_downwards_closed:
+  assumes wf: "state_wellFormed S"
+    and "trans (happensBefore S)"
+    and "visibleCalls S i \<triangleq> Vis"
+    and "(X,Y) \<in> happensBefore S"
+    and "Y\<in>Vis"
+  shows "X\<in>Vis"
+  using assms proof (induct arbitrary: X Y Vis  rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case 
+    apply (auto simp add: step.simps downwardsClosure_def dest: transD split: if_splits)
+         apply blast
+        apply (meson transD)
+       apply (metis (no_types, lifting) SigmaD2 domIff subsetCE wellFormed_visibleCallsSubsetCalls_h(1))
+      apply (smt SigmaD2 Un_iff domIff singletonD subset_iff trans_def wellFormed_visibleCallsSubsetCalls_h(1))
+     apply (smt SigmaD2 Un_iff domIff singletonD subset_iff trans_def wellFormed_visibleCallsSubsetCalls_h(1))
+    using wellFormed_visibleCallsSubsetCalls2 by blast
+qed
+
+lemma wf_causallyConsistentH:
+  assumes wf: "state_wellFormed S"
+  shows "(\<forall>vis. visibleCalls S i \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore S) vis) \<and> trans (happensBefore S)" 
+  using assms proof (induct arbitrary:  rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step S a S')
+
+  have IH1: "visibleCalls S i \<triangleq> vis \<Longrightarrow> causallyConsistent (happensBefore S) vis" for vis
+    using step by blast
+
+
+  have old_trans: "trans (happensBefore S)"
+    using step by blast
+
+
+  from `S ~~ a \<leadsto> S'`
+  show ?case 
+  proof (induct rule: step.cases)
+case (local C s ls f ls')
+  with IH1 old_trans show ?case by (auto simp add: causallyConsistent_def split: if_splits)
+
+
+next
+  case (newId C s ls f ls' uid)
+  with IH1 old_trans show ?case by (auto simp add: causallyConsistent_def split: if_splits)
+next
+  case (beginAtomic C s ls f ls' t Vis newTxns newCalls snapshot)
+  with old_trans show ?case apply (auto simp add:  split: if_splits)
+    using causallyConsistent_downwards step.hyps(2) apply blast
+    using step.hyps(2) by blast
+
+next
+  case (endAtomic C s ls f ls' t)
+  with IH1 old_trans show ?case by (auto simp add: causallyConsistent_def split: if_splits)
+next
+  case (dbop C s ls f Op args ls' t c res vis)
+
+  from dbop IH1 old_trans 
+    wellFormed_visibleCallsSubsetCalls_h(1)[OF `state_wellFormed S`]
+    wellFormed_visibleCallsSubsetCalls2[OF `state_wellFormed S`]
+  show ?case apply (auto simp add: causallyConsistent_def  split: if_splits)
+     apply (subst trans_def)
+     apply (auto dest: transD)
+    apply (subst trans_def)
+    apply (auto dest: transD)
+    using step.hyps(1) wf_vis_downwards_closed by blast
+next
+  case (invocation C s procName args initialState impl)
+  with IH1 old_trans show ?case by (auto simp add: causallyConsistent_def split: if_splits)
+next
+  case (return C s ls f res)
+  with IH1 old_trans show ?case by (auto simp add: causallyConsistent_def split: if_splits)
+next
+  case (fail C s ls)
+  with IH1 old_trans show ?case by (auto simp add: causallyConsistent_def split: if_splits)
+next
+  case (invCheck txns C res s)
+  with IH1 old_trans show ?case by (auto simp add: causallyConsistent_def split: if_splits)
+qed
+qed
+
+lemma wf_causallyConsistent1:
+  assumes wf: "state_wellFormed S"
+and "visibleCalls S i \<triangleq> vis"
+  shows "causallyConsistent (happensBefore S) vis"
+  using assms wf_causallyConsistentH by blast 
+
+
+lemma wf_happensBefore_trans:
+  assumes wf: "state_wellFormed S"
+  shows "trans (happensBefore S)" 
+  using assms wf_causallyConsistentH by blast 
+
+lemma wf_vis_downwards_closed2:
+  assumes wf: "state_wellFormed S"
+    and "visibleCalls S i \<triangleq> Vis"
+    and "(X,Y) \<in> happensBefore S"
+    and "Y\<in>Vis"
+  shows "X\<in>Vis"
+  using assms wf_happensBefore_trans wf_vis_downwards_closed by blast
+
+
+lemma wf_vis_txns: 
+  assumes wf: "state_wellFormed S"
+    and "visibleCalls S i \<triangleq> Vis"
+    and "x\<in> Vis"
+    and "callOrigin S x = callOrigin S x'"
+  shows "x'\<in>Vis"
+  using assms proof (induct arbitrary: x x' Vis rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step S a S')
+
+  have IH: "\<lbrakk>visibleCalls S i \<triangleq> Vis; x \<in> Vis; callOrigin S x = callOrigin S x'\<rbrakk> \<Longrightarrow> x' \<in> Vis" for x x' Vis
+    using step by blast
+
+  have IH2: "\<lbrakk>visibleCalls S i \<triangleq> Vis; callOrigin S x = callOrigin S x'\<rbrakk> \<Longrightarrow> x' \<in> Vis" 
+    using step by blast
+
+  from `S ~~ a \<leadsto> S'`
+  show ?case 
+  proof (induct rule: step.cases)
+    case (local C s ls f ls')
+    with `visibleCalls S' i \<triangleq> Vis` ` callOrigin S' x = callOrigin S' x'` IH2 show ?case by auto
+
+  next
+    case (newId C s ls f ls' uid)
+    with `visibleCalls S' i \<triangleq> Vis` ` callOrigin S' x = callOrigin S' x'` IH2 show ?case by auto
+  next
+    case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+    with `visibleCalls S' i \<triangleq> Vis` ` callOrigin S' x = callOrigin S' x'` show ?case 
+      apply (auto split: if_splits)
+
+      sorry
+  next
+    case (endAtomic C s ls f ls' t)
+    with `visibleCalls S' i \<triangleq> Vis` ` callOrigin S' x = callOrigin S' x'` IH2 show ?case by auto
+  next
+    case (dbop C s ls f Op args ls' t c res vis)
+    from `visibleCalls S' i \<triangleq> Vis` ` callOrigin S' x = callOrigin S' x'` show ?case 
+      apply (auto simp add: dbop split: if_splits)
+
+      sorry
+
+  next
+    case (invocation C s procName args initialState impl)
+    with `visibleCalls S' i \<triangleq> Vis` ` callOrigin S' x = callOrigin S' x'` `x \<in> Vis` IH2 show ?case by (auto split: if_splits)
+
+  next
+    case (return C s ls f res)
+    with `visibleCalls S' i \<triangleq> Vis` ` callOrigin S' x = callOrigin S' x'` `x \<in> Vis`  IH2 show ?case by (auto split: if_splits)
+
+  next
+    case (fail C s ls)
+    thus ?case
+      using step.hyps(4) by auto 
+  next
+    case (invCheck txns C res s)
+    with `visibleCalls S' i \<triangleq> Vis` ` callOrigin S' x = callOrigin S' x'` IH2 show ?case by auto
+  qed
+qed
+
+lemma wf_happensBefore_txns_left: 
+  assumes wf: "state_wellFormed S"
+  assumes "(x,y) \<in> happensBefore S"
+    and "callOrigin S x = callOrigin S x'"
+    and "callOrigin S x \<noteq> callOrigin S y"
+  shows "(x',y) \<in> happensBefore S"
+  using assms proof (induct arbitrary: x x' y rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step S a S')
+
+  have IH: "\<lbrakk>(x, y) \<in> happensBefore S; callOrigin S x = callOrigin S x'; callOrigin S x \<noteq> callOrigin S y\<rbrakk> \<Longrightarrow> (x', y) \<in> happensBefore S" for x y x'
+    using step by blast
+
+  have IH2: "\<lbrakk>(x, y) \<in> happensBefore S; callOrigin S x = callOrigin S x'; callOrigin S x \<noteq> callOrigin S y\<rbrakk> \<Longrightarrow> (x', y) \<in> happensBefore S" 
+    using step by blast
+
+  from `S ~~ a \<leadsto> S'`
+  show ?case 
+  proof (induct rule: step.cases)
+    case (local C s ls f ls')
+    with IH2 `(x, y) \<in> happensBefore S'` `callOrigin S' x = callOrigin S' x'` `callOrigin S' x \<noteq> callOrigin S' y` show ?case by auto
+  next
+    case (newId C s ls f ls' uid)
+    with IH2 `(x, y) \<in> happensBefore S'` `callOrigin S' x = callOrigin S' x'` `callOrigin S' x \<noteq> callOrigin S' y` show ?case by auto
+  next
+    case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+    with IH2 `(x, y) \<in> happensBefore S'` `callOrigin S' x = callOrigin S' x'` `callOrigin S' x \<noteq> callOrigin S' y` show ?case by auto
+  next
+    case (endAtomic C s ls f ls' t)
+    with IH2 `(x, y) \<in> happensBefore S'` `callOrigin S' x = callOrigin S' x'` `callOrigin S' x \<noteq> callOrigin S' y` show ?case by auto
+  next
+    case (dbop C s ls f Op args ls' t c res vis)
+    from `(x, y) \<in> happensBefore S'` `callOrigin S' x = callOrigin S' x'` `callOrigin S' x \<noteq> callOrigin S' y` show ?case apply (auto simp add: dbop split: if_splits)
+    proof -
+      show " \<lbrakk>y \<noteq> c; Some t \<noteq> callOrigin C y; (x, y) \<in> happensBefore C; x' = c; x \<noteq> c; callOrigin C x \<triangleq> t\<rbrakk> \<Longrightarrow> (c, y) \<in> happensBefore C"
+        sorry
+      show " \<lbrakk>y = c; callOrigin C x' \<noteq> Some t; x' \<noteq> c; x \<noteq> c; callOrigin C x = callOrigin C x'; x' \<notin> vis; (x, c) \<in> happensBefore C\<rbrakk> \<Longrightarrow> (x', c) \<in> happensBefore C"
+        by (metis (no_types, lifting) IH2 SigmaD1 dbop.hyps(1) dbop.hyps(8) domIff step.hyps(1) subsetCE wellFormed_callOrigin_dom3 wellFormed_visibleCallsSubsetCalls_h(1))
+      show " \<lbrakk>y = c; callOrigin C x' \<noteq> Some t; x' \<noteq> c; x \<noteq> c; callOrigin C x = callOrigin C x'; x' \<notin> vis; x \<in> vis\<rbrakk> \<Longrightarrow> (x', c) \<in> happensBefore C"
+        using dbop.hyps(1) dbop.hyps(10) step.hyps(1) wf_vis_txns by blast
+      show " \<lbrakk>y \<noteq> c; callOrigin C x' \<noteq> callOrigin C y; (c, y) \<in> happensBefore C; x' \<noteq> c; x = c; Some t = callOrigin C x'\<rbrakk> \<Longrightarrow> (x', y) \<in> happensBefore C"
+        using dbop.hyps(1) dbop.hyps(8) step.hyps(1) wellFormed_visibleCallsSubsetCalls_h(1) by fastforce
+      show " \<lbrakk>y \<noteq> c; callOrigin C x' \<noteq> callOrigin C y; (x, y) \<in> happensBefore C; x' \<noteq> c; x \<noteq> c; callOrigin C x = callOrigin C x'\<rbrakk> \<Longrightarrow> (x', y) \<in> happensBefore C"
+        using IH2 dbop.hyps(1) by auto
+    qed
+
+  next
+    case (invocation C s procName args initialState impl)
+    with IH2 `(x, y) \<in> happensBefore S'` `callOrigin S' x = callOrigin S' x'` `callOrigin S' x \<noteq> callOrigin S' y` show ?case by auto
+  next
+    case (return C s ls f res)
+    with IH2 `(x, y) \<in> happensBefore S'` `callOrigin S' x = callOrigin S' x'` `callOrigin S' x \<noteq> callOrigin S' y` show ?case by auto
+  next
+    case (fail C s ls)
+    with IH2 `(x, y) \<in> happensBefore S'` `callOrigin S' x = callOrigin S' x'` `callOrigin S' x \<noteq> callOrigin S' y` show ?case by auto
+  next
+    case (invCheck txns C res s)
+    with IH2 `(x, y) \<in> happensBefore S'` `callOrigin S' x = callOrigin S' x'` `callOrigin S' x \<noteq> callOrigin S' y` show ?case by auto
+  qed
+
+qed
+
+lemma wf_transactionConsistent1:
+  assumes wf: "state_wellFormed S"
+    and "visibleCalls S i \<triangleq> vis"
+    and "c\<in>vis"
+    and "callOrigin S c \<triangleq> tx"
+    and "currentTransaction S i \<noteq> Some tx"
+  shows "transactionStatus S tx \<triangleq> Commited"
+  sorry
+
+lemma wf_transactionConsistent2:
+  assumes wf: "state_wellFormed S"
+    and "visibleCalls S i \<triangleq> vis"
+    and "c1\<in>vis"
+    and "callOrigin S c1 = callOrigin S c2"
+  shows "c2 \<in> vis"
+  using assms proof (induct arbitrary: c1 c2 vis rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step S a S')
+
+  have IH: "\<lbrakk>visibleCalls S i \<triangleq> vis; c1 \<in> vis; callOrigin S c1 = callOrigin S c2\<rbrakk> \<Longrightarrow> c2 \<in> vis" for c1 c2 vis
+    using step by blast
+
+  have IH2: "\<lbrakk>visibleCalls S i \<triangleq> vis; callOrigin S c1 = callOrigin S c2\<rbrakk> \<Longrightarrow> c2 \<in> vis" 
+    using step by blast
+
+  from `S ~~ a \<leadsto> S'`
+  show ?case 
+  proof (induct rule: step.cases)
+    case (local C s ls f ls')
+    with IH2 `visibleCalls S' i \<triangleq> vis` `callOrigin S' c1 = callOrigin S' c2`
+    show ?case by auto
+
+  next
+    case (newId C s ls f ls' uid)
+        with IH2 `visibleCalls S' i \<triangleq> vis` `callOrigin S' c1 = callOrigin S' c2`
+    show ?case by auto
+  next
+    case (beginAtomic C s ls f ls' t Vis newTxns newCalls snapshot)
+    from `c1 \<in> vis` `visibleCalls S' i \<triangleq> vis` `callOrigin S' c1 = callOrigin S' c2`
+    show ?case apply (auto simp add: beginAtomic split: if_splits)
+      using IH beginAtomic.hyps(1) beginAtomic.hyps(9) apply blast
+       defer
+      using IH beginAtomic.hyps(1) beginAtomic.hyps(9) apply blast
+          apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
+
+
+
+  next
+    case (endAtomic C s ls f ls' t)
+        with IH2 `visibleCalls S' i \<triangleq> vis` `callOrigin S' c1 = callOrigin S' c2`
+    show ?case by auto
+  next
+    case (dbop C s ls f Op args ls' t c res vis)
+        with IH2 `visibleCalls S' i \<triangleq> vis` `callOrigin S' c1 = callOrigin S' c2`
+    show ?case by auto
+  next
+    case (invocation C s procName args initialState impl)
+        with IH2 `visibleCalls S' i \<triangleq> vis` `callOrigin S' c1 = callOrigin S' c2`
+    show ?case by auto
+  next
+    case (return C s ls f res)
+    with IH2 `visibleCalls S' i \<triangleq> vis` `callOrigin S' c1 = callOrigin S' c2`
+    show ?case by auto
+  next
+    case (fail C s ls)
+    thus ?case
+      using step.hyps(4) by auto 
+  next
+    case (invCheck txns C res s)
+    with IH2 `visibleCalls S' i \<triangleq> vis` `callOrigin S' c1 = callOrigin S' c2`
+    show ?case by auto
+  qed
+qed
+
+lemma wf_transactionConsistent1:
+  assumes wf: "state_wellFormed S"
+and "visibleCalls S i \<triangleq> vis"
+  shows "transactionConsistent (callOrigin S2) (transactionStatus S2) vis"
+
 
 text {*
 If we have an execution on a a single invocation starting with state satisfying the invariant, then we can convert 
@@ -728,11 +1084,15 @@ next
       hence ih3: "state_coupling S' S2 s True"
         using ih3' by simp
 
+      have ih3_tx: "S2 = S'"
+        using ih3' state_coupling_def by force
 
+(*
       have ih3_noTx: "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>" if "currentTransaction S' s = None"
         using ih3 that by (auto simp add: state_coupling_def)
       have ih3_tx: "S2 = S'" if "currentTransaction S' s \<triangleq> tx" for tx
         using ih3 that by (auto simp add: state_coupling_def)
+*)
 
       have S2_calls: "calls S2 = calls S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
       have S2_happensBefore: "happensBefore S2 = happensBefore S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
@@ -759,7 +1119,7 @@ next
 
       have vis_defined: "visibleCalls S' s \<noteq> None" if "currentTransaction S' s \<noteq> None"
         using S'_wf state_wellFormed_tx_to_visibleCalls that by auto
-
+(*
       obtain vis'
         where vis'_sub: "vis' orElse {} \<subseteq>visibleCalls S' s orElse {}"
           and vis'_else: "currentTransaction S' s \<noteq> None \<Longrightarrow> vis' = visibleCalls S' s"
@@ -786,6 +1146,7 @@ next
         show "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> (currentTransaction S' s \<noteq> None \<longrightarrow> vis' = visibleCalls S' s) \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>"
           by (rule exI[where x="visibleCalls S' s"], auto simp add: sameStates)
       qed   
+*)
 
       have tr_noSwitch: "noContextSwitchesInTransaction tr"
         using isPrefix_appendI noContextSwitch prefixes_noContextSwitchesInTransaction by blast
@@ -823,7 +1184,7 @@ next
           by (rule step_s.local)
 
         have S''_S2: "S'' = S2\<lparr>localState := localState S2(s \<mapsto> ls'), visibleCalls := visibleCalls S''\<rparr>"  
-          by (auto simp add: state_ext S2_vis' a1)
+          by (auto simp add: state_ext `S2 = S'`  a1)
 
         hence S''_S2_a: "S2\<lparr>localState := localState S2(s \<mapsto> ls')\<rparr> = S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"  
           by (auto simp add: state_ext)
@@ -847,19 +1208,8 @@ next
             else S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"*)
             unfolding state_coupling_def
           proof auto
-            assume no_tx_S': "currentTransaction S'' s = None"
-            hence no_tx_S': "currentTransaction S' s = None"
-              using a1 by auto
-            from ih3_noTx[OF no_tx_S']  
-            show "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr>"
-              using a1 by auto
-          next
-            fix tx
-            assume tx: "currentTransaction S'' s \<triangleq> tx"
-            hence tx': "currentTransaction S' s \<triangleq> tx" using a1 by auto
-            from ih3_tx[OF tx']
-            show "S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
-              using a1 by auto
+            show " S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
+              by (auto simp add: ih3_tx a1)
           qed
         qed
       next
@@ -906,21 +1256,7 @@ next
             by (simp add: ih2) 
           show "state_coupling S'' (S''\<lparr>visibleCalls := visibleCalls S2\<rparr>) s True"
             unfolding state_coupling_def
-          proof auto
-            assume no_tx_S': "currentTransaction S'' s = None"
-            hence no_tx_S': "currentTransaction S' s = None"
-              using a1 by auto
-            from ih3_noTx[OF no_tx_S']  
-            show "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr>"
-              using a1 by auto
-          next
-            fix tx
-            assume tx: "currentTransaction S'' s \<triangleq> tx"
-            hence tx': "currentTransaction S' s \<triangleq> tx" using a1 by auto
-            from ih3_tx[OF tx']
-            show "S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
-              using a1 by auto
-          qed
+            by (simp add: a1 ih3_tx)
 
         qed  
 
@@ -1078,6 +1414,41 @@ next
           find_theorems S2
 
           show "visibleCalls S2 s \<triangleq> vis"
+            using a7 ih3_tx by blast
+
+          have wf_S2: "state_wellFormed S2"
+            by (simp add: S'_wf ih3_tx)
+
+
+          show vis_newS: "visibleCalls newS s \<triangleq> (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+            by (simp add: newS_def)
+          show "vis \<union> callsInTransaction S' txns \<down> happensBefore S' = vis \<union> callsInTransaction S2 txns \<down> happensBefore S2"
+            by (simp add: ih3_tx)
+          show "txns \<subseteq> dom (transactionStatus newS)"
+            using [[smt_solver=cvc4]]
+            by (smt S2_transactionStatus \<open>state_monotonicGrowth S2 newS\<close> a8 domI domIff less_eq_option_None_is_None mem_Collect_eq state_monotonicGrowth_def subset_eq)
+          show "consistentSnapshot newS (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+          proof (rule show_consistentSnapshot)
+            show "vis \<union> callsInTransaction S' txns \<down> happensBefore S' \<subseteq> dom (calls newS)"
+              apply auto
+              apply (meson Un_iff \<open>state_wellFormed newS\<close> \<open>visibleCalls newS s \<triangleq> (vis \<union> callsInTransaction S' txns \<down> happensBefore S')\<close> domD set_mp wellFormed_visibleCallsSubsetCalls_h(2))
+              by (meson Un_subset_iff \<open>state_wellFormed newS\<close> domD set_mp vis_newS wellFormed_visibleCallsSubsetCalls_h(2))
+            have "causallyConsistent (happensBefore S2) vis"
+              using S'_wf S2_happensBefore a7 wf_causallyConsistent1 by auto
+            thus  "causallyConsistent (happensBefore newS) (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+              using \<open>state_wellFormed newS\<close> vis_newS wf_causallyConsistent1 by blast
+
+            have "transactionConsistent (callOrigin S2) (transactionStatus S2) vis"
+              apply (auto simp add: transactionConsistent_def)
+              using wf_callOrigin_implies_transactionStatus_defined[OF `state_wellFormed S2`]
+
+
+              using [[smt_solver=cvc4]]
+               apply (smt S2_transactionStatus \<open>\<And>txa. txa \<noteq> txId \<Longrightarrow> transactionStatus S' txa \<noteq> Some Uncommited\<close> a6' domD domIff option.inject transactionStatus.exhaust wf_S2 wf_callOrigin_implies_transactionStatus_defined)
+
+
+            show "transactionConsistent (callOrigin newS) (transactionStatus newS) (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+          qed
 
 
         qed

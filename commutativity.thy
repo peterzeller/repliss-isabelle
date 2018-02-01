@@ -1342,9 +1342,9 @@ lemma getContextH_callsUpdate[simp]:
   using assms by (auto simp add: getContextH_def split: option.splits)
 
 lemma wellFormed_visibleCallsSubsetCalls2: "\<lbrakk> 
+      state_wellFormed S;
       visibleCalls S sb \<triangleq> visa; 
-      calls S c = None;
-      state_wellFormed S
+      calls S c = None
     \<rbrakk> \<Longrightarrow> c\<notin>visa"
   by (meson domIff set_mp wellFormed_visibleCallsSubsetCalls_h(2))
 

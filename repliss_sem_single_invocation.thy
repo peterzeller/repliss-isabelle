@@ -37,6 +37,12 @@ abbreviation consistentSnapshot where
 "consistentSnapshot state vis \<equiv>
 consistentSnapshotH (calls state) (happensBefore state) (callOrigin state) (transactionStatus state) vis"
 
+lemma show_consistentSnapshot:
+  assumes "vis \<subseteq> dom s_calls"
+and "causallyConsistent s_happensBefore vis"
+and "transactionConsistent s_callOrigin s_transactionStatus vis"
+  shows "consistentSnapshotH s_calls s_happensBefore s_callOrigin s_transactionStatus vis"
+  using assms by (auto simp add: consistentSnapshotH_def)
 
 (* TODO add definitions *)
    (* monotonic growth of visible calls*)
