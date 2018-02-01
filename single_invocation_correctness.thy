@@ -782,5 +782,267 @@ qed
 
 
 
+(* check program (with a given start-state, bound by a number of steps) *)
+definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool) 
+                           \<Rightarrow> ('localState, 'any) prog \<times> callId set \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool" where
+"checkCorrect2F \<equiv> (\<lambda>checkCorrect' (progr, VIS, txCalls, S, i).
+(case currentProc S i of
+    None \<Rightarrow> True
+  | Some impl \<Rightarrow>
+      (case impl (the (localState S i)) of
+          LocalStep ls \<Rightarrow> 
+            checkCorrect' (progr, VIS, txCalls, (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>), i)
+        | BeginAtomic ls \<Rightarrow> 
+            currentTransaction S i = None
+            \<and> (\<forall>t S'.
+                transactionStatus S t = None
+              \<and> invariant_all S'
+              \<and> consistentSnapshot S' VIS
+              \<and> invariant progr (invContextVis S' VIS)
+              \<and> state_wellFormed S'
+              \<and> state_monotonicGrowth S S' (* TODO add visibleCalls growth*)
+              \<and> localState S' i \<triangleq> ls
+              \<and> currentProc S' i \<triangleq> impl
+              \<and> currentTransaction S' i \<triangleq> t
+              \<and> transactionStatus S' t \<triangleq> Uncommited 
+              \<and> transactionOrigin S' t \<triangleq> i
+              \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
+              \<longrightarrow> checkCorrect' (progr, VIS, {}, S', i))
+        | EndAtomic ls \<Rightarrow> 
+            (case currentTransaction S i of
+                None \<Rightarrow> False
+              | Some t \<Rightarrow>
+                let S' = (S\<lparr>
+                  localState := (localState S)(i \<mapsto> ls), 
+                  currentTransaction := (currentTransaction S)(i := None),
+                  transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
+                  (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
+                  \<and> (txCalls \<inter> VIS = {} \<or> txCalls \<subseteq> VIS \<and> the (visibleCalls S i) \<subseteq> VIS) (* ALL or nothing *)
+                    (* split here: check VIS with new transaction and without *)
+                    \<longrightarrow> (invariant progr (invContextVis S' VIS)
+                         \<and> (invariant_all S' \<and> consistentSnapshot S' VIS \<and> invariant progr (invContextVis S' VIS)  \<longrightarrow> checkCorrect' (progr, VIS, {}, S', i))
+                         \<and> (txCalls \<subseteq> VIS 
+                            \<longrightarrow> (invariant progr (invContextVis S' (VIS \<union> txCalls) )
+                                \<and> (invariant_all S' \<and> consistentSnapshot S' (VIS \<union> txCalls) \<and> invariant progr (invContextVis S' (VIS \<union> txCalls))  \<longrightarrow> checkCorrect' (progr, VIS \<union> txCalls, {}, S', i))
+                       )))
+            )
+        | NewId ls \<Rightarrow> 
+          (\<forall>uid.
+            uid \<notin> generatedIds S
+            \<longrightarrow> checkCorrect' (progr, VIS, txCalls, (S\<lparr>localState := (localState S)(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid} \<rparr>), i)
+          )
+        | DbOperation Op args ls \<Rightarrow> 
+           (case currentTransaction S i of
+                None \<Rightarrow> False
+              | Some t \<Rightarrow>
+                  (\<exists>res. querySpec progr Op args (getContext S i) res)
+                  \<and>
+                  (\<forall>c res vis. 
+                      calls S c = None
+                    \<and> querySpec progr Op args (getContext S i) res
+                    \<and> visibleCalls S i \<triangleq> vis
+                    \<longrightarrow> checkCorrect' (progr, VIS, insert c txCalls, (S\<lparr>
+                          localState := (localState S)(i \<mapsto> ls res), 
+                          calls := (calls S)(c \<mapsto> Call Op args res ),
+                          callOrigin := (callOrigin S)(c \<mapsto> t),
+                          visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
+                          happensBefore := updateHb (happensBefore S) vis [c]  \<rparr>), i)
+                  )
+           )
+        | Return res \<Rightarrow> 
+            currentTransaction S i = None
+            \<and> (let S' = (S\<lparr>
+                 localState := (localState S)(i := None),
+                 currentProc := (currentProc S)(i := None),
+                 visibleCalls := (visibleCalls S)(i := None),
+                 invocationRes := (invocationRes S)(i \<mapsto> res),
+                 knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
+               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant progr (invContextVis S' VIS)  
+            )
+        )))
+"
+
+lemma checkCorrect2F_mono[simp]:
+"mono checkCorrect2F"
+proof (rule monoI)
+  show "checkCorrect2F x \<le> checkCorrect2F y" if c0: "x \<le> y"  for  x :: "(('localState, 'any) prog \<times> callId set \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool)" and y
+    apply (auto simp add: checkCorrect2F_def Let_def split: option.splits localAction.splits)
+    using c0 apply fastforce
+    using [[smt_solver=cvc4]]
+       apply (smt le_boolD le_funD that wellFormed_currentTransactionUncommited)
+    apply (smt le_boolD le_funD that)
+        apply (smt le_boolD le_funD that)
+    using le_funD that apply force
+    using le_funD that apply force
+    using le_funD that apply force
+    using le_funD that apply force
+    done
+
+qed
+
+
+definition checkCorrect2 :: "('localState, 'any) prog \<Rightarrow> callId set \<Rightarrow> callId set \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> bool" where
+ "checkCorrect2 progr VIS txCalls S i \<equiv> lfp checkCorrect2F (progr, VIS, txCalls, S, i)"
+
+
+
+schematic_goal checkCorrect2_simps:
+  "checkCorrect2 progr VIS txCalls S i = ?F"
+  apply (subst checkCorrect2_def)
+  apply (subst lfp_unfold)
+   apply simp
+  apply (subst checkCorrect2F_def)
+  apply (fold checkCorrect2_def)
+  apply (rule refl)
+  done
+
+
+lemma checkCorrect_eq2:
+  assumes "invariant_all S" 
+    and "state_wellFormed S"
+    and "progr = prog S"
+    and "visibleCalls S i \<triangleq> txCalls"
+    and c2: "\<And>VIS. consistentSnapshot S VIS \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, VIS, txCalls, S, i) "
+  shows "checkCorrect progr S i"
+  using assms proof (induct bound arbitrary: S txCalls)
+  case 0
+
+  have "consistentSnapshot S {}"
+    by (auto simp add: consistentSnapshotH_def causallyConsistent_def transactionConsistent_def)
+  hence "(checkCorrect2F ^^0) bot (progr, {}, txCalls, S, i)"
+    using `\<And>VIS. consistentSnapshot S VIS \<Longrightarrow> (checkCorrect2F ^^ 0) bot (progr, VIS, txCalls, S, i)` by blast
+  hence False
+    by auto
+
+  then show ?case by simp
+
+next
+  case (Suc bound)
+
+  have [simp]: "prog S = progr"
+    by (simp add: Suc)
+
+
+  have IH: "\<lbrakk>invariant_all S; 
+      state_wellFormed S; 
+      progr = prog S; 
+      visibleCalls S i \<triangleq> txCalls;
+     \<And>VIS. consistentSnapshot S VIS \<Longrightarrow> (checkCorrect2F ^^ bound) bot (progr, VIS, txCalls, S, i)\<rbrakk>
+    \<Longrightarrow> checkCorrect progr S i" for S txCalls
+    using Suc by blast
+
+
+  have use_checkCorrect2: "consistentSnapshot S VIS \<Longrightarrow> (checkCorrect2F ^^ Suc bound) bot (progr, VIS, txCalls, S, i)" for VIS
+    using Suc by blast
+
+  show "checkCorrect progr S i"
+  proof (cases "currentProc S i")
+    case None
+    then show ?thesis by (simp add: checkCorrect_simps)
+  next
+    case (Some proc)
+    hence [simp]: "currentProc S i \<triangleq> proc" .
+
+    obtain ls where ls_def[simp]: "localState S i \<triangleq> ls"
+      using `state_wellFormed S` `visibleCalls S i \<triangleq> txCalls` state_wellFormed_ls_visibleCalls by fastforce
+
+    show "checkCorrect progr S i"
+    proof (cases "proc ls")
+      case (LocalStep f)
+
+
+
+      show ?thesis
+      proof (subst checkCorrect_simps, auto simp add: LocalStep)
+        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>) i"
+        proof (rule IH)
+          from `invariant_all S`
+          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>)"
+             by (auto simp add: invariant_all_def)
+
+           have step: "S ~~ (i, ALocal) \<leadsto> S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>"
+             using LocalStep Some ls_def step_simp_ALocal by blast
+
+           with state_wellFormed_combine_step[OF `state_wellFormed S`, OF step]
+           show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>)" by simp
+
+           show " progr = prog (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>)" by simp
+
+           from `visibleCalls S i \<triangleq> txCalls`
+           show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>) i \<triangleq> txCalls"
+             by auto
+
+           show "(checkCorrect2F ^^ bound) bot (progr, VIS, txCalls, S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>, i)"
+             if c0: "consistentSnapshot (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>) VIS"
+             for  VIS
+           proof -
+             from c0
+             have "consistentSnapshot S VIS"
+               by (auto simp add: consistentSnapshotH_def)
+
+             from use_checkCorrect2[OF `consistentSnapshot S VIS`]
+             show "(checkCorrect2F ^^ bound) bot (progr, VIS, txCalls, S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>, i)"
+               apply simp
+               apply (subst(asm) checkCorrect2F_def)
+               apply (auto simp add: LocalStep)
+               done
+           qed
+         qed
+       qed
+    next
+      case (BeginAtomic x2)
+      then show ?thesis sorry
+    next
+      case (EndAtomic x3)
+      then show ?thesis sorry
+    next
+      case (NewId x4)
+      then show ?thesis sorry
+    next
+      case (DbOperation x51 x52 x53)
+      then show ?thesis sorry
+    next
+      case (Return x6)
+      then show ?thesis sorry
+    qed
+  qed
+
+
+    apply (subst checkCorrect_simps)
+    apply (auto split: option.splits localAction.splits)
+    find_theorems checkCorrect
+
+  then show ?case sorry
+qed
+
+
+
+lemma checkCorrect_eq2:
+  assumes "S\<in>initialStates progr i" 
+    and c2: "\<And>VIS. consistentSnapshot S VIS \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, VIS, {}, S, i) "
+  shows "checkCorrect progr S i"
+proof -
+
+
+
+  define P where "P \<equiv> \<lambda>S txCalls. visibleCalls S i \<triangleq> txCalls 
+                       \<and> ((\<forall>VIS. consistentSnapshot S VIS \<longrightarrow> checkCorrect2 progr VIS txCalls S i) \<longleftrightarrow> checkCorrect progr S i)"
+
+  thm lfp_ordinal_induct
+
+  find_theorems "mono checkCorrectF"
+
+
+  thm lfp_ordinal_induct[OF checkCorrectF_mono]
+from assms
+  have "lfp checkCorrectF (progr, S, i)"
+  proof (induct rule: lfp_ordinal_induct[OF checkCorrectF_mono])
+    show "mono checkCorrectF"
+
+oops
+
+qed
+
+       
 
 end
