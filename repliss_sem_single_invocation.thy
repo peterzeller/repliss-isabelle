@@ -44,6 +44,9 @@ and "transactionConsistent s_callOrigin s_transactionStatus vis"
   shows "consistentSnapshotH s_calls s_happensBefore s_callOrigin s_transactionStatus vis"
   using assms by (auto simp add: consistentSnapshotH_def)
 
+definition 
+"state_monotonicGrowth_txStable callOrigin_S callOrigin_S' transactionStatus_S' \<equiv> (\<forall>c tx. callOrigin_S c \<triangleq> tx \<and> transactionStatus_S' tx \<triangleq> Commited \<longrightarrow> callOrigin_S' c \<triangleq> tx)"
+
 (* TODO add definitions *)
    (* monotonic growth of visible calls*)
    (* monotonic growth of callops *)
@@ -75,7 +78,11 @@ definition state_monotonicGrowth :: "('localState, 'any) state \<Rightarrow> ('l
       \<and> (\<forall>s i. invocationRes S' s \<triangleq> i \<longrightarrow> invocationRes S s \<triangleq> i)
       (* transactionStatus ??? may change, irrelevant *)
       \<and> (\<forall>tx. transactionStatus S' tx \<le> transactionStatus S tx )
+      (* no new calls are added to committed transactions *)
+      \<and> state_monotonicGrowth_txStable (callOrigin S) (callOrigin S') (transactionStatus S')
       \<and> prog S = prog S'"
+
+
 
 
 lemma state_monotonicGrowth_calls:
@@ -91,7 +98,7 @@ lemma state_monotonicGrowth_happensBefore:
 lemma state_monotonicGrowth_callOrigin:
   assumes "state_monotonicGrowth S' S"
   shows "callOrigin S' c \<triangleq> t \<Longrightarrow> callOrigin S c \<triangleq> t"
-  using assms by (auto simp add: state_monotonicGrowth_def)
+  using assms state_monotonicGrowth_def by fastforce 
 
 lemma state_monotonicGrowth_callOrigin2:
   assumes "state_monotonicGrowth S' S"
@@ -125,6 +132,11 @@ lemma state_monotonicGrowth_transactionStatus:
   shows "transactionStatus S' tx \<le> transactionStatus S tx"
   using assms by (auto simp add: state_monotonicGrowth_def)
 
+lemma state_monotonicGrowth_transactionStatus2:
+  assumes "state_monotonicGrowth S' S"
+  shows "transactionStatus S' tx \<triangleq> Commited \<Longrightarrow>  transactionStatus S tx \<triangleq> Commited"
+  by (metis assms onlyCommitedGreater state_monotonicGrowth_def)
+
 
 lemma state_monotonicGrowth_prog:
   assumes "state_monotonicGrowth  S' S"
@@ -136,7 +148,51 @@ lemma state_monotonicGrowth_invocationOp2:
   shows "(invocationOp S' \<subseteq>\<^sub>m invocationOp S) "
   using assms by (auto simp add: state_monotonicGrowth_def map_le_def)
 
+lemma state_monotonicGrowth_committed_transactions_fixed:
+  assumes "state_monotonicGrowth S' S"
+and "transactionStatus S' tx \<triangleq> Commited"
+and "callOrigin S x \<triangleq> tx"
+shows "callOrigin S' x \<triangleq> tx"
+  using assms by (simp add: assms(3) state_monotonicGrowth_def state_monotonicGrowth_txStable_def)   
 
+lemma state_monotonicGrowth_committed_transactions_fixed1:
+  assumes "state_monotonicGrowth S' S"
+  shows "state_monotonicGrowth_txStable (callOrigin S) (callOrigin S') (transactionStatus S')"
+  using assms  by (auto simp add: state_monotonicGrowth_def)
+
+
+lemma state_monotonicGrowth_committed_transactions_fixed2:
+  assumes "state_monotonicGrowth S' S"
+and "transactionStatus S' tx \<triangleq> Commited"
+shows "{c. callOrigin S' c \<triangleq> tx} = {c. callOrigin S c \<triangleq> tx}"
+  using assms state_monotonicGrowth_callOrigin state_monotonicGrowth_committed_transactions_fixed by blast
+
+lemma state_monotonicGrowth_refl[simp]: "state_monotonicGrowth S S"
+  by (auto simp add: state_monotonicGrowth_def  state_monotonicGrowth_txStable_def)
+
+
+schematic_goal show_state_monotonicGrowth: "?X \<Longrightarrow> state_monotonicGrowth S S'"
+  apply (unfold state_monotonicGrowth_def)
+  apply assumption
+  done
+
+
+
+lemmas state_monotonicGrowth_lemmas = 
+state_monotonicGrowth_calls
+state_monotonicGrowth_happensBefore
+state_monotonicGrowth_callOrigin
+state_monotonicGrowth_callOrigin2
+state_monotonicGrowth_generatedIds
+state_monotonicGrowth_knownIds
+state_monotonicGrowth_invocationOp
+state_monotonicGrowth_invocationRes
+state_monotonicGrowth_transactionStatus
+state_monotonicGrowth_prog
+state_monotonicGrowth_invocationOp2
+state_monotonicGrowth_committed_transactions_fixed
+state_monotonicGrowth_committed_transactions_fixed1
+state_monotonicGrowth_committed_transactions_fixed2
 
 text {* Invariant holds for all possible (causally + transaction consistent) states *}
 definition invariant_all :: "('localState, 'any) state \<Rightarrow> bool" where
@@ -195,7 +251,7 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    currentTransaction C' s \<triangleq> t;
    visibleCalls C s \<triangleq> vis;
    visibleCalls C' s \<triangleq> vis';
-   vis' = vis \<union> callsInTransaction C newTxns \<down> happensBefore C;
+   vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C';
    newTxns \<subseteq> dom (transactionStatus C');
    consistentSnapshot C' vis';
    transactionStatus C' t \<triangleq> Uncommited;
