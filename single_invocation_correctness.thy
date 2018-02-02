@@ -48,7 +48,7 @@ definition checkCorrectF :: "(('localState, 'any) prog \<times> ('localState, 'a
             checkCorrect' (progr, (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>), i)
         | BeginAtomic ls \<Rightarrow> 
             currentTransaction S i = None
-            \<and> (\<forall>t S'.
+            \<and> (\<forall>t S' vis newTxns.
                 transactionStatus S t = None
               \<and> invariant_all S'
               \<and> state_wellFormed S'
@@ -59,6 +59,11 @@ definition checkCorrectF :: "(('localState, 'any) prog \<times> ('localState, 'a
               \<and> transactionStatus S' t \<triangleq> Uncommited
               \<and> transactionOrigin S' t \<triangleq> i
               \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
+              \<and> visibleCalls S i \<triangleq> vis
+              \<and> visibleCalls S' i \<triangleq> (vis \<union> callsInTransaction S' newTxns \<down> happensBefore S')
+              \<and> newTxns \<subseteq> dom (transactionStatus S')
+              \<and> consistentSnapshot S' (vis \<union> callsInTransaction S' newTxns \<down> happensBefore S')
+              \<and> (\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommited)
               \<longrightarrow> checkCorrect' (progr, S', i))
         | EndAtomic ls \<Rightarrow> 
             (case currentTransaction S i of
@@ -794,20 +799,25 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
             checkCorrect' (progr, VIS, txCalls, (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>), i)
         | BeginAtomic ls \<Rightarrow> 
             currentTransaction S i = None
-            \<and> (\<forall>t S'.
+            \<and> (\<forall>t S' vis vis' newTxns.
                 transactionStatus S t = None
               \<and> invariant_all S'
-              \<and> consistentSnapshot S' VIS
-              \<and> invariant progr (invContextVis S' VIS)
               \<and> state_wellFormed S'
-              \<and> state_monotonicGrowth S S' (* TODO add visibleCalls growth*)
+              \<and> state_monotonicGrowth S S'
               \<and> localState S' i \<triangleq> ls
               \<and> currentProc S' i \<triangleq> impl
               \<and> currentTransaction S' i \<triangleq> t
-              \<and> transactionStatus S' t \<triangleq> Uncommited 
+              \<and> transactionStatus S' t \<triangleq> Uncommited
               \<and> transactionOrigin S' t \<triangleq> i
               \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
-              \<longrightarrow> checkCorrect' (progr, VIS, {}, S', i))
+              \<and> visibleCalls S i \<triangleq> vis
+              \<and> vis' = (vis \<union> callsInTransaction S' newTxns \<down> happensBefore S')
+              \<and> visibleCalls S' i \<triangleq> vis'
+              \<and> newTxns \<subseteq> dom (transactionStatus S')
+              \<and> consistentSnapshot S' vis'
+              \<and> (\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommited)
+              \<and> invariant progr (invContextVis S' vis')
+              \<longrightarrow> checkCorrect' (progr, VIS, vis', S', i))
         | EndAtomic ls \<Rightarrow> 
             (case currentTransaction S i of
                 None \<Rightarrow> False
@@ -904,7 +914,7 @@ lemma checkCorrect_eq2:
     and "state_wellFormed S"
     and "progr = prog S"
     and "visibleCalls S i \<triangleq> txCalls"
-    and c2: "\<And>VIS. consistentSnapshot S VIS \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, VIS, txCalls, S, i) "
+    and c2: "\<And>VIS. (checkCorrect2F ^^bound) bot (progr, VIS, txCalls, S, i) "
   shows "checkCorrect progr S i"
   using assms proof (induct bound arbitrary: S txCalls)
   case 0
@@ -912,7 +922,7 @@ lemma checkCorrect_eq2:
   have "consistentSnapshot S {}"
     by (auto simp add: consistentSnapshotH_def causallyConsistent_def transactionConsistent_def)
   hence "(checkCorrect2F ^^0) bot (progr, {}, txCalls, S, i)"
-    using `\<And>VIS. consistentSnapshot S VIS \<Longrightarrow> (checkCorrect2F ^^ 0) bot (progr, VIS, txCalls, S, i)` by blast
+    using `\<And>VIS. (checkCorrect2F ^^ 0) bot (progr, VIS, txCalls, S, i)` by blast
   hence False
     by auto
 
@@ -929,12 +939,12 @@ next
       state_wellFormed S; 
       progr = prog S; 
       visibleCalls S i \<triangleq> txCalls;
-     \<And>VIS. consistentSnapshot S VIS \<Longrightarrow> (checkCorrect2F ^^ bound) bot (progr, VIS, txCalls, S, i)\<rbrakk>
+     \<And>VIS. (checkCorrect2F ^^ bound) bot (progr, VIS, txCalls, S, i)\<rbrakk>
     \<Longrightarrow> checkCorrect progr S i" for S txCalls
     using Suc by blast
 
 
-  have use_checkCorrect2: "consistentSnapshot S VIS \<Longrightarrow> (checkCorrect2F ^^ Suc bound) bot (progr, VIS, txCalls, S, i)" for VIS
+  have use_checkCorrect2: "(checkCorrect2F ^^ Suc bound) bot (progr, VIS, txCalls, S, i)" for VIS
     using Suc by blast
 
   show "checkCorrect progr S i"
@@ -975,14 +985,10 @@ next
              by auto
 
            show "(checkCorrect2F ^^ bound) bot (progr, VIS, txCalls, S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>, i)"
-             if c0: "consistentSnapshot (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>) VIS"
              for  VIS
            proof -
-             from c0
-             have "consistentSnapshot S VIS"
-               by (auto simp add: consistentSnapshotH_def)
 
-             from use_checkCorrect2[OF `consistentSnapshot S VIS`]
+             from use_checkCorrect2
              show "(checkCorrect2F ^^ bound) bot (progr, VIS, txCalls, S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>, i)"
                apply simp
                apply (subst(asm) checkCorrect2F_def)
@@ -996,7 +1002,7 @@ next
       show ?thesis
       proof (subst checkCorrect_simps, auto simp add: BeginAtomic)
         show "currentTransaction S i = None"
-          using use_checkCorrect2[OF consistentSnapshot_empty]
+          using use_checkCorrect2
           apply simp
           apply (subst(asm) checkCorrect2F_def)
           apply (auto simp add: BeginAtomic)
@@ -1012,17 +1018,44 @@ next
             and c6: "currentTransaction S' i \<triangleq> t"
             and c7: "transactionOrigin S' t \<triangleq> i"
             and c8: "\<forall>c. callOrigin S' c \<noteq> Some t"
-          for  t S'
+            and c9: "visibleCalls S i \<triangleq> vis"
+            and c10: "visibleCalls S' i \<triangleq> (vis \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
+            and c11: "newTxns \<subseteq> dom (transactionStatus S')"
+            and c12: "consistentSnapshot S' (vis \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
+            and c13: "\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommited"
+          for  t S' vis newTxns
         proof (rule IH[OF c1 c2])
 
           show "progr = prog S'"
             using c3 state_monotonicGrowth_prog by force
 
-          show "visibleCalls S' i \<triangleq> txCalls"
+          show "visibleCalls S' i \<triangleq> (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
+            using Suc.prems(4) c10 c9 by auto
 
+          
 
+          
+          show "(checkCorrect2F ^^ bound) bot (progr, VIS, txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S', S', i)"
+            for VIS
+            using use_checkCorrect2
+               apply simp
+               apply (subst(asm) checkCorrect2F_def)
+            apply (auto simp add: BeginAtomic)
+            apply (drule_tac x=VIS in meta_spec)
+            apply auto
+            apply (drule_tac x=t in spec)
+            apply (drule_tac x=S' in spec)
+            apply (drule_tac x=vis in spec)
+            apply (drule_tac x=newTxns in spec)
+            apply (drule mp)
+             apply (auto simp add: c0 c1 c10 c11 c12 c13 c2 c3 c4 c5 c6 c7 c8 c9 )
+            using c2 c6 wellFormed_currentTransactionUncommited apply blast
+            using \<open>progr = prog S'\<close> c1 c12 invariant_all_def apply blast
+            using \<open>visibleCalls S' i \<triangleq> (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<close> c10 by auto
 
-      then show ?thesis sorry
+        qed
+      qed
+
     next
       case (EndAtomic x3)
       then show ?thesis sorry
