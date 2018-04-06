@@ -194,20 +194,18 @@ state_monotonicGrowth_committed_transactions_fixed
 state_monotonicGrowth_committed_transactions_fixed1
 state_monotonicGrowth_committed_transactions_fixed2
 
-text {* Invariant holds for all possible (causally + transaction consistent) states *}
-definition invariant_all :: "('localState, 'any) state \<Rightarrow> bool" where
-"invariant_all state \<equiv> 
- \<forall>vis. consistentSnapshot state vis
- \<longrightarrow> invariant (prog state) (invContextVis state vis)"
+(* TODO remove definition *)
+text {* Invariant holds for state *}
+abbreviation invariant_all :: "('localState, 'any) state \<Rightarrow> bool" where
+"invariant_all state \<equiv>  invariant (prog state) (invContext state)"
 
 
  
 lemma show_invariant_all_changes:
-assumes "\<And>vis. invContextVis S' vis = invContextVis S vis"
+assumes "invContext S'  = invContext S "
     and "prog S' = prog S"
-    and "consistentSnapshot S' = consistentSnapshot S"
 shows "invariant_all S' = invariant_all S"
-using assms by (auto simp add: invariant_all_def)
+using assms by (auto simp add: )
       
 
 text {*

@@ -80,7 +80,7 @@ next
         by auto
       thus ?case ..
     next
-      case (invCheck C s' vis res)
+      case (invCheck C res s')
       then show ?case  using step.IH
         using step.prems by blast 
     qed
@@ -311,7 +311,7 @@ schematic_goal [simp]: "isAFail (ADbOp c oper args res) = ?x" by (auto simp add:
 schematic_goal [simp]: "isAFail (AInvoc pname args) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AReturn res) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AFail) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (AInvcheck t c) = ?x" by (auto simp add: isAFail_def)                            
+schematic_goal [simp]: "isAFail (AInvcheck c) = ?x" by (auto simp add: isAFail_def)                            
 
 lemma exI_eq: 
   assumes "P y True"
@@ -327,7 +327,7 @@ proof (rule iffI2; clarsimp)
   assume is_trace: "tr \<in> traces program"
     and tr_fail: "\<not> traceCorrect tr"
 
-  from this obtain s txns S' where "(s, AInvcheck txns False) \<in> set tr" and "initialState program ~~ tr \<leadsto>* S'"
+  from this obtain s S' where "(s, AInvcheck False) \<in> set tr" and "initialState program ~~ tr \<leadsto>* S'"
     by (auto simp add: traceCorrect_def traces_def)  
 
 
@@ -474,7 +474,7 @@ proof (rule iffI2; clarsimp)
           by (auto simp add: step_simps state_ext  induct_step  fail)
 
       next
-        case (invCheck txns res s)
+        case (invCheck res s)
 
         show ?thesis 
           apply (rule exI[where x="S2"])
@@ -666,7 +666,7 @@ lemma precondition_fail:
   done
 
 lemma precondition_invcheck:
-  "precondition (s, AInvcheck txns res) C = ((\<forall>t\<in>txns. transactionStatus C t \<triangleq> Commited) \<and> res = invariant (prog C) (invContextSnapshot C txns))"
+  "precondition (s, AInvcheck res) C \<longleftrightarrow> (res = invariant (prog C) (invContext C))"
   apply (auto simp add: precondition_def step_simps intro: step.intros elim!: step_elims)
   done
 
@@ -801,7 +801,7 @@ lemma unchangedInTransaction_getInvContext:
     and visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
     and origin_inv: "dom (callOrigin A) = dom (calls A)"
   shows
-    "invContext A sb = invContext B sb"
+    "invContext A = invContext B"
 proof (cases a)
   case ALocal
   then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
@@ -845,29 +845,25 @@ next
 
   show ?thesis 
   proof (rule invariantContext_eqI)
-    show "calls (invContext A sb) = calls (invContext B sb)"
+    show "calls (invContext A) = calls (invContext B)"
       apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
       done
-    show "happensBefore (invContext A sb) = happensBefore (invContext B sb)"
+    show "happensBefore (invContext A) = happensBefore (invContext B)"
       apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
        apply (auto simp add: restrict_relation_def B_def)
       done
 
-    show "i_visibleCalls (invContext A sb) = i_visibleCalls (invContext B sb)"
-      apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
-       apply (auto simp add: B_def differentSessions[symmetric] split: if_splits option.splits)
-      done
-    show "i_callOrigin (invContext A sb) = i_callOrigin (invContext B sb)"
+    show "i_callOrigin (invContext A) = i_callOrigin (invContext B)"
       apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
       apply (auto simp add: B_def)
       done
-    show "i_knownIds (invContext A sb) = i_knownIds (invContext B sb)"
+    show "i_knownIds (invContext A ) = i_knownIds (invContext B )"
       by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
-    show "i_invocationOp (invContext A sb) = i_invocationOp (invContext B sb)"
+    show "i_invocationOp (invContext A ) = i_invocationOp (invContext B )"
       by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
-    show "i_invocationRes (invContext A sb) = i_invocationRes (invContext B sb)"
+    show "i_invocationRes (invContext A ) = i_invocationRes (invContext B )"
       by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
-    show "i_transactionOrigin (invContext A sb) = i_transactionOrigin (invContext B sb)"
+    show "i_transactionOrigin (invContext A ) = i_transactionOrigin (invContext B )"
       by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
   qed
 
@@ -979,7 +975,7 @@ lemma invContextSnapshot_same:
     and aIsNotCommit: "a \<noteq> AEndAtomic"
     and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
     and txIsUncommited: "transactionStatus A tx \<triangleq> Uncommited"
-  shows "(invContextSnapshot A txns) = (invContextSnapshot B txns)"
+  shows "(invContext A) = (invContext B)"
 proof (auto simp add: invContextH_def invContextSame_h[OF exec wellFormed 1 aIsNotCommit])
   have committed_same: "commitedCalls B = commitedCalls A"
     using exec apply (rule step.cases)
@@ -1167,25 +1163,16 @@ proof -
     then show ?thesis
       by (metis differentSessions exec preconditionHolds precondition_fail unchangedInTransaction(1))
   next
-    case (AInvcheck txns res)
+    case (AInvcheck res)
     with preconditionHolds 
-    have 1: "\<And>t. t\<in>txns \<Longrightarrow> transactionStatus B t \<triangleq> Commited"
-      and 2: "res = invariant (prog B) (invContextSnapshot B txns)"
+    have 2: "res = invariant (prog B) (invContext B)"
       by (auto simp add: precondition_invcheck)
 
-    have invContextSame_h: "(callsInTransaction A txns \<down> happensBefore A) = (callsInTransaction B txns \<down> happensBefore B)"
-      apply (auto simp add: callsInTransactionH_def downwardsClosure_in "1" callOrigin_same_committed committed_same)
-      using "1" callOrigin_same_committed committed_same happensBefore_same_committed2 by blast+
+    have invContextSame: "(invContext A) = (invContext B)"
+      using aIsInTransaction aIsNotCommit exec invContextSnapshot_same txIsUncommited wellFormed by blast
 
-    have invContextSame: "(invContextSnapshot A txns) = (invContextSnapshot B txns)"
-      using "1" aIsInTransaction aIsNotCommit exec invContextSnapshot_same txIsUncommited wellFormed by blast
-
-    moreover have "invContext A sb = invContext B sb"
-      using unchangedInTransaction_getInvContext[OF differentSessions aIsInTransaction aIsInLocal txIsUncommited aIsNotCommit exec ] origin_inv  visibleCalls_inv   by blast 
-
-    have "precondition (sb, AInvcheck txns res) A"  
-      using prog_inv[OF exec] by (auto simp add: precondition_invcheck "1" committed_same 2 invContextSame)
-
+    have "precondition (sb, AInvcheck res) A"  
+      using prog_inv[OF exec] by (auto simp add: precondition_invcheck  committed_same 2 invContextSame)
 
     thus ?thesis
       using AInvcheck by blast  
@@ -1221,16 +1208,16 @@ happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
 
 lemma invContext_unchanged_happensBefore[simp]:
   assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
-  shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs
-    = invContextH co to ts hbOld cs ki io ir vcs"
+  shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir 
+    = invContextH co to ts hbOld cs ki io ir "
   apply (simp add: invContextH_def)
   using assms apply (auto simp add: restrict_relation_def commitedCallsH_def isCommittedH_def)
   done  
 
 lemma invContext_unchanged_happensBefore2[simp]:
   assumes "co c = None"
-  shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir vcs 
-    = invContextH co to ts hbOld cs ki io ir vcs "
+  shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir  
+    = invContextH co to ts hbOld cs ki io ir  "
   apply (simp add: invContextH_def)
   using assms apply (auto simp add: restrict_relation_def commitedCallsH_def isCommittedH_def)
   done  
@@ -1244,10 +1231,6 @@ lemma commitedCalls_uncommitedNotIn:
 
 find_consts "'a \<Rightarrow> 'a option \<Rightarrow> 'a"
 
-lemma invContext_changeVisibleCalls[simp]:
-  shows "i_visibleCalls (invContextH co to ts hbOld cs ki io ir vcs )
-     = vcs orElse {}"
-  by (auto simp add: invContextH_def split: option.splits)  
 
 
 lemma wellFormed_commitedCallsExist:
@@ -1287,14 +1270,14 @@ lemma commitedCallsH_in:
 
 lemma invContextH_update_callOrigin:
   assumes "co c = None" and "ts t \<triangleq> Uncommited"
-  shows "invContextH (co(c \<mapsto> t)) to ts hb cs ki io ir vis  =
-       invContextH co to ts hb cs ki io ir vis "
+  shows "invContextH (co(c \<mapsto> t)) to ts hb cs ki io ir   =
+       invContextH co to ts hb cs ki io ir  "
   using assms by (auto simp add: invContextH_def)
 
 lemma invContextH_update_calls:
   assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
-  shows "invContextH co to ts hb (cs(c \<mapsto> newCall)) ki io ir vis  =
-       invContextH co to ts hb cs ki io ir vis "
+  shows "invContextH co to ts hb (cs(c \<mapsto> newCall)) ki io ir   =
+       invContextH co to ts hb cs ki io ir  "
   using assms by (auto simp add: invContextH_def commitedCallsH_in)
 
 
@@ -1309,8 +1292,8 @@ lemma commitedCallsH_update_uncommited[simp]:
 
 lemma invContextH_update_txstatus:
   assumes "ts t = None" 
-  shows "invContextH co to (ts(t\<mapsto>Uncommited)) hb cs ki io ir vis =
-       invContextH co to ts hb cs ki io ir vis"
+  shows "invContextH co to (ts(t\<mapsto>Uncommited)) hb cs ki io ir  =
+       invContextH co to ts hb cs ki io ir "
   using assms by (auto simp add: invContextH_def restrict_map_def)
 
 lemmas invContextH_simps = invContextH_update_calls invContextH_update_callOrigin invContextH_update_txstatus
@@ -1325,8 +1308,8 @@ lemma test:
            (S\<lparr>localState := localState S(sa \<mapsto> ls' res), calls := calls S(c \<mapsto> Call operation args res),
                 callOrigin := callOrigin S(c \<mapsto> t), visibleCalls := visibleCalls S(sa \<mapsto> {c} \<union> vis),
                 happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
-           sb
-  = invContext S sb"
+           
+  = invContext S "
   using assms by auto
 
 lemma getContextH_visUpdate[simp]:
@@ -1417,7 +1400,7 @@ next
     by (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
 
 next
-  case (AInvcheck txns res)
+  case (AInvcheck res)
   with a2 show ?thesis 
     apply simp
     apply (rule show_commutativeS_pres)
@@ -1551,7 +1534,7 @@ proof (rule useCommutativeS)
     case AFail
     then show ?thesis  by simp
   next
-    case (AInvcheck txns res)
+    case (AInvcheck res)
     then show ?thesis
       using is_AInvcheck_def not_invCheck by auto   
   qed
@@ -2849,7 +2832,7 @@ lemma allowed_context_switch_simps[simp]:
     and "allowed_context_switch (AInvoc p ia)"
     and "\<not>allowed_context_switch (AReturn ir)" 
     and "\<not>allowed_context_switch AFail" 
-    and "\<not>allowed_context_switch (AInvcheck its invr)" by (auto simp add: allowed_context_switch_def)
+    and "\<not>allowed_context_switch (AInvcheck invr)" by (auto simp add: allowed_context_switch_def)
 
 
 definition packed_trace :: "'any trace \<Rightarrow> bool" where
@@ -3020,7 +3003,7 @@ next
   hence [simp]: "b = ANewId bid" .
   show ?thesis 
   proof (cases a; prove_canSwap?)
-    case (AInvcheck x91 x92)
+    case (AInvcheck r)
     then show ?thesis
       using is_AInvcheck_def no_invcheck_a by blast 
   qed
@@ -3064,7 +3047,7 @@ next
     case AFail
     then show ?thesis by prove_canSwap'
   next
-    case (AInvcheck x91 x92)
+    case (AInvcheck r)
     then show ?thesis
       using is_AInvcheck_def no_invcheck_a by auto 
   qed
@@ -3099,7 +3082,7 @@ next
     then show ?thesis
       using no_fail_a by blast 
   next
-    case (AInvcheck x91 x92)
+    case (AInvcheck r)
     then show ?thesis
       using is_AInvcheck_def no_invcheck_a by blast 
   qed
@@ -3137,7 +3120,7 @@ next
     case AFail
     then show ?thesis by prove_canSwap'
   next
-    case (AInvcheck x91 x92)
+    case (AInvcheck r)
     then show ?thesis
       using is_AInvcheck_def no_invcheck_a by auto 
   qed
@@ -3146,7 +3129,7 @@ next
   then show ?thesis
     using no_fail_b by blast 
 next
-  case (AInvcheck x91 x92)
+  case (AInvcheck r)
   then show ?thesis
     using is_AInvcheck_def no_invcheck_b by auto 
 qed
@@ -3686,18 +3669,18 @@ proof -
 
   from notCorrect
   obtain failPos1 
-    where failPos1_props: "failPos1 < length tr \<and> (\<exists>s txns. tr ! failPos1 = (s, AInvcheck txns False))"
+    where failPos1_props: "failPos1 < length tr \<and> (\<exists>s. tr ! failPos1 = (s, AInvcheck False))"
     by (meson in_set_conv_nth traceCorrect_def)
 
   text {* Now take the minimal failing position. *}  
-  hence "\<exists>failPos1. (failPos1 < length tr \<and> (\<exists>s txns. tr ! failPos1 = (s, AInvcheck txns False)))
-           \<and> (\<forall>i. (i < length tr \<and> (\<exists>s txns. tr ! i = (s, AInvcheck txns False))) \<longrightarrow> i \<ge> failPos1)"
+  hence "\<exists>failPos1. (failPos1 < length tr \<and> (\<exists>s. tr ! failPos1 = (s, AInvcheck False)))
+           \<and> (\<forall>i. (i < length tr \<and> (\<exists>s. tr ! i = (s, AInvcheck False))) \<longrightarrow> i \<ge> failPos1)"
     by (rule ex_has_least_nat)
   from this
-  obtain failPos failPos_s txns
+  obtain failPos failPos_s 
     where failPos_len: "failPos < length tr" 
-      and failPos_fail: "tr ! failPos = (failPos_s, AInvcheck txns False)"
-      and failPos_min: "\<And> i. \<lbrakk>i < length tr; \<exists>s txns. tr ! i = (s, AInvcheck txns False)\<rbrakk> \<Longrightarrow> i\<ge>failPos"
+      and failPos_fail: "tr ! failPos = (failPos_s, AInvcheck False)"
+      and failPos_min: "\<And> i. \<lbrakk>i < length tr; \<exists>s txns. tr ! i = (s, AInvcheck False)\<rbrakk> \<Longrightarrow> i\<ge>failPos"
     by auto
 
 
@@ -3716,7 +3699,7 @@ proof -
   hence "\<exists>C''. (op ~~ C' \<leadsto> (tr ! failPos)) C''"
     using  tr'_steps by (auto simp add: steps_append2 steps_appendFront)
 
-  hence C'_fails: "\<And>s. C' ~~ (s, AInvcheck txns False) \<leadsto> C'"  
+  hence C'_fails: "\<And>s. C' ~~ (s, AInvcheck False) \<leadsto> C'"  
     by (auto simp add: failPos_fail step_simps)
 
 
@@ -3746,7 +3729,7 @@ proof -
       and tr'''4: "\<forall>s a. (s, a) \<in> set tr''' \<longrightarrow> \<not> is_AInvcheck a"
     by blast
 
-  define tr4 where "tr4 = tr''' @ [(fst (last tr'''), AInvcheck txns False)]"
+  define tr4 where "tr4 = tr''' @ [(fst (last tr'''), AInvcheck False)]"
 
   from `packed_trace tr'''`
   have "packed_trace tr4"
@@ -3895,7 +3878,7 @@ proof -
     case AFail
     then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
   next
-    case (AInvcheck x91 x92)
+    case (AInvcheck r)
     then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
   qed
 qed
@@ -4070,7 +4053,7 @@ proof -
         case (fail C s ls)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (invCheck txns C res s)
+        case (invCheck C res s)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       qed
     qed
@@ -4200,10 +4183,10 @@ proof -
         case (fail C s ls)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (invCheck txns C res s)
-        have  "(invContextH (callOrigin C) ((transactionOrigin C)(t := None)) ((transactionStatus C)(t := None)) (happensBefore C) (calls C) (knownIds C) (invocationOp C)
-               (invocationRes C) (Some (callsInTransaction C txns \<down> happensBefore C)))
-          = invContextVis C (callsInTransaction C txns \<down> happensBefore C)"
+        case (invCheck C res s)
+        have  "invContextH (callOrigin C) ((transactionOrigin C)(t := None)) ((transactionStatus C)(t := None)) (happensBefore C) (calls C) (knownIds C) (invocationOp C)
+               (invocationRes C) 
+          = invContext C "
           using P_S `S = C`
           by (auto simp add: invContextH_def restrict_map_def p_def commitedCallsH_def  isCommittedH_def restrict_relation_def intro!: ext split: if_splits)
 
@@ -4484,7 +4467,7 @@ proof -
         case (fail C s ls)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (invCheck txns C res s)
+        case (invCheck C res s)
         have [simp]: "\<not>isCommitted C cId"
           using P_S commitedCalls_uncommitedNotIn invCheck.hyps(1) p_def
           by (simp add: isCommittedH_def) 
@@ -4499,12 +4482,10 @@ proof -
 
         have  "(invContextH ((callOrigin C)(cId := None)) (transactionOrigin C) (transactionStatus C) (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId}) ((calls C)(cId := None))
            (knownIds C) (invocationOp C) (invocationRes C)
-           (Some (callsInTransactionH ((callOrigin C)(cId := None)) txns \<down> (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId}))))
-          = invContextVis C (callsInTransaction C txns \<down> happensBefore C)"
+           )
+          = invContext C"
           using P_S `S = C`
-          apply (auto simp add: p_def invContextH_def restrict_map_def commitedCallsH_def restrict_relation_def downwardsClosure_def callsInTransactionH_def intro!: ext)
-          apply (metis a_step invCheck.hyps(2) option.inject preconditionI precondition_invcheck transactionStatus.distinct(1))
-          by (metis a_step invCheck.hyps(2) option.inject preconditionI precondition_invcheck transactionStatus.distinct(1))
+          by (auto simp add: p_def invContextH_def restrict_map_def commitedCallsH_def restrict_relation_def downwardsClosure_def callsInTransactionH_def intro!: ext)
 
 
         with invCheck
@@ -4613,7 +4594,7 @@ next
       apply (auto simp add: step  split: if_splits)
       done
   next
-    case (invCheck txns C res s)
+    case (invCheck C res s)
     then show ?case 
       using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
        apply (subst state_ext)
@@ -4639,22 +4620,22 @@ lemma transfer_execution_local_difference':
 
 
 definition no_invariant_checks_in_transaction where
-"no_invariant_checks_in_transaction tr \<equiv> \<forall>ib i s c tx txns txns'. 
+"no_invariant_checks_in_transaction tr \<equiv> \<forall>ib i s c tx txns. 
     tr!ib = (s, ABeginAtomic tx txns)
   \<and> ib < i
   \<and> i < length tr 
   \<and> (\<forall>j. ib<j \<and> j<i \<longrightarrow> tr!j \<noteq> (s, AEndAtomic))
-  \<longrightarrow> tr!i \<noteq> (s, AInvcheck txns' c) "
+  \<longrightarrow> tr!i \<noteq> (s, AInvcheck c) "
 
 lemma show_no_invariant_checks_in_transaction[case_names hasEndatomic[invcheck beginatomic beginBefore lessLength]]:
-  assumes "\<And>i s tx txns txns' c ib. \<lbrakk>tr!i = (s, AInvcheck txns' c); tr!ib = (s, ABeginAtomic tx txns); ib < i; i<length tr\<rbrakk>
+  assumes "\<And>i s tx txns c ib. \<lbrakk>tr!i = (s, AInvcheck c); tr!ib = (s, ABeginAtomic tx txns); ib < i; i<length tr\<rbrakk>
             \<Longrightarrow> \<exists>j. ib<j \<and> j<i \<and> tr!j = (s, AEndAtomic)"
   shows "no_invariant_checks_in_transaction tr"
   using assms by (auto simp add: no_invariant_checks_in_transaction_def, blast)
 
 lemma use_no_invariant_checks_in_transaction:
   assumes "no_invariant_checks_in_transaction tr"
-    and "tr!i = (s, AInvcheck txns' c)"
+    and "tr!i = (s, AInvcheck c)"
     and "tr!ib = (s, ABeginAtomic tx txns)"
     and "ib < i"
     and "i < length tr"
@@ -4676,8 +4657,8 @@ lemma maintain_no_invariant_checks_in_transaction:
     and "pos < length tr"
   shows "no_invariant_checks_in_transaction (take pos tr @ drop (Suc pos) tr)"
 proof (rule show_no_invariant_checks_in_transaction)
-  fix i s tx txns txns' c ib
-  assume a1: "(take pos tr @ drop (Suc pos) tr) ! i = (s, AInvcheck txns' c)"
+  fix i s tx txns c ib
+  assume a1: "(take pos tr @ drop (Suc pos) tr) ! i = (s, AInvcheck c)"
     and  a2: "(take pos tr @ drop (Suc pos) tr) ! ib = (s, ABeginAtomic tx txns)"
     and a3: "ib < i"
     and a4: "i < length (take pos tr @ drop (Suc pos) tr)"
@@ -4685,7 +4666,7 @@ proof (rule show_no_invariant_checks_in_transaction)
   define i' where "i' \<equiv> if i < pos then i else Suc i"
   define ib' where "ib' \<equiv> if ib < pos then ib else Suc ib"
 
-  have a1': "tr!i' = (s, AInvcheck txns' c)" 
+  have a1': "tr!i' = (s, AInvcheck c)" 
     using a1 i'_def `pos < length tr` a4 by (auto simp add: nth_append min_def split: if_splits)
 
   have a2': "tr!ib' = (s, ABeginAtomic tx txns)" 
@@ -4726,7 +4707,7 @@ qed
 
 
 definition
-"isNoInvCheck a \<equiv> case a of (s, AInvcheck tx txns) \<Rightarrow> False | _ \<Rightarrow> True"
+"isNoInvCheck a \<equiv> case a of (s, AInvcheck txns) \<Rightarrow> False | _ \<Rightarrow> True"
 
 definition 
 "removeInvChecks \<equiv> filter isNoInvCheck"
@@ -4765,10 +4746,10 @@ qed
 
 lemma removeInvChecks_no_invcheck:
   assumes "ia < length (removeInvChecks trace)"
-  shows "removeInvChecks trace ! ia \<noteq> (s, AInvcheck txns' c)"
+  shows "removeInvChecks trace ! ia \<noteq> (s, AInvcheck c)"
 proof 
-  assume "removeInvChecks trace ! ia = (s, AInvcheck txns' c)"
-  hence " (s, AInvcheck txns' c) \<in> set (removeInvChecks trace)"
+  assume "removeInvChecks trace ! ia = (s, AInvcheck c)"
+  hence " (s, AInvcheck c) \<in> set (removeInvChecks trace)"
     using assms
     using nth_mem by force 
   thus False
@@ -4782,7 +4763,7 @@ text {*
 *}
 theorem show_programCorrect_noTransactionInterleaving_no_passing_invchecks:
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; \<And>s txns. (s, AInvcheck txns True) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; \<And>s. (s, AInvcheck True) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving)
   fix trace :: "(invocation \<times> 'a action) list"
@@ -4796,10 +4777,10 @@ proof (rule show_programCorrect_noTransactionInterleaving)
     assume a: "\<not> traceCorrect trace"
 
     define isNotTrueInvcheck :: "(invocation \<times> 'a action) \<Rightarrow> bool"
-      where "isNotTrueInvcheck \<equiv> (\<lambda>a. case a of (s, AInvcheck txns True) \<Rightarrow> False | _\<Rightarrow> True)"
+      where "isNotTrueInvcheck \<equiv> (\<lambda>a. case a of (s, AInvcheck True) \<Rightarrow> False | _\<Rightarrow> True)"
     define trace' where "trace' \<equiv> filter isNotTrueInvcheck trace"
 
-    have isNotTrueInvcheck_simps: "isNotTrueInvcheck a \<longleftrightarrow> \<not>(\<exists>s txns. a = (s, AInvcheck txns True))" for a
+    have isNotTrueInvcheck_simps: "isNotTrueInvcheck a \<longleftrightarrow> \<not>(\<exists>s. a = (s, AInvcheck True))" for a
       by (auto simp add: isNotTrueInvcheck_def split: prod.splits action.splits)
 
     have "traceCorrect trace'"
@@ -4865,7 +4846,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
       show " \<And>s. (s, AFail) \<notin> set trace'"
         by (auto simp add: trace'_def nofail)
 
-      show "\<And>s txns. (s, AInvcheck txns True) \<notin> set trace'"
+      show "\<And>s. (s, AInvcheck True) \<notin> set trace'"
         by  (auto simp add: trace'_def isNotTrueInvcheck_def)
     qed
     hence "traceCorrect trace"
@@ -4880,16 +4861,16 @@ lemma move_invariant_checks_out_of_transactions:
   assumes "initialState program ~~ trace \<leadsto>* S"
     and "packed_trace trace"
     and "\<And>s. (s, AFail) \<notin> set trace"
-    and "\<And>s txns. (s, AInvcheck txns True) \<notin> set trace"
-    and "last trace = (s, AInvcheck txns False)"
+    and "\<And>s. (s, AInvcheck True) \<notin> set trace"
+    and "last trace = (s, AInvcheck False)"
     and "length trace > 0"
-    and "\<And>i s' txns'. i<length trace - 1 \<Longrightarrow> trace!i \<noteq> (s', AInvcheck txns' False)"
+    and "\<And>i s'. i<length trace - 1 \<Longrightarrow> trace!i \<noteq> (s', AInvcheck False)"
   shows "\<exists>trace' s'. 
           (\<exists>S'. initialState program ~~ trace' \<leadsto>* S')
         \<and> packed_trace trace'
         \<and> (\<forall>s. (s, AFail) \<notin> set trace')
-        \<and> (\<forall>s txns. (s, AInvcheck txns True) \<notin> set trace')
-        \<and> (last trace' = (s', AInvcheck txns False))
+        \<and> (\<forall>s. (s, AInvcheck True) \<notin> set trace')
+        \<and> (last trace' = (s', AInvcheck False))
         \<and> length trace' > 0
         \<and> (no_invariant_checks_in_transaction trace')"
   using assms proof (induct "length trace" arbitrary: trace s S rule: less_induct)
@@ -4902,18 +4883,18 @@ lemma move_invariant_checks_out_of_transactions:
   next
     case False
 
-    from this obtain ib i s' tx ib_txns txns' c 
+    from this obtain ib i s' tx ib_txns c 
       where ib1: "trace ! ib = (s', ABeginAtomic tx ib_txns)"
         and ib2: "ib < i"
         and "i < length trace"
         and noEndAtomic1: "\<forall>j. ib < j \<and> j < i \<longrightarrow> trace ! j \<noteq> (s', AEndAtomic)"
-        and "trace ! i = (s', AInvcheck txns' c)"
+        and "trace ! i = (s', AInvcheck c)"
       by (auto simp add: no_invariant_checks_in_transaction_def)
     hence i_def: "i = length trace - 1" 
       by (smt One_nat_def Suc_pred less.prems(4) less.prems(6) less.prems(7) less_Suc_eq nth_mem)
 
-    have [simp]: "s' = s" and [simp]: "txns' = txns"
-      using \<open>trace ! i = (s', AInvcheck txns' c)\<close> i_def last_conv_nth less.prems by (auto simp add: last_conv_nth)
+    have [simp]: "s' = s" 
+      using \<open>trace ! i = (s', AInvcheck c)\<close> i_def last_conv_nth less.prems by (auto simp add: last_conv_nth)
 
 
 
@@ -4922,7 +4903,7 @@ lemma move_invariant_checks_out_of_transactions:
     from noEndAtomic1
     have noEndAtomic: "trace ! j \<noteq> (s, AEndAtomic)" if "ib\<le>j" and "j<length trace" for j
       using that
-      by (metis One_nat_def Pair_inject Suc_pred \<open>s' = s\<close> \<open>trace ! i = (s', AInvcheck txns' c)\<close> action.distinct(31) action.distinct(51) i_def ib1 le_eq_less_or_eq less.prems(6) less_antisym)
+      by (metis One_nat_def Pair_inject Suc_pred \<open>s' = s\<close> \<open>trace ! i = (s', AInvcheck c)\<close> action.distinct(31) action.distinct(51) i_def ib1 le_eq_less_or_eq less.prems(6) less_antisym)
 
 
     (* Let action a be the action before the invariant check.
@@ -4954,21 +4935,19 @@ lemma move_invariant_checks_out_of_transactions:
     thm less
 
     from step_inv 
-    have step_inv': "S2 ~~ (s, AInvcheck txns False) \<leadsto> S"
-      by (auto simp add: `last trace = (s, AInvcheck txns False)`)
+    have step_inv': "S2 ~~ (s, AInvcheck False) \<leadsto> S"
+      by (auto simp add: `last trace = (s, AInvcheck False)`)
 
-    from `S2 ~~ (s, AInvcheck txns False) \<leadsto> S`
-    have txns_committed_S2: "txns \<subseteq> commitedTransactions S2"
-      and invariant_fail_S2[simp]: "\<not> invariant (prog S2) (invContextVis S2 (callsInTransaction S2 txns \<down> happensBefore S2))"
-      by (auto simp add: step_simps)
+    have invariant_fail_S2[simp]: "\<not> invariant (prog S2) (invContext S2)"
+      using step_elim_AInvcheck step_inv' by blast
 
     have "fst (trace!(length trace -1)) = s"
-      using \<open>trace ! i = (s', AInvcheck txns' c)\<close> i_def by auto
+      using \<open>trace ! i = (s', AInvcheck  c)\<close> i_def by auto
 
     with `packed_trace trace`
     have "fst (trace!(length trace -2)) = s" 
       apply (auto simp add: packed_trace_def allowed_context_switch_def)
-      by (metis One_nat_def Suc_le_lessD \<open>2 \<le> length trace\<close> \<open>i < length trace\<close> \<open>trace ! i = (s', AInvcheck txns' c)\<close> allowed_context_switch_simps(9) diff_Suc_eq_diff_pred i_def less.prems(2) numeral_2_eq_2 snd_conv use_packed_trace zero_less_diff)
+      by (metis One_nat_def Suc_le_lessD \<open>2 \<le> length trace\<close> \<open>i < length trace\<close> \<open>trace ! i = (s', AInvcheck c)\<close> allowed_context_switch_simps(9) diff_Suc_eq_diff_pred i_def less.prems(2) numeral_2_eq_2 snd_conv use_packed_trace zero_less_diff)
 
     from this obtain action 
       where action_def: "trace!(length trace -2) = (s, action)"
@@ -5008,16 +4987,16 @@ lemma move_invariant_checks_out_of_transactions:
       have ls_none: "localState S1 s \<noteq> None"
         using inTransaction_localState by blast 
 
-      have "S1 ~~ (s, AInvcheck txns False) \<leadsto> S1"
+      have "S1 ~~ (s, AInvcheck False) \<leadsto> S1"
       proof (cases action)
         case ALocal
         then show ?thesis
-          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2` txns_committed_S2 apply (auto simp add: step_simps)
-          using invariant_fail_S2 by auto
+          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2`  apply (auto simp add: step_simps)
+          using step_elim_AInvcheck step_inv' by fastforce
       next
         case (ANewId x2)
         then show ?thesis
-          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2` txns_committed_S2 apply (auto simp add: step_simps)
+          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2`  apply (auto simp add: step_simps)
           using invariant_fail_S2 by auto
       next
         case (ABeginAtomic x31 x32)
@@ -5030,17 +5009,17 @@ lemma move_invariant_checks_out_of_transactions:
       next
         case (ADbOp x51 x52 x53 x54)
         then show ?thesis 
-          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2` txns_committed_S2 apply (auto simp add: step_simps ls_none)
+          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2` apply (auto simp add: step_simps ls_none)
           using [[smt_solver=cvc4]]
           by (smt Suc_1 Suc_diff_Suc Suc_le_lessD \<open>2 \<le> length trace\<close> \<open>S1 ~~ (s, action) \<leadsto> S2\<close> action_def diff_less eq_iff ib2 invContextSnapshot_same less.prems(5) less_Suc_eq less_imp_le local.wf noEndAtomic preconditionI precondition_invcheck prog_inv step_inv wellFormed_currentTransactionUncommited zero_less_Suc)
       next
         case (AInvoc x61 x62)
         then show ?thesis 
-          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2` txns_committed_S2 by (auto simp add: step_simps ls_none)
+          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2`  by (auto simp add: step_simps ls_none)
       next
         case (AReturn x7)
         then show ?thesis 
-          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2` txns_committed_S2 by (auto simp add: step_simps ls_none currentTx)
+          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2`  by (auto simp add: step_simps ls_none currentTx)
       next
         case AFail
         then show ?thesis

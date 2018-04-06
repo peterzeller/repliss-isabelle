@@ -70,7 +70,6 @@ record 'any operationContext =
   happensBefore :: "callId rel"
 
 record 'any invariantContext = "'any operationContext" +
-  i_visibleCalls :: "callId set"
   i_callOrigin :: "callId \<rightharpoonup> txid"
   i_transactionOrigin :: "txid \<rightharpoonup> invocation"
   i_knownIds :: "'any set"
@@ -200,7 +199,6 @@ abbreviation
 abbreviation "emptyInvariantContext \<equiv> \<lparr>
         calls = empty,
         happensBefore = {},
-        i_visibleCalls = {},
         i_callOrigin  = empty,
         i_transactionOrigin = empty,
         i_knownIds = {},
@@ -222,10 +220,9 @@ abbreviation commitedCalls :: "('localState, 'any) state \<Rightarrow> callId se
 
 definition invContextH  where
   "invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-   state_calls state_knownIds state_invocationOp state_invocationRes vis = \<lparr>
+   state_calls state_knownIds state_invocationOp state_invocationRes = \<lparr>
         calls = state_calls |` commitedCallsH state_callOrigin state_transactionStatus , 
         happensBefore = state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus , 
-        i_visibleCalls = (case vis of None \<Rightarrow> {} | Some vis \<Rightarrow> vis),
         i_callOrigin  = state_callOrigin |` commitedCallsH state_callOrigin state_transactionStatus,
         i_transactionOrigin = state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Commited},
         i_knownIds = state_knownIds,
@@ -236,56 +233,51 @@ definition invContextH  where
 
 lemma invContextH_calls[simp]:
 "calls (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_calls |` commitedCallsH state_callOrigin state_transactionStatus"
   by (auto simp add: invContextH_def)
 
 
 lemma invContextH_happensBefore[simp]:
 "happensBefore (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+      state_calls state_knownIds state_invocationOp state_invocationRes) 
 = state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus "
   by (auto simp add: invContextH_def)
 
-lemma invContextH_i_visibleCalls[simp]:
-"i_visibleCalls (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
-= (case vis of None \<Rightarrow> {} | Some vis \<Rightarrow> vis)"
-  by (auto simp add: invContextH_def)
 
 lemma invContextH_i_callOrigin[simp]:
 "i_callOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_callOrigin |` commitedCallsH state_callOrigin state_transactionStatus"
 by (auto simp add: invContextH_def)
 
 lemma invContextH_i_transactionOrigin[simp]:
 "i_transactionOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Commited}"
   by (auto simp add: invContextH_def)
 
 lemma invContextH_i_knownIds[simp]:
 "i_knownIds (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_knownIds"
   by (auto simp add: invContextH_def)
 
 lemma invContextH_i_invocationOp[simp]:
 "i_invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_invocationOp"
 by (auto simp add: invContextH_def)
 
 
 lemma invContextH_i_invocationRes[simp]:
 "i_invocationRes (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes vis) 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_invocationRes"
 by (auto simp add: invContextH_def)
 
 abbreviation invContext where
-  "invContext state s \<equiv>
+  "invContext state \<equiv>
   invContextH
   (callOrigin state)
   (transactionOrigin state)
@@ -294,21 +286,8 @@ abbreviation invContext where
   (calls state)
   (knownIds state)
   (invocationOp state)
-  (invocationRes state)
-  (visibleCalls state s)"
+  (invocationRes state)"
 
-abbreviation invContextVis where
-  "invContextVis state vis \<equiv>
-  invContextH
-  (callOrigin state)
-  (transactionOrigin state)
-  (transactionStatus state)
-  (happensBefore state)
-  (calls state)
-  (knownIds state)
-  (invocationOp state)
-  (invocationRes state)
-  (Some vis)"
 
 definition callsInTransactionH :: "(callId \<rightharpoonup> txid) \<Rightarrow> txid set \<Rightarrow> callId set" where
   "callsInTransactionH origins txns  \<equiv> {c. \<exists>txn\<in>txns. origins c \<triangleq> txn }"
@@ -320,27 +299,14 @@ lemma callsInTransactionH_contains:
 abbreviation 
   "callsInTransaction S txns \<equiv> callsInTransactionH (callOrigin S) txns"  
 
-abbreviation invContextSnapshot where
-  "invContextSnapshot state txns \<equiv>
-  invContextH
-  (callOrigin state)
-  (transactionOrigin state)
-  (transactionStatus state)
-  (happensBefore state)
-  (calls state)
-  (knownIds state)
-  (invocationOp state)
-  (invocationRes state)
-  (Some (callsInTransaction state txns \<down> happensBefore state))"  
 
 lemma invContextSnapshot_eq:
   assumes "c_calls = commitedCallsH (callOrigin state) (transactionStatus state)"
     and "c_txns = {t. transactionStatus state t \<triangleq> Commited}"
   shows
-    "invContextSnapshot state snapshot =  \<lparr>
+    "invContext state =  \<lparr>
         calls = calls state |` c_calls , 
         happensBefore = happensBefore state |r c_calls , 
-        i_visibleCalls = callsInTransaction state snapshot \<down> happensBefore state,
         i_callOrigin  = callOrigin state |` c_calls,
         i_transactionOrigin = transactionOrigin state |` c_txns,
         i_knownIds = knownIds state,
@@ -353,7 +319,6 @@ lemma invContextSnapshot_eq:
 lemma invariantContext_eqI: "\<lbrakk>
 calls x = calls y;
 happensBefore x = happensBefore y;
-i_visibleCalls x = i_visibleCalls y;
 i_callOrigin x = i_callOrigin y;
 i_transactionOrigin x = i_transactionOrigin y;
 i_knownIds x = i_knownIds y;
@@ -439,10 +404,10 @@ datatype 'any action =
   | AInvoc procedureName "'any list"
   | AReturn 'any
   | AFail  
-  | AInvcheck "txid set" bool
+  | AInvcheck bool
 
 
-definition "is_AInvcheck a \<equiv> \<exists>txns r. a = AInvcheck txns r"
+definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 
 inductive step :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
@@ -523,9 +488,8 @@ inductive step :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 
                  currentProc := (currentProc C)(s := None),
                  visibleCalls := (visibleCalls C)(s := None) \<rparr>)"                  
 | invCheck: (* checks a snapshot*)
-  "\<lbrakk>txns \<subseteq> commitedTransactions C;
-   invariant (prog C) (invContextSnapshot C txns) = res
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck txns res) \<leadsto> C"   
+  "\<lbrakk>invariant (prog C) (invContext C) = res
+   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto> C"   
 
 inductive_simps step_simp_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
 inductive_simps step_simp_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
@@ -535,7 +499,7 @@ inductive_simps step_simp_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
 inductive_simps step_simp_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
 inductive_simps step_simp_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_simps step_simp_AFail: "A ~~ (s, AFail) \<leadsto> B "
-inductive_simps step_simp_AInvcheck: "A ~~ (s, AInvcheck txns res) \<leadsto> B "
+inductive_simps step_simp_AInvcheck: "A ~~ (s, AInvcheck res) \<leadsto> B "
 inductive_simps step_simps_all: "A ~~ b \<leadsto> B "
 
 lemmas step_simps = 
@@ -557,7 +521,7 @@ inductive_cases step_elim_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
 inductive_cases step_elim_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
 inductive_cases step_elim_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_cases step_elim_AFail: "A ~~ (s, AFail) \<leadsto> B "
-inductive_cases step_elim_AInvcheck: "A ~~ (s, AInvcheck t i) \<leadsto> B "
+inductive_cases step_elim_AInvcheck: "A ~~ (s, AInvcheck i) \<leadsto> B "
 inductive_cases step_elim_general: "A ~~ (s, a) \<leadsto> B "
 
 lemmas step_elims = 
@@ -627,7 +591,7 @@ definition traces where
   "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
 
 definition traceCorrect where
-  "traceCorrect trace \<equiv> (\<forall>s txns. (s, AInvcheck txns False) \<notin> set trace)"
+  "traceCorrect trace \<equiv> (\<forall>s. (s, AInvcheck False) \<notin> set trace)"
 
 definition programCorrect where
   "programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"
