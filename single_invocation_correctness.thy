@@ -639,7 +639,11 @@ next
       case (beginAtomic ls f ls' t txns)
       then show ?thesis using initS_correct 
         apply (auto simp add: checkCorrect_simps )
-        using `transactionStatus S_fin t \<triangleq> Uncommited` by blast
+        apply (drule_tac x=t in spec)
+        apply (drule_tac x=S_fin in spec)
+        using `transactionStatus S_fin t \<triangleq> Uncommited`
+        by (auto split: localAction.splits if_splits)
+
     next
       case (endAtomic ls f ls' t valid)
       then show ?thesis using initS_correct
@@ -668,6 +672,35 @@ qed
 lemma "\<lbrakk>\<not>P; P\<rbrakk> \<Longrightarrow> False"
   by simp
 
+record blub = a :: int 
+b :: int
+
+
+lemma show_exists_state:
+  fixes P :: "('a,'b) state \<Rightarrow> bool"
+  assumes "\<exists>callOrigin transactionOrigin knownIds invocationOp invocationRes prog callOrigin transactionOrigin
+   generatedIds knownIds invocationOp invocationRes transactionStatus
+localState currentProc visibleCalls currentTransaction. P \<lparr>
+ i_callOrigin = callOrigin,
+  i_transactionOrigin = transactionOrigin,
+  i_knownIds = knownIds,
+  i_invocationOp  = invocationOp,
+  i_invocationRes = invocationRes,
+  prog = prog,
+  callOrigin  = callOrigin,
+  transactionOrigin  = transactionOrigin,
+  generatedIds  = generatedIds,
+  knownIds  = knownIds,
+  invocationOp  =invocationOp,
+  invocationRes =invocationRes,
+  transactionStatus  =transactionStatus,
+  localState  =localState,
+  currentProc  =currentProc,
+  visibleCalls  =visibleCalls,
+  currentTransaction  = currentTransaction
+ \<rparr>"
+  shows "\<exists>S. P S"
+  using assms by auto
 
 lemma show_program_correct_single_invocation:
   assumes initialCorrect: "\<And>S i. S\<in>initialStates program i \<Longrightarrow> invariant_all S "
@@ -703,10 +736,28 @@ proof (auto simp add: programCorrect_s_def)
     obtain p args invInitial where a_def: "a = (AInvoc p args, invInitial)"
       by (cases a, auto simp add: trace_def isAInvoc_def split: action.splits)
 
+    from initialCorrect[where i=i]
+    have initialCorrect': "invariant progr (invContext S)" if "S \<in> initialStates program i" and "progr = prog S" for S progr
+      using that by blast
+
+
+    have "invariant_all S_init"
+    proof (rule initialCorrect[where i=i])
+      show "S_init \<in> initialStates program i"
+        using step1 and a_def apply (auto simp add: step_s.simps initialStates_def )
+        using [[show_types]] thm show_exists_state
+        apply (rule show_exists_state)
+         apply (auto simp add: state_ext)
+        apply 
+
+      sorry
 
     from step1 and a_def
     have "invInitial"
       apply (auto simp add: step_s.simps)
+      thm initialCorrect[where i=i]
+      apply (erule notE) back 
+
       apply (erule notE, rule initialCorrect[where i=i])
       apply (auto simp add: initialStates_def )
       by (rule_tac x="C'" in exI, auto simp add: initialState_def)

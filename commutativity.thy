@@ -5007,11 +5007,39 @@ lemma move_invariant_checks_out_of_transactions:
         then show ?thesis
           using action_def ib2 noEndAtomic by auto 
       next
-        case (ADbOp x51 x52 x53 x54)
-        then show ?thesis 
-          using invariant_fail_S2 `S1 ~~ (s, action) \<leadsto> S2` apply (auto simp add: step_simps ls_none)
-          using [[smt_solver=cvc4]]
-          by (smt Suc_1 Suc_diff_Suc Suc_le_lessD \<open>2 \<le> length trace\<close> \<open>S1 ~~ (s, action) \<leadsto> S2\<close> action_def diff_less eq_iff ib2 invContextSnapshot_same less.prems(5) less_Suc_eq less_imp_le local.wf noEndAtomic preconditionI precondition_invcheck prog_inv step_inv wellFormed_currentTransactionUncommited zero_less_Suc)
+        case (ADbOp cId proc args res)
+
+        obtain tx where currentTransaction: "currentTransaction S1 s \<triangleq> tx"
+          using `S1 ~~ (s, action) \<leadsto> S2` ADbOp
+          apply (auto simp add:  step_simps)
+          done
+        hence uncommitted: "transactionStatus S1 tx \<triangleq> Uncommited"
+          using local.wf by auto
+
+        have "calls S1 cId = None"
+          using `S1 ~~ (s, action) \<leadsto> S2` ADbOp
+          by (auto simp add:  step_simps)
+        hence "callOrigin S1 cId = None"
+          by (simp add: local.wf)
+
+
+        have "commitedCalls S2 = commitedCalls S1" 
+          using `S1 ~~ (s, action) \<leadsto> S2` ADbOp
+          by (auto simp add:  step_simps ls_none commitedCallsH_def isCommittedH_def currentTransaction uncommitted `callOrigin S1 cId = None` split: if_splits)
+
+        have "invContext S2 = invContext S1 "
+          apply (auto simp add: invContextH_def `commitedCalls S2 = commitedCalls S1`)
+          using `S1 ~~ (s, action) \<leadsto> S2` ADbOp
+                  apply (auto simp add: invContextH_def step_simps ls_none )
+           using \<open>callOrigin S1 cId = None\<close> noOrigin_notCommited  by (auto simp add: restrict_map_def restrict_relation_def )
+
+
+         with invariant_fail_S2
+         have "\<not> invariant (prog S1) (invContext S1)"
+           using \<open>S1 ~~ (s, action) \<leadsto> S2\<close> prog_inv by force
+
+         thus ?thesis 
+          using invariant_fail_S2 ADbOp `S1 ~~ (s, action) \<leadsto> S2` by (auto simp add: step_simps ls_none)
       next
         case (AInvoc x61 x62)
         then show ?thesis 
@@ -5025,21 +5053,21 @@ lemma move_invariant_checks_out_of_transactions:
         then show ?thesis
           by (metis action_def diff_less less.prems(3) less.prems(6) nth_mem zero_less_numeral)
       next
-        case (AInvcheck x91 x92)
+        case (AInvcheck r)
         then show ?thesis 
           by (metis (full_types) Suc_1 Suc_diff_Suc Suc_le_lessD \<open>2 \<le> length trace\<close> action_def diff_less less.prems(4) less.prems(6) less.prems(7) lessI nth_mem zero_less_numeral)
       qed
       show ?thesis
       proof (rule less.hyps) (* USE induction hypothesis*)
-        from `S1 ~~ (s, AInvcheck txns False) \<leadsto> S1`
-        show " initialState program ~~ take (length trace - 2) trace @ [(s, AInvcheck txns False)] \<leadsto>* S1"
+        from `S1 ~~ (s, AInvcheck False) \<leadsto> S1`
+        show " initialState program ~~ take (length trace - 2) trace @ [(s, AInvcheck False)] \<leadsto>* S1"
           using steps_S1 steps_step by blast
 
         have no_ctxt_switch: "\<not>allowed_context_switch (snd (trace!(length trace -2)))"
           using `S1 ~~ trace ! (length trace - 2) \<leadsto> S2`
           using action_def currentTx ls_none by (auto simp add: step.simps)
 
-        show "packed_trace (take (length trace - 2) trace @ [(s, AInvcheck txns False)])"
+        show "packed_trace (take (length trace - 2) trace @ [(s, AInvcheck False)])"
           apply (auto simp add: packed_trace_def nth_append min_def not_less)
            apply (simp add: less.prems(2) use_packed_trace)
           find_theorems "\<not> _ < _"
@@ -5049,27 +5077,27 @@ lemma move_invariant_checks_out_of_transactions:
           using use_packed_trace[OF `packed_trace trace`, where i="length trace - 2"]
           apply auto
           using no_ctxt_switch by linarith
-        show "0 < length (take (length trace - 2) trace @ [(s, AInvcheck txns False)])"
+        show "0 < length (take (length trace - 2) trace @ [(s, AInvcheck False)])"
           by simp
 
 
 
-        show "\<And>s' txnsa. (s', AInvcheck txnsa True) \<notin> set (take (length trace - 2) trace @ [(s, AInvcheck txns False)])"
+        show "\<And>s'. (s', AInvcheck True) \<notin> set (take (length trace - 2) trace @ [(s, AInvcheck False)])"
           apply auto
           by (meson in_set_takeD less.prems(4))
 
-        show "\<And>s'. (s', AFail) \<notin> set (take (length trace - 2) trace @ [(s, AInvcheck txns False)])"
+        show "\<And>s'. (s', AFail) \<notin> set (take (length trace - 2) trace @ [(s, AInvcheck False)])"
           apply auto
           by (meson in_set_takeD less.prems(3))
 
-        show "last (take (length trace - 2) trace @ [(s, AInvcheck txns False)]) = (s, AInvcheck txns False)"
+        show "last (take (length trace - 2) trace @ [(s, AInvcheck False)]) = (s, AInvcheck False)"
           by simp
 
-        show "length (take (length trace - 2) trace @ [(s, AInvcheck txns False)]) < length trace"
+        show "length (take (length trace - 2) trace @ [(s, AInvcheck False)]) < length trace"
           by (metis add_Suc_right length_Cons length_append lessI trace_split)
-        show "\<And>i s' txns'.
-       i < length (take (length trace - 2) trace @ [(s, AInvcheck txns False)]) - 1 \<Longrightarrow>
-       (take (length trace - 2) trace @ [(s, AInvcheck txns False)]) ! i \<noteq> (s', AInvcheck txns' False)"
+        show "\<And>i s'.
+       i < length (take (length trace - 2) trace @ [(s, AInvcheck False)]) - 1 \<Longrightarrow>
+       (take (length trace - 2) trace @ [(s, AInvcheck False)]) ! i \<noteq> (s', AInvcheck False)"
           by (auto simp add: nth_append less.prems)
       qed
 
@@ -5081,13 +5109,11 @@ lemma move_invariant_checks_out_of_transactions:
       hence "action = ABeginAtomic tx ib_txns"
         using action_def ib1 by auto
       with  `S1 ~~ (s, action) \<leadsto> S2`
-      have "(invContextVis S1 (callsInTransaction S1 txns \<down> happensBefore S1))
-         = (invContextVis S2 (callsInTransaction S2 txns \<down> happensBefore S2))"
+      have "invContext S1 = invContext S2"
         using invariant_fail_S2 by (auto simp add: step_simps invContextH_def restrict_map_def)
       with `S1 ~~ (s, action) \<leadsto> S2` and `action = ABeginAtomic tx ib_txns`
-      have "S1 ~~ (s', AInvcheck txns False) \<leadsto> S1" for s'
-        using invariant_fail_S2 apply (auto simp add: step_simps)
-        using \<open>S1 ~~ (s, action) \<leadsto> S2\<close> committed_same txns_committed_S2 apply blast
+      have "S1 ~~ (s', AInvcheck False) \<leadsto> S1" for s'
+        apply (auto simp add: step_simps )
         using invariant_fail_S2 apply auto
         done
 
@@ -5095,35 +5121,35 @@ lemma move_invariant_checks_out_of_transactions:
 
       show ?thesis
       proof (rule less.hyps) (* USE induction hypothesis*)
-        from `S1 ~~ (new_s, AInvcheck txns False) \<leadsto> S1`
-        show " initialState program ~~ take (length trace - 2) trace @ [(new_s, AInvcheck txns False)] \<leadsto>* S1"
+        from `S1 ~~ (new_s, AInvcheck False) \<leadsto> S1`
+        show " initialState program ~~ take (length trace - 2) trace @ [(new_s, AInvcheck False)] \<leadsto>* S1"
           using steps_S1 steps_step by blast
 
 
-        show "packed_trace (take (length trace - 2) trace @ [(new_s, AInvcheck txns False)])"
+        show "packed_trace (take (length trace - 2) trace @ [(new_s, AInvcheck False)])"
           apply (auto simp add: packed_trace_def nth_append min_def not_less new_s_def)
            apply (simp add: less.prems(2) use_packed_trace)
           by (metis One_nat_def diff_Suc_eq_diff_pred le_less_Suc_eq numeral_2_eq_2 numeral_3_eq_3)
 
-        show "0 < length (take (length trace - 2) trace @ [(new_s, AInvcheck txns False)])"
+        show "0 < length (take (length trace - 2) trace @ [(new_s, AInvcheck False)])"
           by simp
 
-        show "\<And>s' txnsa. (s', AInvcheck txnsa True) \<notin> set (take (length trace - 2) trace @ [(new_s, AInvcheck txns False)])"
+        show "\<And>s'. (s', AInvcheck True) \<notin> set (take (length trace - 2) trace @ [(new_s, AInvcheck False)])"
           apply auto
           by (meson in_set_takeD less.prems(4))
 
-        show "\<And>s'. (s', AFail) \<notin> set (take (length trace - 2) trace @ [(new_s, AInvcheck txns False)])"
+        show "\<And>s'. (s', AFail) \<notin> set (take (length trace - 2) trace @ [(new_s, AInvcheck False)])"
           apply auto
           by (meson in_set_takeD less.prems(3))
 
-        show "last (take (length trace - 2) trace @ [(new_s, AInvcheck txns False)]) = (new_s, AInvcheck txns False)"
+        show "last (take (length trace - 2) trace @ [(new_s, AInvcheck False)]) = (new_s, AInvcheck False)"
           by simp
 
-        show "length (take (length trace - 2) trace @ [(new_s, AInvcheck txns False)]) < length trace"
+        show "length (take (length trace - 2) trace @ [(new_s, AInvcheck False)]) < length trace"
           by (metis add_Suc_right length_Cons length_append lessI trace_split)
-        show "\<And>i s' txns'.
-       i < length (take (length trace - 2) trace @ [(new_s, AInvcheck txns False)]) - 1 \<Longrightarrow>
-       (take (length trace - 2) trace @ [(new_s, AInvcheck txns False)]) ! i \<noteq> (s', AInvcheck txns' False)"
+        show "\<And>i s'.
+       i < length (take (length trace - 2) trace @ [(new_s, AInvcheck False)]) - 1 \<Longrightarrow>
+       (take (length trace - 2) trace @ [(new_s, AInvcheck False)]) ! i \<noteq> (s', AInvcheck False)"
           by (auto simp add: nth_append less.prems)
       qed
     qed
@@ -5145,7 +5171,7 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
   assume steps: "initialState program ~~ trace \<leadsto>* S"
     and packed: "packed_trace trace" 
     and nofail: "\<And>s. (s, AFail) \<notin> set trace"
-    and noTrueInvs: "\<And>s txns. (s, AInvcheck txns True) \<notin> set trace"
+    and noTrueInvs: "\<And>s. (s, AInvcheck True) \<notin> set trace"
 
 
 
@@ -5155,16 +5181,16 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
 
     (* get the first failing invariant check *)
     obtain i 
-      where i1: "\<exists>s txns. trace ! i = (s, AInvcheck txns False)"
+      where i1: "\<exists>s. trace ! i = (s, AInvcheck False)"
         and i2: "i < length trace"
-        and i_min: "\<forall>i'. (\<exists> s' txns'. trace ! i' = (s', AInvcheck txns' False)) \<and> i' < length trace \<longrightarrow> i\<le>i'"
+        and i_min: "\<forall>i'. (\<exists> s'. trace ! i' = (s', AInvcheck False)) \<and> i' < length trace \<longrightarrow> i\<le>i'"
       apply atomize_elim
-      apply (rule_tac x="LEAST i'. (\<exists>s' txns'. trace ! i' = (s', AInvcheck txns' False)) \<and> i' < length trace" in exI)
+      apply (rule_tac x="LEAST i'. (\<exists>s'. trace ! i' = (s', AInvcheck False)) \<and> i' < length trace" in exI)
       apply (rule LeastI2_wellorder_ex)
       using a by (auto simp add: traceCorrect_def in_set_conv_nth)
 
     from i1
-    obtain s txns where i1': "trace ! i = (s, AInvcheck txns False)"
+    obtain s where i1': "trace ! i = (s, AInvcheck False)"
       by blast
 
 
@@ -5191,11 +5217,11 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
           apply (auto simp add: trace'_def)
           by (metis append_take_drop_id isPrefix_appendI packed prefixes_are_packed)
         show "\<And>s. (s, AFail) \<notin> set trace'"
-          using nofail  \<open>\<exists>s txns. trace ! i = (s, AInvcheck txns False)\<close> by (auto simp add: trace'_def removeInvChecks_def isNoInvCheck_def dest: in_set_takeD in_set_dropD)
+          using nofail  \<open>\<exists>s. trace ! i = (s, AInvcheck False)\<close> by (auto simp add: trace'_def removeInvChecks_def isNoInvCheck_def dest: in_set_takeD in_set_dropD)
         show "no_invariant_checks_in_transaction trace'"
         proof (induct rule: show_no_invariant_checks_in_transaction)
-          case (hasEndatomic i' s2 tx txns txns' c ib)
-          from `trace' ! i' = (s2, AInvcheck txns' c)`
+          case (hasEndatomic i' s2 tx txns c ib)
+          from `trace' ! i' = (s2, AInvcheck c)`
           have "i' = i"
             apply (auto simp add: trace'_def nth_append removeInvChecks_no_invcheck nth_Cons' split: if_splits)
             by (smt Suc_leI append_take_drop_id hasEndatomic.lessLength i2 i_min le_less_Suc_eq length_take less_trans min.absorb2 noTrueInvs not_less_less_Suc_eq nth_append_first nth_mem trace'_def)
@@ -5244,7 +5270,7 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
       find_theorems "trace!i"
 
       define s'' where "s'' = fst (trace ! (ib -1))"
-      define trace' where "trace' \<equiv> take ib trace @ [(s'', AInvcheck txns False)]"
+      define trace' where "trace' \<equiv> take ib trace @ [(s'', AInvcheck False)]"
 
       have trace_split3: "trace = take (Suc i) trace  @ drop (Suc i) trace"
         using `ib < i` \<open>i < length trace\<close>  id_take_nth_drop by simp  
@@ -5260,19 +5286,19 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
       have "\<exists>trace' s'. (\<exists>S'. initialState program ~~ trace' \<leadsto>* S') \<and>
                   packed_trace trace' \<and>
                   (\<forall>s. (s, AFail) \<notin> set trace') \<and>
-                  (\<forall>s txns. (s, AInvcheck txns True) \<notin> set trace') \<and> last trace' = (s', AInvcheck txns False) \<and> 0 < length trace' \<and> no_invariant_checks_in_transaction trace'"
+                  (\<forall>s. (s, AInvcheck True) \<notin> set trace') \<and> last trace' = (s', AInvcheck False) \<and> 0 < length trace' \<and> no_invariant_checks_in_transaction trace'"
       proof (rule  move_invariant_checks_out_of_transactions[OF steps_Si])
         show "packed_trace (take (Suc i) trace)"
           by (metis isPrefix_appendI packed prefixes_are_packed trace_split3)
         show "\<And>s. (s, AFail) \<notin> set (take (Suc i) trace)"
           by (meson in_set_takeD nofail)
-        show "\<And>s txns. (s, AInvcheck txns True) \<notin> set (take (Suc i) trace)"
+        show "\<And>s. (s, AInvcheck True) \<notin> set (take (Suc i) trace)"
           by (meson in_set_takeD noTrueInvs)
-        show "last (take (Suc i) trace) = (s, AInvcheck txns False)"
+        show "last (take (Suc i) trace) = (s, AInvcheck False)"
           by (simp add: i1' i2 take_Suc_conv_app_nth)
         show "0 < length (take (Suc i) trace)"
           using gr_implies_not_zero i2 by auto
-        show "\<And>ia s' txns'. ia < length (take (Suc i) trace) - 1 \<Longrightarrow> take (Suc i) trace ! ia \<noteq> (s', AInvcheck txns' False)"
+        show "\<And>ia s' . ia < length (take (Suc i) trace) - 1 \<Longrightarrow> take (Suc i) trace ! ia \<noteq> (s', AInvcheck False)"
           using i_min by fastforce
       qed
 
@@ -5605,7 +5631,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
             then show ?thesis
               using \<open>pos < length trace'\<close> `\<And>s. (s, AFail) \<notin> set trace'` nth_mem by fastforce
           next
-            case (AInvcheck x91 x92)
+            case (AInvcheck x92)
             hence "S_pos2 = S_pos"
               using S_pos_step by (auto simp add: step.simps)
             with `S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end` 
@@ -5642,7 +5668,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
         qed
 
 (* because no inv-checks in transaction *)
-      have removedNoInvCheck: "snd (trace'!pos) \<noteq> AInvcheck txns v" for txns v
+      have removedNoInvCheck: "snd (trace'!pos) \<noteq> AInvcheck v" for v
         find_theorems trace'
         using `no_invariant_checks_in_transaction trace'`
         apply (auto simp add: no_invariant_checks_in_transaction_def)
@@ -5652,37 +5678,37 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 
       show "traceCorrect trace'"
       proof (auto simp add: traceCorrect_def newTrace_def in_set_conv_nth)
-        fix s txns i
-        assume  "i < length trace'" and "trace' ! i = (s, AInvcheck txns False)"
+        fix s i
+        assume  "i < length trace'" and "trace' ! i = (s, AInvcheck False)"
 
         {
           assume "i<pos"
-          hence "newTrace ! i \<noteq> (s, AInvcheck txns False)"
+          hence "newTrace ! i \<noteq> (s, AInvcheck False)"
             using `traceCorrect newTrace` apply (auto simp add: traceCorrect_def in_set_conv_nth)
             using \<open>pos < length trace'\<close> newTrace_def by auto
-          hence "trace' ! i \<noteq> (s, AInvcheck txns False)"
+          hence "trace' ! i \<noteq> (s, AInvcheck False)"
             using \<open>i < pos\<close> \<open>pos < length trace'\<close> newTraceIth newTraceLen by force
         }
         moreover
         {
           assume "i = pos"
-          hence "newTrace ! i \<noteq> (s, AInvcheck txns False)"
-            using \<open>trace' ! i = (s, AInvcheck txns False)\<close> removedNoInvCheck by auto
-          hence "trace' ! i \<noteq> (s, AInvcheck txns False)"
+          hence "newTrace ! i \<noteq> (s, AInvcheck False)"
+            using \<open>trace' ! i = (s, AInvcheck False)\<close> removedNoInvCheck by auto
+          hence "trace' ! i \<noteq> (s, AInvcheck False)"
             using \<open>i = pos\<close> removedNoInvCheck by fastforce
         }
         moreover
         {
           assume "i>pos"
-          hence "newTrace ! i \<noteq> (s, AInvcheck txns False)"
-            by (smt Suc_leI Suc_less_SucD \<open>i < length trace'\<close> \<open>trace' ! i = (s, AInvcheck txns False)\<close> \<open>traceCorrect newTrace\<close> diff_Suc_1 in_set_conv_nth leD less_imp_Suc_add newTraceIth newTraceLen traceCorrect_def)
-          hence "trace' ! i \<noteq> (s, AInvcheck txns False)"
+          hence "newTrace ! i \<noteq> (s, AInvcheck False)"
+            by (smt Suc_leI Suc_less_SucD \<open>i < length trace'\<close> \<open>trace' ! i = (s, AInvcheck False)\<close> \<open>traceCorrect newTrace\<close> diff_Suc_1 in_set_conv_nth leD less_imp_Suc_add newTraceIth newTraceLen traceCorrect_def)
+          hence "trace' ! i \<noteq> (s, AInvcheck False)"
             by (smt Suc_leI Suc_less_SucD \<open>i < length trace'\<close> \<open>pos < i\<close> \<open>traceCorrect newTrace\<close> diff_Suc_1 in_set_conv_nth leD less_imp_Suc_add newTraceIth newTraceLen traceCorrect_def)
         }
-        ultimately have "trace' ! i \<noteq> (s, AInvcheck txns False)"
+        ultimately have "trace' ! i \<noteq> (s, AInvcheck False)"
           using antisym_conv3 by blast
         thus False
-          using \<open>trace' ! i = (s, AInvcheck txns False)\<close> by blast
+          using \<open>trace' ! i = (s, AInvcheck False)\<close> by blast
       qed
     qed
   qed

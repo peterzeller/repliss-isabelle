@@ -141,7 +141,7 @@ proof -
 
   ultimately 
   show "invariant_all S' \<longleftrightarrow> invariant_all S"
-    by  (auto simp add: invariant_all_def consistentSnapshotH_def)
+    by  (auto simp add:  consistentSnapshotH_def)
 qed    
 
 
@@ -401,7 +401,7 @@ next
     then show ?thesis
       using fail by (auto simp add: nth_append)
   next
-    case (invCheck txns res s)
+    case (invCheck res s)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
     proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
@@ -502,7 +502,7 @@ next
     then show ?thesis
       using step.prems(2) by auto 
   next
-    case (invCheck txns res s)
+    case (invCheck res s)
     then show ?thesis using IH by (auto simp add: open_transactions_append_one)
   qed
 qed
@@ -627,7 +627,7 @@ next
       then show ?thesis using IH
         using step.prems(3) by auto
     next
-      case (invCheck txns res s)
+      case (invCheck res s)
       then show ?thesis using IH last_same by auto
     qed
   qed
@@ -855,7 +855,7 @@ next
     case (fail s ls)
     then show ?thesis using IH1 g1 g2 g3 by (auto simp add: invocation split: if_splits)
   next
-    case (invCheck txns res s)
+    case (invCheck res s)
     then show ?thesis using IH1 g1 g2 g3 by auto
   qed
     
@@ -917,7 +917,7 @@ next
     case (fail s ls)
     then show ?thesis  using IH2 g1 g2 g3 by (auto split: if_splits)
   next
-    case (invCheck txns res s)
+    case (invCheck res s)
     then show ?thesis  using IH2 g1 g2 g3 by auto
   qed
   
@@ -962,7 +962,7 @@ next
     case (fail s ls)
     then show ?thesis using g1 g2 g3 IH4 by auto
   next
-    case (invCheck txns res s)
+    case (invCheck res s)
     then show ?thesis using g1 g2 g3 IH4 by auto
   qed    
       
@@ -1052,7 +1052,7 @@ next
       case (fail s ls)
       then show ?thesis using whenUnchanged by auto
     next
-      case (invCheck txns res s)
+      case (invCheck res s)
       then show ?thesis using whenUnchanged by auto
     qed
   qed
@@ -1600,8 +1600,8 @@ next
 
 
           show "invariant_all newS" 
-            using inv' apply (auto simp add: invariant_all_def)
-            using S2_currentTransaction S2_localState S2_transactionStatus newS_def a1 inv'' invariant_all_def S2_transactionOrigin  by fastforce
+            using inv'
+            using S2_currentTransaction S2_localState S2_transactionStatus newS_def a1 inv''  S2_transactionOrigin  by fastforce
 
           show "state_wellFormed newS"
             using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' noFail2 by fastforce
@@ -1872,7 +1872,7 @@ next
 
 
 
-        hence invContextSame: "invContext S2 s =  invContext S' s"
+        hence invContextSame: "invContext S2 =  invContext S'"
           by (auto simp add: S2_simps vis_None invContextH_def)
 
 
@@ -2027,17 +2027,17 @@ next
           by auto
         thus ?thesis ..
       next
-        case (AInvcheck txns res)
-        hence "a = (s, AInvcheck  txns res)"
+        case (AInvcheck res)
+        hence "a = (s, AInvcheck  res)"
           by (simp add: prod_eqI steps_step.prems(2))
 
         with step
-        have step': "S' ~~ (s, AInvcheck txns res) \<leadsto> S''" by simp  
+        have step': "S' ~~ (s, AInvcheck  res) \<leadsto> S''" by simp  
 
         from step_elim_AInvcheck[OF step']
         have a1: "S'' = S'" 
-          and a2': "\<forall>t\<in>txns. transactionStatus S' t \<triangleq> Commited"
-          and a4: "res = invariant (prog S') (invContextVis S' (callsInTransaction S' txns \<down> happensBefore S'))"
+          (*and a2': "\<forall>t\<in>txns. transactionStatus S' t \<triangleq> Commited"
+          and a4: "res = invariant (prog S') (invContextVis S' (callsInTransaction S' txns \<down> happensBefore S'))"*)
           by auto
 
         text {* We already assumed it holds for all possible set of visible calls *}
@@ -2374,7 +2374,7 @@ next
     
     then show ?case using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
-    case (invCheck C s vis res)
+    case (invCheck C s res)
     then show ?case using old_coupling different_session by (auto simp add: state_coupling_def)
   qed
   
@@ -2411,12 +2411,10 @@ using step proof (cases rule: step.cases)
   
   have "invariant_all S' = invariant_all S"
   proof (rule show_invariant_all_changes)
-    show "invContextVis S' vis = invContextVis S vis" for vis
+    show "invContext S'  = invContext S "
       using local by (auto simp add: invContextH_def)
     show "prog S' = prog S"
       using local.step prog_inv by auto
-    show "consistentSnapshot S' = consistentSnapshot S"
-      using local by (auto simp add: consistentSnapshotH_def)
   qed
   
   with inv and not_inv
@@ -2429,12 +2427,10 @@ next
   
   have "invariant_all S' = invariant_all S"
   proof (rule show_invariant_all_changes)
-    show "invContextVis S' vis = invContextVis S vis" for vis
+    show "invContext S' = invContext S"
       using newId by (auto simp add: invContextH_def)
     show "prog S' = prog S"
       using local.step prog_inv by auto
-    show "consistentSnapshot S' = consistentSnapshot S"
-      using newId by (auto simp add: consistentSnapshotH_def)
   qed
   
   with inv and not_inv
@@ -2447,13 +2443,10 @@ next
   
   have "invariant_all S' = invariant_all S"
   proof (rule show_invariant_all_changes)
-    show "invContextVis S' vis = invContextVis S vis" for vis
+    show "invContext S' = invContext S " 
       using beginAtomic by (auto simp add: invContextH_def restrict_map_def)
     show "prog S' = prog S"
       using local.step prog_inv by auto
-    have "consistentSnapshot S' vis = consistentSnapshot S vis" for vis
-      using beginAtomic by (auto simp add: consistentSnapshotH_def transactionConsistent_def)
-    thus "consistentSnapshot S' = consistentSnapshot S" ..
   qed
   
   with inv and not_inv
@@ -2482,24 +2475,12 @@ next
      
     from not_inv coupling
     show "False = invariant_all S2'"
-    proof (auto simp add: invariant_all_def state_coupling_def local.endAtomic(6) split: if_splits)
-      fix vis
-      assume a0: "S2 = S"
-         and a1: "consistentSnapshot S' vis"
-         and a2: "\<not> invariant (prog S') (invContextVis S' vis)"
-      
-      show "\<exists>vis. consistentSnapshot S2' vis \<and> \<not> invariant (prog S2') (invContextVis S2' vis)"
-      proof (rule exI[where x=vis], intro conjI)
-        from a1
-        show "consistentSnapshot S2' vis"
-          by (auto simp add: consistentSnapshotH_def S2'_def `S2 = S`  local.endAtomic(2))
-          
-        from a2
-        show "\<not> invariant (prog S2') (invContextVis S2' vis)"  
-          by (auto simp add: S2'_def `S2 = S`  local.endAtomic(2))
-      qed    
+    proof (auto simp add:  state_coupling_def local.endAtomic(6) split: if_splits)
+      show "False" if "\<not> invariant_all S'" and "S2 = S" and "invariant_all S2'"
+        using that apply (auto simp add: S2'_def `S2 = S`)
+        using S2'_def local.endAtomic(2) that(2) that(3) by blast
     qed
-  qed  
+  qed
   
   then show ?thesis
     using steps_s_refl steps_s_step by fastforce 
@@ -2513,76 +2494,7 @@ next
     
   
   have "invariant_all S'" if "invariant_all S"
-  using that proof (auto simp add: invariant_all_def)
-    fix vis'
-    assume a0: "\<forall>vis. consistentSnapshot S vis \<longrightarrow> invariant (prog S) (invContextVis S vis)"
-       and a1: "consistentSnapshot S' vis'"
-    
-    from a1
-    have "vis' \<subseteq> insert c (dom (calls S))" 
-      by (auto simp add: consistentSnapshotH_def dbop)
-    
-    
-      
-    from a1  
-    have "causallyConsistent (happensBefore S \<union> vis \<times> {c}) vis'" 
-      using hb' by (auto simp add: consistentSnapshotH_def causallyConsistent_def)
-    
-    hence "causallyConsistent (happensBefore S) vis'"
-      by (auto simp add: causallyConsistent_def)
-         
-    
-    from a1
-    have "transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis'"
-      by (auto simp add: consistentSnapshotH_def dbop)
-    
-    hence "c \<notin> vis'"
-      by (metis (full_types) S_wellformed fun_upd_same local.dbop(6) map_upd_eqD1 transactionConsistent_def transactionStatus.distinct(1) wellFormed_currentTransaction_unique_h(2)) (* takes long *) 
-      
-    with `vis' \<subseteq> insert c (dom (calls S)) `
-    have "vis' \<subseteq> dom (calls S)"
-      by blast 
-      
-    from `transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis'`  
-    have "transactionConsistent (callOrigin S) (transactionStatus S) vis'"
-      apply (subst transactionConsistent_def)
-      apply auto
-      using transactionConsistent_Commited \<open>c \<notin> vis'\<close> apply (metis (mono_tags, lifting) map_upd_Some_unfold)
-      by (smt S_wellformed \<open>vis' \<subseteq> dom (calls S)\<close> domIff fun_upd_idem_iff fun_upd_triv fun_upd_twist local.dbop(7) subset_eq transactionConsistent_all_from_same wellFormed_callOrigin_dom)
-      
-      
-      
-   (*   by (metis (full_types) S_wellformed fun_upd_same local.dbop(6) map_upd_eqD1 transactionConsistent_def transactionStatus.distinct(1) wellFormed_currentTransaction_unique_h(2))*)
-      
-    from `transactionConsistent (callOrigin S) (transactionStatus S) vis'`
-     and `vis' \<subseteq> dom (calls S)`
-     and `causallyConsistent (happensBefore S) vis'`
-    have "consistentSnapshot S vis'"
-      by (simp add: consistentSnapshotH_def)
-      
-    with a0  
-    have "invariant (prog S) (invContextVis S vis')"
-      by blast  
-    
-    have [simp]: "prog S' = prog S"
-      using local.step prog_inv by auto
-    
-    have commitedCalls_simp: 
-         "commitedCallsH (callOrigin S(c \<mapsto> t)) (transactionStatus S) 
-        = commitedCallsH (callOrigin S) (transactionStatus S)"
-      using S_wellformed local.dbop(6) local.dbop(7) by auto
-        
-    have "c \<notin> commitedCalls S"
-      by (simp add: S_wellformed local.dbop(7))
-      
-      
-    have "invContextVis S' vis' = invContextVis S vis'"
-      by (auto simp add: invContextH_def dbop commitedCalls_simp S_wellformed restrict_relation_def `c \<notin> commitedCalls S`)
-      
-    with `invariant (prog S) (invContextVis S vis')`   
-    show "invariant (prog S') (invContextVis S' vis')"
-      by simp
-  qed    
+    using S_wellformed local.dbop(1) local.dbop(6) noUncommitted wellFormed_currentTransactionUncommited by blast
 
   hence False
     by (simp add: inv not_inv)
@@ -2652,22 +2564,14 @@ next
       
     from not_inv coupling
     show "False = invariant_all S2'"
-    proof (auto simp add: invariant_all_def state_coupling_def not_in_transaction)
+    proof (auto simp add:  state_coupling_def not_in_transaction)
       fix vis
       assume a3: "S2 = S"
-        and a0: "consistentSnapshot S' vis"
-        and a1: "\<not> invariant (prog S') (invContextVis S' vis)"
+        and a0: "invariant_all S2'"
+        and a1: "\<not> invariant_all S'"
 
-      have [simp]: "consistentSnapshot S2' vis"
-        using a0 by (auto simp add: consistentSnapshotH_def S2'_def a3  return(2))
-
-      moreover from a1
-      have "\<not> invariant (prog S2') (invContextVis S2' vis)"  
-        using a0 by (auto simp add:  S2'_def a3  return(2))
-
-
-      ultimately show "\<exists>vis. consistentSnapshot S2' vis \<and> \<not> invariant (prog S2') (invContextVis S2' vis)"
-        by blast
+      show False
+        using S2'_def a0 a3 local.return(2) not_inv by blast
     qed
   qed
       
@@ -2679,7 +2583,7 @@ next
   then show ?thesis
     using noFails by blast
 next
-  case (invCheck vis res)
+  case (invCheck  res)
   then show ?thesis
     using inv not_inv by blast (* same state *)
 qed
@@ -2797,7 +2701,7 @@ proof (rule ccontr)
     case (fail s ls)
     then show ?thesis by (auto simp add: consistentSnapshotH_def)
   next
-    case (invCheck txns res s)
+    case (invCheck res s)
     then show ?thesis by (auto simp add: consistentSnapshotH_def)
   qed
 
@@ -2813,14 +2717,14 @@ proof (rule ccontr)
     by (metis local.wf wellFormed_commitedCallsExist)
 
 
-  have "invContextVis S_fail vis = invContextVis S vis"  if "consistentSnapshot S_fail vis" for vis
+  have "invContext S_fail = invContext S" 
     apply (auto simp add: invContextH_def commitedCallsH_same)
     using `S ~~ a \<leadsto> S_fail` noEndAtomic \<open>currentTransaction S (fst a) \<noteq> None\<close>
-    by (auto simp add: step.simps restrict_map_def restrict_relation_def commitedCallsExist inTransaction_localState[OF wf] intro!: ext)
+    by (auto simp add: step.simps restrict_map_def restrict_relation_def commitedCallsExist inTransaction_localState[OF wf])
 
   with   `\<not> invariant_all S_fail` `invariant_all S`
   show False
-    by (metis (no_types, lifting) invariant_all_def prog_inv[OF `S ~~ a \<leadsto> S_fail`] snapshotSame)
+    by (metis (no_types, lifting)  prog_inv[OF `S ~~ a \<leadsto> S_fail`] )
 qed
 
 
@@ -3133,7 +3037,7 @@ text {* if there is an failing invariant check in the trace, then there is a pre
   state that does not satisfy the invariant *}
 lemma invCheck_to_failing_state:
 assumes steps: "S ~~ trace \<leadsto>* S'"
-    and inv_fail: "(s, AInvcheck txns False) \<in> set trace"
+    and inv_fail: "(s, AInvcheck False) \<in> set trace"
     and state_wf: "state_wellFormed S"
     and noFail: "\<And>i. (i, AFail) \<notin> set trace"
 shows "\<exists>tr' S_fail. isPrefix tr' trace \<and> (S ~~ tr' \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail" 
@@ -3149,7 +3053,7 @@ next
 
 
   show ?case 
-  proof (cases "(s, AInvcheck txns False) \<in> set tr")
+  proof (cases "(s, AInvcheck False) \<in> set tr")
     case True
     with step.IH
     obtain tr' S_fail 
@@ -3163,8 +3067,8 @@ next
       
   next
     case False
-    with `(s, AInvcheck txns False) \<in> set (tr @ [a])`
-    have "a = (s, AInvcheck txns False)" by auto
+    with `(s, AInvcheck False) \<in> set (tr @ [a])`
+    have "a = (s, AInvcheck False)" by auto
     
     show ?thesis
     proof (intro exI conjI)
@@ -3174,29 +3078,14 @@ next
         using step.step step.steps steps_step by fastforce   
       
       from `S' ~~ a \<leadsto> S''`
-      have "S' ~~ (s, AInvcheck txns False) \<leadsto> S''" using `a = (s, AInvcheck txns False)` by simp
+      have "S' ~~ (s, AInvcheck False) \<leadsto> S''" using `a = (s, AInvcheck False)` by simp
       hence  [simp]: "S'' = S'" 
-       and "\<forall>t\<in>txns. transactionStatus S' t \<triangleq> Commited"
-       and invFail: "\<not> invariant (prog S') (invContextVis S' (callsInTransaction S' txns \<down> happensBefore S'))"
+       and invFail: "\<not> invariant (prog S') (invContext S')"
         by (auto simp add: step_simps)
         
-      define vis where "vis = (callsInTransaction S' txns \<down> happensBefore S')"
         
-      show "\<not> invariant_all S''"  
-      proof (auto simp add: invariant_all_def, rule exI[where x=vis], intro conjI)
-        from invFail
-        show "\<not> invariant (prog S') (invContextVis S' vis)"
-          by (simp add: vis_def) 
-          
-        
-        have "state_wellFormed S'"
-          using state_wellFormed_combine state_wf step.steps noFail noFail_tr by blast 
-          
-        show "consistentSnapshot S' vis"
-          apply (auto simp add: vis_def)
-          using wellFormed_state_consistent_snapshot
-          by (smt \<open>S' ~~ (s, AInvcheck txns False) \<leadsto> S''\<close> \<open>state_wellFormed S'\<close> consistentSnapshot_txns mem_Collect_eq step_elim_AInvcheck subsetI)
-      qed    
+      show "\<not> invariant_all S''"
+        using invFail by auto  
     qed
   qed
 qed
@@ -3345,14 +3234,14 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
     assume incorrect_trace: "\<not> traceCorrect trace"
     
     text {* If the trace is incorrect, there must be a failing invariant check in the trace: *}
-    from this obtain s txns where "(s, AInvcheck txns False) \<in> set trace"
+    from this obtain s where "(s, AInvcheck False) \<in> set trace"
        using steps by (auto simp add: traceCorrect_def)
     
     obtain tr' S_fail
        where "isPrefix tr' trace"
          and "initialState program ~~ tr' \<leadsto>* S_fail"
          and "\<not> invariant_all S_fail"
-      using \<open>(s, AInvcheck txns False) \<in> set trace\<close> invCheck_to_failing_state state_wellFormed_init steps noFail by blast 
+      using \<open>(s, AInvcheck False) \<in> set trace\<close> invCheck_to_failing_state state_wellFormed_init steps noFail by blast 
     
     text {* No take the first state where the invariant fails *}
     from this
