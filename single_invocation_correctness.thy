@@ -672,20 +672,32 @@ qed
 lemma "\<lbrakk>\<not>P; P\<rbrakk> \<Longrightarrow> False"
   by simp
 
-record blub = a :: int 
-b :: int
 
+
+term "\<lparr>
+calls = ???,
+happensBefore = ???,
+  prog = ???,
+  callOrigin  = ???,
+  transactionOrigin  = ???,
+  generatedIds  = ???,
+  knownIds  = ???,
+  invocationOp  =???,
+  invocationRes =???,
+  transactionStatus  =???,
+  localState  =???,
+  currentProc  =???,
+  visibleCalls  =???,
+  currentTransaction  = ???
+ \<rparr> :: (int, int) state"
 
 lemma show_exists_state:
-  fixes P :: "('a,'b) state \<Rightarrow> bool"
-  assumes "\<exists>callOrigin transactionOrigin knownIds invocationOp invocationRes prog callOrigin transactionOrigin
+  fixes P :: "('ls,'any) state \<Rightarrow> bool"
+  assumes "\<exists>calls happensBefore prog callOrigin transactionOrigin
    generatedIds knownIds invocationOp invocationRes transactionStatus
 localState currentProc visibleCalls currentTransaction. P \<lparr>
- i_callOrigin = callOrigin,
-  i_transactionOrigin = transactionOrigin,
-  i_knownIds = knownIds,
-  i_invocationOp  = invocationOp,
-  i_invocationRes = invocationRes,
+  calls = calls,
+  happensBefore = happensBefore,
   prog = prog,
   callOrigin  = callOrigin,
   transactionOrigin  = transactionOrigin,
@@ -745,22 +757,15 @@ proof (auto simp add: programCorrect_s_def)
     proof (rule initialCorrect[where i=i])
       show "S_init \<in> initialStates program i"
         using step1 and a_def apply (auto simp add: step_s.simps initialStates_def )
-        using [[show_types]] thm show_exists_state
-        apply (rule show_exists_state)
          apply (auto simp add: state_ext)
-        apply 
+        using [[smt_solver = cvc4]]
+         apply (smt distributed_state.select_convs(1) initialState_def old.unit.exhaust state.surjective)
+        by (smt distributed_state.select_convs(1) initialState_def old.unit.exhaust state.surjective)
+    qed
 
-      sorry
-
-    from step1 and a_def
+    with step1 and a_def
     have "invInitial"
-      apply (auto simp add: step_s.simps)
-      thm initialCorrect[where i=i]
-      apply (erule notE) back 
-
-      apply (erule notE, rule initialCorrect[where i=i])
-      apply (auto simp add: initialStates_def )
-      by (rule_tac x="C'" in exI, auto simp add: initialState_def)
+      by (auto simp add: step_s.simps)
 
 
     have "S_init\<in>initialStates program i"
@@ -836,6 +841,10 @@ proof (auto simp add: programCorrect_s_def)
     using list.exhaust by blast
 qed  
 
+(*
+TODO continue here: remove VIS set -- we will later provide lemmas for 
+showing that a snapshot is consistent
+*)
 
 
 (* check program (with a given start-state, bound by a number of steps) *)
@@ -867,9 +876,9 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
               \<and> newTxns \<subseteq> dom (transactionStatus S')
               \<and> consistentSnapshot S' vis'
               \<and> (\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommited)
-              \<and> invariant progr (invContextVis S' vis')
+              \<and> invariant progr (invContext S')
               \<and> consistentSnapshot S' VIS'
-              \<and> invariant progr (invContextVis S' VIS')
+              \<and> invariant progr (invContext S')
               \<longrightarrow> checkCorrect' (progr, VIS' , vis', S', i))
         | EndAtomic ls \<Rightarrow> 
             (case currentTransaction S i of
@@ -882,11 +891,11 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
                   (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
                   \<and> (txCalls \<inter> VIS = {} \<or> txCalls \<subseteq> VIS \<and> the (visibleCalls S i) \<subseteq> VIS) (* ALL or nothing *)
                     (* split here: check VIS with new transaction and without *)
-                    \<longrightarrow> (invariant progr (invContextVis S' VIS)
-                         \<and> (invariant_all S' \<and> consistentSnapshot S' VIS \<and> invariant progr (invContextVis S' VIS)  \<longrightarrow> checkCorrect' (progr, VIS, {}, S', i))
+                    \<longrightarrow> (invariant progr (invContext S')
+                         \<and> (invariant_all S' \<and> consistentSnapshot S' VIS \<and> invariant progr (invContext S')  \<longrightarrow> checkCorrect' (progr, VIS, {}, S', i))
                          \<and> (txCalls \<subseteq> VIS 
-                            \<longrightarrow> (invariant progr (invContextVis S' (VIS \<union> txCalls) )
-                                \<and> (invariant_all S' \<and> consistentSnapshot S' (VIS \<union> txCalls) \<and> invariant progr (invContextVis S' (VIS \<union> txCalls))  \<longrightarrow> checkCorrect' (progr, VIS \<union> txCalls, {}, S', i))
+                            \<longrightarrow> (invariant progr (invContext S' )
+                                \<and> (invariant_all S' \<and> consistentSnapshot S' (VIS \<union> txCalls) \<and> invariant progr (invContext S' )  \<longrightarrow> checkCorrect' (progr, VIS \<union> txCalls, {}, S', i))
                        )))
             )
         | NewId ls \<Rightarrow> 
@@ -920,7 +929,7 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
                  visibleCalls := (visibleCalls S)(i := None),
                  invocationRes := (invocationRes S)(i \<mapsto> res),
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
-               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant progr (invContextVis S' VIS)  
+               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant progr (invContext S')  
             )
         )))
 "
@@ -961,6 +970,7 @@ schematic_goal checkCorrect2_simps:
 
 lemma consistentSnapshot_empty: "consistentSnapshot S {}"
   by (auto simp add: consistentSnapshotH_def causallyConsistent_def transactionConsistent_def)
+
 
 lemma checkCorrect_eq2:
   assumes "invariant_all S" 
@@ -1023,7 +1033,7 @@ next
         proof (rule IH)
           from `invariant_all S`
           show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>)"
-             by (auto simp add: invariant_all_def)
+             by (auto simp add: )
 
            have step: "S ~~ (i, ALocal) \<leadsto> S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>"
              using LocalStep Some ls_def step_simp_ALocal by blast
@@ -1116,13 +1126,12 @@ next
             apply (drule mp)
              apply (auto simp add: c0 c1 c10 c11 c12 c13 c2 c3 c4 c5 c6 c7 c8 c9 cs)
             using c2 c6 wellFormed_currentTransactionUncommited apply blast
-            using \<open>progr = prog S'\<close> c1 c12 invariant_all_def apply blast
-            using \<open>progr = prog S'\<close> c1 invariant_all_def that apply blast
+            using \<open>progr = prog S'\<close> c1 c12  apply blast
             using \<open>visibleCalls S' i \<triangleq> (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<close> c10 by auto
 
         qed
       qed
-
+    qed
     next
       case (EndAtomic x3)
       then show ?thesis sorry
@@ -1161,6 +1170,14 @@ proof -
 from assms
   have "lfp checkCorrectF (progr, S, i)"
   proof (induct rule: lfp_ordinal_induct[OF checkCorrectF_mono])
+    case (1 S)
+    then show ?case 
+      apply auto
+
+  next
+    case (2 M)
+    then show ?case sorry
+  qed
     show "mono checkCorrectF"
 
 oops
