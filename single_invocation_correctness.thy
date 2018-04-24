@@ -1239,11 +1239,100 @@ next
         qed
       qed
     next
-      case (NewId uid)
-      then show ?thesis sorry
+      case (NewId ls')
+      show ?thesis
+      proof (subst checkCorrect_simps, auto simp add: NewId)
+
+        fix uid
+        assume "uid \<notin> generatedIds S"
+
+        have step: "S ~~ (i, ANewId uid) \<leadsto> S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>"
+          apply (auto simp add: step_simps)
+          using NewId \<open>uid \<notin> generatedIds S\<close> by blast
+
+
+        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>) i"
+        proof (rule IH)
+          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>)"
+            using Suc.prems(1) by auto
+
+          from state_wellFormed_combine_step[OF `state_wellFormed S`, OF step]
+          show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>)"
+            by simp
+
+          show "progr = prog (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>)"
+            by simp
+
+          show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>) i \<triangleq> txCalls"
+            by (simp add: Suc.prems(4))
+
+          show "(checkCorrect2F ^^ bound) bot (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>, i)"
+            using use_checkCorrect2
+            apply simp
+            apply (subst(asm) checkCorrect2F_def)
+            apply (auto simp add: NewId  split: option.splits if_splits)
+            using \<open>uid \<notin> generatedIds S\<close> by blast
+        qed
+      qed
     next
-      case (DbOperation x51 x52 x53)
-      then show ?thesis sorry
+      case (DbOperation m a r)
+
+      obtain tx where tx: "currentTransaction S i \<triangleq> tx"
+        using use_checkCorrect2
+        apply simp
+        apply (subst(asm) checkCorrect2F_def)
+        apply (auto simp add: DbOperation split: option.splits)
+        done
+
+
+      show ?thesis
+      proof (subst checkCorrect_simps, auto simp add: DbOperation tx `visibleCalls S i \<triangleq> txCalls`)
+
+        show "\<exists>res. querySpec progr m a (getContextH (calls S) (happensBefore S) (Some txCalls)) res"
+          using use_checkCorrect2
+          apply simp
+          apply (subst(asm) checkCorrect2F_def)
+          by (auto simp add: DbOperation `visibleCalls S i \<triangleq> txCalls` split: option.splits)
+
+        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> r res), calls := calls S(c \<mapsto> Call m a res), callOrigin := callOrigin S(c \<mapsto> tx), visibleCalls := visibleCalls S(i \<mapsto> insert c txCalls), happensBefore := updateHb (happensBefore S) txCalls [c]\<rparr>) i"
+          if c0: "calls S c = None"
+            and c1: "querySpec progr m a (getContextH (calls S) (happensBefore S) (Some txCalls)) res"
+          for  c res
+        proof (rule IH, auto)
+
+
+
+          have "(invContextH (callOrigin S(c \<mapsto> tx)) (transactionOrigin S) (transactionStatus S) (updateHb (happensBefore S) txCalls [c]) (calls S(c \<mapsto> Call m a res)) (knownIds S) (invocationOp S) (invocationRes S)) 
+               = invContext S"
+            using Suc.prems(2) c0 tx by (auto simp add: invContextH_def updateHb.simps(2) restrict_relation_def)
+
+
+          with `invariant_all S`
+          show "invariant progr
+             (invContextH (callOrigin S(c \<mapsto> tx)) (transactionOrigin S) (transactionStatus S) (updateHb (happensBefore S) txCalls [c]) (calls S(c \<mapsto> Call m a res)) (knownIds S) (invocationOp S) (invocationRes S))"
+            by auto
+
+          show "state_wellFormed
+            (S\<lparr>localState := localState S(i \<mapsto> r res), calls := calls S(c \<mapsto> Call m a res), callOrigin := callOrigin S(c \<mapsto> tx), visibleCalls := visibleCalls S(i \<mapsto> insert c txCalls),
+              happensBefore := updateHb (happensBefore S) txCalls [c]\<rparr>)"
+
+   (*TODO add step*)
+            sorry 
+
+
+          show "(checkCorrect2F ^^ bound) bot
+             (progr, insert c txCalls, S
+              \<lparr>localState := localState S(i \<mapsto> r res), calls := calls S(c \<mapsto> Call m a res), callOrigin := callOrigin S(c \<mapsto> tx), visibleCalls := visibleCalls S(i \<mapsto> insert c txCalls),
+                 happensBefore := updateHb (happensBefore S) txCalls [c]\<rparr>,
+              i)"
+            using use_checkCorrect2
+            apply simp
+            apply (subst(asm) checkCorrect2F_def)
+            apply (auto simp add: DbOperation tx Suc.prems(4) c0 c1 split: option.splits if_splits)
+            done
+
+        qed
+      qed
     next
       case (Return x6)
       then show ?thesis sorry
