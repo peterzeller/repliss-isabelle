@@ -1024,16 +1024,103 @@ qed
 
 
 
-
+(*
 definition checkCorrect2 :: "('localState, 'any) prog \<Rightarrow> callId set \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> bool" where
  "checkCorrect2 progr txCalls S i \<equiv> lfp checkCorrect2F (progr, txCalls, S, i)"
+*)
+
+definition checkCorrect2 :: "('localState, 'any) prog \<Rightarrow> callId set \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> bool" where
+ "checkCorrect2 progr txCalls S i \<equiv> \<exists>n. (checkCorrect2F^^n) bot (progr, txCalls, S, i)"
+
+
+find_theorems "op^^" Suc
+
+lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or> (\<exists>n. P (Suc n)))"
+  apply auto
+  apply (case_tac n)
+   apply auto
+  done
+
+
+lemma checkCorrect2_unfold:
+"checkCorrect2 progr txCalls S i = (\<exists>n. checkCorrect2F ((checkCorrect2F^^n) bot) (progr, txCalls, S, i))"
+  apply (subst checkCorrect2_def)
+  apply (subst exists_nat_split)
+  apply auto
+  done
+
+lemma checkCorrect2_unfold2:
+"checkCorrect2 progr txCalls S i = (checkCorrect2F (\<lambda>x. \<exists>n. (checkCorrect2F^^n) bot x) (progr, txCalls, S, i))"
+  apply (subst checkCorrect2_def)
+  apply (subst exists_nat_split)
+  apply auto
+
+  done
+
+
+lemma checkCorrect2_simps:
+"checkCorrect2 progr txCalls S i = (
+           case currentProc S i of None \<Rightarrow> True
+           | Some impl \<Rightarrow>
+               (case impl (the (localState S i)) of LocalStep ls \<Rightarrow> (checkCorrect2 progr txCalls (S\<lparr>localState := localState S(i \<mapsto> ls)\<rparr>) i)
+               | BeginAtomic ls \<Rightarrow>
+                   currentTransaction S i = None \<and>
+                   (\<forall>t S' vis' newTxns.
+                       transactionStatus S t = None \<and>
+                       invariant_all S' \<and>
+                       state_wellFormed S' \<and>
+                       state_monotonicGrowth S S' \<and>
+                       localState S' i \<triangleq> ls \<and>
+                       currentProc S' i \<triangleq> impl \<and>
+                       currentTransaction S' i \<triangleq> t \<and>
+                       transactionStatus S' t \<triangleq> Uncommited \<and>
+                       transactionOrigin S' t \<triangleq> i \<and>
+                       (\<forall>c. callOrigin S' c \<noteq> Some t) \<and>
+                       visibleCalls S i \<triangleq> txCalls \<and>
+                       vis' = txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S' \<and>
+                       visibleCalls S' i \<triangleq> vis' \<and>
+                       newTxns \<subseteq> dom (transactionStatus S') \<and>
+                       consistentSnapshot S' vis' \<and> (\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommited) \<and> invariant progr (invContext S') \<and> invariant progr (invContext S') \<longrightarrow>
+                       (checkCorrect2 progr vis' S' i))
+               | EndAtomic ls \<Rightarrow>
+                   (case currentTransaction S i of None \<Rightarrow> False
+                   | Some t \<Rightarrow> let S' = S\<lparr>localState := localState S(i \<mapsto> ls), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(t \<mapsto> Commited)\<rparr>
+                               in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow>
+                                  invariant progr (invContext S') \<and> (invariant progr (invContext S') \<longrightarrow> (checkCorrect2 progr txCalls S' i)))
+               | NewId ls \<Rightarrow> \<forall>uid. uid \<notin> generatedIds S \<longrightarrow> (checkCorrect2 progr txCalls (S\<lparr>localState := localState S(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid}\<rparr>) i)
+               | DbOperation Op args ls \<Rightarrow>
+                   (case currentTransaction S i of None \<Rightarrow> False
+                   | Some t \<Rightarrow> Ex (querySpec progr Op args (getContext S i)) \<and>
+                               (\<forall>c res. calls S c = None \<and> querySpec progr Op args (getContext S i) res \<and> visibleCalls S i \<triangleq> txCalls \<longrightarrow>
+                                        (checkCorrect2
+                                         progr (insert c txCalls) (S
+                                          \<lparr>localState := localState S(i \<mapsto> ls res), calls := calls S(c \<mapsto> Call Op args res), callOrigin := callOrigin S(c \<mapsto> t),
+                                             visibleCalls := visibleCalls S(i \<mapsto> insert c txCalls), happensBefore := updateHb (happensBefore S) txCalls [c]\<rparr>)
+                                          i)))
+               | Return res \<Rightarrow>
+                   currentTransaction S i = None \<and>
+                   (let S' = S\<lparr>localState := (localState S)(i := None), currentProc := (currentProc S)(i := None), visibleCalls := (visibleCalls S)(i := None),
+                                 invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>
+                    in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant progr (invContext S'))))"
+  apply (subst checkCorrect2_unfold)
+  apply (subst checkCorrect2F_def)
+  apply (auto split: option.splits localAction.splits)
+  using checkCorrect2_def apply blast
+  using checkCorrect2_def apply blast
+  using checkCorrect2_def wellFormed_currentTransactionUncommited apply blast
+        defer
+  using checkCorrect2_def apply blast
+  using checkCorrect2_def apply blast
+  using checkCorrect2_def apply blast
+
+  defer
+  using checkCorrect2_def apply blast
+
 
 
 schematic_goal checkCorrect2_simps:
   "checkCorrect2 progr txCalls S i = ?F"
-  apply (subst checkCorrect2_def)
-  apply (subst lfp_unfold)
-   apply simp
+  apply (subst checkCorrect2_unfold)
   apply (subst checkCorrect2F_def)
   apply (fold checkCorrect2_def)
   apply (rule refl)

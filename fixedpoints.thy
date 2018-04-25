@@ -133,7 +133,304 @@ proof -
 
 
 
-    oops
+      oops
+
+
+datatype check_result = check_fail | check_ok nat | check_ok_infinite
+
+definition [simp]: "less_eq_check_result' x y \<equiv> case x of 
+   check_fail \<Rightarrow> True
+ | check_ok n \<Rightarrow> (case y of check_fail \<Rightarrow> False | check_ok m \<Rightarrow> n \<le> m | check_ok_infinite \<Rightarrow> True)
+ | check_ok_infinite \<Rightarrow> y = check_ok_infinite"
+
+definition [simp]: "less_check_result' x y \<equiv> case x of 
+   check_fail \<Rightarrow> y \<noteq> check_fail
+ | check_ok n \<Rightarrow> (case y of check_fail \<Rightarrow> False | check_ok m \<Rightarrow> n < m | check_ok_infinite \<Rightarrow> True)
+ | check_ok_infinite \<Rightarrow> False"
+
+instantiation check_result :: linorder begin
+definition "less_eq_check_result \<equiv> less_eq_check_result'"
+definition "less_check_result \<equiv> less_check_result'"
+
+
+instance 
+  by (standard, auto simp add: less_eq_check_result_def less_check_result_def split: check_result.splits)
+end
+
+lemma check_ok0_less: "x < check_ok 0 \<longleftrightarrow> x = check_fail"
+  by (auto simp add: less_check_result_def split: check_result.splits)
+
+
+instance check_result :: wellorder 
+proof
+
+
+  show "P a"
+    if ind: "(\<And>x. (\<And>y. y < x \<Longrightarrow> P y) \<Longrightarrow> P x)"
+    for P and a::check_result
+  proof -
+    have "P check_fail"
+    proof (rule ind)
+      show "\<And>y. y < check_fail \<Longrightarrow> P y"
+        by (simp add: leD less_eq_check_result_def)
+    qed
+
+    moreover have "P (check_ok n)" for n
+    proof (induct n rule: less_induct)
+      case (less m)
+      show "P (check_ok m)"
+      proof (rule ind)
+        show "P y" if "y < check_ok m" for y
+        proof (cases y)
+          case check_fail
+          then show ?thesis
+            using \<open>P check_fail\<close> by blast 
+        next
+          case (check_ok i)
+          then show ?thesis
+            using less.hyps less_check_result_def that by auto 
+        next
+          case check_ok_infinite
+          then show ?thesis
+            using less_check_result_def that by auto 
+        qed
+      qed
+    qed
+
+    moreover have "P check_ok_infinite"
+    proof (rule ind)
+      show "P y" if "y < check_ok_infinite" for y
+      proof (cases y)
+        case check_fail
+        then show ?thesis
+          using \<open>P check_fail\<close> by blast 
+      next
+        case (check_ok i)
+        then show ?thesis
+          by (simp add: \<open>\<And>n. P (check_ok n)\<close>)
+      next
+        case check_ok_infinite
+        then show ?thesis
+          using less_check_result_def that by auto 
+      qed
+    qed
+
+    ultimately
+    show "P a"
+      by (case_tac a, auto)
+  qed
+qed
+
+
+
+
+
+
+lemma "(LEAST a::'a::wellorder. a = x \<or> a = y) \<le> x"
+  by (simp add: Least_le)
+
+
+lemma least_check_fail: "A \<noteq> {} \<Longrightarrow> (LEAST x::check_result. x \<in> A) = check_fail \<longleftrightarrow> (check_fail \<in>A)"
+  apply auto
+  using LeastI apply force
+  by (meson Least_le check_ok0_less le_less_trans)
+
+
+lemma least_check_result: "A \<noteq> {} \<Longrightarrow> (LEAST x::check_result. x \<in> A) = y \<longleftrightarrow> (y\<in>A \<and> (\<forall>y'\<in>A. y \<le> y'))"
+  apply auto
+  apply (meson LeastI)
+  apply (simp add: Least_le)
+  by (metis (full_types) LeastI less_le not_less_Least)
+
+lemma least_check_result': "x\<in>A \<Longrightarrow> (LEAST x::check_result. x \<in> A) = y \<longleftrightarrow> (y\<in>A \<and> (\<forall>y'\<in>A. y \<le> y'))"
+  by (rule least_check_result, auto)
+
+lemma least_check_result_less_eq: "P a \<Longrightarrow> (z \<le> (LEAST x::check_result. P x)) \<longleftrightarrow> (\<forall>x. P x \<longrightarrow> z \<le> x)"
+  by (meson LeastI Least_le order_trans)
+
+lemma least_check_result_not_less_eq: "P a \<Longrightarrow> (\<not> (z \<le> (LEAST x::check_result. P x))) \<longleftrightarrow> (\<exists>x. P x \<and> z > x)"
+  by (simp add: least_check_result_less_eq not_le)
+  
+
+
+lemma check_ok_infinite_max[simp]: "z \<le> check_ok_infinite"
+  by (simp add: leI less_check_result_def)
+
+
+lemma GreatestI:
+  assumes example: "\<exists>m. P m \<and> Q m \<and> (\<forall>x. P x \<longrightarrow> x \<le> m)"
+  shows "Q (Greatest P)"
+  apply (unfold Greatest_def)
+  apply (rule the1I2)
+  using antisym example apply blast
+  using dual_order.antisym example by blast
+
+lemma Greatest_leq:
+  assumes example: "\<exists>m. P m \<and> (\<forall>x. P x \<longrightarrow> x \<le> m)"
+    and Px: "P x"
+  shows "x \<le> (Greatest P)"
+  apply (unfold Greatest_def)
+  apply (rule the1I2)
+  using antisym example apply blast
+  using Px by auto
+
+
+definition [simp]: "Inf_check_result' S \<equiv> if S = {} then check_ok_infinite else LEAST x. x \<in> S"
+definition [simp]: "Sup_check_result' S  \<equiv> if S = {} then check_fail else if check_ok_infinite \<in> S \<or> (\<forall>i. \<exists>j>i. check_ok j \<in> S) then check_ok_infinite else GREATEST x. x \<in> S"
+
+
+
+
+instantiation check_result :: complete_lattice begin
+  definition "Inf_check_result \<equiv> Inf_check_result'"
+  definition "Sup_check_result  \<equiv> Sup_check_result'"
+definition "bot_check_result \<equiv> check_fail"
+  definition "sup_check_result (x::check_result) (y::check_result) \<equiv> if y \<le> x then x else y"
+  definition "top_check_result \<equiv> check_ok_infinite"
+  definition "inf_check_result (x::check_result) (y::check_result) \<equiv> if x \<le> y then x else y"
+instance
+proof
+  fix x y z :: check_result
+  show "inf x y \<le> x" and "inf x y \<le> y"
+    by (auto simp add: inf_check_result_def less_eq_check_result_def split: check_result.splits)
+
+  show "\<lbrakk>x \<le> y; x \<le> z\<rbrakk> \<Longrightarrow> x \<le> inf y z"
+    by (auto simp add: inf_check_result_def less_eq_check_result_def split: check_result.splits)
+
+  show "x \<le> sup x y" "y \<le> sup x y"
+    by (auto simp add: sup_check_result_def less_eq_check_result_def split: check_result.splits)
+
+  show "\<lbrakk>y \<le> x; z \<le> x\<rbrakk> \<Longrightarrow> sup y z \<le> x"
+    by (auto simp add: sup_check_result_def less_eq_check_result_def split: check_result.splits)
+
+  show "x \<in> A \<Longrightarrow> Inf A \<le> x" for A
+    using Inf_check_result'_def Inf_check_result_def Least_le by fastforce
+
+  show "(\<And>x. x \<in> A \<Longrightarrow> z \<le> x) \<Longrightarrow> z \<le> Inf A" for A
+    by (auto simp add: Inf_check_result_def least_check_result_not_less_eq leD)
+
+  show "x \<in> A \<Longrightarrow> x \<le> Sup A" for A
+    apply (auto simp add: Sup_check_result_def )
+    apply (erule_tac P="x \<le> (GREATEST x. x \<in> A)" in notE)
+    apply (rule Greatest_leq)
+
+
+    find_theorems Greatest
+
+
+    thm least_check_result
+    apply (subst(asm) least_check_result_not_less_eq)
+    apply simp
+    apply (auto simp add: least_check_result)
+
+    apply (auto simp add: Inf_check_result_def less_eq_check_result_def least_check_result split: check_result.splits)
+
+
+    apply (standard)
+             apply (auto simp add: Inf_check_result_def Inf_check_result'_def Sup_check_result_def Sup_check_result'_def bot_check_result_def sup_check_result_def top_check_result_def inf_check_result_def
+Least_le)
+  apply (metis (mono_tags, lifting) LeastI)
+               apply (simp add: leI less_check_result_def)
+              apply (auto simp add: less_eq_check_result_def less_check_result_def split: check_result.splits)
+
+  (* apply (metis Greatest_def Greatest_equality leI le_cases le_less order_refl) *)
+
+
+
+
+(* if result is false, result depends on a set S of recursive calls -- result is determined by checking conjunction of all recursive calls *)
+definition tailrec :: "(('a \<Rightarrow> bool) \<Rightarrow> ('a \<Rightarrow> bool)) \<Rightarrow> bool" where
+"tailrec F \<equiv> \<forall>g x. \<not>F g x \<longrightarrow> (\<exists>S. \<forall>g'. F g' x \<longleftrightarrow> (\<forall>x'\<in>S. g' x'))"
+
+lemma tailrec_is_mono:
+  assumes "tailrec f"
+shows "mono f"
+proof
+
+  show "f x \<le> f y"
+    if c0: "x \<le> y"
+    for  x y
+    using `tailrec f`
+    by (smt le_fun_def order_refl tailrec_def that)
+qed
+
+find_theorems name: countable
+
+definition even :: "(nat \<Rightarrow> bool) \<Rightarrow> nat \<Rightarrow> bool" where
+"even g x \<equiv> if x = 0 then True else if x = 1 then False else g (x - 2)"
+
+lemma f_mono: "mono even"
+  by (smt even_def monoI predicate1I rev_predicate1D)
+
+
+lemma "lfp even 0"
+  by (subst lfp_unfold[OF f_mono], auto simp add: even_def)+
+
+lemma "\<not>lfp even 1"
+  by (subst lfp_unfold[OF f_mono], auto simp add: even_def)+
+
+lemma "lfp even 10"
+  by (subst lfp_unfold[OF f_mono], auto simp add: even_def)+
+
+lemma lfp_to_iterate:
+  (*assumes tailrec: "tailrec f"*)
+  assumes lfp_x: "lfp f x"
+  shows "\<exists>i. (f ^^ i) bot x"
+
+
+
+lemma "lfp f x \<longleftrightarrow> x mod 2 = 0"
+  apply (induct x)
+   apply auto
+  apply (smt f_def lfp_unfold mono_def predicate1I rev_predicate1D)
+
+  sorry
+
+lemma lfp_to_iterate:
+  fixes f :: "('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool"
+  assumes tailrec: "tailrec f"
+    and lfp_x: "lfp f x"
+  shows "\<exists>i. (f ^^ i) bot x"
+proof -
+
+  have mono: "mono f"
+    by (simp add: tailrec tailrec_is_mono)
+
+
+
+
+definition lfp2 :: "(('a \<Rightarrow> bool) \<Rightarrow> ('a \<Rightarrow> bool)) \<Rightarrow> ('a \<Rightarrow> bool)" where
+"lfp2 f \<equiv> (\<lambda>x. \<exists>n. (f^^n) bot x)"
+
+
+lemma lfp2_leq_lfp:
+  assumes mono: "mono f"
+  shows "lfp2 f \<le> lfp f"
+  by (meson iterate_to_lfp lfp2_def mono predicate1I)
+
+
+lemma lfp2_fixpoint:
+assumes mono: "mono f"
+shows "f (lfp2 f) = lfp2 f"
+  apply (auto simp add: lfp2_def)
+  apply (rule ext)
+  apply auto
+  sorry
+
+lemma lfp2_eq_lfp:
+  assumes mono: "mono f"
+  shows "lfp2 f = lfp f"
+  by (simp add: dual_order.antisym lfp2_fixpoint lfp2_leq_lfp lfp_lowerbound mono)
+
+lemma lfp2_to_iterate:
+  fixes f :: "('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool"
+  assumes lfp_x: "lfp2 f x"
+    and mono: "mono f"
+  shows "\<exists>i. (f ^^ i) bot x"
+  by (meson lfp2_def lfp_x)
+
+
+
 (*
 definition lfp2 :: "(('a \<Rightarrow> bool) \<Rightarrow> ('a \<Rightarrow> bool)) \<Rightarrow> ('a \<Rightarrow> bool)" where
 "lfp2 f \<equiv> SUP i. (f ^^ i) bot"
