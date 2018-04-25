@@ -265,6 +265,75 @@ lemma GreatestI:
   using antisym example apply blast
   using dual_order.antisym example by blast
 
+
+
+lemma GreatestI_nat2:
+  assumes example: "\<exists>m::nat. P m"
+    and bound: "\<forall>m. P m \<longrightarrow> m \<le> bound"
+    and impl: "\<forall>x. P x \<longrightarrow> Q x"
+  shows "Q (Greatest P)"
+proof -
+  obtain m where "P m"
+    using example by auto
+
+  hence "P (Greatest P)"
+  proof (rule GreatestI_nat)
+    show "\<forall>y. P y \<longrightarrow> y \<le> bound"
+      using bound by simp
+  qed
+  thus "Q (Greatest P)"
+    by (simp add: impl)
+qed
+
+thm GreatestI_nat
+
+lemma GreatestI_check_result:
+  assumes example: "\<exists>m::check_result. P m"
+    and bound: "\<forall>m. P m \<longrightarrow> m \<le> check_ok bound"
+  shows "P (Greatest P)"
+proof (cases "\<exists>n. P (check_ok n)")
+  case True
+  from this obtain k where "P (check_ok k)" by force
+
+
+  define P' where "P' \<equiv> (\<lambda>x. P (check_ok x))"
+
+  have "P' (Greatest P')"
+  proof (rule GreatestI_nat)
+    show "P' k"
+      by (simp add: P'_def \<open>P (check_ok k)\<close>)
+    show "\<forall>y. P' y \<longrightarrow> y \<le> bound"
+      using P'_def assms(2) less_eq_check_result_def by auto
+
+
+
+  then show ?thesis sorry
+next
+  case False
+  then show ?thesis sorry
+qed
+
+
+
+lemma GreatestI_check_result:
+  assumes example: "\<exists>m::check_result. P m"
+    and bound: "\<forall>m. P m \<longrightarrow> m \<le> bound"
+    and impl: "\<forall>x. P x \<longrightarrow> Q x"
+  shows "Q (Greatest P)"
+proof -
+  obtain m where "P m"
+    using example by auto
+
+  hence "P (Greatest P)"
+  proof (rule GreatestI_check_result)
+    show "\<forall>y. P y \<longrightarrow> y \<le> bound"
+      using bound by simp
+  qed
+  thus "Q (Greatest P)"
+    by (simp add: impl)
+qed
+
+
 lemma Greatest_leq:
   assumes example: "\<exists>m. P m \<and> (\<forall>x. P x \<longrightarrow> x \<le> m)"
     and Px: "P x"
@@ -273,6 +342,63 @@ lemma Greatest_leq:
   apply (rule the1I2)
   using antisym example apply blast
   using Px by auto
+
+lemma check_fail_smaller[simp]: "check_fail \<le> x"
+  by (simp add: less_eq_check_result_def)
+
+lemma check_ok_infinite_max'[simp]: "check_ok_infinite \<le> z \<longleftrightarrow> z = check_ok_infinite"
+  by (simp add: dual_order.antisym)
+
+
+lemma exists_greatest_check_result:
+  assumes i_greatest:"\<forall>j>i. check_ok j \<notin> A"
+and example: "a \<in> A"
+shows "\<exists>m. m \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \<le> m)"
+proof (cases "check_ok_infinite \<in> A")
+  case True
+  hence "check_ok_infinite \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \<le> check_ok_infinite)"
+    by auto
+  thus ?thesis ..
+next
+  case False
+  show ?thesis
+  proof (cases "\<exists>i'. check_ok i' \<in> A")
+    case True
+    hence exists_ok: "\<exists>m. check_ok m \<in> A \<and> m \<le> i"
+      using i_greatest not_le_imp_less by blast
+
+    show "\<exists>m. m \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \<le> m)"
+    proof (rule ccontr)
+      assume a: "\<nexists>m. m \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \<le> m)"
+
+      obtain i_max where "check_ok i_max \<in> A" and "i_max \<le> i" and "\<forall>i'. check_ok i' \<in> A \<and> i' \<le> i \<longrightarrow> i' \<le> i_max"
+        apply atomize_elim
+        apply (rule_tac x="GREATEST i'. check_ok i' \<in> A \<and> i' \<le> i" in exI)
+        apply auto
+          apply (rule GreatestI_nat2[where bound=i])
+            apply (auto simp add: exists_ok)
+         apply (rule GreatestI_nat2[where bound=i])
+           apply (auto simp add: exists_ok)
+        apply (rule Greatest_le_nat[where b=i])
+         apply (auto simp add: exists_ok)
+        done
+
+      with a show False
+        apply auto
+        apply (drule_tac x="check_ok i_max" in spec) 
+        apply auto
+        apply (case_tac x, auto)
+        apply (auto simp add: less_eq_check_result_def)
+        using i_greatest not_le_imp_less apply blast
+        using False by blast
+    qed
+  next
+    case False
+    then show ?thesis
+      by (metis check_ok_infinite_max check_result.exhaust check_result.simps(8) example less_eq_check_result'_def less_eq_check_result_def) 
+  qed
+qed
+
 
 
 definition [simp]: "Inf_check_result' S \<equiv> if S = {} then check_ok_infinite else LEAST x. x \<in> S"
@@ -290,6 +416,7 @@ definition "bot_check_result \<equiv> check_fail"
   definition "inf_check_result (x::check_result) (y::check_result) \<equiv> if x \<le> y then x else y"
 instance
 proof
+
   fix x y z :: check_result
   show "inf x y \<le> x" and "inf x y \<le> y"
     by (auto simp add: inf_check_result_def less_eq_check_result_def split: check_result.splits)
@@ -313,27 +440,34 @@ proof
     apply (auto simp add: Sup_check_result_def )
     apply (erule_tac P="x \<le> (GREATEST x. x \<in> A)" in notE)
     apply (rule Greatest_leq)
+    by (auto simp add: exists_greatest_check_result)
+
+  
+
+  show "(\<And>x. x \<in> A \<Longrightarrow> x \<le> z) \<Longrightarrow> Sup A \<le> z" for A
+    apply (auto simp add: Sup_check_result_def )
+    using check_ok_infinite_max' apply blast
+     apply (case_tac z)
+       apply auto
+    using check_fail_smaller eq_iff apply blast
+     apply (drule_tac x=x2 in spec)
+     apply auto
+    using less_eq_check_result_def apply force
+    apply (erule_tac P=" (GREATEST x. x \<in> A) \<le> z" in notE)
+apply (case_tac z)
+      apply auto
+    apply (metis (full_types) Greatest_equality check_fail_smaller eq_iff)
 
 
-    find_theorems Greatest
+     defer
 
+    sorry
 
-    thm least_check_result
-    apply (subst(asm) least_check_result_not_less_eq)
-    apply simp
-    apply (auto simp add: least_check_result)
-
-    apply (auto simp add: Inf_check_result_def less_eq_check_result_def least_check_result split: check_result.splits)
-
-
-    apply (standard)
-             apply (auto simp add: Inf_check_result_def Inf_check_result'_def Sup_check_result_def Sup_check_result'_def bot_check_result_def sup_check_result_def top_check_result_def inf_check_result_def
-Least_le)
-  apply (metis (mono_tags, lifting) LeastI)
-               apply (simp add: leI less_check_result_def)
-              apply (auto simp add: less_eq_check_result_def less_check_result_def split: check_result.splits)
-
-  (* apply (metis Greatest_def Greatest_equality leI le_cases le_less order_refl) *)
+next
+  (*show "Sup {} = bot "
+    show "Inf {} = top"*)
+   apply_end (auto simp add: Sup_check_result_def bot_check_result_def Inf_check_result_def top_check_result_def)
+qed
 
 
 
