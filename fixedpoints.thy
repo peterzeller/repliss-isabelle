@@ -148,6 +148,9 @@ definition [simp]: "less_check_result' x y \<equiv> case x of
  | check_ok n \<Rightarrow> (case y of check_fail \<Rightarrow> False | check_ok m \<Rightarrow> n < m | check_ok_infinite \<Rightarrow> True)
  | check_ok_infinite \<Rightarrow> False"
 
+definition "is_ok check \<equiv> check \<noteq> check_fail"
+
+
 instantiation check_result :: linorder begin
 definition "less_eq_check_result \<equiv> less_eq_check_result'"
 definition "less_check_result \<equiv> less_check_result'"
@@ -533,19 +536,8 @@ lemma "\<not>lfp even 1"
 lemma "lfp even 10"
   by (subst lfp_unfold[OF f_mono], auto simp add: even_def)+
 
-lemma lfp_to_iterate:
-  (*assumes tailrec: "tailrec f"*)
-  assumes lfp_x: "lfp f x"
-  shows "\<exists>i. (f ^^ i) bot x"
 
 
-
-lemma "lfp f x \<longleftrightarrow> x mod 2 = 0"
-  apply (induct x)
-   apply auto
-  apply (smt f_def lfp_unfold mono_def predicate1I rev_predicate1D)
-
-  sorry
 
 lemma lfp_to_iterate:
   fixes f :: "('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool"
@@ -556,7 +548,7 @@ proof -
 
   have mono: "mono f"
     by (simp add: tailrec tailrec_is_mono)
-
+  oops
 
 
 
@@ -569,7 +561,7 @@ lemma lfp2_leq_lfp:
   shows "lfp2 f \<le> lfp f"
   by (meson iterate_to_lfp lfp2_def mono predicate1I)
 
-
+(*
 lemma lfp2_fixpoint:
 assumes mono: "mono f"
 shows "f (lfp2 f) = lfp2 f"
@@ -589,7 +581,7 @@ lemma lfp2_to_iterate:
     and mono: "mono f"
   shows "\<exists>i. (f ^^ i) bot x"
   by (meson lfp2_def lfp_x)
-
+*)
 
 
 (*

@@ -1049,17 +1049,10 @@ lemma checkCorrect2_unfold:
   apply auto
   done
 
-lemma checkCorrect2_unfold2:
-"checkCorrect2 progr txCalls S i = (checkCorrect2F (\<lambda>x. \<exists>n. (checkCorrect2F^^n) bot x) (progr, txCalls, S, i))"
-  apply (subst checkCorrect2_def)
-  apply (subst exists_nat_split)
-  apply auto
-
-  done
 
 
 lemma checkCorrect2_simps:
-"checkCorrect2 progr txCalls S i = (
+assumes "(
            case currentProc S i of None \<Rightarrow> True
            | Some impl \<Rightarrow>
                (case impl (the (localState S i)) of LocalStep ls \<Rightarrow> (checkCorrect2 progr txCalls (S\<lparr>localState := localState S(i \<mapsto> ls)\<rparr>) i)
@@ -1102,22 +1095,16 @@ lemma checkCorrect2_simps:
                    (let S' = S\<lparr>localState := (localState S)(i := None), currentProc := (currentProc S)(i := None), visibleCalls := (visibleCalls S)(i := None),
                                  invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>
                     in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant progr (invContext S'))))"
+shows "checkCorrect2 progr txCalls S i"
+  apply (insert assms)
   apply (subst checkCorrect2_unfold)
   apply (subst checkCorrect2F_def)
   apply (auto split: option.splits localAction.splits)
   using checkCorrect2_def apply blast
-  using checkCorrect2_def apply blast
-  using checkCorrect2_def wellFormed_currentTransactionUncommited apply blast
-        defer
-  using checkCorrect2_def apply blast
-  using checkCorrect2_def apply blast
-  using checkCorrect2_def apply blast
-
-  defer
-  using checkCorrect2_def apply blast
+  oops
 
 
-
+(*
 schematic_goal checkCorrect2_simps:
   "checkCorrect2 progr txCalls S i = ?F"
   apply (subst checkCorrect2_unfold)
@@ -1125,6 +1112,8 @@ schematic_goal checkCorrect2_simps:
   apply (fold checkCorrect2_def)
   apply (rule refl)
   done
+*)
+
 
 lemma consistentSnapshot_empty: "consistentSnapshot S {}"
   by (auto simp add: consistentSnapshotH_def causallyConsistent_def transactionConsistent_def)
@@ -1470,6 +1459,7 @@ proof (rule checkCorrect_eq2)
     using c2 .
 qed
 
+(*
 lemma checkCorrect_eq2'':
   assumes initState: "S\<in>initialStates progr i" 
     and invInitial: "invariant_all S"
@@ -1499,14 +1489,34 @@ proof -
   show "(checkCorrect2F ^^ bound) bot (progr, {}, S, i)"
     using c2 .
 qed
+*)
 
-lemma show_programCorrect:
+lemma show_programCorrect_using_checkCorrect:
   assumes initalStatesCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> invariant_all S"
-   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> checkCorrect2 progr {} S i"
+    and invInitial: "invariant_all (initialState progr)"
+   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
  shows "programCorrect progr"
+proof (rule show_correctness_via_single_session)
+  show "invariant_all (initialState progr)"
+    using invInitial .
+
+  show "programCorrect_s progr"
+  proof (rule show_program_correct_single_invocation)
+
+    show "invariant_all S"
+      if c0: "S \<in> initialStates progr i"
+      for  S i
+      using initalStatesCorrect that by auto
 
 
+    show "checkCorrect progr S i"
+      if c0: "S \<in> initialStates progr i"
+        and c1: "invariant_all S"
+        and c2: "state_wellFormed S"
+      for  S i
+      using c0 c1 checkCorrect_eq2' stepsCorrect by blast
 
+  qed
 qed
 
        
