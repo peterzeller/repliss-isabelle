@@ -69,14 +69,69 @@ lemma distinct_perm3: "(\<forall>x\<in>set [x]. P x) \<longleftrightarrow> P x"
 lemma distinct_perm4: "(\<forall>x\<in>set (y#ys). P x) \<longleftrightarrow> (P y \<and> (\<forall>x\<in>set ys. P x))"
   by auto
 
-schematic_goal name_distinct2: "?X"
+schematic_goal name_distinct2[simp]: "?X"
   apply (insert names_distinct)
   apply (subst(asm) distinct_perm1 distinct_perm2)+
   apply (subst(asm) distinct_perm3 distinct_perm4)+
   apply assumption
   done
 
+lemma "users_remove \<noteq> users_name_assign"
+  by simp
 
+find_theorems "op &&&"
+thm conjI
+thm name_distinct2[intro]
+
+lemma names_distinct3[simp]:
+"users_name_assign \<noteq> users_mail_assign"
+"users_name_assign \<noteq> users_contains_key"
+"users_name_assign \<noteq> users_remove"
+"users_name_assign \<noteq> users_name_get"
+"users_name_assign \<noteq> users_mail_get"
+"users_name_assign \<noteq> registerUser "
+"users_name_assign \<noteq> updateMail "
+"users_name_assign \<noteq> removeUser "
+"users_name_assign \<noteq> getUser"
+"users_mail_assign \<noteq> users_contains_key"
+"users_mail_assign \<noteq> users_remove"
+"users_mail_assign \<noteq> users_name_get"
+"users_mail_assign \<noteq> users_mail_get"
+"users_mail_assign \<noteq> registerUser "
+"users_mail_assign \<noteq> updateMail "
+"users_mail_assign \<noteq> removeUser "
+"users_mail_assign \<noteq> getUser "
+"users_contains_key \<noteq> users_remove"
+"users_contains_key \<noteq> users_name_get"
+"users_contains_key \<noteq> users_mail_get"
+"users_contains_key \<noteq> registerUser"
+"users_contains_key \<noteq> updateMail"
+"users_contains_key \<noteq> removeUser"
+"users_contains_key \<noteq> getUser"
+"users_remove \<noteq> users_name_get"
+"users_remove \<noteq> users_mail_get"
+"users_remove \<noteq> registerUser"
+"users_remove \<noteq> updateMail"
+"users_remove \<noteq> removeUser"
+"users_remove \<noteq> getUser"
+"users_name_get \<noteq> users_mail_get"
+"users_name_get \<noteq> registerUser "
+"users_name_get \<noteq> updateMail "
+"users_name_get \<noteq> removeUser "
+"users_name_get \<noteq> getUser "
+"users_mail_get \<noteq> registerUser"
+"users_mail_get \<noteq> updateMail "
+"users_mail_get \<noteq> removeUser "
+"users_mail_get \<noteq> getUser "
+"registerUser \<noteq> updateMail"
+"registerUser \<noteq> removeUser "
+"registerUser \<noteq> getUser "
+"updateMail \<noteq> removeUser "
+"updateMail \<noteq> getUser "
+"removeUser \<noteq> getUser"
+  using name_distinct2 by auto
+
+lemmas names_distinct4[simp] = names_distinct3[symmetric]
 
 
 definition registerUserImpl :: "(localState, val) procedureImpl" where
@@ -232,45 +287,7 @@ lemma procedure_cases2: "procedures procName args \<triangleq> (initState, impl)
 \<or> (\<exists>u mail. procName = updateMail \<and> args = [UserId u, String mail] \<and> initState = lsInit\<lparr>ls_u := UserId u, ls_mail := mail \<rparr> \<and> impl = updateMailImpl)
 \<or> (\<exists>u. procName = removeUser \<and> args = [UserId u] \<and> initState = lsInit\<lparr>ls_u := UserId u \<rparr> \<and> impl = removeUserImpl)
 \<or> (\<exists>u. procName = getUser \<and> args = [UserId u] \<and> initState = lsInit\<lparr>ls_u := UserId u \<rparr> \<and> impl = getUserImpl))" (is "?Left \<longleftrightarrow> ?Right")
-proof
-  assume a: ?Left
-
-  thm a
-  thm procedure_case_split[OF a]
-
-  show ?Right
-    apply (rule procedure_case_split[OF a])
-    apply (auto simp add:)
-        apply (rule a)
-    thm a
-
-
-
-  apply (auto simp add: dest: procedure_cases')
-  using procedure_cases' apply blast
-
-
-
-
-
-
-proof 
-
-  from procedure_cases
-  have "procName \<in> {registerUser'', ''updateMail'', ''removeUser'', ''getUser}"
-
-
-
-  apply standard
-  apply auto[1]
-
-  apply (subst procedure_progr)
-  apply (subst procedures_def)
-  apply (rule if_cases)
-  apply (auto split: list.splits)[1]
-  apply (rule if_split_h, clarsimp split: list.splits)+
-  
-  done
+  by (auto simp add: procedures_def split: list.splits val.splits)
 
 
 theorem "programCorrect progr"
@@ -285,9 +302,55 @@ proof (rule show_programCorrect_using_checkCorrect)
   
    show "\<And>S i. S \<in> initialStates progr i \<Longrightarrow> invariant_all S"
      apply (subst(asm) initialStates_def)
-     apply auto
+   proof auto
 
-     apply (auto simp add: initialState_def  inv_def inv1_def inv2_def inv3_def invContextH_def)
+     show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (procName, args))) (invocationRes S'))" (is ?inv)
+       if i0: "prog S' = progr"
+         and i1: "procedures procName args \<triangleq> (initState, impl)"
+         and i2: "uniqueIdsInList args \<subseteq> knownIds S'"
+         and i3: "example_userbase.inv (invContext S')"
+         and i4: "state_wellFormed S'"
+         and i5: "invocationOp S' i = None"
+         and i6: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
+       for  i S' procName args initState impl
+       using i1 proof (subst(asm) procedure_cases2, auto)
+       
+
+show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (registerUser, [String name, String mail]))) (invocationRes S'))"
+    if c0: "procedures registerUser [String name, String mail] \<triangleq> (lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>, registerUserImpl)"
+   and c1: "procName = registerUser"
+   and c2: "args = [String name, String mail]"
+   and c3: "impl = registerUserImpl"
+   and c4: "initState = lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>"
+   for  name mail
+  sorry
+
+
+show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (updateMail, [UserId u, String mail]))) (invocationRes S'))"
+    if c0: "procedures updateMail [UserId u, String mail] \<triangleq> (lsInit\<lparr>ls_u := UserId u, ls_mail := mail\<rparr>, updateMailImpl)"
+   and c1: "procName = updateMail"
+   and c2: "args = [UserId u, String mail]"
+   and c3: "impl = updateMailImpl"
+   and c4: "initState = lsInit\<lparr>ls_u := UserId u, ls_mail := mail\<rparr>"
+   for  u mail
+  sorry
+
+  
+show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u]))) (invocationRes S'))"
+    if c0: "procedures removeUser [UserId u] \<triangleq> (lsInit\<lparr>ls_u := UserId u\<rparr>, removeUserImpl)"
+   and c1: "procName = removeUser"
+   and c2: "args = [UserId u]"
+   and c3: "impl = removeUserImpl"
+   and c4: "initState = lsInit\<lparr>ls_u := UserId u\<rparr>"
+   for  u
+
+
+
+
+     apply (subst(asm) procedure_cases2)
+     apply auto
+   proof -
+
 
 
      
