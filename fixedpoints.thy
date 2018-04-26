@@ -287,6 +287,21 @@ qed
 
 thm GreatestI_nat
 
+lemma check_fail_least[simp]: "check_fail \<le> x"
+  by (simp add: less_eq_check_result_def)
+
+lemma check_fail_least2[simp]: "x \<le> check_fail \<longleftrightarrow> x = check_fail"
+  by (case_tac x, auto simp add: less_eq_check_result_def)
+
+lemma check_inf_greatest[simp]: "x \<le> check_ok_infinite"
+  by (case_tac x, auto simp add: less_eq_check_result_def)
+
+lemma check_inf_greatest2[simp]: "check_ok_infinite \<le> x \<longleftrightarrow> x = check_ok_infinite"
+  by (case_tac x, auto simp add: less_eq_check_result_def)
+
+lemma check_ok_compare[simp]: "check_ok x \<le> check_ok y \<longleftrightarrow> x \<le> y"
+  by (case_tac x, auto simp add: less_eq_check_result_def)
+
 lemma GreatestI_check_result:
   assumes example: "\<exists>m::check_result. P m"
     and bound: "\<forall>m. P m \<longrightarrow> m \<le> check_ok bound"
@@ -304,29 +319,52 @@ proof (cases "\<exists>n. P (check_ok n)")
       by (simp add: P'_def \<open>P (check_ok k)\<close>)
     show "\<forall>y. P' y \<longrightarrow> y \<le> bound"
       using P'_def assms(2) less_eq_check_result_def by auto
+  qed
 
+  have "Greatest P = check_ok (Greatest P')"
+  proof (subst Greatest_def, rule the_equality, auto)
+    show " P (check_ok (Greatest P'))"
+      using P'_def \<open>P' (Greatest P')\<close> by auto
+    show "\<And>y. P y \<Longrightarrow> y \<le> check_ok (Greatest P')"
+      apply (case_tac y, auto)
+       apply (rule Greatest_le_nat[where b=bound])
+      using bound by (auto simp add: P'_def )
+    show "\<And>x. \<lbrakk>P x; \<forall>y. P y \<longrightarrow> y \<le> x\<rbrakk> \<Longrightarrow> x = check_ok (Greatest P')"
+      by (simp add: \<open>P (check_ok (Greatest P'))\<close> \<open>\<And>y. P y \<Longrightarrow> y \<le> check_ok (Greatest P')\<close> eq_iff)
+  qed
 
-
-  then show ?thesis sorry
+  thus "P (Greatest P)"
+    using P'_def \<open>P' (Greatest P')\<close> by auto
 next
   case False
-  then show ?thesis sorry
+  from bound
+  have "\<not>P check_ok_infinite"
+    using check_inf_greatest2 by blast
+
+  with False
+  have "P x \<longleftrightarrow> x = check_fail" for x
+    using example apply (case_tac x, auto)
+    by (case_tac xa, auto)
+
+  thus ?thesis
+    by (metis GreatestI2_order eq_refl)
 qed
 
 
 
-lemma GreatestI_check_result:
+lemma GreatestI_check_result2:
   assumes example: "\<exists>m::check_result. P m"
-    and bound: "\<forall>m. P m \<longrightarrow> m \<le> bound"
+    and bound: "\<forall>m. P m \<longrightarrow> m \<le> check_ok bound"
     and impl: "\<forall>x. P x \<longrightarrow> Q x"
   shows "Q (Greatest P)"
 proof -
   obtain m where "P m"
     using example by auto
 
-  hence "P (Greatest P)"
+  from example
+  have "P (Greatest P)"
   proof (rule GreatestI_check_result)
-    show "\<forall>y. P y \<longrightarrow> y \<le> bound"
+    show "\<forall>y. P y \<longrightarrow> y \<le> check_ok bound"
       using bound by simp
   qed
   thus "Q (Greatest P)"
@@ -388,7 +426,6 @@ next
         apply (drule_tac x="check_ok i_max" in spec) 
         apply auto
         apply (case_tac x, auto)
-        apply (auto simp add: less_eq_check_result_def)
         using i_greatest not_le_imp_less apply blast
         using False by blast
     qed
@@ -410,7 +447,7 @@ definition [simp]: "Sup_check_result' S  \<equiv> if S = {} then check_fail else
 instantiation check_result :: complete_lattice begin
   definition "Inf_check_result \<equiv> Inf_check_result'"
   definition "Sup_check_result  \<equiv> Sup_check_result'"
-definition "bot_check_result \<equiv> check_fail"
+  definition "bot_check_result \<equiv> check_fail"
   definition "sup_check_result (x::check_result) (y::check_result) \<equiv> if y \<le> x then x else y"
   definition "top_check_result \<equiv> check_ok_infinite"
   definition "inf_check_result (x::check_result) (y::check_result) \<equiv> if x \<le> y then x else y"
@@ -442,32 +479,22 @@ proof
     apply (rule Greatest_leq)
     by (auto simp add: exists_greatest_check_result)
 
-  
+
 
   show "(\<And>x. x \<in> A \<Longrightarrow> x \<le> z) \<Longrightarrow> Sup A \<le> z" for A
     apply (auto simp add: Sup_check_result_def )
     using check_ok_infinite_max' apply blast
      apply (case_tac z)
        apply auto
-    using check_fail_smaller eq_iff apply blast
-     apply (drule_tac x=x2 in spec)
-     apply auto
-    using less_eq_check_result_def apply force
+    using check_ok_compare leD apply blast
     apply (erule_tac P=" (GREATEST x. x \<in> A) \<le> z" in notE)
-apply (case_tac z)
+    apply (case_tac z)
       apply auto
-    apply (metis (full_types) Greatest_equality check_fail_smaller eq_iff)
+     apply (metis GreatestI_check_result check_fail_least2 le_cases)
+    by (metis (full_types) GreatestI_check_result) 
 
-
-     defer
-
-    sorry
-
-next
-  (*show "Sup {} = bot "
-    show "Inf {} = top"*)
-   apply_end (auto simp add: Sup_check_result_def bot_check_result_def Inf_check_result_def top_check_result_def)
-qed
+qed (auto simp add: Inf_check_result_def top_check_result_def  Sup_check_result_def  bot_check_result_def)
+end
 
 
 
