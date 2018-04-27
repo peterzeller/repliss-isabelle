@@ -239,23 +239,30 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    (* new transaction has no calls yet *)
    (* invariant maintained *)
    invariant_all C';
-   \<And>tx. tx\<noteq>t \<Longrightarrow> transactionStatus C' tx \<noteq> Some Uncommited;
+   \<And>tx. transactionStatus C' tx \<noteq> Some Uncommited;
    (* well formed history *)
    state_wellFormed C';
+   state_wellFormed C'';
    state_monotonicGrowth C C';   
    (* local changes: *)
-   localState C' s \<triangleq> ls';
+   localState C' s \<triangleq> ls;
    currentProc C' s \<triangleq> f;
-   currentTransaction C' s \<triangleq> t;
+   currentTransaction C' s = None;
    visibleCalls C s \<triangleq> vis;
-   visibleCalls C' s \<triangleq> vis';
+   visibleCalls C' s \<triangleq> vis;
    vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C';
    newTxns \<subseteq> dom (transactionStatus C');
    consistentSnapshot C' vis';
-   transactionStatus C' t \<triangleq> Uncommited;
+   transactionStatus C' t = None;
    \<And>c. callOrigin C' c \<noteq> Some t;
-   transactionOrigin C' t \<triangleq> s
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t txns, True) \<leadsto>\<^sub>S C'"
+   transactionOrigin C' t = None;
+   (C'' = C'\<lparr>transactionStatus := (transactionStatus C')(t \<mapsto> Uncommited),
+              transactionOrigin := (transactionOrigin C')(t \<mapsto> i),
+              currentTransaction := (currentTransaction C')(s \<mapsto> t),
+              localState := (localState C')(s \<mapsto> ls'),
+              visibleCalls := (visibleCalls C')(s \<mapsto> vis')
+    \<rparr>)
+   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t txns, True) \<leadsto>\<^sub>S C''"
 | endAtomic: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 

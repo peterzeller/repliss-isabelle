@@ -10,17 +10,24 @@ text {*
 
 
 definition 
-  "i_callOriginI ctxt c \<equiv> 
-  case i_callOrigin ctxt c of Some t \<Rightarrow> i_transactionOrigin ctxt t | None \<Rightarrow> None"
+  "i_callOriginI_h callOrig transactionOrig \<equiv> \<lambda>c.
+  case callOrig c of Some t \<Rightarrow> transactionOrig t | None \<Rightarrow> None"
+
+
+abbreviation 
+  "i_callOriginI ctxt \<equiv> i_callOriginI_h (i_callOrigin ctxt) (i_transactionOrigin ctxt)"
 
 text {* lifting the happensBefore relation on database-calls to the level of invocations. *}
 definition 
-  "invocation_happensBefore ctxt \<equiv> 
-  {(x,y). (\<exists>c. i_callOriginI ctxt c \<triangleq> x) 
-        \<and> (\<exists>c. i_callOriginI ctxt c \<triangleq> y) 
-        \<and> (\<forall>cx cy. i_callOriginI ctxt cx \<triangleq> x
-                 \<and> i_callOriginI ctxt cy \<triangleq> y
-                 \<longrightarrow> (cx,cy)\<in>happensBefore ctxt)}"
+  "invocation_happensBeforeH origin hb \<equiv> 
+  {(x,y). (\<exists>c. origin c \<triangleq> x) 
+        \<and> (\<exists>c. origin c \<triangleq> y) 
+        \<and> (\<forall>cx cy. origin cx \<triangleq> x
+                 \<and> origin cy \<triangleq> y
+                 \<longrightarrow> (cx,cy)\<in>hb)}"
+
+abbreviation 
+  "invocation_happensBefore ctxt \<equiv> invocation_happensBeforeH (i_callOriginI ctxt) (happensBefore ctxt)"
 
 
 lemma i_invocationOp_simps:
@@ -36,12 +43,12 @@ lemma invocation_happensBefore_simps:
                  \<and> state_callOrigin cy \<triangleq> ty \<and> state_transactionOrigin ty \<triangleq> y
                  \<longrightarrow> (cx,cy)\<in>state_happensBefore))"
   apply auto                 
-     apply (auto simp add: invContextH_def invocation_happensBefore_def 
-      i_callOriginI_def restrict_map_def commitedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
-    apply (auto simp add: invContextH_def invocation_happensBefore_def 
-      i_callOriginI_def restrict_map_def commitedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
-   apply (auto simp add: invContextH_def invocation_happensBefore_def 
-      i_callOriginI_def restrict_map_def commitedCallsH_def restrict_relation_def split: option.splits if_splits)[1]   
+     apply (auto simp add: invContextH_def invocation_happensBeforeH_def 
+      i_callOriginI_h_def restrict_map_def commitedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
+    apply (auto simp add: invContextH_def invocation_happensBeforeH_def 
+      i_callOriginI_h_def restrict_map_def commitedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
+   apply (auto simp add: invContextH_def invocation_happensBeforeH_def 
+      i_callOriginI_h_def restrict_map_def commitedCallsH_def restrict_relation_def split: option.splits if_splits)[1]   
     apply (drule_tac x=cx in spec)
     apply auto[1]
   oops
@@ -49,6 +56,9 @@ lemma invocation_happensBefore_simps:
 
 lemmas invariant_simps = 
   i_invocationOp_simps
+
+
+
 
 (*
 

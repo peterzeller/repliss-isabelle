@@ -289,6 +289,80 @@ abbreviation invContext where
   (invocationRes state)"
 
 
+
+definition invContextH2  where
+  "invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+   state_calls state_knownIds state_invocationOp state_invocationRes = \<lparr>
+        calls = state_calls , 
+        happensBefore = state_happensBefore, 
+        i_callOrigin  = state_callOrigin,
+        i_transactionOrigin = state_transactionOrigin,
+        i_knownIds = state_knownIds,
+        i_invocationOp = state_invocationOp,
+        i_invocationRes = state_invocationRes
+      \<rparr>"
+
+
+lemma invContextH2_calls[simp]:
+"calls (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+= state_calls"
+  by (auto simp add: invContextH2_def)
+
+
+lemma invContextH2_happensBefore[simp]:
+"happensBefore (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes) 
+= state_happensBefore"
+  by (auto simp add: invContextH2_def)
+
+
+lemma invContextH2_i_callOrigin[simp]:
+"i_callOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+= state_callOrigin "
+by (auto simp add: invContextH2_def)
+
+lemma invContextH2_i_transactionOrigin[simp]:
+"i_transactionOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+=  state_transactionOrigin "
+  by (auto simp add: invContextH2_def)
+
+lemma invContextH2_i_knownIds[simp]:
+"i_knownIds (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+= state_knownIds"
+  by (auto simp add: invContextH2_def)
+
+lemma invContextH2_i_invocationOp[simp]:
+"i_invocationOp (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+= state_invocationOp"
+by (auto simp add: invContextH2_def)
+
+
+lemma invContextH2_i_invocationRes[simp]:
+"i_invocationRes (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+=  state_invocationRes"
+by (auto simp add: invContextH2_def)
+
+abbreviation invContext' where
+  "invContext' state \<equiv>
+  invContextH2
+  (callOrigin state)
+  (transactionOrigin state)
+  (transactionStatus state)
+  (happensBefore state)
+  (calls state)
+  (knownIds state)
+  (invocationOp state)
+  (invocationRes state)"
+
+
+
+
 definition callsInTransactionH :: "(callId \<rightharpoonup> txid) \<Rightarrow> txid set \<Rightarrow> callId set" where
   "callsInTransactionH origins txns  \<equiv> {c. \<exists>txn\<in>txns. origins c \<triangleq> txn }"
 

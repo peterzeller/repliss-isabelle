@@ -308,7 +308,7 @@ proof (rule show_programCorrect_using_checkCorrect)
        if i0: "prog S' = progr"
          and i1: "procedures procName args \<triangleq> (initState, impl)"
          and i2: "uniqueIdsInList args \<subseteq> knownIds S'"
-         and i3: "example_userbase.inv (invContext S')"
+         and old_inv: "example_userbase.inv (invContext S')"
          and i4: "state_wellFormed S'"
          and i5: "invocationOp S' i = None"
          and i6: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
@@ -316,40 +316,93 @@ proof (rule show_programCorrect_using_checkCorrect)
        using i1 proof (subst(asm) procedure_cases2, auto)
        
 
-show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (registerUser, [String name, String mail]))) (invocationRes S'))"
-    if c0: "procedures registerUser [String name, String mail] \<triangleq> (lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>, registerUserImpl)"
-   and c1: "procName = registerUser"
-   and c2: "args = [String name, String mail]"
-   and c3: "impl = registerUserImpl"
-   and c4: "initState = lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>"
-   for  name mail
-  sorry
+       show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (registerUser, [String name, String mail]))) (invocationRes S'))"
+         if c0: "procedures registerUser [String name, String mail] \<triangleq> (lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>, registerUserImpl)"
+           and c1: "procName = registerUser"
+           and c2: "args = [String name, String mail]"
+           and c3: "impl = registerUserImpl"
+           and c4: "initState = lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>"
+         for  name mail
+         using old_inv
+         by (auto simp add: inv_def inv1_def inv2_def inv3_def)
 
 
-show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (updateMail, [UserId u, String mail]))) (invocationRes S'))"
-    if c0: "procedures updateMail [UserId u, String mail] \<triangleq> (lsInit\<lparr>ls_u := UserId u, ls_mail := mail\<rparr>, updateMailImpl)"
-   and c1: "procName = updateMail"
-   and c2: "args = [UserId u, String mail]"
-   and c3: "impl = updateMailImpl"
-   and c4: "initState = lsInit\<lparr>ls_u := UserId u, ls_mail := mail\<rparr>"
-   for  u mail
-  sorry
-
-  
-show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u]))) (invocationRes S'))"
-    if c0: "procedures removeUser [UserId u] \<triangleq> (lsInit\<lparr>ls_u := UserId u\<rparr>, removeUserImpl)"
-   and c1: "procName = removeUser"
-   and c2: "args = [UserId u]"
-   and c3: "impl = removeUserImpl"
-   and c4: "initState = lsInit\<lparr>ls_u := UserId u\<rparr>"
-   for  u
+       show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (updateMail, [UserId u, String mail]))) (invocationRes S'))"
+         if c0: "procedures updateMail [UserId u, String mail] \<triangleq> (lsInit\<lparr>ls_u := UserId u, ls_mail := mail\<rparr>, updateMailImpl)"
+           and c1: "procName = updateMail"
+           and c2: "args = [UserId u, String mail]"
+           and c3: "impl = updateMailImpl"
+           and c4: "initState = lsInit\<lparr>ls_u := UserId u, ls_mail := mail\<rparr>"
+         for  u mail
+         using old_inv
+         by (auto simp add: inv_def inv1_def inv2_def inv3_def)
 
 
+       show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u]))) (invocationRes S'))"
+         if c0: "procedures removeUser [UserId u] \<triangleq> (lsInit\<lparr>ls_u := UserId u\<rparr>, removeUserImpl)"
+           and c1: "procName = removeUser"
+           and c2: "args = [UserId u]"
+           and c3: "impl = removeUserImpl"
+           and c4: "initState = lsInit\<lparr>ls_u := UserId u\<rparr>"
+         for  u
+       proof (auto simp add: inv_def)
+         show "inv1 (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u])))
+           (invocationRes S'))"
+           using old_inv
+           apply (auto simp add: inv_def inv1_def)[1]
+         proof -
+
+            show "invocationRes S' g \<triangleq> NotFound"
+                if x0: "\<forall>r g. (\<exists>u. invocationOp S' r \<triangleq> (removeUser, [u]) \<and> invocationOp S' g \<triangleq> (getUser, [u]) \<and> (r, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S')) (happensBefore S' |r commitedCalls S')) \<longrightarrow> invocationRes S' g \<triangleq> NotFound"
+               and x1: "inv2 (invContext S')"
+               and x2: "inv3 (invContext S')"
+               and x3: "g \<noteq> i"
+               and x4: "invocationOp S' g \<triangleq> (getUser, [UserId u])"
+               and x5: "(i, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S')) (happensBefore S' |r commitedCalls S')"
+             for  g
+            proof -
+
+              have "(i,g) \<notin> invocation_happensBeforeH (i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S')) (happensBefore S' |r commitedCalls S')"
+              proof (auto simp add: invocation_happensBeforeH_def)
+                fix c ca
+                assume a0: "\<forall>cx. i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S') cx \<triangleq> i \<longrightarrow>                   (\<forall>cy. i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S') cy \<triangleq> g \<longrightarrow>                         (cx, cy) \<in> happensBefore S' |r commitedCalls S')"
+                  and a1: "i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S') c \<triangleq> i"
+                  and a2: "i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S') ca \<triangleq> g"
+
+                from `state_wellFormed S'` `invocationOp S' i = None`
+                have "transactionOrigin S' tx \<noteq> Some i" for tx
+                  by (simp add: wf_no_invocation_no_origin)
 
 
-     apply (subst(asm) procedure_cases2)
-     apply auto
-   proof -
+                with a1
+                show "False"
+                  by (auto simp add:  i_callOriginI_h_def restrict_map_def split: option.splits if_splits)
+              qed
+            qed
+
+
+            
+
+ (*TODO, lemma that new invocation cannot be in invocation_happensBefore*)
+
+           apply (drule_tac x=i in spec)
+           apply (drule_tac x=g in spec)
+           apply (erule mp)
+         apply (rule_tac x="UserId u" in exI)
+
+       sorry
+
+
+       show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (getUser, [UserId u]))) (invocationRes S'))"
+         if c0: "procedures getUser [UserId u] \<triangleq> (lsInit\<lparr>ls_u := UserId u\<rparr>, getUserImpl)"
+           and c1: "procName = getUser"
+           and c2: "args = [UserId u]"
+           and c3: "impl = getUserImpl"
+           and c4: "initState = lsInit\<lparr>ls_u := UserId u\<rparr>"
+         for  u
+using i3
+         by (auto simp add: inv_def inv1_def inv2_def inv3_def)
+     qed
 
 
 

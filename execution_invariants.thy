@@ -355,6 +355,17 @@ lemma wellFormed_invoc_notStarted:
           apply (auto split: if_splits)
   done
 
+lemma wf_no_invocation_no_origin:
+  assumes "state_wellFormed S"
+    and "invocationOp S i = None"
+  shows "transactionOrigin S tx \<noteq> Some i"
+  using assms apply (induct rule: wellFormed_induct)
+     apply (auto simp add: initialState_def)
+   apply (erule step.cases)
+          apply (auto split: if_splits )
+  by (simp add: wf_localState_to_invocationOp)
+
+
 lemma steps_do_not_change_invocationOp:
   assumes steps:"S ~~ tr \<leadsto>* S'"
     and "invocationOp S i \<triangleq> x"

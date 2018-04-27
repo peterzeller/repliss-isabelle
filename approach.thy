@@ -1568,30 +1568,41 @@ next
         qed
 
 
+
         define newS where "newS =  (S'\<lparr>
-          localState := localState S2(s \<mapsto> ls'), 
+          localState := localState S2(s \<mapsto> ls'),
           currentTransaction := currentTransaction S2(s \<mapsto> txId), 
           transactionStatus := transactionStatus S2(txId \<mapsto> Uncommited),
           transactionOrigin := transactionOrigin S2(txId \<mapsto> s),
-          visibleCalls := visibleCalls S'(s \<mapsto> vis \<union> callsInTransaction S' txns \<down> happensBefore S')\<rparr>)"  
+          visibleCalls := visibleCalls S'(s \<mapsto> vis \<union> callsInTransaction S' txns \<down> happensBefore S')
+        \<rparr>)"  
+
 
         from a2' a3' a4 a5' a6' 
         have step_s: "S2 ~~ (s,(ABeginAtomic txId txns,True)) \<leadsto>\<^sub>S newS"
         proof (rule step_s.beginAtomic)  
-          show "prog newS = prog S2"
-            by (simp add: S2_prog newS_def)
-          show "localState newS s \<triangleq> ls'"
-            by (simp add: newS_def)
-          show "currentTransaction newS s \<triangleq> txId"
-            by (simp add: newS_def)
-          show "transactionStatus newS txId \<triangleq> Uncommited"  
-            by (simp add: newS_def)
-          show "transactionOrigin newS txId \<triangleq> s"
-            by (simp add: newS_def)
+          show "prog S' = prog S2"
+            by (simp add: S2_prog)
 
+          show "localState S' s \<triangleq> ls"
+            by (simp add: a2)
+
+          show "currentTransaction S' s = None"
+            by (simp add: a5)
+
+          show "transactionStatus S' txId = None"  
+            by (simp add: a6)
+
+          show "transactionOrigin S' txId = None"
+            using S'_wf a6 wf_transaction_status_iff_origin by blast
+
+
+
+(*
           have [simp]: "consistentSnapshot newS vis \<Longrightarrow> consistentSnapshot S' vis" for vis
-            apply (auto simp add: consistentSnapshotH_def newS_def a6' transactionConsistent_def)
+            apply (auto simp add: consistentSnapshotH_def newS_def a6' transactionConsistent_def split: if_splits)
             by (metis S2_transactionStatus option.inject transactionStatus.distinct(1))
+*)
 
           have noFail1: "(i, AFail) \<notin> set (tr @ [a])" for i
             using steps_step.prems by blast
@@ -1599,30 +1610,30 @@ next
             by force
 
 
-          show "invariant_all newS" 
+          show "invariant_all S'" 
             using inv'
-            using S2_currentTransaction S2_localState S2_transactionStatus newS_def a1 inv''  S2_transactionOrigin  by fastforce
+            using S2_currentTransaction S2_localState S2_transactionStatus  a1 inv''  S2_transactionOrigin  by fastforce
 
           show "state_wellFormed newS"
-            using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' noFail2 by fastforce
+            using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' noFail2  by fastforce
 
-          show "state_monotonicGrowth S2 newS"
+
+
+          show "state_monotonicGrowth S2 S'"
             using ih3 by (auto simp add: state_coupling_def state_monotonicGrowth_def S2_invocationOp newS_def a6 state_monotonicGrowth_txStable_def split: if_splits)
 
-          show "currentProc newS s \<triangleq> f"
+          show "currentProc S' s \<triangleq> f"
             by (simp add: a3 newS_def)
 
 
-          have "state_wellFormed S'"
+          show "state_wellFormed S'"
             using S'_wf by blast 
 
-          have "\<And>c. callOrigin S' c \<noteq> Some txId"
+          show "\<And>c. callOrigin S' c \<noteq> Some txId"
             using `transactionStatus S' txId = None` `state_wellFormed S'`
             by (simp add: wf_no_transactionStatus_origin_for_nothing)
 
 
-          thus "\<And>c. callOrigin newS c \<noteq> Some txId"
-            by (simp add: newS_def)
 
 
           have "transactionStatus S' tx \<noteq> Some Uncommited" if "tx \<noteq> txId" for tx
@@ -1667,10 +1678,9 @@ next
             ultimately show "False"
               by auto
           qed
+          thus "\<And>tx. transactionStatus S' tx \<noteq> Some Uncommited"
+            using a6 by force
 
-
-          thus "\<And>tx. tx \<noteq> txId \<Longrightarrow> transactionStatus newS tx \<noteq> Some Uncommited"
-            by (auto simp add: newS_def S2_transactionStatus)
 
           find_theorems S2
 
@@ -1680,32 +1690,70 @@ next
           have wf_S2: "state_wellFormed S2"
             by (simp add: S'_wf ih3_tx)
 
+          show "visibleCalls S' s \<triangleq> vis"
+            by (simp add: a7)
 
-          show vis_newS: "visibleCalls newS s \<triangleq> (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
-            by (simp add: newS_def)
-          show "vis \<union> callsInTransaction S' txns \<down> happensBefore S' = vis \<union> callsInTransaction newS txns \<down> happensBefore newS"
-            by (simp add: newS_def)
-          show "txns \<subseteq> dom (transactionStatus newS)"
-            using [[smt_solver=cvc4]]
-            by (smt S2_transactionStatus \<open>state_monotonicGrowth S2 newS\<close> a8 domI domIff less_eq_option_None_is_None mem_Collect_eq state_monotonicGrowth_def subset_eq)
-          show "consistentSnapshot newS (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+          show "newS = S'\<lparr>transactionStatus := transactionStatus S'(txId \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(txId \<mapsto> s),
+                currentTransaction := currentTransaction S'(s \<mapsto> txId), localState := localState S'(s \<mapsto> ls'), visibleCalls := visibleCalls S'(s \<mapsto> vis \<union> callsInTransaction S' txns \<down> happensBefore S' )\<rparr>"
+            using ih3_tx by (auto simp add: newS_def state_ext)
+
+          show "vis \<union> callsInTransaction S' txns \<down> happensBefore S' = vis \<union> callsInTransaction S' txns \<down> happensBefore S'"
+            by simp
+          show "txns \<subseteq> dom (transactionStatus S')"
+            using a8 by blast
+
+          show "consistentSnapshot S' (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
           proof (rule show_consistentSnapshot)
-            show "vis \<union> callsInTransaction S' txns \<down> happensBefore S' \<subseteq> dom (calls newS)"
+            show "vis \<union> callsInTransaction S' txns \<down> happensBefore S' \<subseteq> dom (calls S')"
               apply auto
-              apply (meson Un_iff \<open>state_wellFormed newS\<close> \<open>visibleCalls newS s \<triangleq> (vis \<union> callsInTransaction S' txns \<down> happensBefore S')\<close> domD set_mp wellFormed_visibleCallsSubsetCalls_h(2))
-              by (meson Un_subset_iff \<open>state_wellFormed newS\<close> domD set_mp vis_newS wellFormed_visibleCallsSubsetCalls_h(2))
+              apply (meson S'_wf a7 domD subsetCE wellFormed_visibleCallsSubsetCalls_h(2))
+              apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
+              using S'_wf wellFormed_callOrigin_dom apply fastforce
+              by (meson S'_wf option.exhaust wellFormed_happensBefore_calls_l)
+
             have "causallyConsistent (happensBefore S2) vis"
               using S'_wf S2_happensBefore a7 wf_causallyConsistent1 by auto
-            thus  "causallyConsistent (happensBefore newS) (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
-              using \<open>state_wellFormed newS\<close> vis_newS wf_causallyConsistent1 by blast
+            have  "causallyConsistent (happensBefore S') vis"
+              by (rule  wf_causallyConsistent1[OF \<open>state_wellFormed S'\<close>, OF `visibleCalls S' s \<triangleq> vis`])
+
+            from `state_wellFormed S'`
+            have  "causallyConsistent (happensBefore S') ((vis \<union> callsInTransaction S' txns) \<down> happensBefore S')"
+              by (rule causallyConsistent_downwards_closure)
+
+            moreover have "(vis \<union> callsInTransaction S' txns \<down> happensBefore S') = ((vis \<union> callsInTransaction S' txns) \<down> happensBefore S')"
+              apply (auto simp add: downwardsClosure_def)
+              using S'_wf a7 wf_vis_downwards_closed2 by blast
+
+            ultimately show  "causallyConsistent (happensBefore S') (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+              by simp
 
             have "transactionConsistent (callOrigin S2) (transactionStatus S2) vis"
               using S'_wf S2_callOrigin S2_transactionStatus a5 a7 wf_transactionConsistent_noTx by auto
 
-            thus "transactionConsistent (callOrigin newS) (transactionStatus newS) (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
-              by (smt \<open>\<And>c. callOrigin newS c \<noteq> Some txId\<close> \<open>currentTransaction newS s \<triangleq> txId\<close> \<open>state_wellFormed newS\<close> show_transactionConsistent vis_newS wellFormed_state_transaction_consistent(1) wellFormed_state_transaction_consistent(2))
+            have transactionConsistent_vis: "transactionConsistent (callOrigin S') (transactionStatus S') vis"
+              using \<open>transactionConsistent (callOrigin S2) (transactionStatus S2) vis\<close> ih3_tx by auto
 
+
+            show "transactionConsistent (callOrigin S') (transactionStatus S') (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+            proof (rule show_transactionConsistent)
+
+              show "transactionStatus S' tx \<triangleq> Commited"
+                if c0: "c \<in> vis \<union> callsInTransaction S' txns \<down> happensBefore S'"
+                  and c1: "callOrigin S' c \<triangleq> tx"
+                for  c tx
+                by (metis (full_types) S'_wf \<open>\<And>tx. transactionStatus S' tx \<noteq> Some Uncommited\<close> c1 domD domIff transactionStatus.exhaust wellFormed_state_callOrigin_transactionStatus)
+
+              show "c2 \<in> vis \<union> callsInTransaction S' txns \<down> happensBefore S'"
+                if c0: "c1 \<in> vis \<union> callsInTransaction S' txns \<down> happensBefore S'"
+                  and c1: "callOrigin S' c1 = callOrigin S' c2"
+                for  c1 c2
+                using c0 c1 apply (auto simp add:)
+                using S'_wf a7 wellFormed_state_transaction_consistent(2) apply blast
+                apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
+                by (metis S'_wf wf_happensBefore_txns_left)
+            qed
           qed
+
 
 
         qed
