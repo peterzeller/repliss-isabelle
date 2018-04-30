@@ -741,7 +741,7 @@ next
           apply auto
           apply (subst(asm) invContext_same_allCommitted)
                 apply auto
-
+ 
 
 
           sorry

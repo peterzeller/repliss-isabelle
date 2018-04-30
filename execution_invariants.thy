@@ -314,6 +314,11 @@ lemma wellFormed_currentTransaction_back3:
   shows "\<exists>!i. currentTransaction S i \<triangleq> t"
   using local.wf state_wellFormed_def uncommitted wellFormed_currentTransaction_back2 by blast
 
+lemma wellFormed_currentTransaction_back4:
+  assumes wf: "state_wellFormed S"
+    and uncommitted: "\<And>i. currentTransaction S i \<noteq> Some t"
+  shows "transactionStatus S t \<noteq> Some Uncommited"
+  using local.wf state_wellFormed_def uncommitted wellFormed_currentTransaction_back2 by blast
 
 
 lemma commitedCalls_unchanged_callOrigin[simp]:

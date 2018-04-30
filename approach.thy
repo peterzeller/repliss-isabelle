@@ -1231,7 +1231,8 @@ lemma wf_transactionConsistent1:
   shows "transactionStatus S tx \<triangleq> Commited"
   using assms(2) assms(3) assms(4) assms(5) local.wf wellFormed_state_transaction_consistent(1) by blast
 
-
+lemma flip: "(\<not>Q \<Longrightarrow> \<not>P) \<Longrightarrow> P \<longrightarrow> Q"
+  by auto
 
 
 
@@ -2190,35 +2191,86 @@ next
               show ?thesis
                 by (simp add: less_eq_option_None_is_None)
             qed
-            show "prog S'' = prog S2"
+            show "prog S' = prog S2"
               using ih3  prog_inv[OF local.step]
               by (simp add: state_coupling_def state_monotonicGrowth_prog)
-            show "invariant_all S''"
-              using inv'' by blast
-            have "localState S'' s \<triangleq> ls'"
-              using a2 a1 by auto
-            show "currentTransaction S'' s \<triangleq> tx"
-              using a1 by auto
-            show "transactionStatus S'' tx \<triangleq> Uncommited"
-              using a1 by auto
-            show "transactionOrigin S'' tx \<triangleq> s"
-              using a1 by auto
+            show "invariant_all S'"
+              using inv' by blast
+            show "localState S' s \<triangleq> ls"
+              using a2 by auto
+            show "currentTransaction S' s = None"
+              by (simp add: a5)
+            show "transactionStatus S' tx = None"
+              by (simp add: a6)
+            show "transactionOrigin S' tx = None"
+              using S_wf a6 noFails_tr state_wellFormed_combine steps wf_transaction_status_iff_origin by blast
+
             show "state_wellFormed S''"
               using S_wf state_wellFormed_combine steps' noFails by blast
-            show "state_monotonicGrowth S2 S''"
+            show "state_monotonicGrowth S2 S'"
               apply (auto simp add: state_monotonicGrowth_def a1 \<open>transactionStatus S2 tx = None\<close>)
               using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] by blast+
-            show "currentProc S'' s \<triangleq> f"
+            show "currentProc S' s \<triangleq> f"
               by (simp add: a1 a3)
-            show "\<And>c. callOrigin S'' c \<noteq> Some tx"
+            show "\<And>c. callOrigin S' c \<noteq> Some tx"
               using S_wf a6 state_wellFormed_combine steps wf_callOrigin_implies_transactionStatus_defined a1 noFails by (auto, blast)
 
-            show "\<And>txa. txa \<noteq> tx \<Longrightarrow> transactionStatus S'' txa \<noteq> Some Uncommited"
-              by (metis (no_types, lifting) S_wf \<open>currentTransaction S'' s \<triangleq> tx\<close> at_most_one_current_tx noContextSwitch option.discI option.inject packed steps' steps_step.prems(4) steps_step.prems(5) wellFormed_currentTransaction_back)
+      
+            have "\<forall>i. currentTransaction S'' i \<noteq> None \<longrightarrow> i = fst (last (tr@[a]))"
+            proof (rule at_most_one_current_tx)
+              show "S ~~ tr @ [a] \<leadsto>* S''"
+                using steps' by auto
 
-            from a1 
-            show "visibleCalls S'' s \<triangleq> (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+              show " noContextSwitchesInTransaction (tr@[a])"
+                using  noContextSwitch  by blast
+              show "packed_trace (tr@[a])"
+                using packed by blast
+              show "state_wellFormed S"
+                by (simp add: S_wf)
+              show "\<And>s. (s, AFail) \<notin> set (tr@[a])"
+                using noFails by blast
+              show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+                by (simp add: steps_step.prems(5))
+            qed
+            hence noCurrentTransaction: "currentTransaction S'' i = None" if "i\<noteq>s" for i
+              using that by auto
+            have "\<And>tx'. tx' \<noteq> tx \<Longrightarrow> transactionStatus S'' tx' \<noteq> Some Uncommited"
+            proof (rule wellFormed_currentTransaction_back4[OF \<open>state_wellFormed S''\<close>])
+              fix tx' i
+              assume a: "tx' \<noteq> tx"
+
+              show "currentTransaction S'' i \<noteq> Some tx'"
+              proof (cases "i=s")
+                case True
+                then show ?thesis 
+                  using a by (simp add: a1)
+              next
+                case False
+                thus ?thesis
+                  by (simp add: noCurrentTransaction)
+              qed
+            qed
+
+
+            thus "\<And>tx. transactionStatus S' tx \<noteq> Some Uncommited"
+              apply (simp add: a1)
+              using a6 by force
+
+
+            show "S'' = S'\<lparr>transactionStatus := transactionStatus S'(tx \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(tx \<mapsto> s), currentTransaction := currentTransaction S'(s \<mapsto> tx),
+               localState := localState S'(s \<mapsto> ls'), visibleCalls := visibleCalls S'(s \<mapsto> vis \<union> callsInTransaction S' txns \<down> happensBefore S')\<rparr>"
+              by (auto simp add: a1 state_ext)
+
+            show "vis \<union> callsInTransaction S' txns \<down> happensBefore S' = vis \<union> callsInTransaction S' txns \<down> happensBefore S'"
               by simp
+
+            show "state_wellFormed S'"
+              using S_wf noFails_tr state_wellFormed_combine steps by auto
+
+
+
+            show "visibleCalls S' s \<triangleq> vis"
+              using a7 by auto
 
 
             from `visibleCalls S' s \<triangleq> vis`
@@ -2226,14 +2278,14 @@ next
                by (auto simp add: state_coupling_def S2_simps)
 
              from ` txns \<subseteq> commitedTransactions S'`
-             show "txns \<subseteq> dom (transactionStatus S'')"
-               by (auto simp add: a1)
+             show "txns \<subseteq> dom (transactionStatus S')"
+               by (auto simp add:)
 
              have wf_S': "state_wellFormed S'"
                using S_wf noFails_tr state_wellFormed_combine steps by auto
 
 
-             show "consistentSnapshot S'' (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+             show "consistentSnapshot S' (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
              proof (auto simp add: consistentSnapshotH_def a1)
                show "\<And>x. x \<in> vis \<Longrightarrow> \<exists>y. calls S' x \<triangleq> y"
                  by (meson S_wf a7 domD noFails_tr state_wellFormed_combine steps subsetCE wellFormed_visibleCallsSubsetCalls_h(2))
@@ -2246,10 +2298,8 @@ next
                show " causallyConsistent (happensBefore S') (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
                  using a7 causallyConsistent_downwards happensBefore_transitive wf_S' wf_causallyConsistent1 by blast
 
-               show " transactionConsistent (callOrigin S') (transactionStatus S'(tx \<mapsto> Uncommited)) (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+               show " transactionConsistent (callOrigin S') (transactionStatus S') (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
                  apply (auto simp add: transactionConsistent_def)
-                      apply (simp add: a6 wf_S' wf_no_transactionStatus_origin_for_nothing)
-                 using a6 wf_S' wf_callOrigin_implies_transactionStatus_defined apply blast
                  using a5 a7 wf_S' wf_transactionConsistent1 apply fastforce
                  apply (auto simp add: downwardsClosure_def callsInTransactionH_def)
                  using a8 apply blast
@@ -2265,11 +2315,6 @@ next
     
               *}
 
-
-             have "callsInTransaction S' txns \<down> happensBefore S' = callsInTransaction S'' txns \<down> happensBefore S''"
-               by (auto simp add:  downwardsClosure_def callsInTransactionH_def a1)
-             thus "vis \<union> callsInTransaction S' txns \<down> happensBefore S' = vis \<union> callsInTransaction S'' txns \<down> happensBefore S''"
-               by simp
            qed
 
           thus "S ~~ (s, tr'@[(ABeginAtomic tx txns, True)]) \<leadsto>\<^sub>S*  S''"

@@ -234,15 +234,8 @@ qed
 lemma state_wellFormed_s_currentTransactions_iff_uncommitted:
   assumes wf: "state_wellFormed_s S i" 
   shows "currentTransaction S i \<triangleq> tx \<longleftrightarrow> (transactionStatus S tx \<triangleq> Uncommited)"
-  using assms proof (induct rule: state_wellFormed_s_induct)
-case (initial progr)
-  then show ?case 
-    by (auto simp add: initialState_def)
-next
-  case (step tr S a S' progr)
-  then show ?case 
-    sorry
-qed
+  using local.wf option.distinct(1) state_wellFormed_s_currentTransactionsOnlyInCurrent state_wellFormed_s_to_wf wellFormed_currentTransaction_back3 by fastforce
+
 
 
 
