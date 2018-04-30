@@ -2195,7 +2195,7 @@ next
               by (simp add: state_coupling_def state_monotonicGrowth_prog)
             show "invariant_all S''"
               using inv'' by blast
-            show "localState S'' s \<triangleq> ls'"
+            have "localState S'' s \<triangleq> ls'"
               using a2 a1 by auto
             show "currentTransaction S'' s \<triangleq> tx"
               using a1 by auto
