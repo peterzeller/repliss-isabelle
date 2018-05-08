@@ -127,7 +127,7 @@ next
     thus ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   next
-    case (beginAtomic C s ls f ls' t C' C'' vis vis' newTxns i txns)
+    case (beginAtomic C s ls f ls' t C' C'' vis vis' newTxns txns)
     then show ?case
       by blast 
   next
