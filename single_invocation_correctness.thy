@@ -1167,9 +1167,13 @@ proof (auto simp add: programCorrect_s_def)
     obtain p args invInitial where a_def: "a = (AInvoc p args, invInitial)"
       by (cases a, auto simp add: trace_def isAInvoc_def split: action.splits)
 
+    have invContext_same: "invContext S = invContext' S"  if  "S \<in> initialStates program i"  for S
+      using initialState_noTxns1 initialStates_wellFormed invContext_same_allCommitted that by blast
+
+
     from initialCorrect[where i=i]
     have initialCorrect': "invariant progr (invContext S)" if "S \<in> initialStates program i" and "progr = prog S" for S progr
-      using that by blast
+      using that invContext_same by fastforce 
 
 
     have "invariant_all' S_init"
@@ -1184,7 +1188,10 @@ proof (auto simp add: programCorrect_s_def)
 
     with step1 and a_def
     have "invInitial"
-      by (auto simp add: step_s.simps)
+      apply (auto simp add: step_s.simps )
+      using [[smt_solver=cvc4]]
+      by (smt invContextH_same_allCommitted wellFormed_callOrigin_dom3 wellFormed_happensBefore_calls_l wellFormed_happensBefore_calls_r wellFormed_state_callOrigin_transactionStatus wf_transaction_status_iff_origin)
+
 
 
     have "S_init\<in>initialStates program i"
@@ -1220,7 +1227,7 @@ proof (auto simp add: programCorrect_s_def)
                 and steps_pre: "initialState (prog S_pre) ~~ tr \<leadsto>* S_pre" 
               apply (atomize_elim)
               apply (auto simp add: initialStates_def state_wellFormed_def)
-              by blast
+              by (metis invContext_same_allCommitted state_wellFormed_def)
 
             have "S_pre ~~ (i, AInvoc procName args) \<leadsto> S"
               apply (auto simp add: step_simps S_def)
@@ -1351,15 +1358,10 @@ lemma checkCorrect2F_mono[simp]:
 "mono checkCorrect2F"
 proof (rule monoI)
   show "checkCorrect2F x \<le> checkCorrect2F y" if c0: "x \<le> y"  for  x :: "(('localState, 'any) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool)" and y
-    apply (auto simp add: checkCorrect2F_def Let_def split: option.splits localAction.splits)
-    using c0 apply fastforce
-    using [[smt_solver=cvc4]]
-       apply (smt le_boolD le_funD that wellFormed_currentTransactionUncommited)
-    apply (smt le_boolD le_funD that)
-        apply (smt le_boolD le_funD that)
-    using le_funD that apply force
-    done
-
+    apply auto
+    apply (auto simp add: checkCorrect2F_def Let_def intro!: predicate1D[OF `x \<le> y`] split: option.splits localAction.splits if_splits)
+    apply blast
+    by force
 qed
 
 
