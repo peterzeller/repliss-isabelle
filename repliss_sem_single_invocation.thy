@@ -257,7 +257,7 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    \<And>c. callOrigin C' c \<noteq> Some t;
    transactionOrigin C' t = None;
    (C'' = C'\<lparr>transactionStatus := (transactionStatus C')(t \<mapsto> Uncommited),
-              transactionOrigin := (transactionOrigin C')(t \<mapsto> i),
+              transactionOrigin := (transactionOrigin C')(t \<mapsto> s),
               currentTransaction := (currentTransaction C')(s \<mapsto> t),
               localState := (localState C')(s \<mapsto> ls'),
               visibleCalls := (visibleCalls C')(s \<mapsto> vis')
