@@ -1657,29 +1657,15 @@ next
             using wellFormed_callOrigin_dom3[OF `state_wellFormed S`] wellFormed_state_callOrigin_transactionStatus[OF `state_wellFormed S`]
                   wellFormed_happensBefore_calls_l[OF `state_wellFormed S`]
                   wellFormed_happensBefore_calls_r[OF `state_wellFormed S`]
-                  wellFormed_currentTransactionUncommited[OF `state_wellFormed S`]
-                  wf_transaction_status_iff_origin[OF `state_wellFormed S`]
+                (*  wellFormed_currentTransactionUncommited[OF `state_wellFormed S`]
+                  wf_transaction_status_iff_origin[OF `state_wellFormed S`]*)
                   all_committed
-                  apply auto
-            using \<open>\<And>tx c. callOrigin S c \<triangleq> tx \<Longrightarrow> transactionStatus S tx \<noteq> None\<close> apply blast
-
+                  apply (auto)
               apply (metis Suc.prems(2) not_Some_eq tx wellFormed_currentTransactionUncommited wf_transaction_status_iff_origin)
-             apply (metis Suc.prems(2) not_Some_eq tx wellFormed_currentTransactionUncommited wf_transaction_status_iff_origin)
-            using all_committed by blast
+            using Suc.prems(2) wf_transaction_status_iff_origin apply blast
+            using Suc.prems(2) wf_transaction_status_iff_origin by blast
 
-
-
-            apply (meson Suc.prems(2) option.exhaust wellFormed_happensBefore_calls_l)
-
-            apply (meson Suc.prems(2) not_Some_eq wellFormed_state_callOrigin_transactionStatus)
-
-            using Suc.prems(2) wellFormed_callOrigin_dom3 apply blast
-            using Suc.prems(2) wellFormed_callOrigin_dom3 apply blast
-
-
-            sorry
-
-
+          show "progr = progr" ..
 
           show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>)"
             using local.wf by blast
@@ -1714,7 +1700,7 @@ next
 
         show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>) i"
         proof (rule IH)
-          show "invariant_all' (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>)"
+          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>)"
             using Suc.prems(1) by auto
 
           from state_wellFormed_combine_step[OF `state_wellFormed S`, OF step]
@@ -1726,6 +1712,8 @@ next
 
           show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>) i \<triangleq> txCalls"
             by (simp add: Suc.prems(4))
+
+          show "progr = progr" ..
 
           show "(checkCorrect2F ^^ bound) bot (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>, i)"
             using use_checkCorrect2
@@ -1768,7 +1756,7 @@ next
             using Suc.prems(2) c0 tx by (auto simp add: invContextH_def updateHb.simps(2) restrict_relation_def)
 
 
-          with `invariant_all' S`
+          with `invariant_all S`
           show "invariant progr
              (invContextH (callOrigin S(c \<mapsto> tx)) (transactionOrigin S) (transactionStatus S) (updateHb (happensBefore S) txCalls [c]) (calls S(c \<mapsto> Call m a res)) (knownIds S) (invocationOp S) (invocationRes S))"
             by auto
@@ -1810,7 +1798,7 @@ next
       show ?thesis
       proof (subst checkCorrect_simps, auto simp add: Return tx `visibleCalls S i \<triangleq> txCalls`)
 
-        show "invariant progr (invContextH (callOrigin S) (transactionOrigin S) (transactionStatus S) (happensBefore S) (calls S) (knownIds S \<union> uniqueIds r) (invocationOp S) (invocationRes S(i \<mapsto> r)))"
+        show "invariant progr (invContextH2 (callOrigin S) (transactionOrigin S) (transactionStatus S) (happensBefore S) (calls S) (knownIds S \<union> uniqueIds r) (invocationOp S) (invocationRes S(i \<mapsto> r)))"
           if c0: "\<forall>t. transactionStatus S t \<noteq> Some Uncommited"
           using use_checkCorrect2
           apply simp
@@ -1825,10 +1813,10 @@ qed
 
 lemma checkCorrect_eq2':
   assumes initState: "S\<in>initialStates progr i" 
-    and invInitial: "invariant_all' S"
+    and invInitial: "invariant_all S"
     and c2: "(checkCorrect2F ^^bound) bot (progr, {}, S, i) "
   shows "checkCorrect progr S i"
-  using `invariant_all' S`
+  using `invariant_all S`
 proof (rule checkCorrect_eq2)
   show " state_wellFormed S"
     using initState initialStates_wellFormed by auto
@@ -1881,8 +1869,10 @@ lemma show_programCorrect_using_checkCorrect:
    and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
  shows "programCorrect progr"
 proof (rule show_correctness_via_single_session)
-  show "invariant_all' (initialState progr)"
-    using invInitial .
+  show "invariant_all (initialState progr)"
+    using invInitial apply (subst invContext_same_allCommitted)
+    by (auto, simp add: initialState_def)
+
 
   show "programCorrect_s progr"
   proof (rule show_program_correct_single_invocation)
@@ -1898,7 +1888,8 @@ proof (rule show_correctness_via_single_session)
         and c1: "invariant_all' S"
         and c2: "state_wellFormed S"
       for  S i
-      using c0 c1 checkCorrect_eq2' stepsCorrect by blast
+      using c0 c1 checkCorrect_eq2' stepsCorrect
+      using c2 initialState_noTxns1 invContext_same_allCommitted by fastforce 
 
   qed
 qed
