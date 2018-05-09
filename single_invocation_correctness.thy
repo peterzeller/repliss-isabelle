@@ -1863,7 +1863,7 @@ proof -
 qed
 *)
 
-lemma show_programCorrect_using_checkCorrect:
+lemma show_programCorrect_using_checkCorrect1:
   assumes initalStatesCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> invariant_all' S"
     and invInitial: "invariant_all' (initialState progr)"
    and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
@@ -1893,6 +1893,54 @@ proof (rule show_correctness_via_single_session)
 
   qed
 qed
+
+
+definition initialStates' :: "('localState, 'any) prog \<Rightarrow> invocation \<Rightarrow> ('localState, 'any) state set"  where
+  "initialStates' progr i \<equiv> {
+    (S\<lparr>localState := (localState S)(i \<mapsto> initState),
+       currentProc := (currentProc S)(i \<mapsto> impl),
+       visibleCalls := (visibleCalls S)(i \<mapsto> {}),
+       invocationOp := (invocationOp S)(i \<mapsto> (procName, args))\<rparr>) 
+ | S procName args initState impl.
+    prog S = progr
+  \<and> procedure progr procName args \<triangleq> (initState, impl)  
+  \<and> uniqueIdsInList args \<subseteq> knownIds S
+  \<and> invariant_all' S
+  \<and> state_wellFormed S (*  TODO add wellformed? *)
+  \<and> invocationOp S i = None
+  \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommited)
+}"
+
+lemma show_programCorrect_using_checkCorrect:
+  assumes initialStatesCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates' progr i\<rbrakk> \<Longrightarrow> invariant_all' S"
+    and invInitial: "invariant_all' (initialState progr)"
+   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
+ shows "programCorrect progr"
+proof (rule show_programCorrect_using_checkCorrect1)
+
+  from invInitial
+  show "invariant_all' (initialState progr)".
+
+  from stepsCorrect
+  show "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, {}, S, i)".
+
+  show "invariant_all' S"
+    if c0: "S \<in> initialStates progr i"
+    for  S i
+  proof (rule initialStatesCorrect)
+    from c0
+    show "S \<in> initialStates' progr i"
+      apply (auto simp add: initialStates'_def initialStates_def)
+      apply (rule_tac x=Sa in exI)
+      apply (rule_tac x=procName in exI)
+      apply (rule_tac x=args in exI)
+      apply (rule_tac x=initState in exI)
+      apply (rule_tac x=impl in exI)
+      apply auto
+      by (simp add: invContext_same_allCommitted)
+  qed
+qed
+
 
        
 

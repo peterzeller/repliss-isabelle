@@ -297,18 +297,18 @@ proof (rule show_programCorrect_using_checkCorrect)
   have [simp]: "S \<in> initialStates progr i \<Longrightarrow> prog S = progr" for S i
     by (auto simp add: initialStates_def)
   
-  show "invariant_all (repliss_sem.initialState progr)"
+  show "invariant_all' (repliss_sem.initialState progr)"
      by (auto simp add: initialState_def  inv_def inv1_def inv2_def inv3_def invContextH_def)
   
-   show "\<And>S i. S \<in> initialStates progr i \<Longrightarrow> invariant_all S"
-     apply (subst(asm) initialStates_def)
+   show "\<And>S i. S \<in> initialStates' progr i \<Longrightarrow> invariant_all' S"
+     apply (subst(asm) initialStates'_def)
    proof auto
 
-     show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (procName, args))) (invocationRes S'))" (is ?inv)
+     show "example_userbase.inv (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (procName, args))) (invocationRes S'))" (is ?inv)
        if i0: "prog S' = progr"
          and i1: "procedures procName args \<triangleq> (initState, impl)"
          and i2: "uniqueIdsInList args \<subseteq> knownIds S'"
-         and old_inv: "example_userbase.inv (invContext S')"
+         and old_inv: "example_userbase.inv (invContext' S')"
          and i4: "state_wellFormed S'"
          and i5: "invocationOp S' i = None"
          and i6: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
@@ -316,7 +316,7 @@ proof (rule show_programCorrect_using_checkCorrect)
        using i1 proof (subst(asm) procedure_cases2, auto)
        
 
-       show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (registerUser, [String name, String mail]))) (invocationRes S'))"
+       show "example_userbase.inv (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (registerUser, [String name, String mail]))) (invocationRes S'))"
          if c0: "procedures registerUser [String name, String mail] \<triangleq> (lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>, registerUserImpl)"
            and c1: "procName = registerUser"
            and c2: "args = [String name, String mail]"
@@ -327,7 +327,7 @@ proof (rule show_programCorrect_using_checkCorrect)
          by (auto simp add: inv_def inv1_def inv2_def inv3_def)
 
 
-       show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (updateMail, [UserId u, String mail]))) (invocationRes S'))"
+       show "example_userbase.inv (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (updateMail, [UserId u, String mail]))) (invocationRes S'))"
          if c0: "procedures updateMail [UserId u, String mail] \<triangleq> (lsInit\<lparr>ls_u := UserId u, ls_mail := mail\<rparr>, updateMailImpl)"
            and c1: "procName = updateMail"
            and c2: "args = [UserId u, String mail]"
@@ -338,7 +338,7 @@ proof (rule show_programCorrect_using_checkCorrect)
          by (auto simp add: inv_def inv1_def inv2_def inv3_def)
 
 
-       show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u]))) (invocationRes S'))"
+       show "example_userbase.inv (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u]))) (invocationRes S'))"
          if c0: "procedures removeUser [UserId u] \<triangleq> (lsInit\<lparr>ls_u := UserId u\<rparr>, removeUserImpl)"
            and c1: "procName = removeUser"
            and c2: "args = [UserId u]"
@@ -346,19 +346,21 @@ proof (rule show_programCorrect_using_checkCorrect)
            and c4: "initState = lsInit\<lparr>ls_u := UserId u\<rparr>"
          for  u
        proof (auto simp add: inv_def)
-         show "inv1 (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u])))
+         show "inv1 (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u])))
            (invocationRes S'))"
            using old_inv
            apply (auto simp add: inv_def inv1_def)[1]
+
          proof -
 
-            show "invocationRes S' g \<triangleq> NotFound"
-                if x0: "\<forall>r g. (\<exists>u. invocationOp S' r \<triangleq> (removeUser, [u]) \<and> invocationOp S' g \<triangleq> (getUser, [u]) \<and> (r, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S')) (happensBefore S' |r commitedCalls S')) \<longrightarrow> invocationRes S' g \<triangleq> NotFound"
-               and x1: "inv2 (invContext S')"
-               and x2: "inv3 (invContext S')"
+
+           show "invocationRes S' g \<triangleq> NotFound"
+             if x0: "\<forall>r g. (\<exists>u. invocationOp S' r \<triangleq> (removeUser, [u]) \<and> invocationOp S' g \<triangleq> (getUser, [u]) \<and> (r, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (transactionOrigin S')) (happensBefore S')) \<longrightarrow> invocationRes S' g \<triangleq> NotFound"
+               and x1: "inv2 (invContext' S')"
+               and x2: "inv3 (invContext' S')"
                and x3: "g \<noteq> i"
                and x4: "invocationOp S' g \<triangleq> (getUser, [UserId u])"
-               and x5: "(i, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S')) (happensBefore S' |r commitedCalls S')"
+               and x5: "(i, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (transactionOrigin S')) (happensBefore S')"
              for  g
             proof -
 
