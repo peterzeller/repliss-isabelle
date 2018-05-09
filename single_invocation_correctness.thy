@@ -1460,9 +1460,12 @@ schematic_goal checkCorrect2_simps:
 lemma consistentSnapshot_empty: "consistentSnapshot S {}"
   by (auto simp add: consistentSnapshotH_def causallyConsistent_def transactionConsistent_def)
 
+lemma exists_optionI: "x \<noteq> None \<Longrightarrow> \<exists>y. x \<triangleq> y"
+  by auto
+
 
 lemma checkCorrect_eq2:
-  assumes "invariant_all' S" 
+  assumes "invariant_all S" 
     and "state_wellFormed S"
     and "progr = prog S"
     and "visibleCalls S i \<triangleq> txCalls" 
@@ -1487,13 +1490,14 @@ next
     by (simp add: Suc)
 
 
-  have IH: "\<lbrakk>invariant_all' S; 
+  have IH: "\<lbrakk>invariant_all S; 
       state_wellFormed S; 
       progr = prog S; 
+      progr' = progr;
       visibleCalls S i \<triangleq> txCalls;
       (checkCorrect2F ^^ bound) bot (progr,  txCalls, S, i)\<rbrakk>
-    \<Longrightarrow> checkCorrect progr S i" for S txCalls
-    using Suc by blast
+    \<Longrightarrow> checkCorrect progr' S i" for S txCalls progr'
+    using Suc  by blast
 
 
   have use_checkCorrect2: "(checkCorrect2F ^^ Suc bound) bot (progr, txCalls, S, i)" 
@@ -1520,8 +1524,8 @@ next
       proof (subst checkCorrect_simps, auto simp add: LocalStep)
         show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>) i"
         proof (rule IH)
-          from `invariant_all' S`
-          show "invariant_all' (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>)"
+          from `invariant_all S`
+          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>)"
             by (auto simp add: )
 
           have step: "S ~~ (i, ALocal) \<leadsto> S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>"
@@ -1536,10 +1540,10 @@ next
           show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>) i \<triangleq> txCalls"
             by auto
 
+          show "progr = progr" ..
+
           show "(checkCorrect2F ^^ bound) bot (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>, i)"
           proof -
-
-
 
             from use_checkCorrect2
             show "(checkCorrect2F ^^ bound) bot (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>, i)"
@@ -1552,6 +1556,9 @@ next
       qed
     next
       case (BeginAtomic tx)
+
+      
+
       show ?thesis
       proof (subst checkCorrect_simps, auto simp add: BeginAtomic `visibleCalls S i \<triangleq> txCalls`)
         have cs_empty: "consistentSnapshot S {}"
@@ -1565,48 +1572,56 @@ next
           apply (auto simp add: BeginAtomic)
           done
 
-        show "checkCorrect progr S' i"
-          if c0: "transactionStatus S t = None"
+        fix t newTxns
+        fix S'
+
+        assume c0a: "currentTransaction S i = None"
+            and c0: "transactionStatus S t = None"
+            and c2a: "progr = prog S'"
             and c1: "invariant_all' S'"
+            and c13: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
             and c2: "state_wellFormed S'"
+            and c6a: "state_wellFormed (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
             and c3: "state_monotonicGrowth S S'"
-            and c4: "localState S' i \<triangleq> tx"
+            and c4: "localState S' i \<triangleq> ls"
             and c5: "currentProc S' i \<triangleq> proc"
-            and c6: "currentTransaction S' i \<triangleq> t"
-            and c7: "transactionOrigin S' t \<triangleq> i"
-            and c8: "\<forall>c. callOrigin S' c \<noteq> Some t"
-            and c10: "visibleCalls S' i \<triangleq> (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
+            and c6: "currentTransaction S' i = None"
+            and c11a: "visibleCalls S' i \<triangleq> txCalls"
             and c11: "newTxns \<subseteq> dom (transactionStatus S')"
             and c12: "consistentSnapshot S' (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
-            and c13: "\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommited"
-          for  t S' newTxns
-        proof (rule IH[OF c1 c2])
+            and c0: "transactionStatus S' t = None"
+            and c15a: "\<forall>c. callOrigin S' c \<noteq> Some t"
+            and c7: "transactionOrigin S' t = None"
 
-          show "progr = prog S'"
-            using c3 state_monotonicGrowth_prog by force
-
-          show "visibleCalls S' i \<triangleq> (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
-            using Suc.prems(4) c10 by auto
+        define S'' where S''_def: "S'' = (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
 
 
+        show "checkCorrect (prog S') S'' i"
+        proof (rule IH)
+          show "prog S' = progr"
+            by (simp add: `progr = prog S'`)
+          thus "progr = prog S''"
+            by (simp add: S''_def)
 
-          show "(checkCorrect2F ^^ bound) bot (progr, txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S', S', i)"
-          proof -
+          show "visibleCalls S'' i \<triangleq> (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
+            by (simp add: S''_def)
 
-            show "(checkCorrect2F ^^ bound) bot (progr, txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S', S', i)"
-              using use_checkCorrect2
-              apply simp
-              apply (subst(asm) checkCorrect2F_def)
-              apply (auto simp add: BeginAtomic `visibleCalls S i \<triangleq> txCalls`)
-              apply (drule_tac x=t in spec)
-              apply (drule_tac x=S' in spec)
-              apply (drule_tac x=newTxns in spec)
-              apply (drule mp)
-               apply (auto simp add: c0 c1 c10 c11 c12 c13 c2 c3 c4 c5 c6 c7 c8  )
-              using c2 c6 wellFormed_currentTransactionUncommited apply blast
-              using \<open>progr = prog S'\<close> c1 c12  by blast
+          show "state_wellFormed S''"
+            using S''_def c6a by blast
 
-          qed
+          have "invContext S'' = invContext S'"
+            by (auto simp add: S''_def c13 c2 c0 invContextH_def restrict_map_def)
+
+          with `invariant_all' S'`
+          show "invariant_all S''"
+            by (auto simp add: S''_def c13 c2 invContext_same_allCommitted)
+
+          show "(checkCorrect2F ^^ bound) bot (progr, txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S', S'', i)"
+            using use_checkCorrect2
+            apply simp
+            apply (subst(asm) checkCorrect2F_def)
+            by (auto simp add: BeginAtomic `visibleCalls S i \<triangleq> txCalls`)
+
         qed
       qed
     next
@@ -1625,18 +1640,45 @@ next
         assume all_committed: "\<forall>t. t \<noteq> tx \<longrightarrow> transactionStatus S t \<noteq> Some Uncommited"
           and wf: "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>)"
 
-        show inv: "invariant progr (invContextH (callOrigin S) (transactionOrigin S) (transactionStatus S(tx \<mapsto> Commited)) (happensBefore S) (calls S) (knownIds S) (invocationOp S) (invocationRes S))"
+
+        show inv: "invariant progr (invContextH2 (callOrigin S) (transactionOrigin S) (transactionStatus S(tx \<mapsto> Commited)) (happensBefore S) (calls S) (knownIds S) (invocationOp S) (invocationRes S))"
           using use_checkCorrect2
           apply simp
           apply (subst(asm) checkCorrect2F_def)
           apply (auto simp add: EndAtomic all_committed tx split: option.splits if_splits)
           done
 
+
         show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>) i"
-          if inv: "invariant progr (invContextH (callOrigin S) (transactionOrigin S) (transactionStatus S(tx \<mapsto> Commited)) (happensBefore S) (calls S) (knownIds S) (invocationOp S) (invocationRes S))"
         proof (rule IH)
-          show "invariant_all' (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>)"
-            using inv by (auto simp add:)
+          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>)"
+            using inv apply (auto simp add:)
+            apply (subst invContextH_same_allCommitted)
+            using wellFormed_callOrigin_dom3[OF `state_wellFormed S`] wellFormed_state_callOrigin_transactionStatus[OF `state_wellFormed S`]
+                  wellFormed_happensBefore_calls_l[OF `state_wellFormed S`]
+                  wellFormed_happensBefore_calls_r[OF `state_wellFormed S`]
+                  wellFormed_currentTransactionUncommited[OF `state_wellFormed S`]
+                  wf_transaction_status_iff_origin[OF `state_wellFormed S`]
+                  all_committed
+                  apply auto
+            using \<open>\<And>tx c. callOrigin S c \<triangleq> tx \<Longrightarrow> transactionStatus S tx \<noteq> None\<close> apply blast
+
+              apply (metis Suc.prems(2) not_Some_eq tx wellFormed_currentTransactionUncommited wf_transaction_status_iff_origin)
+             apply (metis Suc.prems(2) not_Some_eq tx wellFormed_currentTransactionUncommited wf_transaction_status_iff_origin)
+            using all_committed by blast
+
+
+
+            apply (meson Suc.prems(2) option.exhaust wellFormed_happensBefore_calls_l)
+
+            apply (meson Suc.prems(2) not_Some_eq wellFormed_state_callOrigin_transactionStatus)
+
+            using Suc.prems(2) wellFormed_callOrigin_dom3 apply blast
+            using Suc.prems(2) wellFormed_callOrigin_dom3 apply blast
+
+
+            sorry
+
 
 
           show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>)"
