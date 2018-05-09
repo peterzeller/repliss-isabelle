@@ -430,14 +430,16 @@ proof (rule show_programCorrect_using_checkCorrect)
             and c3: "impl = registerUserImpl"
             and c4: "initState = lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>"
           for  name mail
-          apply (rule_tac x="6" in exI)
+          apply (rule_tac x="10" in exI)
           apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
-          apply (rule checkCorrect2F_step)
-           apply simp
-          apply (simp add: registerUserImpl_def)
-
           apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
-
+          apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
+          apply (auto simp add: progr_def crdtSpec_def )[1]
+          apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
+           apply (auto simp add: progr_def crdtSpec_def )[1]
+          apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
+           defer
+           apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
 
         proof
 

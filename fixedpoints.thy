@@ -568,7 +568,7 @@ shows "f (lfp2 f) = lfp2 f"
   apply (auto simp add: lfp2_def)
   apply (rule ext)
   apply auto
-  sorry
+  oops
 
 lemma lfp2_eq_lfp:
   assumes mono: "mono f"
@@ -636,12 +636,12 @@ proof (auto intro!: ext)
     if c0: "f (\<lambda>x. \<exists>i. (f ^^ i) bot x) x"
     for  x
 
-    sorry
+    oops
 
   show "f (\<lambda>x. \<exists>i. (f ^^ i) bot x) x"
     if c0: "(f ^^ i) bot x"
     for  x i
-    sorry
+    oops
 qed
 
 

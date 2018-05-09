@@ -254,7 +254,6 @@ next
       using checkCorrect_S apply auto
         apply (auto simp add: split: if_splits)
 
-      sorry
 
   next
     case (dbop ls f Op args ls' t c res vis)
@@ -270,7 +269,6 @@ next
       apply (case_tac bound', auto)
       apply (metis Suc.prems(3) \<open>bound - length trace = bound'\<close> less_numeral_extra(3) zero_less_diff)
 
-      sorry
   qed
   thus "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
     apply auto

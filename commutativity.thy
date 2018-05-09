@@ -4740,7 +4740,6 @@ then get allowed from there
 *)
 
   show "allowed_context_switch (snd (removeInvChecks trace ! i))"
-    sorry
 qed
 *)
 
