@@ -1283,28 +1283,36 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
       (case impl (the (localState S i)) of
           LocalStep ls \<Rightarrow> 
             checkCorrect' (progr, txCalls, (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>), i)
-        | BeginAtomic ls \<Rightarrow> 
+        | BeginAtomic ls' \<Rightarrow> 
             currentTransaction S i = None
-            \<and> (\<forall>t S' vis' newTxns.
-                transactionStatus S t = None
+            \<and> (\<forall>t S' newTxns S'' vis' ls.
+               localState S i \<triangleq> ls
+              \<and> currentTransaction S i = None
+              \<and> transactionStatus S t = None
+              \<and> prog S' = prog S
               \<and> invariant_all' S'
+              \<and> (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited)
               \<and> state_wellFormed S'
+              \<and> state_wellFormed S''
               \<and> state_monotonicGrowth S S'
               \<and> localState S' i \<triangleq> ls
               \<and> currentProc S' i \<triangleq> impl
-              \<and> currentTransaction S' i \<triangleq> t
-              \<and> transactionStatus S' t \<triangleq> Uncommited
-              \<and> transactionOrigin S' t \<triangleq> i
-              \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
+              \<and> currentTransaction S' i = None
               \<and> visibleCalls S i \<triangleq> txCalls
+              \<and> visibleCalls S' i \<triangleq> txCalls
               \<and> vis' = (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')
-              \<and> visibleCalls S' i \<triangleq> vis'
               \<and> newTxns \<subseteq> dom (transactionStatus S')
               \<and> consistentSnapshot S' vis'
-              \<and> (\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommited)
-              \<and> invariant progr (invContext' S')
-              \<and> (invariant progr (invContext' S')
-              \<longrightarrow> checkCorrect' (progr, vis', S', i)))
+              \<and> transactionStatus S' t = None
+              \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
+              \<and> transactionOrigin S' t = None
+              \<and> (S'' = S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommited),
+                          transactionOrigin := (transactionOrigin S')(t \<mapsto> i),
+                          currentTransaction := (currentTransaction S')(i \<mapsto> t),
+                          localState := (localState S')(i \<mapsto> ls'),
+                          visibleCalls := (visibleCalls S')(i \<mapsto> vis')
+                \<rparr>)
+              \<longrightarrow> checkCorrect' (progr, vis', S'' , i))
         | EndAtomic ls \<Rightarrow> 
             (case currentTransaction S i of
                 None \<Rightarrow> False
@@ -1354,13 +1362,14 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
         )))
 "
 
+
+
 lemma checkCorrect2F_mono[simp]:
 "mono checkCorrect2F"
 proof (rule monoI)
   show "checkCorrect2F x \<le> checkCorrect2F y" if c0: "x \<le> y"  for  x :: "(('localState, 'any) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool)" and y
     apply auto
     apply (auto simp add: checkCorrect2F_def Let_def intro!: predicate1D[OF `x \<le> y`] split: option.splits localAction.splits if_splits)
-    apply blast
     by force
 qed
 
@@ -1596,6 +1605,16 @@ next
         define S'' where S''_def: "S'' = (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
 
 
+        from `state_monotonicGrowth S S'`
+        have "transactionStatus S t \<le> transactionStatus S' t"
+          by (simp add: state_monotonicGrowth_transactionStatus)
+        with `transactionStatus S' t = None`
+        have "transactionStatus S t = None"
+          by (simp add: less_eq_option_None_is_None) (*EXTRACT*)
+          
+
+
+
         show "checkCorrect (prog S') S'' i"
         proof (rule IH)
           show "prog S' = progr"
@@ -1620,7 +1639,30 @@ next
             using use_checkCorrect2
             apply simp
             apply (subst(asm) checkCorrect2F_def)
-            by (auto simp add: BeginAtomic `visibleCalls S i \<triangleq> txCalls`)
+            apply (auto simp add: BeginAtomic `visibleCalls S i \<triangleq> txCalls`)
+            apply (drule_tac x=t in spec)
+            apply (drule_tac x=S' in spec)
+            apply (drule_tac x=newTxns in spec)
+            apply auto
+            using \<open>transactionStatus S t = None\<close> apply blast
+                           apply (simp add: c2a)
+                          apply (simp add: `invariant_all' S'`)
+            using c13 apply blast
+            apply (simp add: c2)
+            using `state_wellFormed S''` apply (simp add: S''_def)
+            using `state_monotonicGrowth S S'` apply simp
+            using `localState S' i \<triangleq> ls` apply simp
+            using `currentProc S' i \<triangleq> proc` apply simp
+            using `currentTransaction S' i = None` apply simp
+            using `visibleCalls S' i \<triangleq> txCalls` apply simp
+            using c11 apply blast
+
+            using ` consistentSnapshot S' (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')` apply simp
+            using `transactionStatus S' t = None` apply simp
+            using c15a apply blast
+            using c7 apply blast
+            by (simp add: S''_def)
+
 
         qed
       qed
@@ -1866,7 +1908,7 @@ qed
 lemma show_programCorrect_using_checkCorrect1:
   assumes initalStatesCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> invariant_all' S"
     and invInitial: "invariant_all' (initialState progr)"
-   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
+   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> \<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
  shows "programCorrect progr"
 proof (rule show_correctness_via_single_session)
   show "invariant_all (initialState progr)"
@@ -1911,10 +1953,28 @@ definition initialStates' :: "('localState, 'any) prog \<Rightarrow> invocation 
   \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommited)
 }"
 
+lemma initialStates'_same:
+  shows "initialStates progr i = initialStates' progr i"
+  apply (auto simp add: initialStates_def initialStates'_def)
+   apply (rule_tac x=S in exI)
+   apply (rule_tac x=procName in exI)
+   apply (rule_tac x=args in exI)
+   apply (rule_tac x=initState in exI)
+   apply (rule_tac x=impl in exI)
+   apply (auto simp add: invContext_same_allCommitted)
+  apply (rule_tac x=S in exI)
+  apply (rule_tac x=procName in exI)
+  apply (rule_tac x=args in exI)
+  apply (rule_tac x=initState in exI)
+  apply (rule_tac x=impl in exI)
+  apply (auto simp add: invContext_same_allCommitted)
+  done
+
+
 lemma show_programCorrect_using_checkCorrect:
   assumes initialStatesCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates' progr i\<rbrakk> \<Longrightarrow> invariant_all' S"
     and invInitial: "invariant_all' (initialState progr)"
-   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
+   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates' progr i\<rbrakk> \<Longrightarrow> \<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
  shows "programCorrect progr"
 proof (rule show_programCorrect_using_checkCorrect1)
 
@@ -1922,23 +1982,15 @@ proof (rule show_programCorrect_using_checkCorrect1)
   show "invariant_all' (initialState progr)".
 
   from stepsCorrect
-  show "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^bound) bot (progr, {}, S, i)".
+  show "\<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
+    if c0: "S\<in>initialStates progr i"
+    for  S i
+    using initialStates'_same that by blast
 
   show "invariant_all' S"
     if c0: "S \<in> initialStates progr i"
     for  S i
-  proof (rule initialStatesCorrect)
-    from c0
-    show "S \<in> initialStates' progr i"
-      apply (auto simp add: initialStates'_def initialStates_def)
-      apply (rule_tac x=Sa in exI)
-      apply (rule_tac x=procName in exI)
-      apply (rule_tac x=args in exI)
-      apply (rule_tac x=initState in exI)
-      apply (rule_tac x=impl in exI)
-      apply auto
-      by (simp add: invContext_same_allCommitted)
-  qed
+    using initialStates'_same initialStatesCorrect that by blast
 qed
 
 

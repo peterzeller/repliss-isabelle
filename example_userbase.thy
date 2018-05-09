@@ -350,61 +350,112 @@ proof (rule show_programCorrect_using_checkCorrect)
            (invocationRes S'))"
            using old_inv
            apply (auto simp add: inv_def inv1_def)[1]
-
-         proof -
-
-
-           show "invocationRes S' g \<triangleq> NotFound"
-             if x0: "\<forall>r g. (\<exists>u. invocationOp S' r \<triangleq> (removeUser, [u]) \<and> invocationOp S' g \<triangleq> (getUser, [u]) \<and> (r, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (transactionOrigin S')) (happensBefore S')) \<longrightarrow> invocationRes S' g \<triangleq> NotFound"
-               and x1: "inv2 (invContext' S')"
-               and x2: "inv3 (invContext' S')"
-               and x3: "g \<noteq> i"
-               and x4: "invocationOp S' g \<triangleq> (getUser, [UserId u])"
-               and x5: "(i, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (transactionOrigin S')) (happensBefore S')"
-             for  g
-            proof -
-
-              have "(i,g) \<notin> invocation_happensBeforeH (i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S')) (happensBefore S' |r commitedCalls S')"
-              proof (auto simp add: invocation_happensBeforeH_def)
-                fix c ca
-                assume a0: "\<forall>cx. i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S') cx \<triangleq> i \<longrightarrow>                   (\<forall>cy. i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S') cy \<triangleq> g \<longrightarrow>                         (cx, cy) \<in> happensBefore S' |r commitedCalls S')"
-                  and a1: "i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S') c \<triangleq> i"
-                  and a2: "i_callOriginI_h (callOrigin S' |` commitedCalls S') (transactionOrigin S' |` commitedTransactions S') ca \<triangleq> g"
-
-                from `state_wellFormed S'` `invocationOp S' i = None`
-                have "transactionOrigin S' tx \<noteq> Some i" for tx
-                  by (simp add: wf_no_invocation_no_origin)
+           using i4 i5 new_invocation_cannot_happen_before by blast
 
 
-                with a1
-                show "False"
-                  by (auto simp add:  i_callOriginI_h_def restrict_map_def split: option.splits if_splits)
-              qed
-            qed
+          show "inv2 (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u])))
+           (invocationRes S'))"
+
+            using old_inv
+            apply (auto simp add: inv_def inv2_def)
+            by (simp add: i4 i5 state_wellFormed_invocation_before_result)
+
+          show "inv3 (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u])))
+           (invocationRes S'))"
+            using old_inv
+            by (auto simp add: inv_def inv3_def)
+        qed
 
 
-            
-
- (*TODO, lemma that new invocation cannot be in invocation_happensBefore*)
-
-           apply (drule_tac x=i in spec)
-           apply (drule_tac x=g in spec)
-           apply (erule mp)
-         apply (rule_tac x="UserId u" in exI)
-
-       sorry
 
 
-       show "example_userbase.inv (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (getUser, [UserId u]))) (invocationRes S'))"
-         if c0: "procedures getUser [UserId u] \<triangleq> (lsInit\<lparr>ls_u := UserId u\<rparr>, getUserImpl)"
-           and c1: "procName = getUser"
-           and c2: "args = [UserId u]"
-           and c3: "impl = getUserImpl"
-           and c4: "initState = lsInit\<lparr>ls_u := UserId u\<rparr>"
-         for  u
-using i3
-         by (auto simp add: inv_def inv1_def inv2_def inv3_def)
-     qed
+        show "example_userbase.inv (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (getUser, [UserId u]))) (invocationRes S'))"
+          if c0: "procedures getUser [UserId u] \<triangleq> (lsInit\<lparr>ls_u := UserId u\<rparr>, getUserImpl)"
+            and c1: "procName = getUser"
+            and c2: "args = [UserId u]"
+            and c3: "impl = getUserImpl"
+            and c4: "initState = lsInit\<lparr>ls_u := UserId u\<rparr>"
+          for  u
+        proof (auto simp add: inv_def)
+
+          from old_inv
+          show "inv1 (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (getUser, [UserId u])))
+             (invocationRes S'))"
+            apply (auto simp add: inv_def inv1_def)
+            using i4 i5 new_invocation_cannot_happen_after by blast
+
+          from old_inv
+          show "inv2 (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (getUser, [UserId u])))
+             (invocationRes S'))"
+            by (auto simp add: inv_def inv2_def)
+
+          from old_inv
+          show "inv3 (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (getUser, [UserId u])))
+             (invocationRes S'))"
+            by (auto simp add: inv_def inv3_def)
+        qed
+      qed
+    qed
+
+
+    show "\<exists>bound. (checkCorrect2F ^^ bound) bot (progr, {}, S, i)"
+      if c0: "S \<in> initialStates' progr i"
+      for  S i
+
+      using c0  apply (subst(asm) initialStates'_def)
+    proof auto
+
+
+      show "\<exists>bound. (checkCorrect2F ^^ bound) bot (progr, {}, Sa \<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (procName, args))\<rparr>, i)"
+        if c0: "S = Sa\<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (procName, args))\<rparr>"
+          and c1: "prog Sa = progr"
+          and c2: "procedures procName args \<triangleq> (initState, impl)"
+          and c3: "uniqueIdsInList args \<subseteq> knownIds Sa"
+          and c4: "example_userbase.inv (invContext' Sa)"
+          and c5: "state_wellFormed Sa"
+          and c6: "invocationOp Sa i = None"
+          and c7: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommited"
+        for  Sa procName args initState impl
+        using c2 proof (subst(asm) procedure_cases2, auto)
+
+        have [simp]: "currentTransaction Sa i = None"
+          by (simp add: c5 c6 wellFormed_invoc_notStarted(1))
+
+
+
+        show "\<exists>bound. (checkCorrect2F ^^ bound) bot (progr, {}, Sa \<lparr>localState := localState Sa(i \<mapsto> lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>), currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail]))\<rparr>, i)"
+          if c0: "procedures registerUser [String name, String mail] \<triangleq> (lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>, registerUserImpl)"
+            and c1: "procName = registerUser"
+            and c2: "args = [String name, String mail]"
+            and c3: "impl = registerUserImpl"
+            and c4: "initState = lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>"
+          for  name mail
+          apply (rule_tac x="6" in exI)
+          apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
+          apply (rule checkCorrect2F_step)
+           apply simp
+          apply (simp add: registerUserImpl_def)
+
+          apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
+
+
+        proof
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

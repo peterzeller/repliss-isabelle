@@ -60,6 +60,61 @@ lemmas invariant_simps =
 
 
 
+lemma new_invocation_cannot_happen_before:
+  assumes "state_wellFormed S'"
+    and "invocationOp S' i = None"
+  shows "(i,g) \<notin> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (transactionOrigin S')) (happensBefore S')"
+proof (auto simp add: invocation_happensBeforeH_def)
+  fix c ca
+  assume a0: "\<forall>cx. i_callOriginI_h (callOrigin S') (transactionOrigin S') cx \<triangleq> i \<longrightarrow> (\<forall>cy. i_callOriginI_h (callOrigin S') (transactionOrigin S') cy \<triangleq> g \<longrightarrow> (cx, cy) \<in> happensBefore S')"
+    and a1: "i_callOriginI_h (callOrigin S') (transactionOrigin S') c \<triangleq> i"
+    and a2: "i_callOriginI_h (callOrigin S') (transactionOrigin S') ca \<triangleq> g"
+
+  from `state_wellFormed S'` `invocationOp S' i = None`
+  have "transactionOrigin S' tx \<noteq> Some i" for tx
+    by (simp add: wf_no_invocation_no_origin)
+
+
+  with a1
+  show "False"
+    by (auto simp add:  i_callOriginI_h_def restrict_map_def split: option.splits if_splits)
+qed
+
+lemma new_invocation_cannot_happen_after:
+  assumes "state_wellFormed S'"
+    and "invocationOp S' i = None"
+  shows "(g,i) \<notin> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (transactionOrigin S')) (happensBefore S')"
+proof (auto simp add: invocation_happensBeforeH_def)
+  fix c ca
+  assume a0: "\<forall>cx. i_callOriginI_h (callOrigin S') (transactionOrigin S') cx \<triangleq> g \<longrightarrow> (\<forall>cy. i_callOriginI_h (callOrigin S') (transactionOrigin S') cy \<triangleq> i \<longrightarrow> (cx, cy) \<in> happensBefore S')"
+    and a1: "i_callOriginI_h (callOrigin S') (transactionOrigin S') c \<triangleq> g"
+    and a2: "i_callOriginI_h (callOrigin S') (transactionOrigin S') ca \<triangleq> i"
+
+
+  from `state_wellFormed S'` `invocationOp S' i = None`
+  have "transactionOrigin S' tx \<noteq> Some i" for tx
+    by (simp add: wf_no_invocation_no_origin)
+
+
+  with a2
+  show "False"
+    by (auto simp add:  i_callOriginI_h_def restrict_map_def split: option.splits if_splits)
+qed
+
+schematic_goal checkCorrect2F_step:
+  "\<lbrakk>b>0; ?F (checkCorrect2F ^^ (b - 1)) bot S\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^ b) bot S"
+  apply (case_tac b)
+   apply simp
+  apply (rule_tac t=b and s="Suc nat" in ssubst, assumption)
+  apply (subst funpow.simps)
+  apply (subst o_apply)
+  apply (subst checkCorrect2F_def)
+  apply (rule_tac t=nat and s="b - 1" in ssubst)
+   apply simp
+  apply assumption
+  done
+
+
 (*
 
   i_visibleCalls :: "callId set"
