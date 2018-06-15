@@ -1271,6 +1271,12 @@ showing that a snapshot is consistent
 *)
 
 
+definition Def (infix "::=" 50) where
+"x ::= y \<equiv> x = y"
+
+definition DefSome (infix "::\<triangleq>" 50) where
+"x ::\<triangleq> y \<equiv> y = Some x"
+
 (* check program (with a given start-state, bound by a number of steps) *)
 definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool) 
                            \<Rightarrow> ('localState, 'any) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool" where
@@ -1280,7 +1286,8 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
   | Some impl \<Rightarrow>
       (case impl (the (localState S i)) of
           LocalStep ls \<Rightarrow> 
-            checkCorrect' (progr, txCalls, (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>), i)
+            (\<forall>S'. S' ::= (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>)
+             \<longrightarrow> checkCorrect' (progr, txCalls, S', i))
         | BeginAtomic ls' \<Rightarrow> 
             currentTransaction S i = None
             \<and> (\<forall>t S' newTxns S'' vis' ls.
@@ -1298,13 +1305,13 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
               \<and> currentTransaction S' i = None
               \<and> visibleCalls S i \<triangleq> txCalls
               \<and> visibleCalls S' i \<triangleq> txCalls
-              \<and> vis' = (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')
+              \<and> vis' ::= (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')
               \<and> newTxns \<subseteq> dom (transactionStatus S')
               \<and> consistentSnapshot S' vis'
               \<and> transactionStatus S' t = None
               \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
               \<and> transactionOrigin S' t = None
-              \<and> (S'' = S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommited),
+              \<and> (S'' ::= S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommited),
                           transactionOrigin := (transactionOrigin S')(t \<mapsto> i),
                           currentTransaction := (currentTransaction S')(i \<mapsto> t),
                           localState := (localState S')(i \<mapsto> ls'),
@@ -1315,19 +1322,21 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
             (case currentTransaction S i of
                 None \<Rightarrow> False
               | Some t \<Rightarrow>
-                let S' = (S\<lparr>
+                (\<forall>S'.
+                 S' ::= (S\<lparr>
                   localState := (localState S)(i \<mapsto> ls), 
                   currentTransaction := (currentTransaction S)(i := None),
-                  transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
-                  (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
-                    \<longrightarrow> (invariant progr (invContext' S')
-                         \<and> (invariant progr (invContext' S')  \<longrightarrow> checkCorrect' (progr, txCalls, S', i))
-                       )
+                  transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>)
+                \<longrightarrow> (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
+                     \<longrightarrow> (invariant progr (invContext' S')
+                          \<and> (invariant progr (invContext' S')  \<longrightarrow> checkCorrect' (progr, txCalls, S', i))
+                        ))
             )
         | NewId ls \<Rightarrow> 
-          (\<forall>uid.
+          (\<forall>uid S'.
             uid \<notin> generatedIds S
-            \<longrightarrow> checkCorrect' (progr, txCalls, (S\<lparr>localState := (localState S)(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid} \<rparr>), i)
+           \<and> S' ::= (S\<lparr>localState := (localState S)(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid} \<rparr>)
+            \<longrightarrow> checkCorrect' (progr, txCalls, S', i)
           )
         | DbOperation Op args ls \<Rightarrow> 
            (case currentTransaction S i of
@@ -1335,26 +1344,29 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
               | Some t \<Rightarrow>
                   (\<exists>res. querySpec progr Op args (getContext S i) res)
                   \<and>
-                  (\<forall>c res. 
+                  (\<forall>c res S' vis' hb'. 
                       calls S c = None
                     \<and> querySpec progr Op args (getContext S i) res
                     \<and> visibleCalls S i \<triangleq> txCalls
-                    \<longrightarrow> checkCorrect' (progr, insert c txCalls, (S\<lparr>
+                    \<and> vis' ::= (visibleCalls S)(i \<mapsto> insert c txCalls)
+                    \<and> hb' ::= updateHb (happensBefore S) txCalls [c] 
+                    \<and> S' ::= (S\<lparr>
                           localState := (localState S)(i \<mapsto> ls res), 
                           calls := (calls S)(c \<mapsto> Call Op args res ),
                           callOrigin := (callOrigin S)(c \<mapsto> t),
-                          visibleCalls := (visibleCalls S)(i \<mapsto> insert c txCalls),
-                          happensBefore := updateHb (happensBefore S) txCalls [c]  \<rparr>), i)
+                          visibleCalls := vis',
+                          happensBefore := hb' \<rparr>)
+                    \<longrightarrow> checkCorrect' (progr, insert c txCalls, S', i)
                   )
            )
         | Return res \<Rightarrow> 
             currentTransaction S i = None
-            \<and> (let S' = (S\<lparr>
+            \<and> (\<forall>S'. S' ::= (S\<lparr>
                  localState := (localState S)(i := None),
                  currentProc := (currentProc S)(i := None),
                  visibleCalls := (visibleCalls S)(i := None),
                  invocationRes := (invocationRes S)(i \<mapsto> res),
-                 knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
+                 knownIds := knownIds S \<union> uniqueIds res\<rparr>) \<longrightarrow>
                (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant progr (invContext' S')  
             )
         )))
@@ -1367,7 +1379,7 @@ lemma checkCorrect2F_mono[simp]:
 proof (rule monoI)
   show "checkCorrect2F x \<le> checkCorrect2F y" if c0: "x \<le> y"  for  x :: "(('localState, 'any) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool)" and y
     apply auto
-    apply (auto simp add: checkCorrect2F_def Let_def intro!: predicate1D[OF `x \<le> y`] split: option.splits localAction.splits if_splits)
+    apply (auto simp add: checkCorrect2F_def Let_def Def_def intro!: predicate1D[OF `x \<le> y`] split: option.splits localAction.splits if_splits)
     by force
 qed
 
@@ -1448,7 +1460,7 @@ shows "checkCorrect2 progr txCalls S i"
   apply (insert assms)
   apply (subst checkCorrect2_unfold)
   apply (subst checkCorrect2F_def)
-  apply (auto split: option.splits localAction.splits)
+  apply (auto simp add: Def_def split: option.splits localAction.splits)
   using checkCorrect2_def apply blast
   oops
 
@@ -1556,7 +1568,7 @@ next
             show "(checkCorrect2F ^^ bound) bot (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>, i)"
               apply simp
               apply (subst(asm) checkCorrect2F_def)
-              apply (auto simp add: LocalStep)
+              apply (auto simp add: LocalStep Def_def)
               done
           qed
         qed
@@ -1641,7 +1653,7 @@ next
             apply (drule_tac x=t in spec)
             apply (drule_tac x=S' in spec)
             apply (drule_tac x=newTxns in spec)
-            apply auto
+            apply (auto simp add: Def_def)
             using \<open>transactionStatus S t = None\<close> apply blast
                            apply (simp add: c2a)
                           apply (simp add: `invariant_all' S'`)
@@ -1685,7 +1697,7 @@ next
           using use_checkCorrect2
           apply simp
           apply (subst(asm) checkCorrect2F_def)
-          apply (auto simp add: EndAtomic all_committed tx split: option.splits if_splits)
+          apply (auto simp add: Def_def EndAtomic all_committed tx split: option.splits if_splits)
           done
 
 
@@ -1700,7 +1712,7 @@ next
                 (*  wellFormed_currentTransactionUncommited[OF `state_wellFormed S`]
                   wf_transaction_status_iff_origin[OF `state_wellFormed S`]*)
                   all_committed
-                  apply (auto)
+                  apply (auto simp add: Def_def)
               apply (metis Suc.prems(2) not_Some_eq tx wellFormed_currentTransactionUncommited wf_transaction_status_iff_origin)
             using Suc.prems(2) wf_transaction_status_iff_origin apply blast
             using Suc.prems(2) wf_transaction_status_iff_origin by blast
@@ -1722,7 +1734,7 @@ next
             using use_checkCorrect2
             apply simp
             apply (subst(asm) checkCorrect2F_def)
-            by (auto simp add: EndAtomic all_committed tx split: option.splits if_splits)
+            by (auto simp add: Def_def EndAtomic all_committed tx split: option.splits if_splits)
         qed
       qed
     next
@@ -1759,7 +1771,7 @@ next
             using use_checkCorrect2
             apply simp
             apply (subst(asm) checkCorrect2F_def)
-            apply (auto simp add: NewId  split: option.splits if_splits)
+            apply (auto simp add: Def_def NewId  split: option.splits if_splits)
             using \<open>uid \<notin> generatedIds S\<close> by blast
         qed
       qed
@@ -1820,7 +1832,7 @@ next
             using use_checkCorrect2
             apply simp
             apply (subst(asm) checkCorrect2F_def)
-            apply (auto simp add: DbOperation tx Suc.prems(4) c0 c1 split: option.splits if_splits)
+            apply (auto simp add: Def_def DbOperation tx Suc.prems(4) c0 c1 split: option.splits if_splits)
             done
 
         qed
@@ -1843,7 +1855,7 @@ next
           using use_checkCorrect2
           apply simp
           apply (subst(asm) checkCorrect2F_def)
-          by (auto simp add: c0 Return split: option.splits)
+          by (auto simp add: Def_def c0 Return split: option.splits)
 
       qed
     qed
