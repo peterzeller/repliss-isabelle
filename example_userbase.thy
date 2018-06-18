@@ -317,7 +317,99 @@ lemma IStateDef_simps:
   "S' ::= S ==> i_invocationRes S' = i_invocationRes S"
 by (auto simp add: Def_def)
 
+lemma in_img_simp: "y\<in>f`S \<longleftrightarrow> (\<exists>x\<in>S. f x = y)"
+  by auto
 
+definition "in_sequence xs x y \<equiv> \<exists>i j. i<j \<and> j<length xs \<and> xs!i = x \<and> xs!j=y "
+
+
+lemma in_sequence_nil[simp]: "in_sequence [] = (\<lambda>x y. False)"
+  apply (rule ext)+
+  by (auto simp add: in_sequence_def)
+
+lemma in_sequence_cons:
+  "in_sequence (x # xs) a b \<longleftrightarrow> (x=a \<and> b\<in>set xs \<or> in_sequence xs a b)"
+  apply (auto simp add: in_sequence_def)
+  apply (metis (no_types, lifting) Suc_diff_eq_diff_pred Suc_less_eq Suc_pred gr_implies_not_zero not_gr_zero nth_Cons' zero_less_diff)
+  apply (metis Suc_mono in_set_conv_nth nth_Cons_0 nth_Cons_Suc zero_less_Suc)
+  by (meson Suc_mono nth_Cons_Suc)
+
+
+lemma in_sequence_in1: "in_sequence xs x y \<Longrightarrow> x\<in>set xs"
+  by (metis in_sequence_def in_set_conv_nth less_imp_le less_le_trans)
+
+
+lemma in_sequence_in2: "in_sequence xs x y \<Longrightarrow> y\<in>set xs"
+  by (metis in_sequence_def nth_mem)
+
+
+
+
+lemma updateHb_cases: 
+"(cx, cy) \<in> updateHb Hb vis cs \<longleftrightarrow> ((cx,cy)\<in>Hb \<or> cx\<in>vis \<and> cy\<in>set cs \<or> in_sequence cs cx cy)"
+  by (induct cs arbitrary: Hb vis, auto simp add: updateHb_cons in_sequence_cons)
+
+
+
+text {*
+Updating the invocation happens-before in the first transaction of an invocation.
+
+TODO Problem: second transaction could remove HB. Maybe just consider HB with finished invocations on the left (and on the right?)
+*}
+lemma invocation_happensBeforeH_update:
+  assumes  Orig'_def: "\<And>c. Orig' c = (case Orig c of Some i \<Rightarrow> Some i | None \<Rightarrow> if c\<in>set cs then Some i else None)"
+    and cs_no_orig: "\<And>c. c \<in> set cs \<Longrightarrow> Orig c = None"
+    and cs_notin_vis: "\<And>c. c \<in> set cs \<Longrightarrow> c \<notin> vis"
+    and cs_notin_hb1: "\<And>c x. c \<in> set cs \<Longrightarrow> (x,c) \<notin> Hb"
+    and cs_notin_hb2: "\<And>c x. c \<in> set cs \<Longrightarrow> (c,x) \<notin> Hb"
+    and invoc_fresh: "\<And>c. Orig c \<noteq> Some i"
+    and cs_nonempty: "cs \<noteq> []"
+  shows
+    "invocation_happensBeforeH Orig' (updateHb Hb vis cs)
+   = invocation_happensBeforeH Orig Hb \<union> {i'. (\<forall>c. Orig c \<triangleq> i' \<longrightarrow> c \<in> vis) \<and> (\<exists>c. Orig c \<triangleq> i') }  \<times>  {i} "
+  using invoc_fresh  apply (auto simp add: invocation_happensBeforeH_def  in_img_simp updateHb_cases)
+                apply (auto simp add: Orig'_def cs_notin_hb1  cs_notin_hb2 cs_notin_vis cs_no_orig  split: option.splits if_splits)
+  using cs_no_orig in_sequence_in2 apply fastforce
+  using cs_no_orig in_sequence_in1 apply fastforce
+  apply (metis cs_no_orig in_sequence_in2 option.simps(3))
+  apply (metis cs_no_orig in_sequence_in2 option.distinct(1))
+  using cs_no_orig in_sequence_in2 apply fastforce
+  apply (metis cs_no_orig option.distinct(1) option.sel)
+  apply (metis cs_no_orig option.distinct(1) option.sel)
+  using cs_notin_vis option.simps(3) apply fastforce
+  using cs_nonempty last_in_set by blast
+
+
+
+
+(*
+  using cs_no_orig apply fastforce
+  using cs_no_orig apply force
+  using cs_def cs_no_orig apply fastforce
+  apply (metis cs_no_orig option.distinct(1) option.sel)
+  apply (metis cs_no_orig option.inject option.simps(3))
+  using cs_notin_vis apply fastforce
+  using cs_def apply auto[1]
+   defer
+  apply (simp add: cs_def)
+
+  apply fastforce
+
+
+  apply (metis option.sel option.simps(3))
+  apply fastforce
+
+  thm option.sel option.simps(3)
+
+  using [[smt_solver=cvc4]]
+                apply (smt Orig'_def cs_notin_hb2 cs_notin_vis option.case_eq_if option.exhaust_sel)
+  apply (smt Orig'_def cs_notin_hb1 option.case_eq_if option.exhaust_sel option.sel)
+
+  find_theorems "op`" "op\<in>" "\<exists>x. _ "
+
+
+  apply (rename_tac i1 i2 c1 c2)
+*)
 theorem "programCorrect progr"
 proof (rule show_programCorrect_using_checkCorrect)
   have [simp]: "invariant progr = inv" by (simp add: progr_def)
@@ -450,7 +542,7 @@ proof (rule show_programCorrect_using_checkCorrect)
         and c2: "procedures procName args \<triangleq> (initState, impl)"
         and c3: "uniqueIdsInList args \<subseteq> knownIds Sa"
         and c4: "example_userbase.inv (invContext' Sa)"
-        and c5: "state_wellFormed Sa"
+        and Sa_wf: "state_wellFormed Sa"
         and c6: "invocationOp Sa i = None"
         and c7: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommited"
       for  Sa procName args initState impl
@@ -458,7 +550,7 @@ proof (rule show_programCorrect_using_checkCorrect)
       using c2 proof (subst(asm) procedure_cases2, auto)
 
       have [simp]: "currentTransaction Sa i = None"
-        by (simp add: c5 c6 wellFormed_invoc_notStarted(1))
+        by (simp add: Sa_wf c6 wellFormed_invoc_notStarted(1))
 
 (* ony unfold definitions, when needed for evaluation: *)
       have h1[simp]:  "S' ::= S \<Longrightarrow> (currentProc S' i \<triangleq> x) \<longleftrightarrow> (currentProc S i \<triangleq> x)" for S' S i x  by (auto simp add: Def_def)
@@ -492,52 +584,155 @@ proof (rule show_programCorrect_using_checkCorrect)
         apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
          defer
          apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
-      proof -
+      proof (unfold Def_def)
         fix uid S' t S'a newTxns S'' vis' ls x2 c res S'b vis'a hb' x2a ca resa S'c vis'b hb'a x2b S'd S'e
         assume a0: "uid \<notin> generatedIds Sa"
-          and a1: "S' ::= Sa         \<lparr>currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),            invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail])),            localState := localState Sa(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = uid, ls_name = name, ls_mail = mail, ls_exists = False\<rparr>),            generatedIds := insert uid (generatedIds Sa)\<rparr>"
+          and S'_def: "S' = Sa         \<lparr>currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),            invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail])),            localState := localState Sa(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = uid, ls_name = name, ls_mail = mail, ls_exists = False\<rparr>),            generatedIds := insert uid (generatedIds Sa)\<rparr>"
           and a2: "localState S' i \<triangleq> ls"
           and a3: "transactionStatus S' t = None"
           and a4: "prog S'a = prog S'"
-          and a5: "invariant (prog S') (invContext' S'a)"
+          and old_inv: "invariant (prog S') (invContext' S'a)"
           and a6: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommited"
-          and a7: "state_wellFormed S'a"
+          and S'a_wf: "state_wellFormed S'a"
           and a8: "state_wellFormed S''"
-          and a9: "state_monotonicGrowth S' S'a"
+          and S'a_mono: "state_monotonicGrowth S' S'a"
           and a10: "localState S'a i \<triangleq> ls"
           and a11: "currentProc S'a i \<triangleq> registerUserImpl"
           and a12: "currentTransaction S'a i = None"
           and a13: "visibleCalls S' i \<triangleq> {}"
           and a14: "visibleCalls S'a i \<triangleq> {}"
-          and a15: "vis' ::= callsInTransaction S'a newTxns \<down> happensBefore S'a"
+          and a15: "vis' = callsInTransaction S'a newTxns \<down> happensBefore S'a"
           and a16: "newTxns \<subseteq> dom (transactionStatus S'a)"
           and a17: "consistentSnapshot S'a vis'"
           and a18: "transactionStatus S'a t = None"
-          and a19: "\<forall>c. callOrigin S'a c \<noteq> Some t"
+          and t_origin: "\<forall>c. callOrigin S'a c \<noteq> Some t"
           and a20: "transactionOrigin S'a t = None"
-          and a21: "S'' ::= S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i),            currentTransaction := currentTransaction S'a(i \<mapsto> t), localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
+          and S''_def: "S'' = S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i),            currentTransaction := currentTransaction S'a(i \<mapsto> t), localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
           and a22: "currentTransaction S'' i \<triangleq> x2"
           and a23: "calls S'' c = None"
           and a24: "querySpec progr users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))]          (getContextH (calls S'') (happensBefore S'') (Some vis')) res"
           and a25: "visibleCalls S'' i \<triangleq> vis'"
-          and a26: "vis'a ::= visibleCalls S''(i \<mapsto> insert c vis')"
-          and a27: "hb' ::= updateHb (happensBefore S'') vis' [c]"
-          and a28: "S'b ::= S''         \<lparr>localState := localState S''(i \<mapsto> the (localState S'' i)\<lparr>ls_pc := 3\<rparr>),            calls := calls S''(c \<mapsto> Call users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] res),            callOrigin := callOrigin S''(c \<mapsto> x2), visibleCalls := vis'a, happensBefore := hb'\<rparr>"
+          and a26: "vis'a = visibleCalls S''(i \<mapsto> insert c vis')"
+          and hb'_def: "hb' = updateHb (happensBefore S'') vis' [c]"
+          and S'b_def: "S'b = S''         \<lparr>localState := localState S''(i \<mapsto> the (localState S'' i)\<lparr>ls_pc := 3\<rparr>),            calls := calls S''(c \<mapsto> Call users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] res),            callOrigin := callOrigin S''(c \<mapsto> x2), visibleCalls := vis'a, happensBefore := hb'\<rparr>"
           and a29: "currentTransaction S'b i \<triangleq> x2a"
           and a30: "calls S'b ca = None"
           and a31: "querySpec progr users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))]          (getContextH (calls S'b) (happensBefore S'b) (Some (insert c vis'))) resa"
           and a32: "visibleCalls S'b i \<triangleq> insert c vis'"
-          and a33: "vis'b ::= visibleCalls S'b(i \<mapsto> insert ca (insert c vis'))"
-          and a34: "hb'a ::= updateHb (happensBefore S'b) (insert c vis') [ca]"
-          and a35: "S'c ::= S'b         \<lparr>localState := localState S'b(i \<mapsto> the (localState S'b i)\<lparr>ls_pc := 4\<rparr>),            calls := calls S'b(ca \<mapsto> Call users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] resa),            callOrigin := callOrigin S'b(ca \<mapsto> x2a), visibleCalls := vis'b, happensBefore := hb'a\<rparr>"
+          and a33: "vis'b = visibleCalls S'b(i \<mapsto> insert ca (insert c vis'))"
+          and hb'a_def: "hb'a = updateHb (happensBefore S'b) (insert c vis') [ca]"
+          and S'c_def: "S'c = S'b         \<lparr>localState := localState S'b(i \<mapsto> the (localState S'b i)\<lparr>ls_pc := 4\<rparr>),            calls := calls S'b(ca \<mapsto> Call users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] resa),            callOrigin := callOrigin S'b(ca \<mapsto> x2a), visibleCalls := vis'b, happensBefore := hb'a\<rparr>"
           and a36: "currentTransaction S'c i \<triangleq> x2b"
-          and a37: "S'd ::= S'c         \<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),            transactionStatus := transactionStatus S'c(x2b \<mapsto> Commited)\<rparr>"
+          and S'd_def: "S'd = S'c         \<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),            transactionStatus := transactionStatus S'c(x2b \<mapsto> Commited)\<rparr>"
           and a38: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
           and a39: "example_userbase.inv (invContext' S'd)"
-          and a40: "S'e ::= S'd         \<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),            invocationRes := invocationRes S'd(i \<mapsto> ls_u (the (localState S'd i))), knownIds := knownIds S'd \<union> uniqueIds (ls_u (the (localState S'd i)))\<rparr>"
+          and S'e_def: "S'e = S'd         \<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),            invocationRes := invocationRes S'd(i \<mapsto> ls_u (the (localState S'd i))), knownIds := knownIds S'd \<union> uniqueIds (ls_u (the (localState S'd i)))\<rparr>"
           and a41: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommited"
 
+        have invocationOp_unchanged: "invocationOp S'e = invocationOp S'a"
+          by (subst S'e_def S'd_def S'c_def S'b_def S''_def, simp)+
+
+        find_theorems hb'
+
+        text {* Same transcation TODO: remember in verification condition generation  *}
+        have[simp]: "x2a = t"
+          using `currentTransaction S'b i \<triangleq> x2a` S''_def by (auto simp add: S'b_def)
+        have [simp]: "x2 = t"
+          using `currentTransaction S'' i \<triangleq> x2` S''_def by (auto simp add: S'b_def)
+
+        have [simp]: "c \<noteq> ca" "ca \<noteq> c"
+          using `calls S'b ca = None` by (auto simp add: S'b_def)
+
+
+        have i_callOriginI_h_update:
+            "(i_callOriginI_h (callOrigin S'e) (transactionOrigin S'e))
+           = (i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a))(c \<mapsto> i, ca \<mapsto> i)"
+          apply (rule ext)
+          apply (subst S'e_def S'd_def S'c_def S'b_def S''_def hb'a_def hb'_def, simp?)+
+          by (auto simp add: i_callOriginI_h_def t_origin split: option.splits if_splits)
+
+
+        have happensBefore_update:
+             "happensBefore S'e = updateHb (happensBefore S'a) vis' [c, ca]"
+          apply (subst S'e_def S'd_def S'c_def S'b_def S''_def hb'a_def hb'_def, simp?)+
+          by (auto simp add: updateHb_chain) (* TODO add updateHb_chain lemma above *)
+
+
+        hence happensBefore_update2:
+             "happensBefore S'e = (happensBefore S'a \<union> (vis' \<times> {c, ca}) \<union> {(c, ca)})"
+          by (auto simp add: updateHb_cons)
+
+
+        from `calls S'' c = None`
+        have "calls S'a c = None"
+          by (auto simp add: S''_def)
+
+        hence [simp]: "callOrigin S'a c = None"
+          by (simp add: S'a_wf)
+
+        from S''_def `calls S'b ca = None` S'b_def
+        have "calls S'a ca = None"
+          by auto
+
+        hence [simp]: "callOrigin S'a ca = None"
+          by (simp add: S'a_wf)
+
+        have [simp]: "c \<notin> vis'"
+          sorry
+        have [simp]: "ca \<notin> vis'"
+          sorry
+
+        find_theorems i
+
+        from `invocationOp Sa i = None`
+        have "transactionOrigin Sa tx \<noteq> Some i" for tx
+          by (simp add: Sa_wf wf_no_invocation_no_origin)
+
+
+        have "transactionOrigin S'a tx \<noteq> Some i" for tx
+          using `state_monotonicGrowth S' S'a` apply (auto simp add: S'_def)
+          sorry
+          find_theorems S'
+
+
+          have invocationHb_update:
+             "invocation_happensBeforeH (i_callOriginI_h (callOrigin S'e) (transactionOrigin S'e)) (happensBefore S'e)
+            = invocation_happensBeforeH (i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a)) (happensBefore S'a)
+             \<union> {i'. (\<forall>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i') }  \<times> {i}"
+ (* {i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i} *)
+          apply (subst happensBefore_update)
+          apply (rule invocation_happensBeforeH_update)
+          apply (auto simp add: i_callOriginI_h_update split: option.splits)
+                      apply (auto simp add: i_callOriginI_h_def split: option.splits)
+          using S'a_wf \<open>calls S'a c = None\<close> wellFormed_happensBefore_calls_r apply blast
+          using S'a_wf \<open>calls S'a ca = None\<close> wellFormed_happensBefore_calls_r apply blast
+          using S'a_wf \<open>calls S'a c = None\<close> wellFormed_happensBefore_calls_l apply blast
+          using S'a_wf \<open>calls S'a ca = None\<close> wellFormed_happensBefore_calls_l apply blast
+          using \<open>\<And>tx. transactionOrigin S'a tx \<noteq> Some i\<close> by blast
+
+        from `prog Sa = progr` 
+        have "prog S' = progr"
+          by (auto simp add: S'_def)
+          
+
+        from `invariant (prog S') (invContext' S'a)`
+        have old_inv1: "inv1 (invContext' S'a)"
+          by (simp add: \<open>prog S' = progr\<close> example_userbase.inv_def)
+
+        have [simp]: "invocationRes S'e i = invocationRes S'a i" for i
+          sorry
+
         show "example_userbase.inv (invContext' S'e)"
+        proof (auto simp add: inv_def)
+
+
+          show "inv1 (invContext' S'e)"
+            apply (auto simp add: inv1_def invocationOp_unchanged invocationHb_update)
+            using old_inv1 apply (auto simp add: inv1_def)
+
+
+
+
           sorry
 
 

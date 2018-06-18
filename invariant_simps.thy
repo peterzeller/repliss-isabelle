@@ -20,10 +20,11 @@ abbreviation
 text {* lifting the happensBefore relation on database-calls to the level of invocations. *}
 definition 
   "invocation_happensBeforeH origin hb \<equiv> 
-  {(x,y). (\<exists>c. origin c \<triangleq> x) 
-        \<and> (\<exists>c. origin c \<triangleq> y) 
-        \<and> (\<forall>cx cy. origin cx \<triangleq> x
-                 \<and> origin cy \<triangleq> y
+  {(ix,iy). (\<exists>c. origin c \<triangleq> ix) 
+          \<and> (\<exists>c. origin c \<triangleq> iy) 
+          \<and> ix \<noteq> iy
+          \<and> (\<forall>cx cy. origin cx \<triangleq> ix
+                 \<and> origin cy \<triangleq> iy
                  \<longrightarrow> (cx,cy)\<in>hb)}"
 
 abbreviation 
