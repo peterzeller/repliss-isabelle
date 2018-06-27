@@ -99,6 +99,7 @@ definition state_coupling :: "('ls,'any) state \<Rightarrow> ('ls,'any) state \<
       \<and> currentProc S i = currentProc S' i
       \<and> currentTransaction S i = currentTransaction S' i
       \<and> visibleCalls S i = visibleCalls S' i
+      \<and> (\<forall>t. transactionOrigin S' t \<triangleq> i \<longleftrightarrow> transactionOrigin S t \<triangleq> i)
       "
 
 
@@ -1619,9 +1620,17 @@ next
             using S2_currentTransaction S2_localState S2_transactionOrigin S2_transactionStatus S_wf newS_def a1 state_wellFormed_combine steps' noFail2  by fastforce
 
 
+          have " state_wellFormed S'"
+            using S'_wf by auto
+
 
           show "state_monotonicGrowth S2 S'"
-            using ih3 by (auto simp add: state_coupling_def state_monotonicGrowth_def S2_invocationOp newS_def a6 state_monotonicGrowth_txStable_def split: if_splits)
+            using ih3 by (auto simp add: state_coupling_def state_monotonicGrowth_def S2_invocationOp newS_def a6 state_monotonicGrowth_txStable_def `state_wellFormed S'` split: if_splits)
+
+
+          show "\<And>t. transactionOrigin S2 t \<triangleq> s = transactionOrigin S' t \<triangleq> s"
+            by (simp add: ih3_tx)
+
 
           show "currentProc S' s \<triangleq> f"
             by (simp add: a3 newS_def)
@@ -1769,7 +1778,8 @@ next
 
 
         ultimately have steps_S''_s: "S ~~ (s, tr'@[(ABeginAtomic txId txns, True)]) \<leadsto>\<^sub>S* S''"
-          using S2_currentTransaction S2_localState S2_transactionStatus steps_s_step by auto      
+          using steps_s_step by blast
+
 
 
         show ?thesis
@@ -2208,8 +2218,25 @@ next
             show "state_wellFormed S''"
               using S_wf state_wellFormed_combine steps' noFails by blast
             show "state_monotonicGrowth S2 S'"
-              apply (auto simp add: state_monotonicGrowth_def a1 \<open>transactionStatus S2 tx = None\<close>)
-              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] by blast+
+              apply (auto simp add: state_monotonicGrowth_def a1 \<open>transactionStatus S2 tx = None\<close> )
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_transactionOrigin[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`]
+                apply (meson wellFormed_happensBefore_calls_l) 
+              using state_monotonicGrowth_no_new_calls_in_committed_transactions[OF `state_monotonicGrowth S2 S'`] apply blast
+              using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast
+              done
             show "currentProc S' s \<triangleq> f"
               by (simp add: a1 a3)
             show "\<And>c. callOrigin S' c \<noteq> Some tx"
@@ -2275,7 +2302,7 @@ next
 
             from `visibleCalls S' s \<triangleq> vis`
             show "visibleCalls S2 s \<triangleq> vis"
-               by (auto simp add: state_coupling_def S2_simps)
+               by (auto simp add: S2_simps)
 
              from ` txns \<subseteq> commitedTransactions S'`
              show "txns \<subseteq> dom (transactionStatus S')"
@@ -2308,12 +2335,12 @@ next
                  using wf_S' wf_happensBefore_txns_left by fastforce
              qed
 
-             term state_monotonicGrowth
-             text {* TODO need to change @{term state_monotonicGrowth}:
-              1. no new calls are added before calls in committed transactions
-              2. no new calls are added to committed transactions
-    
-              *}
+
+
+             show "\<And>t. transactionOrigin S2 t \<triangleq> s \<longleftrightarrow> transactionOrigin S' t \<triangleq> s"
+               using `state_coupling S' S2 s False`
+               by (simp add: state_coupling_def)
+
 
            qed
 
@@ -2393,15 +2420,25 @@ qed
 next
   case False
   hence different_session[simp]:  "fst a \<noteq> s" by simp
-  
+
   text {* we are now in the case of doing steps in a different session.
    We show that all of these preserve the coupling. 
    *}
 
+  have "state_wellFormed S'"
+    using S_wf noFails_tr state_wellFormed_combine steps by auto
+
+  have wf_S2: "state_wellFormed S2"
+    by (metis \<open>state_wellFormed S'\<close> ih3' state_coupling_def state_monotonicGrowth_wf1)
+
 
   text {* no matter what he had before, the coupling with "False" will hold: *}
   have old_coupling: "state_coupling S' S2 s False"
-    using ih3' by (auto simp add: state_coupling_def split: if_splits)
+    using ih3' by (auto simp add: \<open>state_wellFormed S'\<close> state_coupling_def split: if_splits)
+
+
+  have wf_S'': "state_wellFormed S''"
+    using S_wf noFails state_wellFormed_combine steps' by blast
 
   
   from step
@@ -2409,26 +2446,85 @@ next
   proof (induct rule: step.cases) (* prove this with a case distinction on the action *)
     case (local C s ls f ls')
     then show ?case 
-      using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
+      using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (newId C s ls f ls' uid)
     thus ?case 
-      using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
+      using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
-    case (beginAtomic C s ls f ls' t)
-    then show ?case using old_coupling different_session 
-      apply (auto simp add: state_coupling_def state_monotonicGrowth_def)
-      by (metis less_eq_option_None_code less_eq_option_Some_None not_None_eq)
+    case (beginAtomic C s' ls f ls' t vis newTxns txCalls vis')
+    then show ?case using old_coupling different_session wf_S''
+      apply (subst state_coupling_def )
+      apply (subst(asm) state_coupling_def )
+      apply (subst if_False)
+      apply (subst(asm) if_False)
+      apply (intro conjI; elim conjE)
+    proof -
+
+      assume a0: "S' = C"
+        and a1: "a = (s', ABeginAtomic t newTxns)"
+        and S''_def: "S'' = C\<lparr>localState := localState C(s' \<mapsto> ls'), currentTransaction := currentTransaction C(s' \<mapsto> t), transactionStatus := transactionStatus C(t \<mapsto> Uncommited),                transactionOrigin := transactionOrigin C(t \<mapsto> s'), visibleCalls := visibleCalls C(s' \<mapsto> vis')\<rparr>"
+        and a3: "localState C s' \<triangleq> ls"
+        and a4: "currentProc C s' \<triangleq> f"
+        and a5: "f ls = BeginAtomic ls'"
+        and a6: "currentTransaction C s' = None"
+        and a7: "transactionStatus C t = None"
+        and a8: "visibleCalls C s' \<triangleq> vis"
+        and a9: "newTxns \<subseteq> commitedTransactions C"
+        and a10: "txCalls = callsInTransaction C newTxns \<down> happensBefore C"
+        and a11: "vis' = vis \<union> txCalls"
+        and a12: "fst a \<noteq> s"
+        and a13: "state_wellFormed S''"
+        and a14: "state_monotonicGrowth S2 S'"
+        and a15: "localState S' s = localState S2 s"
+        and a16: "currentProc S' s = currentProc S2 s"
+        and a17: "currentTransaction S' s = currentTransaction S2 s"
+        and a18: "visibleCalls S' s = visibleCalls S2 s"
+        and a19: "\<forall>t. transactionOrigin S2 t \<triangleq> s = transactionOrigin S' t \<triangleq> s"
+
+      show "state_monotonicGrowth S2 S''"
+        unfolding state_monotonicGrowth_def apply auto
+                      apply (simp add: wf_S2)
+                     apply (simp add: `state_wellFormed S''`)
+                    apply (auto simp add: S''_def `S' = C`[symmetric]  split: if_splits)
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast+
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`]
+              apply (metis a0 a7 less_eq_option_None_is_None linear) 
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`] apply blast+
+           apply (metis \<open>\<And>tx. transactionStatus S2 tx \<le> transactionStatus S' tx\<close> a0 a7 less_eq_option_None_is_None option.distinct(1) wf_S2 wf_transaction_status_iff_origin)
+           apply (simp add: state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 S'`])
+        apply (simp add: wellFormed_happensBefore_calls_l wf_S2)
+        using \<open>\<And>tx c. \<lbrakk>callOrigin S' c \<triangleq> tx; calls S2 c = None\<rbrakk> \<Longrightarrow> transactionStatus S2 tx \<noteq> Some Commited\<close> apply blast
+        apply (simp add: \<open>prog S' = prog S2\<close>)
+        done
+
+      show "localState S'' s = localState S2 s"
+         using a1 a0 a15  different_session by (auto simp add: S''_def )
+
+      show "currentProc S'' s = currentProc S2 s"
+        using a1 a0 a16  different_session by (auto simp add: S''_def )
+
+
+      show "currentTransaction S'' s = currentTransaction S2 s"
+        using a1 a0 a17  different_session by (auto simp add: S''_def )
+
+      show "visibleCalls S'' s = visibleCalls S2 s"
+        using a1 a0 a18  different_session by (auto simp add: S''_def )
+
+      show " \<forall>t. transactionOrigin S2 t \<triangleq> s = transactionOrigin S'' t \<triangleq> s"
+        using a1 a0   different_session \<open>state_wellFormed S'\<close> a19 a7 wf_transaction_status_iff_origin  by (auto simp add: S''_def, fastforce )
+
+    qed
   next
     case (endAtomic C s ls f ls' t)
-    then show ?case using old_coupling different_session 
+    then show ?case using old_coupling different_session wf_S'' 
       apply (auto simp add: state_coupling_def state_monotonicGrowth_def)
       by (metis domD domIff less_eq_option_None less_eq_option_None_code less_eq_option_Some less_eq_transactionStatus_def)
   next
     case (dbop C s' ls f Op args ls' t c res vis)
     
     have "callOrigin C c = None"
-      using `calls C c = None`
+      using `calls C c = None` wf_S'' 
       using S_wf dbop.hyps(1) state_wellFormed_combine steps wellFormed_callOrigin_dom2 noFails_tr by blast
       
     hence "callOrigin S2 c = None"
@@ -2439,17 +2535,147 @@ next
       using noFails_tr state_wellFormed_combine steps by blast
 
     with dbop
-    show ?case using old_coupling different_session 
-      apply (auto simp add: state_coupling_def  )
-      apply (subst state_monotonicGrowth_def)
-      apply (auto simp add: state_monotonicGrowth_lemmas)
-      apply (subst state_monotonicGrowth_txStable_def)
-      using state_monotonicGrowth_transactionStatus2[where S'=S2 and S=C and tx=t] state_monotonicGrowth_committed_transactions_fixed apply auto
-      done
+    show ?case using old_coupling different_session wf_S'' 
+      apply (subst state_coupling_def if_False)+
+      apply (subst(asm) state_coupling_def if_False)+
+      apply (subst state_monotonicGrowth_def; intro conjI; elim conjE)
+    proof -
+      assume a0: "S' = C"
+        and a1: "a = (s', ADbOp c Op args res)"
+        and S''_def: "S'' = C\<lparr>localState := localState C(s' \<mapsto> ls' res), calls := calls C(c \<mapsto> Call Op args res), callOrigin := callOrigin C(c \<mapsto> t),                visibleCalls := visibleCalls C(s' \<mapsto> vis \<union> {c}), happensBefore := happensBefore C \<union> vis \<times> {c}\<rparr>"
+        and a3: "localState C s' \<triangleq> ls"
+        and a4: "currentProc C s' \<triangleq> f"
+        and a5: "f ls = DbOperation Op args ls'"
+        and a6: "currentTransaction C s' \<triangleq> t"
+        and a7: "calls C c = None"
+        and a8: "querySpec (prog C) Op args (getContext C s') res"
+        and a9: "visibleCalls C s' \<triangleq> vis"
+        and a10: "state_wellFormed S'"
+        and a11: "fst a \<noteq> s"
+        and a12: "state_wellFormed S''"
+        and a13: "S' = C"
+        and a14: "a = (s', ADbOp c Op args res)"
+        and a15: "S'' = C\<lparr>localState := localState C(s' \<mapsto> ls' res), calls := calls C(c \<mapsto> Call Op args res), callOrigin := callOrigin C(c \<mapsto> t),                visibleCalls := visibleCalls C(s' \<mapsto> vis \<union> {c}), happensBefore := happensBefore C \<union> vis \<times> {c}\<rparr>"
+        and a16: "localState C s' \<triangleq> ls"
+        and a17: "currentProc C s' \<triangleq> f"
+        and a18: "f ls = DbOperation Op args ls'"
+        and a19: "currentTransaction C s' \<triangleq> t"
+        and a20: "calls C c = None"
+        and a21: "querySpec (prog C) Op args (getContext C s') res"
+        and a22: "visibleCalls C s' \<triangleq> vis"
+        and a23: "state_wellFormed S'"
+        and a24: "fst a \<noteq> s"
+        and a25: "state_wellFormed S''"
+        and a26: "state_monotonicGrowth S2 S'"
+        and a27: "state_monotonicGrowth S2 S'"
+        and a28: "localState S' s = localState S2 s"
+        and a29: "localState S' s = localState S2 s"
+        and a30: "currentProc S' s = currentProc S2 s"
+        and a31: "currentProc S' s = currentProc S2 s"
+        and a32: "currentTransaction S' s = currentTransaction S2 s"
+        and a33: "currentTransaction S' s = currentTransaction S2 s"
+        and a34: "visibleCalls S' s = visibleCalls S2 s"
+        and a35: "\<forall>t. transactionOrigin S2 t \<triangleq> s = transactionOrigin S' t \<triangleq> s"
+        and a36: "visibleCalls S' s = visibleCalls S2 s"
+        and a37: "\<forall>t. transactionOrigin S2 t \<triangleq> s = transactionOrigin S' t \<triangleq> s"
+
+      have "state_monotonicGrowth S2 C"
+        using a13 a27 by blast
+
+
+      show "state_wellFormed S2"
+        by (simp add: wf_S2)
+
+      show "state_wellFormed S''"
+        by (simp add: wf_S'')
+
+
+      show "\<forall>c i. calls S2 c \<triangleq> i \<longrightarrow> calls S'' c \<triangleq> i"
+        apply (auto simp add: S''_def)
+        apply (metis \<open>callOrigin S2 c = None\<close> option.distinct(1) wellFormed_callOrigin_dom3 wf_S2)
+        using a13 a27 state_monotonicGrowth_calls by blast
+
+      show "\<forall>c1 c2. c2 \<in> dom (calls S2) \<longrightarrow> ((c1, c2) \<in> happensBefore S'') = ((c1, c2) \<in> happensBefore S2)"
+        using state_monotonicGrowth_happensBefore[OF `state_monotonicGrowth S2 S'`]
+        state_monotonicGrowth_calls[OF `state_monotonicGrowth S2 S'`] `calls C c = None`  by (auto simp add: S''_def `S' = C`)
+
+      show " \<forall>c t. callOrigin S2 c \<triangleq> t \<longrightarrow> callOrigin S'' c \<triangleq> t"
+        apply (auto simp add: S''_def `S' = C` \<open>callOrigin S2 c = None\<close>)
+        using a13 a27 state_monotonicGrowth_callOrigin by blast
+
+      show "generatedIds S2 \<subseteq> generatedIds S''"
+        apply (auto simp add: S''_def)
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 C`] by blast
+
+      show  "knownIds S2 \<subseteq> knownIds S''"
+        apply (auto simp add: S''_def)
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 C`] by blast
+
+      show "\<forall>s i. invocationOp S2 s \<triangleq> i \<longrightarrow> invocationOp S'' s \<triangleq> i"
+        apply (auto simp add: S''_def)
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 C`] by blast
+
+      show "\<forall>s i. invocationRes S2 s \<triangleq> i \<longrightarrow> invocationRes S'' s \<triangleq> i"
+        apply (auto simp add: S''_def)
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 C`] by blast
+
+      show " \<forall>tx. transactionStatus S2 tx \<le> transactionStatus S'' tx"
+        apply (auto simp add: S''_def)
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 C`] by blast
+
+      show "state_monotonicGrowth_txStable (callOrigin S'') (callOrigin S2) (transactionStatus S2)"
+        using state_monotonicGrowth_committed_transactions_fixed1[OF `state_monotonicGrowth S2 C`]
+        apply (auto simp add: S''_def state_monotonicGrowth_txStable_def)
+        using \<open>state_monotonicGrowth S2 C\<close> a13 a23 a6 state_monotonicGrowth_transactionStatus2 by fastforce
+
+      show "\<forall>t i. transactionOrigin S2 t \<triangleq> i \<longrightarrow> transactionOrigin S'' t \<triangleq> i"
+        apply (auto simp add: S''_def)
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 C`]
+        by meson 
+
+      show "\<forall>c c' x y. calls S2 c = None \<and> calls S'' c \<triangleq> x \<and> calls S2 c' \<triangleq> y \<longrightarrow> (c, c') \<notin> happensBefore S2"
+        apply (auto simp add: S''_def)
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 C`]
+        apply (meson wellFormed_happensBefore_calls_l)
+        by (simp add: wellFormed_happensBefore_calls_l wf_S2) 
+
+
+      show " \<forall>c tx. callOrigin S'' c \<triangleq> tx \<and> calls S2 c = None \<longrightarrow> transactionStatus S2 tx \<noteq> Some Commited"
+        apply (auto simp add: S''_def)
+        using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 C`]
+        apply (metis a6 less_eq_option_Some less_eq_transactionStatus_def transactionStatus.distinct(1) wellFormed_currentTransactionUncommited)
+        using \<open>state_monotonicGrowth S2 C\<close> state_monotonicGrowth_no_new_calls_in_committed_transactions by blast 
+
+      show " prog S'' = prog S2"
+        by (metis \<open>state_monotonicGrowth S2 C\<close> a13 state_monotonicGrowth_prog steps steps' steps_do_not_change_prog)
+
+      have "s \<noteq> s'" 
+        using a14 different_session by simp
+
+      show "localState S'' s = localState S2 s"
+        apply (auto simp add: S''_def `s \<noteq> s'`)
+        using a13 a29 by blast
+
+      show "currentProc S'' s = currentProc S2 s"
+        apply (auto simp add: S''_def `s \<noteq> s'`)
+        using a13 a31 by blast
+
+      show "currentTransaction S'' s = currentTransaction S2 s"
+        apply (auto simp add: S''_def `s \<noteq> s'`)
+        using a13 a33 by blast
+
+      show "visibleCalls S'' s = visibleCalls S2 s"
+        apply (auto simp add: S''_def `s \<noteq> s'`)
+        using a13 a36 by blast
+
+      show "\<forall>t. transactionOrigin S2 t \<triangleq> s = transactionOrigin S'' t \<triangleq> s"
+        by (auto simp add: S''_def `s \<noteq> s'` a13 a37)
+    qed
+
 
   next
     case (invocation C s procName args initialState impl)
-    then show ?case using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
+    then show ?case using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (return C s ls f res)
     
@@ -2461,11 +2687,11 @@ next
       using  return.hyps(1) return.hyps(4)  state_wellFormed_no_result_when_running[OF `state_wellFormed S'`] steps by blast
     
     with return
-    show ?case using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
+    show ?case using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (fail C s ls)
     
-    then show ?case using old_coupling different_session by (auto simp add: state_coupling_def state_monotonicGrowth_def)
+    then show ?case using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def state_monotonicGrowth_def)
   next
     case (invCheck C s res)
     then show ?case using old_coupling different_session by (auto simp add: state_coupling_def)

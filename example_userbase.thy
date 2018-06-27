@@ -585,6 +585,9 @@ proof (rule show_programCorrect_using_checkCorrect)
          defer
          apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
       proof (unfold Def_def)
+
+        text {* Check invariant at end of invocation: *}
+
         fix uid S' t S'a newTxns S'' vis' ls x2 c res S'b vis'a hb' x2a ca resa S'c vis'b hb'a x2b S'd S'e
         assume a0: "uid \<notin> generatedIds Sa"
           and S'_def: "S' = Sa         \<lparr>currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),            invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail])),            localState := localState Sa(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = uid, ls_name = name, ls_mail = mail, ls_exists = False\<rparr>),            generatedIds := insert uid (generatedIds Sa)\<rparr>"
@@ -594,7 +597,7 @@ proof (rule show_programCorrect_using_checkCorrect)
           and old_inv: "invariant (prog S') (invContext' S'a)"
           and a6: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommited"
           and S'a_wf: "state_wellFormed S'a"
-          and a8: "state_wellFormed S''"
+          and S''_wf: "state_wellFormed S''"
           and S'a_mono: "state_monotonicGrowth S' S'a"
           and a10: "localState S'a i \<triangleq> ls"
           and a11: "currentProc S'a i \<triangleq> registerUserImpl"
@@ -609,9 +612,9 @@ proof (rule show_programCorrect_using_checkCorrect)
           and a20: "transactionOrigin S'a t = None"
           and S''_def: "S'' = S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i),            currentTransaction := currentTransaction S'a(i \<mapsto> t), localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
           and a22: "currentTransaction S'' i \<triangleq> x2"
-          and a23: "calls S'' c = None"
+          and calls_S'': "calls S'' c = None"
           and a24: "querySpec progr users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))]          (getContextH (calls S'') (happensBefore S'') (Some vis')) res"
-          and a25: "visibleCalls S'' i \<triangleq> vis'"
+          and visibleCalls_S'': "visibleCalls S'' i \<triangleq> vis'"
           and a26: "vis'a = visibleCalls S''(i \<mapsto> insert c vis')"
           and hb'_def: "hb' = updateHb (happensBefore S'') vis' [c]"
           and S'b_def: "S'b = S''         \<lparr>localState := localState S''(i \<mapsto> the (localState S'' i)\<lparr>ls_pc := 3\<rparr>),            calls := calls S''(c \<mapsto> Call users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] res),            callOrigin := callOrigin S''(c \<mapsto> x2), visibleCalls := vis'a, happensBefore := hb'\<rparr>"
@@ -678,11 +681,12 @@ proof (rule show_programCorrect_using_checkCorrect)
           by (simp add: S'a_wf)
 
         have [simp]: "c \<notin> vis'"
-          sorry
+          using S''_wf calls_S'' visibleCalls_S'' wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
         have [simp]: "ca \<notin> vis'"
-          sorry
+          using `calls S'b ca = None` `visibleCalls S'b i \<triangleq> insert c vis'`
+            S''_wf visibleCalls_S'' wellFormed_visibleCallsSubsetCalls2
+          by (auto simp add: S'b_def)
 
-        find_theorems i
 
         from `invocationOp Sa i = None`
         have "transactionOrigin Sa tx \<noteq> Some i" for tx
@@ -691,6 +695,7 @@ proof (rule show_programCorrect_using_checkCorrect)
 
         have "transactionOrigin S'a tx \<noteq> Some i" for tx
           using `state_monotonicGrowth S' S'a` apply (auto simp add: S'_def)
+
           sorry
           find_theorems S'
 

@@ -60,9 +60,11 @@ definition
    (*  --> no new calls can be added before*)
 definition state_monotonicGrowth :: "('localState, 'any) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth S' S \<equiv> 
-        
+      (* both states are wellformed *)
+        state_wellFormed S'
+      \<and> state_wellFormed S
       (*monotonic growth of calls*)
-        (\<forall>c i. calls S' c \<triangleq> i \<longrightarrow> calls S c \<triangleq> i)
+      \<and>  (\<forall>c i. calls S' c \<triangleq> i \<longrightarrow> calls S c \<triangleq> i)
       (*monotonic growth of happensBefore 
          --> no new calls can be added before existing calls *)
       \<and> (\<forall>c1 c2. c2\<in>dom (calls S') \<longrightarrow> ((c1,c2)\<in>happensBefore S \<longleftrightarrow> (c1,c2)\<in>happensBefore S'))
@@ -80,9 +82,46 @@ definition state_monotonicGrowth :: "('localState, 'any) state \<Rightarrow> ('l
       \<and> (\<forall>tx. transactionStatus S' tx \<le> transactionStatus S tx )
       (* no new calls are added to committed transactions *)
       \<and> state_monotonicGrowth_txStable (callOrigin S) (callOrigin S') (transactionStatus S')
+      (* monotonic growth of transaction origin  *)
+      \<and> (\<forall>t i . transactionOrigin S' t \<triangleq> i \<longrightarrow> transactionOrigin S t \<triangleq> i)
+      (* no new calls are added before existing calls *)
+      \<and> (\<forall>c c' x y. calls S' c = None \<and> calls S c \<triangleq> x \<and> calls S' c' \<triangleq> y  \<longrightarrow> (c,c') \<notin> happensBefore S')
+      (* no new calls are added to committed transactions *)
+      \<and> (\<forall>c tx. callOrigin S c \<triangleq> tx \<and> calls S' c = None  \<longrightarrow> transactionStatus S' tx \<noteq> Some Commited)
+      (* Program unchanged *)
       \<and> prog S = prog S'"
 
 
+lemma state_monotonicGrowth_wf1: 
+  assumes "state_monotonicGrowth S' S"
+  shows "state_wellFormed S'"
+    using assms by (auto simp add: state_monotonicGrowth_def)
+
+lemma state_monotonicGrowth_wf2: 
+  assumes "state_monotonicGrowth S' S"
+  shows "state_wellFormed S"
+    using assms by (auto simp add: state_monotonicGrowth_def)
+
+lemma state_monotonicGrowth_no_new_calls_before_existing: 
+  assumes "state_monotonicGrowth S' S"
+    and "calls S' c = None"
+    and "calls S c \<triangleq> x"
+    and "calls S' c \<triangleq> y"
+  shows "(c,c') \<notin> happensBefore S'"
+    using assms by (auto simp add: state_monotonicGrowth_def)
+
+lemma state_monotonicGrowth_no_new_calls_in_committed_transactions: 
+  assumes "state_monotonicGrowth S' S"
+    and "callOrigin S c \<triangleq> tx"
+    and "calls S' c = None"
+  shows "transactionStatus S' tx \<noteq> Some Commited"
+  using assms by (auto simp add: state_monotonicGrowth_def)
+
+lemma state_monotonicGrowth_transactionOrigin: 
+  assumes "state_monotonicGrowth S' S" 
+    and "transactionOrigin S' t \<triangleq> i"
+  shows "transactionOrigin S t \<triangleq> i"
+  using assms by (auto simp add: state_monotonicGrowth_def)
 
 
 lemma state_monotonicGrowth_calls:
@@ -135,7 +174,7 @@ lemma state_monotonicGrowth_transactionStatus:
 lemma state_monotonicGrowth_transactionStatus2:
   assumes "state_monotonicGrowth S' S"
   shows "transactionStatus S' tx \<triangleq> Commited \<Longrightarrow>  transactionStatus S tx \<triangleq> Commited"
-  by (metis assms onlyCommitedGreater state_monotonicGrowth_def)
+  by (smt assms onlyCommitedGreater state_monotonicGrowth_def)
 
 
 lemma state_monotonicGrowth_prog:
@@ -153,7 +192,13 @@ lemma state_monotonicGrowth_committed_transactions_fixed:
 and "transactionStatus S' tx \<triangleq> Commited"
 and "callOrigin S x \<triangleq> tx"
 shows "callOrigin S' x \<triangleq> tx"
-  using assms by (simp add: assms(3) state_monotonicGrowth_def state_monotonicGrowth_txStable_def)   
+proof -
+  have "x \<in> dom (callOrigin S')"
+    by (meson assms(1) assms(2) assms(3) domIff state_monotonicGrowth_no_new_calls_in_committed_transactions state_monotonicGrowth_wf1 wellFormed_callOrigin_dom3)
+  then show ?thesis
+    by (metis (no_types) assms(1) assms(3) domD state_monotonicGrowth_callOrigin)
+qed 
+  
 
 lemma state_monotonicGrowth_committed_transactions_fixed1:
   assumes "state_monotonicGrowth S' S"
@@ -167,8 +212,10 @@ and "transactionStatus S' tx \<triangleq> Commited"
 shows "{c. callOrigin S' c \<triangleq> tx} = {c. callOrigin S c \<triangleq> tx}"
   using assms state_monotonicGrowth_callOrigin state_monotonicGrowth_committed_transactions_fixed by blast
 
-lemma state_monotonicGrowth_refl[simp]: "state_monotonicGrowth S S"
-  by (auto simp add: state_monotonicGrowth_def  state_monotonicGrowth_txStable_def)
+lemma state_monotonicGrowth_refl[simp]: 
+  assumes "state_wellFormed S"
+  shows "state_monotonicGrowth S S"
+  by (auto simp add: assms state_monotonicGrowth_def  state_monotonicGrowth_txStable_def)
 
 
 schematic_goal show_state_monotonicGrowth: "?X \<Longrightarrow> state_monotonicGrowth S S'"
@@ -193,6 +240,12 @@ state_monotonicGrowth_invocationOp2
 state_monotonicGrowth_committed_transactions_fixed
 state_monotonicGrowth_committed_transactions_fixed1
 state_monotonicGrowth_committed_transactions_fixed2
+state_monotonicGrowth_wf1 
+state_monotonicGrowth_wf2
+state_monotonicGrowth_no_new_calls_before_existing
+state_monotonicGrowth_no_new_calls_in_committed_transactions
+state_monotonicGrowth_transactionOrigin
+
 
 (* TODO remove definition *)
 text {* Invariant holds for state *}
@@ -236,6 +289,8 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    transactionStatus C t = None;
    (* we assume a nondeterministic state change to C' here *) (* TODO add more restrictions *)
    prog C' = prog C;
+   state_monotonicGrowth C C';   
+   \<And>t. transactionOrigin C t \<triangleq> s \<longleftrightarrow> transactionOrigin C' t \<triangleq> s;
    (* new transaction has no calls yet *)
    (* invariant maintained *)
    invariant_all C';
@@ -243,7 +298,6 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    (* well formed history *)
    state_wellFormed C';
    state_wellFormed C'';
-   state_monotonicGrowth C C';   
    (* local changes: *)
    localState C' s \<triangleq> ls;
    currentProc C' s \<triangleq> f;

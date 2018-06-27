@@ -1300,6 +1300,8 @@ definition checkCorrect2F :: "(('localState, 'any) prog \<times> callId set \<ti
               \<and> state_wellFormed S'
               \<and> state_wellFormed S''
               \<and> state_monotonicGrowth S S'
+               (* transactions in current invocation unchanged:  *)
+              \<and> (\<forall>t . transactionOrigin S t \<triangleq> i \<longleftrightarrow> transactionOrigin S' t \<triangleq> i)
               \<and> localState S' i \<triangleq> ls
               \<and> currentProc S' i \<triangleq> impl
               \<and> currentTransaction S' i = None
