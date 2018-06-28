@@ -587,6 +587,53 @@ proof (rule show_programCorrect_using_checkCorrect)
       proof (unfold Def_def)
 
         text {* Check invariant at end of invocation: *}
+(*
+fix uid S' t S'a newTxns S'' vis' ls x2 c res S'b vis'a hb' x2a ca resa S'c vis'b hb'a x2b S'd S'e
+assume a0: "uid \<notin> generatedIds Sa"
+   and a1: "S' = Sa\<lparr>currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),                   invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail])),                   localState := localState Sa(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = uid, ls_name = name, ls_mail = mail, ls_exists = False\<rparr>),                   generatedIds := insert uid (generatedIds Sa)\<rparr>"
+   and a2: "localState S' i \<triangleq> ls"
+   and a3: "transactionStatus S' t = None"
+   and a4: "prog S'a = prog S'"
+   and a5: "invariant (prog S') (invContext' S'a)"
+   and a6: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommited"
+   and a7: "state_wellFormed S'a"
+   and a8: "state_wellFormed S''"
+   and a9: "state_monotonicGrowth S' S'a"
+   and a10: "\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin S'a t \<triangleq> i"
+   and a11: "localState S'a i \<triangleq> ls"
+   and a12: "currentProc S'a i \<triangleq> registerUserImpl"
+   and a13: "currentTransaction S'a i = None"
+   and a14: "visibleCalls S' i \<triangleq> {}"
+   and a15: "visibleCalls S'a i \<triangleq> {}"
+   and a16: "vis' = callsInTransaction S'a newTxns \<down> happensBefore S'a"
+   and a17: "newTxns \<subseteq> dom (transactionStatus S'a)"
+   and a18: "consistentSnapshot S'a vis'"
+   and a19: "transactionStatus S'a t = None"
+   and a20: "\<forall>c. callOrigin S'a c \<noteq> Some t"
+   and a21: "transactionOrigin S'a t = None"
+   and a22: "S'' = S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i),            currentTransaction := currentTransaction S'a(i \<mapsto> t), localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
+   and a23: "currentTransaction S'' i \<triangleq> x2"
+   and a24: "calls S'' c = None"
+   and a25: "querySpec progr users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))]          (getContextH (calls S'') (happensBefore S'') (Some vis')) res"
+   and a26: "visibleCalls S'' i \<triangleq> vis'"
+   and a27: "vis'a = visibleCalls S''(i \<mapsto> insert c vis')"
+   and a28: "hb' = updateHb (happensBefore S'') vis' [c]"
+   and a29: "S'b = S''         \<lparr>localState := localState S''(i \<mapsto> the (localState S'' i)\<lparr>ls_pc := 3\<rparr>),            calls := calls S''(c \<mapsto> Call users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] res),            callOrigin := callOrigin S''(c \<mapsto> x2), visibleCalls := vis'a, happensBefore := hb'\<rparr>"
+   and a30: "currentTransaction S'b i \<triangleq> x2a"
+   and a31: "calls S'b ca = None"
+   and a32: "querySpec progr users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))]          (getContextH (calls S'b) (happensBefore S'b) (Some (insert c vis'))) resa"
+   and a33: "visibleCalls S'b i \<triangleq> insert c vis'"
+   and a34: "vis'b = visibleCalls S'b(i \<mapsto> insert ca (insert c vis'))"
+   and a35: "hb'a = updateHb (happensBefore S'b) (insert c vis') [ca]"
+   and a36: "S'c = S'b         \<lparr>localState := localState S'b(i \<mapsto> the (localState S'b i)\<lparr>ls_pc := 4\<rparr>),            calls := calls S'b(ca \<mapsto> Call users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] resa),            callOrigin := callOrigin S'b(ca \<mapsto> x2a), visibleCalls := vis'b, happensBefore := hb'a\<rparr>"
+   and a37: "currentTransaction S'c i \<triangleq> x2b"
+   and a38: "S'd = S'c         \<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),            transactionStatus := transactionStatus S'c(x2b \<mapsto> Commited)\<rparr>"
+   and a39: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
+   and a40: "example_userbase.inv (invContext' S'd)"
+   and a41: "S'e = S'd         \<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),            invocationRes := invocationRes S'd(i \<mapsto> ls_u (the (localState S'd i))), knownIds := knownIds S'd \<union> uniqueIds (ls_u (the (localState S'd i)))\<rparr>"
+   and a42: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommited"
+*)
+
 
         fix uid S' t S'a newTxns S'' vis' ls x2 c res S'b vis'a hb' x2a ca resa S'c vis'b hb'a x2b S'd S'e
         assume a0: "uid \<notin> generatedIds Sa"
@@ -631,6 +678,8 @@ proof (rule show_programCorrect_using_checkCorrect)
           and a39: "example_userbase.inv (invContext' S'd)"
           and S'e_def: "S'e = S'd         \<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),            invocationRes := invocationRes S'd(i \<mapsto> ls_u (the (localState S'd i))), knownIds := knownIds S'd \<union> uniqueIds (ls_u (the (localState S'd i)))\<rparr>"
           and a41: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommited"
+          and tranactionOriginUnchanged: "\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin S'a t \<triangleq> i"
+
 
         have invocationOp_unchanged: "invocationOp S'e = invocationOp S'a"
           by (subst S'e_def S'd_def S'c_def S'b_def S''_def, simp)+
@@ -696,8 +745,8 @@ proof (rule show_programCorrect_using_checkCorrect)
         have "transactionOrigin S'a tx \<noteq> Some i" for tx
           using `state_monotonicGrowth S' S'a` apply (auto simp add: S'_def)
 
+          find_theorems S'a
           sorry
-          find_theorems S'
 
 
           have invocationHb_update:

@@ -5615,6 +5615,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 
             (* We already have an beginAtomic before, so we already have an invocation*)
             have "invocationOp S_pos invoc \<noteq> None"
+              using [[smt_solver=cvc4]]
               by (smt AInvoc S_pos_step' S_pos_steps S_pos_wf \<open>j \<le> pos\<close> \<open>pos < length trace'\<close> currentTransaction dual_order.strict_trans le_eq_less_or_eq length_take less.prems(3) local.beginAtomic min.absorb2 noEndAtomic nth_mem nth_take option.simps(3) pos_action_def preconditionI precondition_beginAtomic precondition_invoc wellFormed_invoc_notStarted(1))
 
 

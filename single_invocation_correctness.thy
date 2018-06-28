@@ -59,6 +59,7 @@ definition checkCorrectF :: "(('localState, 'any) prog \<times> ('localState, 'a
               \<and> state_wellFormed S'
               \<and> state_wellFormed S''
               \<and> state_monotonicGrowth S S'
+              \<and> (\<forall>t. transactionOrigin S' t \<triangleq> i \<longleftrightarrow> transactionOrigin S t \<triangleq> i)
               \<and> localState S' i \<triangleq> ls
               \<and> currentProc S' i \<triangleq> impl
               \<and> currentTransaction S' i = None
@@ -344,7 +345,7 @@ lemma has_invocationOp_afterOneStep:
     and wf: "state_wellFormed_s S i"
   shows "invocationOp S' i \<noteq> None"   
   using step wf apply (auto simp add: step_s.simps wf_s_localState_to_invocationOp2)
-  by (meson state_monotonicGrowth_def use_map_le wf_s_localState_to_invocationOp2)
+  by (meson state_monotonicGrowth_invocationOp wf_s_localState_to_invocationOp2)
 
 
 
@@ -795,6 +796,7 @@ next
                   state_wellFormed S' \<and>
                   state_wellFormed S'' \<and>
                   state_monotonicGrowth C S' \<and>
+                  (\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin C t \<triangleq> i) \<and>
                   localState S' i \<triangleq> ls \<and>
                   currentProc S' i \<triangleq> f \<and>
                   currentTransaction S' i = None \<and>
@@ -816,29 +818,29 @@ next
         proof (rule S_pre_correct'[rule_format], intro conjI)
           show "transactionStatus C t = None" using `transactionStatus C t = None` .
 
-          show "invariant_all' C'" 
-            using beginAtomic.hyps(10) beginAtomic.hyps(11) beginAtomic.hyps(12) invContext_same_allCommitted by fastforce
+          show "invariant_all' C'"
+            using `invariant_all C'` `\<And>tx. transactionStatus C' tx \<noteq> Some Uncommited` `state_wellFormed C'` invContext_same_allCommitted by fastforce 
           show "state_wellFormed C'"  
-            by (simp add: beginAtomic.hyps(12))
+            by (simp add: `state_wellFormed C'`)
           show "state_monotonicGrowth C C'"  
-            by (simp add: beginAtomic.hyps(14))
+            by (simp add: `state_monotonicGrowth C C'`)
           show "localState C' i \<triangleq> ls"
-            using beginAtomic.hyps(15) by auto  
+            using `localState C' i' \<triangleq> ls` by auto
           show "currentProc C' i \<triangleq> f"
             using True beginAtomic.hyps by blast 
           show "currentTransaction C' i = None"  
             using True beginAtomic.hyps by blast
           show "transactionStatus C' t = None"  
-            using beginAtomic.hyps(23) by blast
+            using beginAtomic.hyps(24) by blast
           show "transactionOrigin C' t = None"  
-            using beginAtomic.hyps(25) by auto
+            using beginAtomic.hyps(26) by auto
           show " \<forall>c. callOrigin C' c \<noteq> Some t"  
-            by (simp add: beginAtomic.hyps(24))
+            by (simp add: beginAtomic.hyps(25))
           show "prog C' = prog C"
             by (simp add: beginAtomic.hyps(9))
 
           show " \<forall>tx. transactionStatus C' tx \<noteq> Some Uncommited"
-            by (simp add: beginAtomic.hyps(11))
+            by (simp add: beginAtomic.hyps(13))
 
           show "visibleCalls C' i \<triangleq> vis"
             using True beginAtomic.hyps by blast
@@ -853,24 +855,24 @@ next
             by (simp add: \<open>state_wellFormed S_fin\<close>)
 
           show "visibleCalls C i \<triangleq> vis"
-            using beginAtomic.hyps(18) by auto
+            using beginAtomic.hyps(19) by auto
 
           show "newTxns \<subseteq> dom (transactionStatus C')"
-            by (simp add: beginAtomic.hyps(21))
-
-          show "vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C'"
-            using beginAtomic.hyps(20) by auto
-
-          show "consistentSnapshot C' vis'"
             by (simp add: beginAtomic.hyps(22))
 
+          show "vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C'"
+            using beginAtomic.hyps(21) by auto
 
+          show "consistentSnapshot C' vis'"
+            by (simp add: beginAtomic.hyps(23))
 
+          show "\<forall>t. transactionOrigin C' t \<triangleq> i = transactionOrigin C t \<triangleq> i"
+            using beginAtomic.hyps(11) by auto
 
           show "S_fin = C'
               \<lparr>transactionStatus := transactionStatus C'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin C'(t \<mapsto> i), currentTransaction := currentTransaction C'(i \<mapsto> t),
                  localState := localState C'(i \<mapsto> ls'), visibleCalls := visibleCalls C'(i \<mapsto> vis')\<rparr>"  
-            by (auto simp add: beginAtomic(3) beginAtomic(26) state_ext)
+            by (auto simp add: beginAtomic(3) beginAtomic(27) state_ext)
         qed
       next
         case (endAtomic C s ls f ls' t C' valid)
@@ -1015,7 +1017,7 @@ next
 
       from initS_correct
       have initS_correct2:
-               "(\<forall>t S' vis newTxns S'' vis' ls.
+        "(\<forall>t S' vis newTxns S'' vis' ls.
                   localState initS i \<triangleq> ls \<and>
                   currentTransaction initS i = None \<and>
                   transactionStatus initS t = None \<and>
@@ -1025,6 +1027,7 @@ next
                   state_wellFormed S' \<and>
                   state_wellFormed S'' \<and>
                   state_monotonicGrowth initS S' \<and>
+                  (\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin initS t \<triangleq> i) \<and>
                   localState S' i \<triangleq> ls \<and>
                   currentProc S' i \<triangleq> f \<and>
                   currentTransaction S' i = None \<and>
@@ -1042,23 +1045,24 @@ next
         apply (subst(asm) checkCorrect_simps)
         using `currentProc S_pre i \<triangleq> f` `f ls = BeginAtomic ls'` `localState S_pre i \<triangleq> ls` by auto
 
+      thm  initS_correct2[rule_format]
+
       show ?thesis
       proof (rule initS_correct2[rule_format], intro conjI; (solves\<open> simp add:  beginAtomic[simplified]\<close>)?)
 
-       show "state_wellFormed S_fin" 
-        using beginAtomic by simp
+        show "state_wellFormed S_fin" 
+          using beginAtomic by simp
 
-      show "invariant_all' S'"
-        using invContext_same_allCommitted local.beginAtomic(10) local.beginAtomic(8) local.beginAtomic(9) by fastforce 
+        show "invariant_all' S'"
+          using invContext_same_allCommitted local.beginAtomic(12) local.beginAtomic(10) local.beginAtomic(11) by fastforce 
 
 
-      show "txns \<subseteq> dom (transactionStatus S')"
-        using beginAtomic by simp
+        show "txns \<subseteq> dom (transactionStatus S')"
+          using beginAtomic by simp
 
-      show "consistentSnapshot S' (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
-        using beginAtomic   by simp
-    qed
-
+        show "consistentSnapshot S' (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+          using beginAtomic   by simp
+      qed
 
 
     next
@@ -1131,6 +1135,41 @@ localState currentProc visibleCalls currentTransaction. P \<lparr>
   shows "\<exists>S. P S"
   using assms by auto
 
+lemma exists_narrowL1: "(\<exists>x. P x \<and> Q) \<longleftrightarrow> (\<exists>x. P x) \<and> Q" 
+  by auto
+
+lemma exists_narrowL2: "(\<exists>x y. P x y \<and> Q y) \<longleftrightarrow> (\<exists>y. (\<exists>x. P x y) \<and> Q y)" 
+  by auto
+
+lemma exists_narrowL3: "(\<exists>x y1 y2. P x y1 y2 \<and> Q y1 y2) \<longleftrightarrow> (\<exists>y1 y2. (\<exists>x. P x y1 y2) \<and> Q y1 y2)" 
+  by auto
+
+lemma exists_narrowL4: "(\<exists>x y1 y2 y3. P x y1 y2 y3 \<and> Q y1 y2 y3) \<longleftrightarrow> (\<exists>y1 y2 y3. (\<exists>x. P x y1 y2 y3) \<and> Q y1 y2 y3)" 
+  by auto
+
+lemma exists_narrowR1: "(\<exists>x. P \<and> Q x) \<longleftrightarrow> P \<and> (\<exists>x. Q x)" 
+  by auto
+
+lemma exists_narrowR2: "(\<exists>x y. P y \<and> Q x y) \<longleftrightarrow> (\<exists>y. P  y \<and> (\<exists>x. Q x y))" 
+  by auto
+
+lemma exists_narrowR3: "(\<exists>x y1 y2. P y1 y2 \<and> Q x y1 y2) \<longleftrightarrow> (\<exists>y1 y2. P y1 y2 \<and> (\<exists>x. Q x y1 y2))" 
+  by auto
+
+lemma exists_narrowR4: "(\<exists>x y1 y2 y3. P y1 y2 y3 \<and> Q x y1 y2 y3) \<longleftrightarrow> (\<exists>y1 y2 y3. P y1 y2 y3 \<and> (\<exists>x. Q x y1 y2 y3))" 
+  by auto
+
+lemmas exists_narrow = 
+exists_narrowL1 
+exists_narrowL2
+exists_narrowL3
+exists_narrowL4
+exists_narrowR1
+exists_narrowR2
+exists_narrowR3
+exists_narrowR4
+
+
 lemma show_program_correct_single_invocation:
   assumes initialCorrect: "\<And>S i. S\<in>initialStates program i \<Longrightarrow> invariant_all' S "
     and check: "\<And>S i. \<lbrakk>S\<in>initialStates program i; invariant_all' S; state_wellFormed S\<rbrakk> \<Longrightarrow> checkCorrect program S i"
@@ -1179,9 +1218,17 @@ proof (auto simp add: programCorrect_s_def)
       show "S_init \<in> initialStates program i"
         using step1 and a_def apply (auto simp add: step_s.simps initialStates_def )
          apply (auto simp add: state_ext)
+         apply (rule_tac x="C'" in exI)
+         apply auto
+        apply (subst exists_narrow)+
+        find_theorems name: cong Ex
+        apply (subst exists_narrowR)
+
+
+(*
         using [[smt_solver = cvc4]]
          apply (smt distributed_state.select_convs(1) initialState_def old.unit.exhaust state.surjective)
-        by (smt distributed_state.select_convs(1) initialState_def old.unit.exhaust state.surjective)
+        by (smt distributed_state.select_convs(1) initialState_def old.unit.exhaust state.surjective)*)
     qed
 
     with step1 and a_def
@@ -1613,6 +1660,7 @@ next
             and c0: "transactionStatus S' t = None"
             and c15a: "\<forall>c. callOrigin S' c \<noteq> Some t"
             and c7: "transactionOrigin S' t = None"
+            and transactionOriginUnchanged: "\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin S t \<triangleq> i"
 
         define S'' where S''_def: "S'' = (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
 
@@ -1663,6 +1711,8 @@ next
             apply (simp add: c2)
             using `state_wellFormed S''` apply (simp add: S''_def)
             using `state_monotonicGrowth S S'` apply simp
+            using transactionOriginUnchanged apply blast
+            using transactionOriginUnchanged apply blast
             using `localState S' i \<triangleq> ls` apply simp
             using `currentProc S' i \<triangleq> proc` apply simp
             using `currentTransaction S' i = None` apply simp
@@ -1963,6 +2013,7 @@ definition initialStates' :: "('localState, 'any) prog \<Rightarrow> invocation 
   \<and> state_wellFormed S (*  TODO add wellformed? *)
   \<and> invocationOp S i = None
   \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommited)
+  \<and> (\<forall>tx. transactionOrigin S tx \<noteq> Some i)
 }"
 
 lemma initialStates'_same:
