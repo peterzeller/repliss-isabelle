@@ -7,7 +7,7 @@ section {* Execution Invariants *}
 text {* This theory includes proof for invariants that hold for all executions. *}
 
 
-definition state_wellFormed :: "('localState, 'any) state \<Rightarrow> bool" where
+definition state_wellFormed :: "('localState, 'any::valueType) state \<Rightarrow> bool" where
   "state_wellFormed state \<equiv> \<exists>tr. (\<forall>i. (i, AFail) \<notin> set tr) \<and>  initialState (prog state) ~~ tr \<leadsto>* state"
 
 lemma state_wellFormed_init[simp]:

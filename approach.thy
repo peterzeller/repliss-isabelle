@@ -82,7 +82,7 @@ lemma state_wellFormed_no_result_when_running:
 
 
 text {* Coupling invariant: S is state from distributed execution and S is state from single-invocation execution.  *}
-definition state_coupling :: "('ls,'any) state \<Rightarrow> ('ls,'any) state \<Rightarrow> invocation \<Rightarrow> bool \<Rightarrow> bool" where
+definition state_coupling :: "('ls,'any::valueType) state \<Rightarrow> ('ls,'any) state \<Rightarrow> invocation \<Rightarrow> bool \<Rightarrow> bool" where
   "state_coupling S S' i sameSession \<equiv> 
    if sameSession then
       (* did a step in the same invocation *)
@@ -1259,7 +1259,7 @@ this trace to a single-invocation trace leading to an equivalent state.
 Moreover the new trace contains an invariant violation, if the original trace contained one.
 *}
 lemma convert_to_single_session_trace:
-  fixes tr :: "'any trace"
+  fixes tr :: "'any::valueType trace"
     and s :: invocation      
     and S S' :: "('ls,'any) state"
   assumes steps: "S ~~ tr \<leadsto>* S'"
@@ -2009,6 +2009,12 @@ next
             using currentTxNone `state_wellFormed S'` wellFormed_currentTransaction_back
             by (metis S_wf butlast_snoc in_set_butlastD option.distinct(1) steps steps_step.prems(4) steps_step.prems(5))
 
+          have "\<And>tx. transactionOrigin S' tx \<noteq> Some s"
+            by (simp add: S'_wf a5 wf_no_invocation_no_origin)
+
+          thus "\<And>tx. transactionOrigin S'' tx \<noteq> Some s"
+            using step' by (auto simp add: step_simps)
+
         qed
 
 
@@ -2407,6 +2413,13 @@ next
             show "\<And>tx. transactionStatus S' tx \<noteq> Some Uncommited"
               using wellFormed_currentTransaction_back[OF steps `\<And>s. (s, AFail) \<notin> set tr` `\<And>tx. transactionStatus S tx \<noteq> Some Uncommited` `state_wellFormed S`]
               by auto
+
+
+          have "\<And>tx. transactionOrigin S' tx \<noteq> Some s"
+            by (simp add: \<open>state_wellFormed S'\<close> a5 wf_no_invocation_no_origin)
+            
+          thus "\<And>tx. transactionOrigin S'' tx \<noteq> Some s"
+            using step' by (auto simp add: step_simps)
       qed
       thus "S ~~ (s, tr'@[(AInvoc p ar, True)]) \<leadsto>\<^sub>S* S''"
         using ih1 steps_s_step by blast
@@ -2707,7 +2720,7 @@ qed
 
 
 lemma convert_to_single_session_trace_invFail_step:
-fixes tr :: "'any trace"
+fixes tr :: "'any::valueType trace"
   and s :: invocation      
   and S S' :: "('ls, 'any) state"
 assumes step: "S ~~ (s,a) \<leadsto> S'"
@@ -2850,6 +2863,12 @@ next
       by (simp add: S_wellformed)
     show " \<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
       by (metis local.invocation(3) local.step noUncommitted option.distinct(1) preconditionI precondition_endAtomic)
+
+    have "\<And>tx. transactionOrigin S tx \<noteq> Some s"
+      by (simp add: S_wellformed local.invocation(6) wf_no_invocation_no_origin)
+    thus "\<And>tx. transactionOrigin S' tx \<noteq> Some s"
+      using step `a = AInvoc procName args` by (auto simp add: step_simps)
+
   qed    
     
   then show ?thesis
@@ -3048,7 +3067,7 @@ qed
 
 
 lemma convert_to_single_session_trace_invFail:
-fixes tr :: "'any trace"
+fixes tr :: "'any::valueType trace"
   and S S' :: "('ls, 'any) state"
 assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"

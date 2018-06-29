@@ -58,7 +58,7 @@ definition
    (* monotonic growth of invocation result *)
    (* monotonic growth of invocation happens-before *)
    (*  --> no new calls can be added before*)
-definition state_monotonicGrowth :: "('localState, 'any) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
+definition state_monotonicGrowth :: "('localState, 'any::valueType) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth S' S \<equiv> 
       (* both states are wellformed *)
         state_wellFormed S'
@@ -268,7 +268,7 @@ All other sessions are simulated by nondeterministic state changes, with respect
 
 
   
-inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 'any action \<times> bool) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
+inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocation \<times> 'any action \<times> bool) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
   local: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -367,7 +367,8 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
                  currentProc := (currentProc C')(s \<mapsto> impl),
                  visibleCalls := (visibleCalls C')(s \<mapsto> {}),
                  invocationOp := (invocationOp C')(s \<mapsto> (procName, args)) \<rparr>);
-   valid = invariant_all C''  (* TODO check invariant in C ? *)            
+   valid = invariant_all C'';  (* TODO check invariant in C ? *)            
+   \<And>tx. transactionOrigin C'' tx \<noteq> Some s
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvoc procName args, valid) \<leadsto>\<^sub>S C''"       
 | return:
   "\<lbrakk>localState C s \<triangleq> ls; 
@@ -382,7 +383,7 @@ inductive step_s :: "('localState, 'any) state \<Rightarrow> (invocation \<times
    valid = invariant_all C'                   
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AReturn res, valid) \<leadsto>\<^sub>S C'"
 
-inductive steps_s :: "('localState, 'any) state \<Rightarrow> invocation \<times> ('any action \<times> bool) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
+inductive steps_s :: "('localState, 'any::valueType) state \<Rightarrow> invocation \<times> ('any action \<times> bool) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_s_refl:
   "S ~~ (s, []) \<leadsto>\<^sub>S* S"
 | steps_s_step:

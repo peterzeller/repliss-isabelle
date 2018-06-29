@@ -490,7 +490,7 @@ proof (rule iffI2; clarsimp)
 qed
 
 
-definition commutativeS :: "('localState, 'any) state \<Rightarrow> invocation \<times> 'any action \<Rightarrow> invocation \<times> 'any action \<Rightarrow> bool" where
+definition commutativeS :: "('localState, 'any::valueType) state \<Rightarrow> invocation \<times> 'any action \<Rightarrow> invocation \<times> 'any action \<Rightarrow> bool" where
   "commutativeS s a b \<equiv> (\<forall>t. ((s ~~ [a,b] \<leadsto>*  t) \<longleftrightarrow> (s ~~ [b,a] \<leadsto>* t)))"
 
 
@@ -1299,7 +1299,7 @@ lemma invContextH_update_txstatus:
 lemmas invContextH_simps = invContextH_update_calls invContextH_update_callOrigin invContextH_update_txstatus
 
 lemma test:
-  fixes S:: "('localState, 'any) state"
+  fixes S:: "('localState, 'any::valueType) state"
   assumes a7: "currentTransaction S sa \<triangleq> t"
   assumes a10: "state_wellFormed S"
   assumes a11: "sb\<noteq>sa"
@@ -2933,11 +2933,11 @@ lemma finiteH:
   "finite {x::nat. 0 < x \<and> x < A \<and> P x}"
   by simp
 
-definition canSwap :: "'ls itself \<Rightarrow> 'any action \<Rightarrow> 'any action \<Rightarrow> bool" where
+definition canSwap :: "'ls itself \<Rightarrow> 'any::valueType action \<Rightarrow> 'any action \<Rightarrow> bool" where
   "canSwap t a b \<equiv> (\<forall>(C1::('ls,'any) state) C2 s1 s2. s1\<noteq>s2 \<and> (C1 ~~ [(s1,a),(s2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(s2,b),(s1,a)] \<leadsto>* C2))"
 
 lemma show_canSwap:
-  assumes "\<And>(C1::('ls,'any) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+  assumes "\<And>(C1::('ls,'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
   shows "canSwap (t::'ls itself) a b"
 proof (auto simp add: canSwap_def)
   fix C1 C3 :: "('ls,'any) state"
@@ -2962,7 +2962,7 @@ qed
 
 lemma show_canSwap':
   assumes "x = a" 
-    and"\<And>(C1::('ls,'any) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+    and"\<And>(C1::('ls,'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
   shows "canSwap (t::'ls itself) x b"
   by (simp add: assms show_canSwap)
 
@@ -2970,7 +2970,7 @@ method prove_canSwap = (rule show_canSwap, auto simp add: step_simps, subst stat
 method prove_canSwap' = (rule show_canSwap', auto simp add: step_simps, subst state_ext, auto)
 
 lemma commutativeS_canSwap:
-  assumes comm: "\<And>(C::('ls,'any) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
+  assumes comm: "\<And>(C::('ls,'any::valueType) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
   shows "canSwap (t::'ls itself) a b"
 proof (auto simp add: canSwap_def)
   fix C1 C2 :: "('ls,'any) state"
@@ -3137,7 +3137,7 @@ qed
 
 text {* We can swap one action over a list of actions with canSwap *}
 lemma swapMany:
-  assumes steps: "(C1::('ls,'any) state) ~~ tr @ [(s,a)] \<leadsto>* C2"
+  assumes steps: "(C1::('ls,'any::valueType) state) ~~ tr @ [(s,a)] \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
     and wf: "state_wellFormed C1"
@@ -3191,7 +3191,7 @@ qed
 
 
 lemma swapMany_middle:
-  fixes C1 :: "('ls,'any) state"
+  fixes C1 :: "('ls,'any::valueType) state"
   assumes steps: "C1 ~~ tr_start @ tr @ [(s,a)] @ tr_end \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
@@ -3214,7 +3214,7 @@ proof -
 qed    
 
 lemma swapMany_middle':
-  fixes C1 :: "('ls,'any) state"
+  fixes C1 :: "('ls,'any::valueType) state"
   assumes steps: "C1 ~~ tr_start @ tr @ [a] @ tr_end \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> (fst a)"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) (snd a)"
@@ -3937,7 +3937,7 @@ qed
 
 
 lemma remove_local_step: 
-  fixes S_start S_end :: "('ls,'any) state" 
+  fixes S_start S_end :: "('ls,'any::valueType) state" 
   assumes step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
@@ -3990,7 +3990,7 @@ qed
 
 
 lemma remove_newId_step: 
-  fixes S_start S_end :: "('ls,'any) state" 
+  fixes S_start S_end :: "('ls,'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
@@ -4079,7 +4079,7 @@ lemma wf_transaction_status_iff_origin_dom:
 
 
 lemma remove_beginAtomic_step: 
-  fixes S_start S_end :: "('ls,'any) state" 
+  fixes S_start S_end :: "('ls,'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
@@ -4252,7 +4252,7 @@ qed
 
 (* TODO *)
 lemma remove_DBOp_step: 
-  fixes S_start S_end :: "('ls,'any) state" 
+  fixes S_start S_end :: "('ls,'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"

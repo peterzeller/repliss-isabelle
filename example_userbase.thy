@@ -15,6 +15,18 @@ datatype val =
   | Found string string
   | NotFound
 
+instantiation val :: valueType begin
+definition uniqueIds_val where 
+"uniqueIds_val x \<equiv> case x of UserId u \<Rightarrow> {UserId u} | _ \<Rightarrow> {}"
+instance
+proof               
+qed
+end
+
+lemma "uniqueIds (Bool True) = {}"
+  by (simp add: uniqueIds_val_def)
+
+
 fun stringval where
   "stringval (String s) = s"
 | "stringval _ = ''''"
@@ -545,6 +557,7 @@ proof (rule show_programCorrect_using_checkCorrect)
         and Sa_wf: "state_wellFormed Sa"
         and c6: "invocationOp Sa i = None"
         and c7: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommited"
+        and c8: "\<forall>tx. transactionOrigin Sa tx \<noteq> Some i"
       for  Sa procName args initState impl
       text {* We consider the case for each procedure separately:  *}
       using c2 proof (subst(asm) procedure_cases2, auto)
@@ -585,6 +598,7 @@ proof (rule show_programCorrect_using_checkCorrect)
          defer
          apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
       proof (unfold Def_def)
+        print_cases
 
         text {* Check invariant at end of invocation: *}
 (*
@@ -742,22 +756,23 @@ assume a0: "uid \<notin> generatedIds Sa"
           by (simp add: Sa_wf wf_no_invocation_no_origin)
 
 
-        have "transactionOrigin S'a tx \<noteq> Some i" for tx
-          using `state_monotonicGrowth S' S'a` apply (auto simp add: S'_def)
+        have "transactionOrigin Sa tx \<noteq> Some i" for tx
+          by (simp add: c8)
+        hence "transactionOrigin S' tx \<noteq> Some i" for tx
+          by (simp add: S'_def)
+        hence "transactionOrigin S'a tx \<noteq> Some i" for tx
+          using tranactionOriginUnchanged by blast
 
-          find_theorems S'a
-          sorry
 
-
-          have invocationHb_update:
-             "invocation_happensBeforeH (i_callOriginI_h (callOrigin S'e) (transactionOrigin S'e)) (happensBefore S'e)
+        have invocationHb_update:
+          "invocation_happensBeforeH (i_callOriginI_h (callOrigin S'e) (transactionOrigin S'e)) (happensBefore S'e)
             = invocation_happensBeforeH (i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a)) (happensBefore S'a)
              \<union> {i'. (\<forall>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i') }  \<times> {i}"
- (* {i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i} *)
+          (* {i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i} *)
           apply (subst happensBefore_update)
           apply (rule invocation_happensBeforeH_update)
-          apply (auto simp add: i_callOriginI_h_update split: option.splits)
-                      apply (auto simp add: i_callOriginI_h_def split: option.splits)
+                apply (auto simp add: i_callOriginI_h_update split: option.splits)
+                    apply (auto simp add: i_callOriginI_h_def split: option.splits)
           using S'a_wf \<open>calls S'a c = None\<close> wellFormed_happensBefore_calls_r apply blast
           using S'a_wf \<open>calls S'a ca = None\<close> wellFormed_happensBefore_calls_r apply blast
           using S'a_wf \<open>calls S'a c = None\<close> wellFormed_happensBefore_calls_l apply blast
@@ -767,28 +782,109 @@ assume a0: "uid \<notin> generatedIds Sa"
         from `prog Sa = progr` 
         have "prog S' = progr"
           by (auto simp add: S'_def)
-          
+
 
         from `invariant (prog S') (invContext' S'a)`
         have old_inv1: "inv1 (invContext' S'a)"
           by (simp add: \<open>prog S' = progr\<close> example_userbase.inv_def)
 
-        have [simp]: "invocationRes S'e i = invocationRes S'a i" for i
-          sorry
+        have invocationRes_S'e: "invocationRes S'e i' \<triangleq> r" if "invocationRes S'a i' \<triangleq> r" for i' r
+          using that state_wellFormed_no_result_when_running[OF S'a_wf a10] by (auto simp add: S'e_def S'd_def S'c_def S'b_def S''_def)
+
+        have invocationRes_S'e2: "invocationRes S'e = (invocationRes S'a)(i \<mapsto> ls_u ls)"
+          by (auto simp add: S'e_def S'd_def S'c_def S'b_def S''_def)
+
+        have "invocationOp S' i \<triangleq> (registerUser, [String name, String mail])"
+          by (auto simp add: S'_def)
+        hence [simp]: "invocationOp S'a i \<triangleq> (registerUser, [String name, String mail])"
+          using S'a_mono state_monotonicGrowth_invocationOp by blast
+        hence [simp]: "invocationOp S'e i \<triangleq> (registerUser, [String name, String mail])"
+          using invocationOp_unchanged by auto
 
         show "example_userbase.inv (invContext' S'e)"
         proof (auto simp add: inv_def)
 
-
           show "inv1 (invContext' S'e)"
             apply (auto simp add: inv1_def invocationOp_unchanged invocationHb_update)
-            using old_inv1 apply (auto simp add: inv1_def)
+            using old_inv1 by (auto simp add: inv1_def invocationRes_S'e2)
+
+          have "inv2 (invContext' S'a)"
+            using \<open>prog S' = progr\<close> example_userbase.inv_def old_inv by auto
+
+
+          thus "inv2 (invContext' S'e)"
+            apply (auto simp add: inv2_def invocationOp_unchanged invocationRes_S'e2)
+            apply (auto simp add: S'e_def S'd_def S'c_def S'b_def S''_def)
+            apply (drule_tac x=u in spec)
+            apply (drule_tac x=ia in spec)
+            apply auto
+            apply (rule_tac x=cb in exI)
+            apply (auto simp add: \<open>calls S'a c = None\<close> \<open>calls S'a ca = None\<close>)
+            apply (auto simp add:  i_callOriginI_h_def split: option.splits)
+            using t_origin by blast
+
+          have "inv3 (invContext' S'a)"
+            using \<open>prog S' = progr\<close> example_userbase.inv_def old_inv by auto
 
 
 
+          thus "inv3 (invContext' S'e)"
+            apply (auto simp add: inv3_def invocationOp_unchanged invocationRes_S'e2)
+             apply (auto simp add: S'e_def split: if_splits)
+             apply (auto simp add: S'd_def split: if_splits)
+             apply (auto simp add: S'c_def split: if_splits)
+              apply (auto simp add: S'b_def split: if_splits)
+               apply (auto simp add: S''_def split: if_splits)
+               apply (auto simp add: hb'a_def updateHb_cons S'b_def hb'_def S''_def)
+          proof -
 
-          sorry
+            show "False"
+              if c0: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+                and c1: "delete \<noteq> ca"
+                and c2: "delete \<noteq> c"
+                and c3: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+                and c4: "res = Undef"
+                and c5: "(delete, c) \<in> happensBefore S'a"
+              for  delete
+            using S'a_wf \<open>calls S'a c = None\<close> wellFormed_happensBefore_calls_r that by blast
 
+
+          show x: "False"
+            if c0: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+              and c1: "delete \<noteq> ca"
+              and c2: "delete \<noteq> c"
+              and c3: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+              and c4: "res = Undef"
+              and c5: "delete \<in> vis'"
+            for  delete
+            find_theorems knownIds
+              (* TODO if the delete is in vis, then it must have used a differt userId, because ls_u was just created and not returned yet *)
+            sorry
+
+
+          show "False"
+            if c0: "resa = Undef"
+              and c1: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+              and c2: "delete \<noteq> ca"
+              and c3: "delete \<noteq> c"
+              and c4: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+              and c5: "(delete, ca) \<in> happensBefore S'a"
+            for  delete
+            using c5 S'a_wf \<open>calls S'a ca = None\<close> wellFormed_happensBefore_calls_r by blast
+            
+
+          show "False"
+            if c0: "resa = Undef"
+              and c1: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+              and c2: "delete \<noteq> ca"
+              and c3: "delete \<noteq> c"
+              and c4: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+              and c5: "delete \<in> vis'"
+            for  delete
+              (* same as above (x) *)
+            sorry
+        qed
+      qed
 
 
 

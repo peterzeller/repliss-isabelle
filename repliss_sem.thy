@@ -19,8 +19,11 @@ abbreviation orElse :: "'a option \<Rightarrow> 'a \<Rightarrow> 'a" (infixr "or
 
 typedecl invocation
 
-definition uniqueIds :: "'any \<Rightarrow> 'any set" where 
-  "uniqueIds = ???"
+term "x::'a::ord"
+
+class valueType =
+  fixes uniqueIds :: "'a \<Rightarrow> 'a set"
+
 
 definition 
   "uniqueIdsInList xs = (\<Union>x\<in>set xs. uniqueIds x)"
@@ -483,7 +486,7 @@ datatype 'any action =
 
 definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 
-inductive step :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
+inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocation \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -609,7 +612,7 @@ lemmas step_elims =
   step_elim_AFail
   step_elim_AInvcheck
 
-inductive steps :: "('localState, 'any) state \<Rightarrow> (invocation \<times> 'any action) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
+inductive steps :: "('localState, 'any::valueType) state \<Rightarrow> (invocation \<times> 'any action) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
   steps_refl:
   "S ~~ [] \<leadsto>* S"
 | steps_step:
