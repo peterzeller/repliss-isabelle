@@ -848,6 +848,21 @@ assume a0: "uid \<notin> generatedIds Sa"
               for  delete
             using S'a_wf \<open>calls S'a c = None\<close> wellFormed_happensBefore_calls_r that by blast
 
+          find_theorems generatedIds name: "local."
+
+
+          find_theorems ls
+          from `localState S' i \<triangleq> ls`
+          have "ls_u ls = uid"
+            by (auto simp add: S'_def)
+
+
+          from `uid \<notin> generatedIds Sa`
+          have "ls_u ls \<notin> generatedIds S'a" 
+(* TODO because it was generated *)
+            sorry
+
+
 
           show x: "False"
             if c0: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
@@ -881,6 +896,7 @@ assume a0: "uid \<notin> generatedIds Sa"
               and c4: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
               and c5: "delete \<in> vis'"
             for  delete
+
               (* same as above (x) *)
             sorry
         qed
