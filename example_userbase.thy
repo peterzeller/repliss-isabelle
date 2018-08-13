@@ -1,5 +1,5 @@
 theory example_userbase
-  imports invariant_simps
+  imports invariant_simps unique_ids
 begin
 
 
@@ -145,37 +145,46 @@ lemma names_distinct3[simp]:
 
 lemmas names_distinct4[simp] = names_distinct3[symmetric]
 
+fun pickLine where 
+"pickLine ls list =
+  (case list of 
+    [] \<Rightarrow> LocalStep ls
+  | (x#xs) \<Rightarrow>
+    (case ls_pc ls of
+        0 \<Rightarrow> x
+      | Suc n \<Rightarrow>  pickLine (ls\<lparr>ls_pc := n\<rparr>) xs))"
+  
 
 definition registerUserImpl :: "(localState, val) procedureImpl" where
-  "registerUserImpl ls \<equiv> [
+  "registerUserImpl ls \<equiv> pickLine ls [
    (* 0 *) NewId (\<lambda>x. (ls\<lparr>ls_u := x, ls_pc := 1\<rparr> :: localState)),
    (* 1 *) BeginAtomic (ls\<lparr>ls_pc := 2\<rparr>),
    (* 2 *) DbOperation users_name_assign [ls_u ls, String (ls_name ls)] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
    (* 3 *) DbOperation users_mail_assign [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
    (* 4 *) EndAtomic (ls\<lparr>ls_pc := 5\<rparr>),
    (* 5 *) Return (ls_u ls)
-   ] ! ls_pc ls"
+   ]"
 
 definition updateMailImpl :: "(localState, val) procedureImpl" where
-  "updateMailImpl ls \<equiv> [
+  "updateMailImpl ls \<equiv> pickLine ls [
    (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
    (* 1 *) DbOperation users_contains_key [ls_u ls] (\<lambda>r. ls\<lparr>ls_exists := (r = Bool True), ls_pc := 2 \<rparr>),
    (* 2 *) LocalStep (if ls_exists ls then ls\<lparr>ls_pc := 3\<rparr> else ls\<lparr>ls_pc := 4\<rparr> ),
    (* 3 *) DbOperation users_mail_assign [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
    (* 5 *) EndAtomic  (ls\<lparr>ls_pc := 6\<rparr>),
    (* 6 *) Return Undef
-   ] ! ls_pc ls"   
+   ]"   
 
 definition removeUserImpl :: "(localState, val) procedureImpl" where
-  "removeUserImpl ls \<equiv> [
+  "removeUserImpl ls \<equiv> pickLine ls [
    (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
    (* 1 *) DbOperation users_remove [ls_u ls] (\<lambda>r. ls\<lparr>ls_pc := 2 \<rparr>),
    (* 2 *) EndAtomic  (ls\<lparr>ls_pc := 3\<rparr>),
    (* 3 *) Return Undef
-   ] ! ls_pc ls"
+   ]"
 
 definition getUserImpl :: "(localState, val) procedureImpl" where
-  "getUserImpl ls \<equiv> [
+  "getUserImpl ls \<equiv> pickLine ls [
    (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
    (* 1 *) DbOperation users_contains_key [ls_u ls] (\<lambda>r. ls\<lparr>ls_exists := (r = Bool True), ls_pc := 2 \<rparr>),
    (* 2 *) LocalStep (if ls_exists ls then ls\<lparr>ls_pc := 3\<rparr> else ls\<lparr>ls_pc := 5\<rparr> ),
@@ -183,7 +192,7 @@ definition getUserImpl :: "(localState, val) procedureImpl" where
    (* 4 *) DbOperation users_mail_get [ls_u ls] (\<lambda>r. ls\<lparr>ls_mail := stringval r, ls_pc := 5 \<rparr>),
    (* 5 *) EndAtomic  (ls\<lparr>ls_pc := 6\<rparr>),
    (* 6 *) Return (if ls_exists ls then Found (ls_name ls) (ls_mail ls) else NotFound )
-   ] ! ls_pc ls"      
+   ]"      
 
 
 definition procedures where
@@ -233,12 +242,12 @@ definition crdtSpec :: "operation \<Rightarrow> val list \<Rightarrow> val opera
     res = Bool (\<exists>c1 v. (calls ctxt c1 \<triangleq> Call users_name_assign (args @ [v]) Undef
                  \<or> calls ctxt c1 \<triangleq> Call users_mail_assign (args @ [v]) Undef)
                \<and> (\<forall>c2. calls ctxt c2 \<triangleq> Call users_remove args Undef \<longrightarrow> (c2,c1)\<in>happensBefore ctxt))
-  else if oper = users_name_get then 
+  else if oper = users_name_get \<and> length args = 1 then 
     if latest_name_assign ctxt (hd args) = {} then 
       res = Undef
     else
       res \<in> latest_name_assign ctxt (hd args)
-  else if oper = users_mail_get then 
+  else if oper = users_mail_get \<and> length args = 1 then 
     if latest_mail_assign ctxt (hd args) = {} then 
       res = Undef
     else
@@ -360,6 +369,39 @@ lemma in_sequence_in2: "in_sequence xs x y \<Longrightarrow> y\<in>set xs"
 lemma updateHb_cases: 
 "(cx, cy) \<in> updateHb Hb vis cs \<longleftrightarrow> ((cx,cy)\<in>Hb \<or> cx\<in>vis \<and> cy\<in>set cs \<or> in_sequence cs cx cy)"
   by (induct cs arbitrary: Hb vis, auto simp add: updateHb_cons in_sequence_cons)
+
+
+
+lemma uniqueIds_simp[simp]:
+  shows "uniqueIds (String x) = {}"
+    and "uniqueIds (Bool b) = {}"
+    and "uniqueIds Undef = {}"
+    and "uniqueIds (Found x y) = {}"
+    and "uniqueIds NotFound = {}"
+  by (auto simp add: uniqueIds_val_def)
+
+lemma uniqueId_no_nested: "x \<in> uniqueIds uid \<Longrightarrow> x = (uid :: val)"
+  by (auto simp add: uniqueIds_val_def split: val.splits)
+
+lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exists>u. x = UserId u \<and> uid = UserId u)"
+  by (auto simp add: uniqueIds_val_def split: val.splits)
+
+
+lemma progr_wf: "program_wellFormed progr"
+proof (auto simp add: program_wellFormed_def)
+  show "procedures_cannot_guess_ids procedures"
+    apply (rule show_procedures_cannot_guess_ids[where uids="\<lambda>ls. uniqueIds (ls_u ls)"])
+    apply (auto simp add: procedures_cannot_guess_ids_def procedures_def split: localAction.splits)
+    by (auto simp add: uniqueIdsInList_def getUserImpl_def removeUserImpl_def updateMailImpl_def registerUserImpl_def  lsInit_def uniqueId_no_nested  split: list.splits val.splits if_splits nat.splits)
+
+  show "queries_cannot_guess_ids (querySpec progr)"
+    apply (auto simp add: progr_def queries_cannot_guess_ids_def2 crdtSpec_def; case_tac args)
+           apply (auto simp add: uniqueId_no_nested2)
+       apply (auto simp add: uniqueId_no_nested2 latest_mail_assign_def latest_name_assign_def uniqueIdsInList_def)
+    by (meson list.set_intros(1) list.set_intros(2))+
+
+
+qed
 
 
 
@@ -857,12 +899,29 @@ assume a0: "uid \<notin> generatedIds Sa"
             by (auto simp add: S'_def)
 
 
+          from `uid \<notin> generatedIds Sa` `localState S' i \<triangleq> ls`
+          have "ls_u ls \<notin> generatedIds Sa" 
+            by (auto simp add: S'_def)
+
+
+
           from `uid \<notin> generatedIds Sa`
-          have "ls_u ls \<notin> generatedIds S'a" 
-(* TODO because it was generated *)
-            sorry
+          have "uid \<notin> knownIds Sa"
+            using Sa_wf \<open>prog Sa = progr\<close> progr_wf wf_knownIds_subset_generatedIds2 by fastforce
+
+          hence "uid \<notin> knownIds S'"
+            by (simp add: S'_def)
+
+          have "uid \<in> generatedIds S'"
+            by (auto simp add: S'_def)
 
 
+          hence "uid \<notin> knownIds S'a"
+ (* the uid is not written to the database and not known and it cannot be generated again, so
+    it cannot become known in the monotonic growth step  *)
+
+            find_theorems S' Sa
+            find_theorems S' S'a
 
           show x: "False"
             if c0: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
@@ -872,6 +931,15 @@ assume a0: "uid \<notin> generatedIds Sa"
               and c4: "res = Undef"
               and c5: "delete \<in> vis'"
             for  delete
+          proof -
+            
+
+            from c3
+            have "calls S' delete \<triangleq> Call users_remove [ls_u ls] Undef"
+              using state_monotonicGrowth_calls[OF ` state_monotonicGrowth S' S'a`]
+
+              find_theorems state_monotonicGrowth calls
+
             find_theorems knownIds
               (* TODO if the delete is in vis, then it must have used a differt userId, because ls_u was just created and not returned yet *)
             sorry

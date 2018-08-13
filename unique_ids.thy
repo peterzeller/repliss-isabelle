@@ -21,10 +21,34 @@ definition procedures_cannot_guess_ids :: "(procedureName \<Rightarrow> 'any lis
            | Return r => uniqueIds r \<subseteq> uids ls
            ))"
 
+schematic_goal show_procedures_cannot_guess_ids:
+  fixes  procs  :: "(procedureName \<Rightarrow> 'any list \<rightharpoonup> ('localState \<times> ('localState, 'any::valueType) procedureImpl))"
+    and uids :: " 'localState \<Rightarrow> 'any set"
+  shows "?X uids \<Longrightarrow> procedures_cannot_guess_ids procs"
+  apply (subst procedures_cannot_guess_ids_def)
+  apply (rule_tac x=uids in exI)
+  by assumption
+
 definition queries_cannot_guess_ids :: "(operation \<Rightarrow> 'any::valueType list \<Rightarrow> 'any operationContext \<Rightarrow> 'any \<Rightarrow> bool) \<Rightarrow> bool"  where
 "queries_cannot_guess_ids qry \<equiv> 
   \<forall>opr args ctxt res. 
    qry opr args ctxt res \<longrightarrow> uniqueIds res \<subseteq> uniqueIdsInList args \<union> \<Union>{uniqueIdsInList (call_args c) | cId c. calls ctxt cId \<triangleq> c}"
+
+
+lemma queries_cannot_guess_ids_def2:
+"queries_cannot_guess_ids qry =
+  (\<forall>opr args ctxt res x. 
+   qry opr args ctxt res 
+ \<longrightarrow> x \<in> uniqueIds res 
+ \<longrightarrow> x \<notin> uniqueIdsInList args
+ \<longrightarrow> (\<exists>cId opr args res. calls ctxt cId \<triangleq> Call opr args res \<and> x \<in> uniqueIdsInList args))"
+  apply (auto simp add: queries_cannot_guess_ids_def)
+   apply ((drule spec)+,drule(1) mp) 
+   apply (drule(1) subsetD)
+   apply auto
+   apply (metis call.collapse)
+  by (metis call.sel(2))
+
 
 definition program_wellFormed :: "('localState, 'any::valueType) prog \<Rightarrow> bool" where
 "program_wellFormed progr \<equiv> 
@@ -32,7 +56,7 @@ definition program_wellFormed :: "('localState, 'any::valueType) prog \<Rightarr
  \<and> queries_cannot_guess_ids (querySpec progr)
 "
 
-lemma wf_callOrigin_implies_transactionStatus_defined:
+lemma wf_knownIds_subset_generatedIds:
   fixes S :: "('localState, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
@@ -252,6 +276,15 @@ proof -
     using progr_def by auto
 qed
 
+
+lemma wf_knownIds_subset_generatedIds2:
+  fixes S :: "('localState, 'any::valueType) state"
+  assumes wf: "state_wellFormed S"
+    and prog_wf: "program_wellFormed (prog S)"
+    and "x \<in> knownIds S"
+  shows "x \<in> generatedIds S"
+  using assms
+  by (meson subsetCE wf_knownIds_subset_generatedIds) 
 
 
 end
