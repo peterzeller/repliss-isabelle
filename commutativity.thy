@@ -396,13 +396,13 @@ proof (rule iffI2; clarsimp)
           apply (intro conjI)
           by (auto simp add: step_simps state_ext local induct_step)
       next
-        case (newId s ls f ls' uid)
+        case (newId s ls f ls' uid ls'')
         from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
         have no_fail: "(s, AFail) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls' uid), generatedIds := generatedIds S2 \<union> {uid}\<rparr>"])
+          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls''), generatedIds := (generatedIds S2)(uid \<mapsto> s )\<rparr>"])
           using induct_step.coupling no_fail newId
           by (auto simp add: step_simps state_ext  induct_step)
 
@@ -620,8 +620,10 @@ lemma precondition_alocal:
   apply (auto simp add: precondition_def intro: step.intros elim: step_elims)
   done
 
+
+
 lemma precondition_newid:
-  "precondition (s, ANewId uid) C = (\<exists>ls f ls'. localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = NewId ls' \<and> uid \<notin> generatedIds C)"
+  "precondition (s, ANewId uid) C = (\<exists>ls f ls' ls''. localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = NewId ls' \<and> generatedIds C uid = None \<and> uniqueIds uid = {uid} \<and> ls' uid \<triangleq> ls'')"
   apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
   done
 
@@ -886,17 +888,22 @@ qed
 
 
 lemma generatedIds_mono:
-  "\<lbrakk>A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> generatedIds A \<subseteq> generatedIds B"
-  apply (erule step.cases, auto)
+  "\<lbrakk>A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> generatedIds A \<subseteq>\<^sub>m generatedIds B"
+  apply (erule step.cases, auto simp add: map_le_def)
   done
 
 lemma generatedIds_mono2:
-  "\<lbrakk>x\<in>generatedIds A; A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> x\<in>generatedIds B"
-  using generatedIds_mono by blast
+  assumes "generatedIds A x \<triangleq> i"
+and "A ~~ a \<leadsto> B" 
+shows"generatedIds B x \<triangleq> i"
+  using generatedIds_mono[OF `A ~~ a \<leadsto> B`] assms by (auto simp add: map_le_def, force)
+
 
 lemma generatedIds_mono2_rev:
-  "\<lbrakk>x\<notin>generatedIds B; A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> x\<notin>generatedIds A"
-  by (meson generatedIds_mono2)
+  assumes  "generatedIds B x = None"
+    and "A ~~ a \<leadsto> B"
+  shows "generatedIds A x = None"
+  using generatedIds_mono[OF `A ~~ a \<leadsto> B`] assms by (auto simp add: map_le_def, force)
 
 lemma transactionStatus_mono:
   "\<lbrakk>transactionStatus B tx = None; A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> transactionStatus A tx = None"
@@ -1093,16 +1100,18 @@ proof -
   next
     case (ANewId x2)
     with preconditionHolds
-    obtain ls f ls' 
+    obtain ls f ls' ls''
       where 1: "localState B sb \<triangleq> ls" 
         and 2: "currentProc B sb \<triangleq> f" 
-        and 3: "x2 \<notin> generatedIds B" 
+        and 3: "generatedIds B x2 = None" 
         and 4: "f ls = NewId ls'"
+        and 6: "uniqueIds x2 = {x2}"
+        and 7: "ls' x2 \<triangleq> ls''"
       by (auto simp add: precondition_newid)
-    have 5: "x2 \<notin> generatedIds A"
+    have 5: "generatedIds A x2 = None"
       using generatedIds_mono2_rev[OF 3 exec] by blast
     thus ?thesis
-      by (metis "1" "2" "4" ANewId differentSessions exec precondition_newid unchangedInTransaction(1) unchangedInTransaction(2)) 
+      by (metis "1" "2" 4 6 7 ANewId differentSessions exec precondition_newid unchangedInTransaction(1) unchangedInTransaction(2)) 
   next
     case (ABeginAtomic tx newTxns)
     with preconditionHolds obtain ls f ls' vis
@@ -3973,17 +3982,17 @@ qed
 
 lemma uid_used_only_once:
   assumes steps:  "S_start ~~ tr \<leadsto>* S_end"
-    and alreadyGenerated: "uid \<in> generatedIds S_start"
+    and alreadyGenerated: "generatedIds S_start uid \<triangleq> i'"
   shows "(i, ANewId uid) \<notin> set tr"
 proof -
-  have "(i, ANewId uid) \<notin> set tr \<and> uid \<in> generatedIds S_end"
+  have "(i, ANewId uid) \<notin> set tr \<and> generatedIds S_end uid \<triangleq> i'"
     using steps alreadyGenerated proof (induct rule: steps_induct)
     case initial
     then show ?case by simp
   next
     case (step S' tr a S'')
     then show ?case apply (auto simp add: step_simps)
-      by (simp add: generatedIds_mono2)
+      using generatedIds_mono2 by blast
   qed
   thus ?thesis by simp
 qed
@@ -3997,22 +4006,22 @@ lemma remove_newId_step:
     and a_def: "a = (i, ANewId uid)"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
     and wf: "state_wellFormed S_start"
-    and S_end'_def: "S_end' = S_end\<lparr>generatedIds := generatedIds S_end - {uid}, localState := (localState S_end)(i := localState S_start i)\<rparr>"
+    and S_end'_def: "S_end' = S_end\<lparr>generatedIds := (generatedIds S_end)(uid := None), localState := (localState S_end)(i := localState S_start i)\<rparr>"
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
   define T where 
-    "T \<equiv> \<lambda>S::('ls,'any) state. S\<lparr>generatedIds := generatedIds S - {uid}, localState := (localState S)(i := localState S_start i)\<rparr>"
+    "T \<equiv> \<lambda>S::('ls,'any) state. S\<lparr>generatedIds := (generatedIds S)(uid := None), localState := (localState S)(i := localState S_start i)\<rparr>"
 
   have "T S_mid = S_start"
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
 
-  have uid_fresh: "uid \<notin> generatedIds S_start"
+  have uid_fresh: "generatedIds S_start uid = None"
     using step_a a_def by (auto simp add: step_simps)
 
-  have "uid \<in> generatedIds S_mid"
+  obtain uid_i where "generatedIds S_mid uid \<triangleq> uid_i"
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
 
-  from `S_mid ~~ tr \<leadsto>* S_end` `uid \<in> generatedIds S_mid`
+  from `S_mid ~~ tr \<leadsto>* S_end` `generatedIds S_mid uid \<triangleq> uid_i`
   have uid_not_used: "(i, ANewId uid) \<notin> set tr" for i
     by (rule uid_used_only_once)
 

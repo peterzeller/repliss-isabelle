@@ -71,7 +71,7 @@ definition state_monotonicGrowth :: "('localState, 'any::valueType) state \<Righ
       (* monotonic growth of callOrigin *)
       \<and> (\<forall>c t. callOrigin S' c \<triangleq> t \<longrightarrow> callOrigin S c \<triangleq> t)
       (* monotonic growth of generatedIds *)
-      \<and> generatedIds S' \<subseteq> generatedIds S
+      \<and> (\<forall>uid i. generatedIds S' uid \<triangleq> i \<longrightarrow> generatedIds S uid \<triangleq> i)
       (* growth of known ids *)
       \<and> knownIds S' \<subseteq> knownIds S
       (* monotonic growth of invocationOp *)
@@ -146,7 +146,7 @@ lemma state_monotonicGrowth_callOrigin2:
 
 lemma state_monotonicGrowth_generatedIds:
   assumes "state_monotonicGrowth S' S"
-  shows "generatedIds S' \<subseteq> generatedIds S"
+  shows "generatedIds S' uid \<triangleq> i \<Longrightarrow> generatedIds S uid \<triangleq> i"
   using assms by (auto simp add: state_monotonicGrowth_def)
 
 
@@ -278,9 +278,11 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocat
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
    f ls = NewId ls';
-   uid \<notin> generatedIds C
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid, True) \<leadsto>\<^sub>S (C\<lparr>localState := (localState C)(s \<mapsto> ls' uid), 
-                                   generatedIds := generatedIds C \<union> {uid} \<rparr>)"   
+   generatedIds C uid = None;
+   uniqueIds uid = {uid}; (* there is exactly one unique id *)
+   ls' uid \<triangleq> ls''
+   \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid, True) \<leadsto>\<^sub>S (C\<lparr>localState := (localState C)(s \<mapsto> ls''), 
+                                   generatedIds := (generatedIds C)( uid \<mapsto> s) \<rparr>)"   
 | beginAtomic: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 

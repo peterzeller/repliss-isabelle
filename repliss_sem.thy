@@ -42,7 +42,7 @@ datatype ('localState, 'any) localAction =
   LocalStep 'localState
   | BeginAtomic 'localState
   | EndAtomic 'localState
-  | NewId "'any \<Rightarrow> 'localState"
+  | NewId "'any \<rightharpoonup> 'localState"
   | DbOperation operation "'any list" "'any \<Rightarrow> 'localState"
   | Return 'any
 
@@ -88,7 +88,7 @@ record ('localState, 'any) distributed_state = "'any operationContext" +
   prog :: "('localState, 'any) prog"
   callOrigin :: "callId \<rightharpoonup> txid"
   transactionOrigin :: "txid \<rightharpoonup> invocation"
-  generatedIds :: "'any set"
+  generatedIds :: "'any \<rightharpoonup> invocation" (* unique identifiers and which invocation generated them*)
   knownIds :: "'any set"
   invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
   invocationRes :: "invocation \<rightharpoonup> 'any"
@@ -496,9 +496,11 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocatio
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
    f ls = NewId ls';
-   uid \<notin> generatedIds C
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls' uid), 
-                                   generatedIds := generatedIds C \<union> {uid} \<rparr>)"   
+   generatedIds C uid = None;
+   uniqueIds uid = {uid}; (* there is exactly one unique id *)
+   ls' uid \<triangleq> ls''
+   \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls''), 
+                                   generatedIds := (generatedIds C)(uid \<mapsto> s)  \<rparr>)"   
 | beginAtomic: 
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentProc C s \<triangleq> f; 
@@ -651,7 +653,7 @@ definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState,
   prog = program,
   callOrigin = empty,
   transactionOrigin = empty,
-  generatedIds = {},
+  generatedIds = empty,
   knownIds = {},
   invocationOp = empty,
   invocationRes = empty,

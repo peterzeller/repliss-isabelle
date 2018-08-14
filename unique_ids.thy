@@ -14,7 +14,7 @@ definition procedures_cannot_guess_ids :: "(procedureName \<Rightarrow> 'any lis
              LocalStep ls' \<Rightarrow> uids ls' \<subseteq> uids ls
            | BeginAtomic ls' \<Rightarrow> uids ls' \<subseteq> uids ls
            | EndAtomic ls' \<Rightarrow> uids ls' \<subseteq> uids ls
-           | NewId f \<Rightarrow> (\<forall>uid. uids (f uid) \<subseteq> uids ls \<union> {uid})
+           | NewId f \<Rightarrow> (\<forall>uid ls'. f uid \<triangleq> ls' \<longrightarrow> uids ls' \<subseteq> uids ls \<union> {uid})
            | DbOperation opr args f \<Rightarrow> 
                      uniqueIdsInList args \<subseteq> uids ls
                    \<and> (\<forall>res. uids (f res) \<subseteq> uids ls \<union> uniqueIds res)
@@ -56,11 +56,14 @@ definition program_wellFormed :: "('localState, 'any::valueType) prog \<Rightarr
  \<and> queries_cannot_guess_ids (querySpec progr)
 "
 
+lemma domExists_simp: "x \<in> dom f \<longleftrightarrow> (\<exists>y. f x \<triangleq> y)"
+  by (auto)
+
 lemma wf_knownIds_subset_generatedIds:
   fixes S :: "('localState, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
-  shows "knownIds S \<subseteq> generatedIds S"
+  shows "knownIds S \<subseteq> dom (generatedIds S)"
 proof -
 
   define progr where "progr \<equiv> prog S"
@@ -77,7 +80,7 @@ proof -
              LocalStep ls' \<Rightarrow> uids ls' \<subseteq> uids ls
            | BeginAtomic ls' \<Rightarrow> uids ls' \<subseteq> uids ls
            | EndAtomic ls' \<Rightarrow> uids ls' \<subseteq> uids ls
-           | NewId f \<Rightarrow> (\<forall>uid. uids (f uid) \<subseteq> uids ls \<union> {uid})
+           | NewId f \<Rightarrow> (\<forall>uid ls'. f uid \<triangleq> ls' \<longrightarrow> uids ls' \<subseteq> uids ls \<union> {uid})
            | DbOperation opr args f \<Rightarrow> 
                      uniqueIdsInList args \<subseteq> uids ls
                    \<and> (\<forall>res. uids (f res) \<subseteq> uids ls \<union> uniqueIds res)
@@ -96,7 +99,7 @@ proof -
              LocalStep ls' \<Rightarrow> uids ls' \<subseteq> uids ls
            | BeginAtomic ls' \<Rightarrow> uids ls' \<subseteq> uids ls
            | EndAtomic ls' \<Rightarrow> uids ls' \<subseteq> uids ls
-           | NewId f \<Rightarrow> (\<forall>uid. uids (f uid) \<subseteq> uids ls \<union> {uid})
+           | NewId f \<Rightarrow> (\<forall>uid ls'. f uid \<triangleq> ls' \<longrightarrow> uids ls' \<subseteq> uids ls \<union> {uid})
            | DbOperation opr args f \<Rightarrow> 
                      uniqueIdsInList args \<subseteq> uids ls
                    \<and> (\<forall>res. uids (f res) \<subseteq> uids ls \<union> uniqueIds res)
@@ -122,9 +125,9 @@ proof -
 
 
 
-  have "(\<forall>i ls. localState S i \<triangleq> ls \<longrightarrow> uids ls \<subseteq> generatedIds S) 
-       \<and> (\<forall>cId c. calls S cId \<triangleq> c \<longrightarrow> uniqueIdsInList (call_args c) \<subseteq> generatedIds S)
-       \<and> knownIds S \<subseteq> generatedIds S" 
+  have "(\<forall>i ls. localState S i \<triangleq> ls \<longrightarrow> uids ls \<subseteq> dom (generatedIds S)) 
+       \<and> (\<forall>cId c. calls S cId \<triangleq> c \<longrightarrow> uniqueIdsInList (call_args c) \<subseteq> dom (generatedIds S))
+       \<and> knownIds S \<subseteq> dom (generatedIds S)" 
     if "prog S = progr"
     using wf that proof (induct rule: wellFormed_induct)
     case initial
@@ -138,20 +141,20 @@ proof -
 
     have [simp]: "prog S2 = progr" using `prog S2 = progr` .
 
-    have IH1: "\<And>i ls x. localState S1 i \<triangleq> ls \<Longrightarrow> x \<in> uids ls  \<Longrightarrow> x \<in> generatedIds S1"
+    have IH1: "\<And>i ls x. localState S1 i \<triangleq> ls \<Longrightarrow> x \<in> uids ls  \<Longrightarrow> x \<in> dom (generatedIds S1)"
       using \<open>prog S1 = progr\<close> step.hyps(2) by blast
 
-    have IH2: "\<And>cId c x. calls S1 cId \<triangleq> c \<Longrightarrow> x \<in> uniqueIdsInList (call_args c) \<Longrightarrow> x \<in> generatedIds S1"
+    have IH2: "\<And>cId c x. calls S1 cId \<triangleq> c \<Longrightarrow> x \<in> uniqueIdsInList (call_args c) \<Longrightarrow> x \<in> dom (generatedIds S1)"
       using \<open>prog S1 = progr\<close> step.hyps(2) by blast
 
-    have IH3: "x \<in> knownIds S1 \<Longrightarrow> x \<in> generatedIds S1" for  x
+    have IH3: "x \<in> knownIds S1 \<Longrightarrow> x \<in> dom (generatedIds S1)" for  x
       using \<open>prog S1 = progr\<close> step.hyps(2) by blast
 
     from `S1 ~~ a \<leadsto> S2`
     show ?case
     proof (induct rule: step.cases)
       case (local C s ls f ls')
-      thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2 IH3 by auto
+      thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2 IH3 by (auto simp add: domExists_simp)
 
     next
       case (newId C s ls f ls' uid)
@@ -161,11 +164,11 @@ proof -
     next
       case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
       thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2 IH3 
-        by auto
+        by (auto simp add: domExists_simp)
     next
       case (endAtomic C s ls f ls' t)
       thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2 IH3 
-        by auto
+        by (auto simp add: domExists_simp)
     next
       case (dbop C s ls f Op args ls' t c res vis)
 
@@ -176,17 +179,17 @@ proof -
           using \<open>prog S1 = progr\<close> dbop.hyps(1) by blast 
 
 
-        show "x \<in> generatedIds C"
+        show "\<exists>y. generatedIds C x \<triangleq> y"
           if c0: "x \<in> uids (ls' res)"
           for  x
-        proof 
+        proof -
           from `x \<in> uids (ls' res)`
           have "x \<in> uids ls \<or> x \<in> uniqueIds res"
             using  cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] by (auto simp add: `f ls = DbOperation Op args ls'`)
-          show "x \<in> generatedIds C"
+          show "\<exists>y. generatedIds C x \<triangleq> y"
           proof (cases "x \<in> uids ls")
             assume "x \<in> uids ls"
-            show "x \<in> generatedIds C"
+            show "\<exists>y. generatedIds C x \<triangleq> y"
               using IH1 \<open>x \<in> uids ls\<close> dbop.hyps(1) dbop.hyps(4) by blast
           next
             assume "x \<notin> uids ls"
@@ -202,7 +205,7 @@ proof -
               apply auto
               using \<open>x \<notin> uniqueIdsInList args\<close> by blast
 
-            have "x \<in> generatedIds S1"
+            have "x \<in> dom (generatedIds S1)"
             proof (rule IH2)
               show "calls S1 cId \<triangleq> c"
                 using `calls (getContext C s) cId \<triangleq> c`
@@ -211,15 +214,13 @@ proof -
                 using `x\<in>uniqueIdsInList (call_args c)` .
             qed
 
-            thus "x \<in> generatedIds C"
-              by (simp add: dbop.hyps(1))
+            thus "\<exists>y. generatedIds C x \<triangleq> y"
+              by (auto simp add: dbop.hyps(1))
           qed
-          show "generatedIds C \<subseteq> generatedIds C"
-            by simp
         qed
 
 
-        show "x \<in> generatedIds C"
+        show " \<exists>y. generatedIds C x \<triangleq> y"
           if c0: "i \<noteq> s"
             and c1: "localState C i \<triangleq> ls"
             and c2: "x \<in> uids ls"
@@ -227,20 +228,20 @@ proof -
           using IH1 c1 c2 dbop.hyps(1) by blast
 
 
-        show "x \<in> generatedIds C"
+        show "\<exists>y. generatedIds C x \<triangleq> y"
           if c0: "x \<in> uniqueIdsInList args"
           for  x
           sorry
 
 
-        show "x \<in> generatedIds C"
+        show "\<exists>y. generatedIds C x \<triangleq> y"
           if c0: "cId \<noteq> c"
             and c1: "calls C cId \<triangleq> ca"
             and c2: "x \<in> uniqueIdsInList (call_args ca)"
           for  cId ca x
           using IH2 c1 c2 dbop.hyps(1) by blast
 
-        show "\<And>x. x \<in> knownIds C \<Longrightarrow> x \<in> generatedIds C"
+        show "\<And>x. x \<in> knownIds C \<Longrightarrow>  \<exists>y. generatedIds C x \<triangleq> y"
           using IH3 dbop.hyps(1) by blast
 
 
@@ -260,15 +261,15 @@ proof -
     next
       case (return C s ls f res)
       thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2 IH3
-        by auto
+        by (auto simp add: domExists_simp)
     next
       case (fail C s ls)
       thus ?case using  IH1 IH2 IH3
-        by auto
+        by (auto simp add: domExists_simp)
     next
       case (invCheck C res s)
       thus ?case using IH1 IH2 IH3
-        by auto
+        by (auto simp add: domExists_simp)
     qed
   qed
 
@@ -282,7 +283,7 @@ lemma wf_knownIds_subset_generatedIds2:
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and "x \<in> knownIds S"
-  shows "x \<in> generatedIds S"
+  shows "x \<in> dom (generatedIds S)"
   using assms
   by (meson subsetCE wf_knownIds_subset_generatedIds) 
 
