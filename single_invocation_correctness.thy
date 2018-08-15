@@ -92,9 +92,11 @@ definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('loc
                          \<and> (invariant_all' S' \<longrightarrow> checkCorrect' (progr, S', i)))
             )
         | NewId ls \<Rightarrow> 
-          (\<forall>uid.
-            uid \<notin> generatedIds S
-            \<longrightarrow> checkCorrect' (progr, (S\<lparr>localState := (localState S)(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid} \<rparr>), i)
+          (\<forall>uid ls'.
+            generatedIds S uid = None
+           \<and> ls uid \<triangleq> ls'
+           \<and> uniqueIds uid = {uid}
+            \<longrightarrow> checkCorrect' (progr, (S\<lparr>localState := (localState S)(i \<mapsto> ls'), generatedIds := (generatedIds S)(uid \<mapsto> i) \<rparr>), i)
           )
         | DbOperation Op args ls \<Rightarrow> 
            (case currentTransaction S i of
@@ -1379,9 +1381,11 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
                         ))
             )
         | NewId ls \<Rightarrow> 
-          (\<forall>uid S'.
-            uid \<notin> generatedIds S
-           \<and> S' ::= (S\<lparr>localState := (localState S)(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid} \<rparr>)
+          (\<forall>uid S' ls'.
+            generatedIds S uid = None
+           \<and> ls uid \<triangleq> ls'
+           \<and> uniqueIds uid = {uid}
+           \<and> S' ::= (S\<lparr>localState := (localState S)(i \<mapsto> ls'), generatedIds := (generatedIds S)(uid \<mapsto> i) \<rparr>)
             \<longrightarrow> checkCorrect' (progr, txCalls, S', i)
           )
         | DbOperation Op args ls \<Rightarrow> 
@@ -1487,7 +1491,11 @@ assumes "(
                    | Some t \<Rightarrow> let S' = S\<lparr>localState := localState S(i \<mapsto> ls), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(t \<mapsto> Commited)\<rparr>
                                in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow>
                                   invariant progr (invContext' S') \<and> (invariant progr (invContext' S') \<longrightarrow> (checkCorrect2 progr txCalls S' i)))
-               | NewId ls \<Rightarrow> \<forall>uid. uid \<notin> generatedIds S \<longrightarrow> (checkCorrect2 progr txCalls (S\<lparr>localState := localState S(i \<mapsto> ls uid), generatedIds := generatedIds S \<union> {uid}\<rparr>) i)
+               | NewId ls \<Rightarrow> \<forall>uid ls'. 
+                            generatedIds S uid = None
+                           \<and> ls uid \<triangleq> ls'
+                           \<and> uniqueIds uid = {uid}
+                            \<longrightarrow> (checkCorrect2 progr txCalls (S\<lparr>localState := localState S(i \<mapsto> ls'), generatedIds := (generatedIds S)(uid \<mapsto> i)\<rparr>) i)
                | DbOperation Op args ls \<Rightarrow>
                    (case currentTransaction S i of None \<Rightarrow> False
                    | Some t \<Rightarrow> Ex (querySpec progr Op args (getContext S i)) \<and>
@@ -1791,37 +1799,39 @@ next
       show ?thesis
       proof (subst checkCorrect_simps, auto simp add: NewId)
 
-        fix uid
-        assume "uid \<notin> generatedIds S"
+        fix uid ls''
+        assume "generatedIds S uid = None" 
+          and "ls' uid \<triangleq> ls''"
+          and "uniqueIds uid = {uid}"
 
-        have step: "S ~~ (i, ANewId uid) \<leadsto> S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>"
+        have step: "S ~~ (i, ANewId uid) \<leadsto> S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := (generatedIds S)(uid \<mapsto> i)\<rparr>"
           apply (auto simp add: step_simps)
-          using NewId \<open>uid \<notin> generatedIds S\<close> by blast
+          using NewId \<open>generatedIds S uid = None\<close> \<open>ls' uid \<triangleq> ls''\<close> \<open>uniqueIds uid = {uid}\<close> by blast
 
 
-        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>) i"
+        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>) i"
         proof (rule IH)
-          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>)"
+          show " invariant_all (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>)"
             using Suc.prems(1) by auto
 
           from state_wellFormed_combine_step[OF `state_wellFormed S`, OF step]
-          show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>)"
+          show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>)"
             by simp
 
-          show "progr = prog (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>)"
+          show "progr = prog (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>)"
             by simp
 
-          show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>) i \<triangleq> txCalls"
+          show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>) i \<triangleq> txCalls"
             by (simp add: Suc.prems(4))
 
           show "progr = progr" ..
 
-          show "(checkCorrect2F ^^ bound) bot (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S)\<rparr>, i)"
+          show "(checkCorrect2F ^^ bound) bot (progr, txCalls, (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>), i)"
             using use_checkCorrect2
             apply simp
             apply (subst(asm) checkCorrect2F_def)
             apply (auto simp add: Def_def NewId  split: option.splits if_splits)
-            using \<open>uid \<notin> generatedIds S\<close> by blast
+            using \<open>generatedIds S uid = None\<close> \<open>ls' uid \<triangleq> ls''\<close> \<open>uniqueIds uid = {uid}\<close> by blast
         qed
       qed
     next

@@ -1484,23 +1484,25 @@ next
         have step': "S' ~~ (s, ANewId uid) \<leadsto> S''" by simp
 
         from step_elim_ANewId[OF step']
-        obtain ls f ls' 
-          where a1: "S'' = S'\<lparr>localState := localState S'(s \<mapsto> ls' uid), generatedIds := insert uid (generatedIds S')\<rparr>"
+        obtain ls f ls' ls''
+          where a1: "S'' = S'\<lparr>localState := localState S'(s \<mapsto> ls''), generatedIds :=  generatedIds S'(uid \<mapsto> s)\<rparr>"
             and a2: "localState S' s \<triangleq> ls"
             and a3: "currentProc S' s \<triangleq> f"
             and a4: "f ls = NewId ls'"
-            and a5: "uid \<notin> generatedIds S'"
+            and a5: "generatedIds S' uid = None"
+            and a6: "uniqueIds uid = {uid}"
+            and a7: "ls' uid \<triangleq> ls''"
           by metis  
 
         have a2':  "localState S2 s \<triangleq> ls" using a2 by (simp add: S2_localState) 
         have a3':  "currentProc S2 s \<triangleq> f" using a3 by (simp add: S2_currentProc)
-        have a5':  "uid \<notin> generatedIds S2" using a5 by (simp add: S2_generatedIds)
+        have a5':  "generatedIds S2 uid = None" using a5 by (simp add: S2_generatedIds)
 
-        from a2' a3' a4 a5'
-        have step_s: "S2 ~~ (s,(ANewId uid,True)) \<leadsto>\<^sub>S S2\<lparr>localState := localState S2(s \<mapsto> ls' uid), generatedIds := generatedIds S2 \<union> {uid}\<rparr>"
+        from a2' a3' a4 a5' a6 a7
+        have step_s: "S2 ~~ (s,(ANewId uid,True)) \<leadsto>\<^sub>S S2\<lparr>localState := localState S2(s \<mapsto> ls''), generatedIds :=  generatedIds S2(uid \<mapsto> s)\<rparr>"
           by (rule step_s.newId)
 
-        have S''_S2: "S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S2\<lparr>localState := localState S2(s \<mapsto> ls' uid), generatedIds := generatedIds S2 \<union> {uid}\<rparr>" 
+        have S''_S2: "S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S2\<lparr>localState := localState S2(s \<mapsto> ls''), generatedIds := generatedIds S2(uid \<mapsto> s)\<rparr>" 
           by (auto simp add: a1 S2_simps)
 
 
@@ -2616,7 +2618,7 @@ next
         apply (auto simp add: S''_def `S' = C` \<open>callOrigin S2 c = None\<close>)
         using a13 a27 state_monotonicGrowth_callOrigin by blast
 
-      show "generatedIds S2 \<subseteq> generatedIds S''"
+      show "\<forall>uid i. generatedIds S2 uid \<triangleq> i \<longrightarrow> generatedIds S'' uid \<triangleq> i"
         apply (auto simp add: S''_def)
         using state_monotonicGrowth_lemmas[OF `state_monotonicGrowth S2 C`] by blast
 

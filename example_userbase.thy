@@ -23,6 +23,8 @@ proof
 qed
 end
 
+definition "isUserId x \<equiv> case x of UserId _ \<Rightarrow> True | _ \<Rightarrow> False"
+
 lemma "uniqueIds (Bool True) = {}"
   by (simp add: uniqueIds_val_def)
 
@@ -153,11 +155,12 @@ fun pickLine where
     (case ls_pc ls of
         0 \<Rightarrow> x
       | Suc n \<Rightarrow>  pickLine (ls\<lparr>ls_pc := n\<rparr>) xs))"
-  
+
+find_consts "val \<Rightarrow> bool"
 
 definition registerUserImpl :: "(localState, val) procedureImpl" where
   "registerUserImpl ls \<equiv> pickLine ls [
-   (* 0 *) NewId (\<lambda>x. (ls\<lparr>ls_u := x, ls_pc := 1\<rparr> :: localState)),
+   (* 0 *) NewId (\<lambda>x. if isUserId x then Some (ls\<lparr>ls_u := x, ls_pc := 1\<rparr> :: localState) else None),
    (* 1 *) BeginAtomic (ls\<lparr>ls_pc := 2\<rparr>),
    (* 2 *) DbOperation users_name_assign [ls_u ls, String (ls_name ls)] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
    (* 3 *) DbOperation users_mail_assign [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
@@ -645,55 +648,62 @@ proof (rule show_programCorrect_using_checkCorrect)
         text {* Check invariant at end of invocation: *}
 (*
 fix uid S' t S'a newTxns S'' vis' ls x2 c res S'b vis'a hb' x2a ca resa S'c vis'b hb'a x2b S'd S'e
-assume a0: "uid \<notin> generatedIds Sa"
-   and a1: "S' = Sa\<lparr>currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),                   invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail])),                   localState := localState Sa(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = uid, ls_name = name, ls_mail = mail, ls_exists = False\<rparr>),                   generatedIds := insert uid (generatedIds Sa)\<rparr>"
-   and a2: "localState S' i \<triangleq> ls"
-   and a3: "transactionStatus S' t = None"
-   and a4: "prog S'a = prog S'"
-   and a5: "invariant (prog S') (invContext' S'a)"
-   and a6: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommited"
-   and a7: "state_wellFormed S'a"
-   and a8: "state_wellFormed S''"
-   and a9: "state_monotonicGrowth S' S'a"
-   and a10: "\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin S'a t \<triangleq> i"
-   and a11: "localState S'a i \<triangleq> ls"
-   and a12: "currentProc S'a i \<triangleq> registerUserImpl"
-   and a13: "currentTransaction S'a i = None"
-   and a14: "visibleCalls S' i \<triangleq> {}"
-   and a15: "visibleCalls S'a i \<triangleq> {}"
-   and a16: "vis' = callsInTransaction S'a newTxns \<down> happensBefore S'a"
-   and a17: "newTxns \<subseteq> dom (transactionStatus S'a)"
-   and a18: "consistentSnapshot S'a vis'"
-   and a19: "transactionStatus S'a t = None"
-   and a20: "\<forall>c. callOrigin S'a c \<noteq> Some t"
-   and a21: "transactionOrigin S'a t = None"
-   and a22: "S'' = S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i),            currentTransaction := currentTransaction S'a(i \<mapsto> t), localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
-   and a23: "currentTransaction S'' i \<triangleq> x2"
-   and a24: "calls S'' c = None"
-   and a25: "querySpec progr users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))]          (getContextH (calls S'') (happensBefore S'') (Some vis')) res"
-   and a26: "visibleCalls S'' i \<triangleq> vis'"
-   and a27: "vis'a = visibleCalls S''(i \<mapsto> insert c vis')"
-   and a28: "hb' = updateHb (happensBefore S'') vis' [c]"
-   and a29: "S'b = S''         \<lparr>localState := localState S''(i \<mapsto> the (localState S'' i)\<lparr>ls_pc := 3\<rparr>),            calls := calls S''(c \<mapsto> Call users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] res),            callOrigin := callOrigin S''(c \<mapsto> x2), visibleCalls := vis'a, happensBefore := hb'\<rparr>"
-   and a30: "currentTransaction S'b i \<triangleq> x2a"
-   and a31: "calls S'b ca = None"
-   and a32: "querySpec progr users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))]          (getContextH (calls S'b) (happensBefore S'b) (Some (insert c vis'))) resa"
-   and a33: "visibleCalls S'b i \<triangleq> insert c vis'"
-   and a34: "vis'b = visibleCalls S'b(i \<mapsto> insert ca (insert c vis'))"
-   and a35: "hb'a = updateHb (happensBefore S'b) (insert c vis') [ca]"
-   and a36: "S'c = S'b         \<lparr>localState := localState S'b(i \<mapsto> the (localState S'b i)\<lparr>ls_pc := 4\<rparr>),            calls := calls S'b(ca \<mapsto> Call users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] resa),            callOrigin := callOrigin S'b(ca \<mapsto> x2a), visibleCalls := vis'b, happensBefore := hb'a\<rparr>"
-   and a37: "currentTransaction S'c i \<triangleq> x2b"
-   and a38: "S'd = S'c         \<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),            transactionStatus := transactionStatus S'c(x2b \<mapsto> Commited)\<rparr>"
-   and a39: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
-   and a40: "example_userbase.inv (invContext' S'd)"
-   and a41: "S'e = S'd         \<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),            invocationRes := invocationRes S'd(i \<mapsto> ls_u (the (localState S'd i))), knownIds := knownIds S'd \<union> uniqueIds (ls_u (the (localState S'd i)))\<rparr>"
-   and a42: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommited"
+assume a0: "isUserId uid"
+   and a1: "generatedIds Sa uid = None"
+   and a2: "uniqueIds uid = {uid}"
+   and a3: "S' = Sa\<lparr>currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail])),                   localState := localState Sa(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = uid, ls_name = name, ls_mail = mail, ls_exists = False\<rparr>), generatedIds := generatedIds Sa(uid \<mapsto> i)\<rparr>"
+   and a4: "localState S' i \<triangleq> ls"
+   and a5: "transactionStatus S' t = None"
+   and a6: "prog S'a = prog S'"
+   and a7: "invariant (prog S') (invContext' S'a)"
+   and a8: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommited"
+   and a9: "state_wellFormed S'a"
+   and a10: "state_wellFormed S''"
+   and a11: "state_monotonicGrowth S' S'a"
+   and a12: "\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin S'a t \<triangleq> i"
+   and a13: "localState S'a i \<triangleq> ls"
+   and a14: "currentProc S'a i \<triangleq> registerUserImpl"
+   and a15: "currentTransaction S'a i = None"
+   and a16: "visibleCalls S' i \<triangleq> {}"
+   and a17: "visibleCalls S'a i \<triangleq> {}"
+   and a18: "vis' = callsInTransaction S'a newTxns \<down> happensBefore S'a"
+   and a19: "newTxns \<subseteq> dom (transactionStatus S'a)"
+   and a20: "consistentSnapshot S'a vis'"
+   and a21: "transactionStatus S'a t = None"
+   and a22: "\<forall>c. callOrigin S'a c \<noteq> Some t"
+   and a23: "transactionOrigin S'a t = None"
+   and a24: "S'' = S'a\<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i), currentTransaction := currentTransaction S'a(i \<mapsto> t),                     localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
+   and a25: "currentTransaction S'' i \<triangleq> x2"
+   and a26: "calls S'' c = None"
+   and a27: "querySpec progr users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] (getContextH (calls S'') (happensBefore S'') (Some vis')) res"
+   and a28: "visibleCalls S'' i \<triangleq> vis'"
+   and a29: "vis'a = visibleCalls S''(i \<mapsto> insert c vis')"
+   and a30: "hb' = updateHb (happensBefore S'') vis' [c]"
+   and a31: "S'b = S''\<lparr>localState := localState S''(i \<mapsto> the (localState S'' i)\<lparr>ls_pc := 3\<rparr>),                     calls := calls S''(c \<mapsto> Call users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] res), callOrigin := callOrigin S''(c \<mapsto> x2),                     visibleCalls := vis'a, happensBefore := hb'\<rparr>"
+   and a32: "currentTransaction S'b i \<triangleq> x2a"
+   and a33: "calls S'b ca = None"
+   and a34: "querySpec progr users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] (getContextH (calls S'b) (happensBefore S'b) (Some (insert c vis'))) resa"
+   and a35: "visibleCalls S'b i \<triangleq> insert c vis'"
+   and a36: "vis'b = visibleCalls S'b(i \<mapsto> insert ca (insert c vis'))"
+   and a37: "hb'a = updateHb (happensBefore S'b) (insert c vis') [ca]"
+   and a38: "S'c = S'b\<lparr>localState := localState S'b(i \<mapsto> the (localState S'b i)\<lparr>ls_pc := 4\<rparr>),                     calls := calls S'b(ca \<mapsto> Call users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] resa), callOrigin := callOrigin S'b(ca \<mapsto> x2a),                     visibleCalls := vis'b, happensBefore := hb'a\<rparr>"
+   and a39: "currentTransaction S'c i \<triangleq> x2b"
+   and a40: "S'd = S'c\<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),                     transactionStatus := transactionStatus S'c(x2b \<mapsto> Commited)\<rparr>"
+   and a41: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
+   and a42: "example_userbase.inv (invContext' S'd)"
+   and a43: "S'e = S'd\<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),                     invocationRes := invocationRes S'd(i \<mapsto> ls_u (the (localState S'd i))), knownIds := knownIds S'd \<union> uniqueIds (ls_u (the (localState S'd i)))\<rparr>"
+   and a44: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommited"
+
+show "example_userbase.inv (invContext' S'e)"
+
 *)
 
 
         fix uid S' t S'a newTxns S'' vis' ls x2 c res S'b vis'a hb' x2a ca resa S'c vis'b hb'a x2b S'd S'e
-        assume a0: "uid \<notin> generatedIds Sa"
-          and S'_def: "S' = Sa         \<lparr>currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),            invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail])),            localState := localState Sa(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = uid, ls_name = name, ls_mail = mail, ls_exists = False\<rparr>),            generatedIds := insert uid (generatedIds Sa)\<rparr>"
+        assume a0: "generatedIds Sa uid = None"
+          and isUserId: "isUserId uid"
+          and uniqueIds_uid1: "uniqueIds uid = {uid}"
+          and S'_def: "S' = Sa\<lparr>currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail])),                   localState := localState Sa(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = uid, ls_name = name, ls_mail = mail, ls_exists = False\<rparr>), generatedIds := generatedIds Sa(uid \<mapsto> i)\<rparr>"
           and a2: "localState S' i \<triangleq> ls"
           and a3: "transactionStatus S' t = None"
           and a4: "prog S'a = prog S'"
@@ -899,20 +909,20 @@ assume a0: "uid \<notin> generatedIds Sa"
             by (auto simp add: S'_def)
 
 
-          from `uid \<notin> generatedIds Sa` `localState S' i \<triangleq> ls`
-          have "ls_u ls \<notin> generatedIds Sa" 
+          from `generatedIds Sa uid = None` `localState S' i \<triangleq> ls`
+          have "generatedIds Sa (ls_u ls) = None" 
             by (auto simp add: S'_def)
 
 
 
-          from `uid \<notin> generatedIds Sa`
+          from `generatedIds Sa uid = None`
           have "uid \<notin> knownIds Sa"
             using Sa_wf \<open>prog Sa = progr\<close> progr_wf wf_knownIds_subset_generatedIds2 by fastforce
 
           hence "uid \<notin> knownIds S'"
             by (simp add: S'_def)
 
-          have "uid \<in> generatedIds S'"
+          have "generatedIds S' uid \<triangleq> i"
             by (auto simp add: S'_def)
 
 

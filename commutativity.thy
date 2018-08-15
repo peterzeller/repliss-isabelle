@@ -1125,6 +1125,7 @@ proof -
       by (auto simp add: precondition_beginAtomic)
     moreover have "transactionStatus A tx = None" using transactionStatus_mono 5 exec by blast 
     ultimately show ?thesis using unchangedInTransaction
+      using [[smt_solver=cvc4]]
       by (smt ABeginAtomic aIsNotCommit contra_subsetD differentSessions exec mem_Collect_eq option.distinct(1) precondition_beginAtomic snd_conv subsetI transactionStatus_mono2)
   next
     case AEndAtomic
