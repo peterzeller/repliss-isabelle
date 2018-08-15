@@ -482,4 +482,304 @@ next
 qed
 
 
+lemma no_new_calls_before_existing_h:
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "c2\<in>dom (calls S)"
+  shows "c2\<in>dom (calls S') \<and> ((c1,c2)\<in>happensBefore S \<longleftrightarrow> (c1,c2)\<in>happensBefore S')"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+  then show ?case 
+    by (auto simp add: step.simps split: if_splits)
+qed
+
+lemma no_new_calls_before_existing:
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "c2\<in>dom (calls S)"
+  shows "(c1,c2)\<in>happensBefore S \<longleftrightarrow> (c1,c2)\<in>happensBefore S'"
+  using assms no_new_calls_before_existing_h by blast
+
+lemma transactionStatus_mono: 
+  assumes "S ~~ tr \<leadsto>* S'"
+  shows "transactionStatus S tx \<le> transactionStatus S' tx"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+  then show ?case 
+    apply (auto simp add: step.simps less_eq_option_None_is_None split: if_splits)
+    using less_eq_option_None_is_None apply force
+    by (metis linear onlyCommitedGreater)
+qed
+
+lemma transactionStatus_mono1: 
+  assumes "S ~~ tr \<leadsto>* S'"
+  shows "transactionStatus S tx \<triangleq> Commited \<Longrightarrow> transactionStatus S' tx \<triangleq> Commited"
+  by (metis assms onlyCommitedGreater transactionStatus_mono)
+
+lemma calls_mono: 
+  assumes "S ~~ tr \<leadsto>* S'"
+  shows "calls S c \<triangleq> info \<Longrightarrow> calls S' c \<triangleq> info"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+  then show ?case 
+    by (auto simp add: step.simps )
+qed
+
+
+lemma no_new_calls_in_committed_transactions: 
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "callOrigin S' c \<triangleq> tx"
+    and "calls S c = None"
+    and "state_wellFormed S"
+    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+  shows "transactionStatus S tx \<noteq> Some Commited"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+  have "state_wellFormed S'"
+    using `S ~~ tr \<leadsto>* S'` and `state_wellFormed S`
+     state_wellFormed_combine `\<forall>i. (i, AFail) \<notin> set (tr @ [a])` by fastforce
+
+  have [simp]: "(i, AFail) \<notin> set tr" for i
+    using step.prems(4) by auto
+
+
+
+  from `S' ~~ a \<leadsto> S''` `callOrigin S'' c \<triangleq> tx`
+    `calls S c = None` step.IH `state_wellFormed S`
+  show ?case 
+    apply (auto simp add: step.simps split: if_splits)
+    using wellFormed_currentTransactionUncommited[OF `state_wellFormed S'`]
+    using \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step step.steps transactionStatus_mono1 by blast
+
+qed
+
+lemma wf_transactionOrigin_and_status:
+  assumes "state_wellFormed S"
+  shows "transactionOrigin S tx = None \<longleftrightarrow> transactionStatus S tx = None"
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case by (auto simp add: step.simps  split: if_splits)
+qed
+
+lemma wf_callOrigin_and_calls:
+  assumes "state_wellFormed S"
+  shows "callOrigin S c = None \<longleftrightarrow> calls S c = None"
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case by (auto simp add: step.simps  split: if_splits)
+qed
+
+lemma callOrigin_mono: 
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "state_wellFormed S"
+    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+  shows "callOrigin S c \<triangleq> tx \<Longrightarrow> callOrigin S' c \<triangleq> tx"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+
+  have [simp]: "(i, AFail) \<notin> set tr" for i
+    using step by auto
+
+  have "state_wellFormed S'"
+    using \<open>\<And>i. (i, AFail) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
+
+  from step.IH `S ~~ tr \<leadsto>* S'` `S' ~~ a \<leadsto> S''`
+    `callOrigin S c \<triangleq> tx` `state_wellFormed S`  \<open>state_wellFormed S'\<close>
+  show ?case 
+    by (auto simp add: step.simps )
+
+qed
+
+lemma generatedIds_mono: 
+  assumes "S ~~ tr \<leadsto>* S'"
+  shows "generatedIds S uid \<triangleq> i \<Longrightarrow> generatedIds S' uid \<triangleq> i"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+  from step
+  show ?case 
+    by (auto simp add: step.simps )
+qed
+
+lemma knownIds_mono: 
+  assumes "S ~~ tr \<leadsto>* S'"
+  shows "knownIds S \<subseteq> knownIds S'"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+  from step
+  show ?case 
+    by (auto simp add: step.simps )
+qed
+
+lemma knownIds_mono2: 
+  assumes "S ~~ tr \<leadsto>* S'"
+  shows "x \<in> knownIds S \<Longrightarrow> x\<in> knownIds S'"
+  using assms knownIds_mono by auto
+
+lemma invocationOp_mono: 
+  assumes "S ~~ tr \<leadsto>* S'"
+  shows "invocationOp S i \<triangleq> ops \<Longrightarrow> invocationOp S' i \<triangleq> ops"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+  from step
+  show ?case 
+    by (auto simp add: step.simps )
+qed
+
+lemma wf_localState_needs_invocationOp:
+  assumes "state_wellFormed S"
+  shows "invocationOp S i = None \<Longrightarrow> localState S i = None"
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case by (auto simp add: step.simps  split: if_splits)
+qed
+
+lemma wf_result_after_invocation:
+  assumes "state_wellFormed S"
+  shows "invocationOp S i = None \<Longrightarrow> invocationRes S i = None"
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case by (auto simp add: step.simps wellFormed_invoc_notStarted  split: if_splits)
+qed
+
+lemma wf_localState_noReturn:
+  assumes "state_wellFormed S"
+  shows "localState S i \<triangleq> ls \<Longrightarrow> invocationRes S i = None"
+  using assms proof (induct arbitrary: ls rule: wellFormed_induct )
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case apply (auto simp add: step.simps  split: if_splits)
+    using wf_result_after_invocation by blast
+qed
+
+lemma invocationRes_mono: 
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "state_wellFormed S"
+    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+  shows "invocationRes S i \<triangleq> ops \<Longrightarrow> invocationRes S' i \<triangleq> ops"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+
+  have [simp]: "(i, AFail) \<notin> set tr" for i
+    using step by auto
+
+  have "state_wellFormed S'"
+    using \<open>\<And>i. (i, AFail) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
+
+  from `S ~~ tr \<leadsto>* S'` step.IH
+    `S' ~~ a \<leadsto> S''`
+    `invocationRes S i \<triangleq> ops`
+    `state_wellFormed S`
+    `state_wellFormed S'`
+  show ?case 
+    by (auto simp add: step.simps wf_localState_noReturn)
+
+qed
+
+lemma transactionOrigin_mono: 
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "transactionOrigin S t \<triangleq> i"
+    and "state_wellFormed S"
+    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+  shows "transactionOrigin S' t \<triangleq> i"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+
+  have [simp]: "(i, AFail) \<notin> set tr" for i
+    using step by auto
+
+  have "state_wellFormed S'"
+    using \<open>\<And>i. (i, AFail) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
+
+
+  from `S' ~~ a \<leadsto> S''` step.IH `transactionOrigin S t \<triangleq> i` `state_wellFormed S`
+  show ?case 
+    apply (auto simp add: step.simps split: if_splits)
+    by (metis \<open>state_wellFormed S'\<close> option.simps(3) wf_transactionOrigin_and_status)
+
+qed
+
+lemma steps_transactions_stable:
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "callOrigin S' c \<triangleq> tx"
+    and "transactionStatus S tx \<triangleq> Commited"
+    and "state_wellFormed S"
+    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+  shows "callOrigin S c \<triangleq> tx"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case by auto
+next
+  case (step S' tr a S'')
+
+  have [simp]: "(i, AFail) \<notin> set tr" for i
+    using step by auto
+
+  have "state_wellFormed S'"
+    using state_wellFormed_combine step.prems(3) step.prems(4) step.steps by fastforce 
+
+
+  from step.IH 
+    `S ~~ tr \<leadsto>* S'`
+    `S' ~~ a \<leadsto> S''`
+    `callOrigin S'' c \<triangleq> tx`
+    `transactionStatus S tx \<triangleq> Commited`
+    `state_wellFormed S`
+  show ?case apply (auto simp add: step.simps split: if_splits)
+    using \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step transactionStatus_mono1 by blast
+
+qed
+
+
 end

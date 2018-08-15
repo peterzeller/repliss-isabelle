@@ -58,7 +58,7 @@ definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('loc
               \<and> (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited)
               \<and> state_wellFormed S'
               \<and> state_wellFormed S''
-              \<and> state_monotonicGrowth S S'
+              \<and> state_monotonicGrowth i S S'
               \<and> (\<forall>t. transactionOrigin S' t \<triangleq> i \<longleftrightarrow> transactionOrigin S t \<triangleq> i)
               \<and> localState S' i \<triangleq> ls
               \<and> currentProc S' i \<triangleq> impl
@@ -315,7 +315,7 @@ next
     thus ?case using i2 by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
     case (beginAtomic C s ls f ls' t C' C'' vis vis' newTxns txns)
-    thus ?case using i2 state_monotonicGrowth_invocationOp[OF `state_monotonicGrowth C C'`]
+    thus ?case using i2 state_monotonicGrowth_invocationOp[OF `state_monotonicGrowth s C C'`]
       by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
     case (endAtomic C s ls f ls' t C' valid)
@@ -797,7 +797,7 @@ next
                   (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited) \<and>
                   state_wellFormed S' \<and>
                   state_wellFormed S'' \<and>
-                  state_monotonicGrowth C S' \<and>
+                  state_monotonicGrowth i C S' \<and>
                   (\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin C t \<triangleq> i) \<and>
                   localState S' i \<triangleq> ls \<and>
                   currentProc S' i \<triangleq> f \<and>
@@ -824,8 +824,8 @@ next
             using `invariant_all C'` `\<And>tx. transactionStatus C' tx \<noteq> Some Uncommited` `state_wellFormed C'` invContext_same_allCommitted by fastforce 
           show "state_wellFormed C'"  
             by (simp add: `state_wellFormed C'`)
-          show "state_monotonicGrowth C C'"  
-            by (simp add: `state_monotonicGrowth C C'`)
+          show "state_monotonicGrowth i C C'"
+            using \<open>i' = i\<close> beginAtomic.hyps(10) by blast
           show "localState C' i \<triangleq> ls"
             using `localState C' i' \<triangleq> ls` by auto
           show "currentProc C' i \<triangleq> f"
@@ -1028,7 +1028,7 @@ next
                   (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited) \<and>
                   state_wellFormed S' \<and>
                   state_wellFormed S'' \<and>
-                  state_monotonicGrowth initS S' \<and>
+                  state_monotonicGrowth i initS S' \<and>
                   (\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin initS t \<triangleq> i) \<and>
                   localState S' i \<triangleq> ls \<and>
                   currentProc S' i \<triangleq> f \<and>
@@ -1345,7 +1345,7 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
               \<and> (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited)
               \<and> state_wellFormed S'
               \<and> state_wellFormed S''
-              \<and> state_monotonicGrowth S S'
+              \<and> state_monotonicGrowth i S S'
                (* transactions in current invocation unchanged:  *)
               \<and> (\<forall>t . transactionOrigin S t \<triangleq> i \<longleftrightarrow> transactionOrigin S' t \<triangleq> i)
               \<and> localState S' i \<triangleq> ls
@@ -1473,7 +1473,7 @@ assumes "(
                        transactionStatus S t = None \<and>
                        invariant_all' S' \<and>
                        state_wellFormed S' \<and>
-                       state_monotonicGrowth S S' \<and>
+                       state_monotonicGrowth i S S' \<and>
                        localState S' i \<triangleq> ls \<and>
                        currentProc S' i \<triangleq> impl \<and>
                        currentTransaction S' i \<triangleq> t \<and>
@@ -1655,7 +1655,7 @@ next
             and c13: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
             and c2: "state_wellFormed S'"
             and c6a: "state_wellFormed (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
-            and c3: "state_monotonicGrowth S S'"
+            and c3: "state_monotonicGrowth i S S'"
             and c4: "localState S' i \<triangleq> ls"
             and c5: "currentProc S' i \<triangleq> proc"
             and c6: "currentTransaction S' i = None"
@@ -1670,7 +1670,7 @@ next
         define S'' where S''_def: "S'' = (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
 
 
-        from `state_monotonicGrowth S S'`
+        from `state_monotonicGrowth i S S'`
         have "transactionStatus S t \<le> transactionStatus S' t"
           by (simp add: state_monotonicGrowth_transactionStatus)
         with `transactionStatus S' t = None`
@@ -1715,7 +1715,7 @@ next
             using c13 apply blast
             apply (simp add: c2)
             using `state_wellFormed S''` apply (simp add: S''_def)
-            using `state_monotonicGrowth S S'` apply simp
+            using `state_monotonicGrowth i S S'` apply simp
             using transactionOriginUnchanged apply blast
             using transactionOriginUnchanged apply blast
             using `localState S' i \<triangleq> ls` apply simp
