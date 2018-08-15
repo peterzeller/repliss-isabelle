@@ -781,5 +781,19 @@ next
 
 qed
 
+lemma exists_implementation:
+  assumes "state_wellFormed S"
+    and "currentProc S i \<triangleq> impl"
+    and "prog S = progr"
+  shows "\<exists>p args lsInit. procedure progr p args \<triangleq> (lsInit, impl)"
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case
+    apply (auto simp add: step.simps wellFormed_invoc_notStarted  split: if_splits)
+    by auto
+qed
 
 end
