@@ -1,7 +1,7 @@
 theory repliss_sem
   imports Main
-    "~~/src/HOL/Library/Multiset"
-    "~~/src/HOL/Library/Option_ord"
+    "HOL-Library.Multiset"
+    "HOL-Library.Option_ord"
 begin
 
 section {* Semantics *}
@@ -182,7 +182,7 @@ lemma downwardsClosure_subset2:
   by (meson downwardsClosure_subset subsetCE)
 
 
-abbreviation "emptyOperationContext \<equiv> \<lparr> calls = empty, happensBefore = {}\<rparr>"
+abbreviation "emptyOperationContext \<equiv> \<lparr> calls = Map.empty, happensBefore = {}\<rparr>"
 
 
 
@@ -200,13 +200,13 @@ abbreviation
  \<equiv> getContextH (calls state) (happensBefore state) (visibleCalls state s) "
 
 abbreviation "emptyInvariantContext \<equiv> \<lparr>
-        calls = empty,
+        calls = Map.empty,
         happensBefore = {},
-        i_callOrigin  = empty,
-        i_transactionOrigin = empty,
+        i_callOrigin  = Map.empty,
+        i_transactionOrigin = Map.empty,
         i_knownIds = {},
-        i_invocationOp = empty,
-        i_invocationRes = empty
+        i_invocationOp = Map.empty,
+        i_invocationRes = Map.empty
 \<rparr>"
 
 definition isCommittedH where
@@ -648,20 +648,20 @@ qed
 
 definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state" where
   "initialState program \<equiv> \<lparr>
-  calls = empty,
+  calls = Map.empty,
   happensBefore = {},
   prog = program,
-  callOrigin = empty,
-  transactionOrigin = empty,
-  generatedIds = empty,
+  callOrigin = Map.empty,
+  transactionOrigin = Map.empty,
+  generatedIds = Map.empty,
   knownIds = {},
-  invocationOp = empty,
-  invocationRes = empty,
-  transactionStatus = empty,
-  localState = empty,
-  currentProc = empty,
-  visibleCalls = empty,
-  currentTransaction = empty
+  invocationOp = Map.empty,
+  invocationRes = Map.empty,
+  transactionStatus = Map.empty,
+  localState = Map.empty,
+  currentProc = Map.empty,
+  visibleCalls = Map.empty,
+  currentTransaction = Map.empty
 \<rparr>"
 
 type_synonym 'any trace = "(invocation\<times>'any action) list"

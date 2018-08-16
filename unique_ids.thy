@@ -6,7 +6,7 @@ begin
 
 definition procedures_cannot_guess_ids :: "('localState \<Rightarrow> 'any set) \<Rightarrow> (procedureName \<Rightarrow> 'any list \<rightharpoonup> ('localState \<times> ('localState, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
 "procedures_cannot_guess_ids uids proc \<equiv> 
- (* procedures produce no new ids *)
+ \<comment> \<open> procedures produce no new ids \<close>
  ( 
   \<forall>p args lsInit impl. proc p args \<triangleq> (lsInit, impl)
     \<longrightarrow> uids lsInit \<subseteq> uniqueIdsInList args
@@ -54,6 +54,114 @@ definition program_wellFormed :: "('localState \<Rightarrow> 'any set) \<Rightar
    procedures_cannot_guess_ids uids (procedure progr)
  \<and> queries_cannot_guess_ids (querySpec progr)
 "
+
+lemma program_wellFormed_procedures_cannot_guess_ids_init:
+  assumes "program_wellFormed uids progr"
+    and "procedure progr p args \<triangleq> (lsInit, impl)"
+  shows "uids lsInit \<subseteq> uniqueIdsInList args"
+  using assms  by (auto simp add: program_wellFormed_def procedures_cannot_guess_ids_def)
+
+
+
+lemma program_wellFormed_queries_cannot_guess_ids:
+  assumes "program_wellFormed uids progr"
+    and "querySpec progr opr args ctxt res"
+    and "x \<in> uniqueIds res"
+    and "x \<notin> uniqueIdsInList args"
+  shows "\<exists>cId c. calls ctxt cId \<triangleq> c \<and> x \<in> uniqueIdsInList (call_args c)"
+  using assms  apply (auto simp add: program_wellFormed_def queries_cannot_guess_ids_def)
+  by blast
+
+lemma program_wellFormed_queries_cannot_guess_ids_getContextH:
+  assumes "program_wellFormed uids progr"
+    and "querySpec progr opr args (getContextH S_calls hb vis) res"
+    and "x \<in> uniqueIds res"
+    and "x \<notin> uniqueIdsInList args"
+  shows "\<exists>cId c. S_calls cId \<triangleq> c \<and> x \<in> uniqueIdsInList (call_args c)"
+  using assms  apply (auto simp add: program_wellFormed_def queries_cannot_guess_ids_def getContextH_def restrict_map_def restrict_relation_def split: option.splits if_splits)
+  apply fastforce
+  by (smt assms(1) operationContext.select_convs(1) option.simps(3) program_wellFormed_queries_cannot_guess_ids)
+
+
+
+lemma program_wellFormed_procedures_cannot_guess_ids_step:
+  assumes "program_wellFormed uids (prog S)"
+    and "currentProc S i \<triangleq> impl"
+    and "state_wellFormed S"
+  shows "case impl ls of
+             LocalStep ls' \<Rightarrow> uids ls' \<subseteq> uids ls
+           | BeginAtomic ls' \<Rightarrow> uids ls' \<subseteq> uids ls
+           | EndAtomic ls' \<Rightarrow> uids ls' \<subseteq> uids ls
+           | NewId f \<Rightarrow> (\<forall>uid ls'. f uid \<triangleq> ls' \<longrightarrow> uids ls' \<subseteq> uids ls \<union> {uid})
+           | DbOperation opr args f \<Rightarrow> 
+                     uniqueIdsInList args \<subseteq> uids ls
+                   \<and> (\<forall>res. uids (f res) \<subseteq> uids ls \<union> uniqueIds res)
+           | Return r => uniqueIds r \<subseteq> uids ls"
+proof -
+  obtain p args lsInit where "procedure (prog S) p args \<triangleq> (lsInit, impl)"
+    using exists_implementation[OF `state_wellFormed S` `currentProc S i \<triangleq> impl`] by blast
+  with `program_wellFormed uids (prog S)`
+  show ?thesis
+    by (auto simp add: program_wellFormed_def procedures_cannot_guess_ids_def)
+qed
+
+lemma program_wellFormed_procedures_cannot_guess_ids_LocalStep:
+  assumes wf: "program_wellFormed uids (prog S)"
+    and proc: "currentProc S i \<triangleq> impl"
+    and S_wf: "state_wellFormed S"
+    and impl: "impl ls = LocalStep ls'"
+  shows "x \<in> uids ls' \<Longrightarrow> x \<in> uids ls"
+  using program_wellFormed_procedures_cannot_guess_ids_step[OF wf proc, where ls=ls] impl S_wf by auto
+
+lemma program_wellFormed_procedures_cannot_guess_ids_BeginAtomic:
+  assumes wf: "program_wellFormed uids (prog S)"
+    and proc: "currentProc S i \<triangleq> impl"
+    and S_wf: "state_wellFormed S"
+    and impl: "impl ls = BeginAtomic ls'"
+  shows "x \<in> uids ls' \<Longrightarrow> x \<in> uids ls"
+  using program_wellFormed_procedures_cannot_guess_ids_step[OF wf proc, where ls=ls] impl S_wf by auto
+
+lemma program_wellFormed_procedures_cannot_guess_ids_EndAtomic:
+  assumes wf: "program_wellFormed uids (prog S)"
+    and proc: "currentProc S i \<triangleq> impl"
+    and S_wf: "state_wellFormed S"
+    and impl: "impl ls = EndAtomic ls'"
+  shows "x \<in> uids ls' \<Longrightarrow> x \<in> uids ls"
+  using program_wellFormed_procedures_cannot_guess_ids_step[OF wf proc, where ls=ls] impl S_wf by auto
+
+lemma program_wellFormed_procedures_cannot_guess_ids_NewId:
+  assumes wf: "program_wellFormed uids (prog S)"
+    and proc: "currentProc S i \<triangleq> impl"
+    and S_wf: "state_wellFormed S"
+    and impl: "impl ls = NewId f"
+    and f: "f uid \<triangleq> ls'"
+  shows "x \<in> uids ls' \<Longrightarrow> x \<noteq> uid \<Longrightarrow> x \<in> uids ls"
+  using program_wellFormed_procedures_cannot_guess_ids_step[OF wf proc, where ls=ls] impl S_wf f by auto
+
+lemma program_wellFormed_procedures_cannot_guess_ids_DbOperation:
+  assumes wf: "program_wellFormed uids (prog S)"
+    and proc: "currentProc S i \<triangleq> impl"
+    and S_wf: "state_wellFormed S"
+    and impl: "impl ls = DbOperation opr args f"
+  shows "x \<in> uids (f res) \<Longrightarrow> x \<notin> uniqueIds res \<Longrightarrow> x \<in> uids ls"
+  using program_wellFormed_procedures_cannot_guess_ids_step[OF wf proc, where ls=ls] impl S_wf by auto
+
+lemma program_wellFormed_procedures_cannot_guess_ids_DbOperation2:
+  assumes wf: "program_wellFormed uids (prog S)"
+    and proc: "currentProc S i \<triangleq> impl"
+    and S_wf: "state_wellFormed S"
+    and impl: "impl ls = DbOperation opr args f"
+  shows "x \<in> uniqueIdsInList args \<Longrightarrow> x \<in> uids ls"
+  using program_wellFormed_procedures_cannot_guess_ids_step[OF wf proc, where ls=ls] impl S_wf by auto
+
+lemma program_wellFormed_procedures_cannot_guess_ids_Return:
+  assumes wf: "program_wellFormed uids (prog S)"
+    and proc: "currentProc S i \<triangleq> impl"
+    and S_wf: "state_wellFormed S"
+    and impl: "impl ls = Return r"
+  shows "x \<in> uniqueIds r \<Longrightarrow> x \<in> uids ls"
+  using program_wellFormed_procedures_cannot_guess_ids_step[OF wf proc, where ls=ls] impl S_wf by auto
+
 
 lemma domExists_simp: "x \<in> dom f \<longleftrightarrow> (\<exists>y. f x \<triangleq> y)"
   by (auto)
@@ -104,11 +212,11 @@ proof -
                      uniqueIdsInList args \<subseteq> uids ls
                    \<and> (\<forall>res. uids (f res) \<subseteq> uids ls \<union> uniqueIds res)
            | Return r => uniqueIds r \<subseteq> uids ls
-           " if "currentProc S i \<triangleq> impl" "state_wellFormed S" "prog S = progr"
+           " if "currentProc S i \<triangleq> impl" "state_wellFormed S" "progr = prog S "
           for S :: "('localState, 'any::valueType) state" and i impl ls
   proof -
     obtain p args lsInit where  "procedure progr p args \<triangleq> (lsInit, impl)"
-      using exists_implementation[OF `state_wellFormed S` `currentProc S i \<triangleq> impl` `prog S = progr`]
+      using exists_implementation[OF `state_wellFormed S` `currentProc S i \<triangleq> impl` `progr = prog S`]
       by auto
 
     thus ?thesis
@@ -322,7 +430,7 @@ lemma wf_knownIds_subset_generatedIds2:
   by (meson subsetCE wf_knownIds_subset_generatedIds) 
 
 
-lemma steps_private_uniqueIds:
+lemma steps_private_uniqueIds_h:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and uid_generated: "generatedIds S uid \<triangleq> i"
     and not_known: "uid \<notin> knownIds S"
@@ -333,10 +441,10 @@ lemma steps_private_uniqueIds:
     and prog_wf: "program_wellFormed uids (prog S)"
     and not_in_ls: "\<forall>i' ls. i'\<noteq>i \<longrightarrow> localState S i' \<triangleq> ls \<longrightarrow> uid \<notin> uids ls"
   shows "uid \<notin> knownIds S' 
-     \<and> (\<forall>i' ls. i'\<noteq>i \<longrightarrow> localState S' i' \<triangleq> ls \<longrightarrow> uid \<notin> uids ls)
-     \<and> (\<forall>c opr args r. calls S c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
+     \<and> (\<forall>i' ls. localState S' i' \<triangleq> ls \<longrightarrow> i'\<noteq>i \<longrightarrow> uid \<notin> uids ls)
+     \<and> (\<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
 
-  using `S ~~ tr \<leadsto>* S'` proof (induct rule: steps_induct)
+  using `S ~~ tr \<leadsto>* S'` nofail no_step_in_i proof (induct rule: steps_induct)
   case initial
   then show ?case
     using not_in_db not_in_ls not_known by blast
@@ -344,18 +452,120 @@ lemma steps_private_uniqueIds:
 next
   case (step S' tr a S'')
 
+  have "program_wellFormed uids (prog S')"
+    using prog_wf step.steps steps_do_not_change_prog by fastforce
 
-  from step
-  show ?case
-    apply (auto simp add: step.simps split: if_splits)
-(* TODO use the properties of well-formed programs *)
 
-  proof (intro conjI allI impI)
+  have "state_wellFormed S'"
+    using local.wf state_wellFormed_combine `\<forall>i. (i, AFail) \<notin> set (tr @ [a])` step.steps by fastforce
 
-    show "uid \<notin> knownIds S''"
+  from step.IH 
+  have IH1: "uid \<notin> knownIds S'"
+    and IH2: "\<And>i' ls. localState S' i' \<triangleq> ls \<Longrightarrow> i' \<noteq> i \<Longrightarrow> uid \<notin> uids ls"
+    and IH3: "\<And>c opr args r. calls S' c \<triangleq> Call opr args r \<Longrightarrow> uid \<notin> uniqueIdsInList args"
+    using step.prems by force+
 
+
+  from `S' ~~ a \<leadsto> S''`
+  show "uid \<notin> knownIds S'' \<and> (\<forall>i' ls. localState S'' i' \<triangleq> ls \<longrightarrow> i' \<noteq> i \<longrightarrow> uid \<notin> uids ls) \<and> (\<forall>c opr args r. calls S'' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
+  proof (induct rule: step.cases)
+    case (local C s ls f ls')
+    thus ?case 
+    proof (intro conjI)
+      show "uid \<notin> knownIds S''" using IH1 local by auto
+      show "\<forall>c opr args r. calls S'' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
+        using IH3 local by auto
+
+      show " \<forall>i' ls. localState S'' i' \<triangleq> ls \<longrightarrow> i' \<noteq> i \<longrightarrow> uid \<notin> uids ls"
+        using IH2 local apply auto
+        using \<open>program_wellFormed uids (prog S')\<close> \<open>state_wellFormed S'\<close> program_wellFormed_procedures_cannot_guess_ids_LocalStep by fastforce
+    qed
+
+  next
+    case (newId C s ls f ls' nuid ls'')
+
+    have "currentProc S' s \<triangleq> f"
+      by (simp add: newId.hyps)
+
+    have "s \<noteq> i"
+      using newId.hyps(2) step.prems(2) by auto
+
+    
+    show ?case
+    proof (intro conjI)
+      show "uid \<notin> knownIds S''" using IH1 newId by auto
+      show "\<forall>c opr args r. calls S'' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
+        using IH3 newId by auto
+
+      show " \<forall>i' ls. localState S'' i' \<triangleq> ls \<longrightarrow> i' \<noteq> i \<longrightarrow> uid \<notin> uids ls"
+        using IH2 newId 
+          program_wellFormed_procedures_cannot_guess_ids_NewId[OF `program_wellFormed uids (prog S')` `currentProc S' s \<triangleq> f` \<open>state_wellFormed S'\<close> ` f ls = NewId ls'` `ls' nuid \<triangleq> ls''`] apply auto
+        using generatedIds_mono step.steps uid_generated by fastforce
+    qed
+  next
+    case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+    then show ?case
+      using IH1 IH2 IH3 apply auto
+      using \<open>program_wellFormed uids (prog S')\<close> \<open>state_wellFormed S'\<close> program_wellFormed_procedures_cannot_guess_ids_BeginAtomic by fastforce
+
+
+  next
+    case (endAtomic C s ls f ls' t)
+    then show ?case 
+      using IH1 IH2 IH3 apply auto
+      using \<open>program_wellFormed uids (prog S')\<close> \<open>state_wellFormed S'\<close> program_wellFormed_procedures_cannot_guess_ids_EndAtomic by fastforce
+  next
+    case (dbop C s ls f Op args ls' t c res vis)
+
+    have "program_wellFormed uids (prog C)"
+      using \<open>program_wellFormed uids (prog S')\<close> dbop.hyps(1) by auto
+
+    have "state_wellFormed C"
+      using \<open>state_wellFormed S'\<close> dbop.hyps(1) by auto
+
+    have [simp]: "uid \<notin> uniqueIdsInList args"
+      by (metis IH2 \<open>program_wellFormed uids (prog S')\<close> \<open>state_wellFormed S'\<close> append_is_Nil_conv dbop.hyps(1) dbop.hyps(2) dbop.hyps(4) dbop.hyps(5) dbop.hyps(6) last_in_set last_snoc list.simps(3) program_wellFormed_procedures_cannot_guess_ids_DbOperation2 step.prems(2))
+
+
+    from dbop
+    show ?case 
+      using IH1 IH2 IH3 apply auto
+      by (metis (no_types, lifting) \<open>program_wellFormed uids (prog C)\<close> \<open>state_wellFormed C\<close> \<open>uid \<notin> uniqueIdsInList args\<close> call.collapse program_wellFormed_procedures_cannot_guess_ids_DbOperation program_wellFormed_queries_cannot_guess_ids_getContextH)
+  next
+    case (invocation C s procName args initialState impl)
+    then show ?case 
+      using IH1 IH2 IH3 apply auto
+      using \<open>program_wellFormed uids (prog S')\<close> program_wellFormed_procedures_cannot_guess_ids_init by fastforce
+
+  next
+    case (return C s ls f res)
+    then show ?case using IH1 IH2 IH3 apply auto
+      using \<open>program_wellFormed uids (prog S')\<close> \<open>state_wellFormed S'\<close> program_wellFormed_procedures_cannot_guess_ids_Return step.prems(2) by fastforce
+  next
+    case (fail C s ls)
+    then show ?case
+      using step.prems(1) by auto 
+
+  next
+    case (invCheck C res s)
+    then show ?case
+      using IH1 IH2 IH3 by auto 
+
+  qed
 qed
 
 
+lemma steps_private_uniqueIds:
+  assumes steps: "S ~~ tr \<leadsto>* S'"
+    and uid_generated: "generatedIds S uid \<triangleq> i"
+    and not_known: "uid \<notin> knownIds S"
+    and not_in_db: "\<forall>c opr args r. calls S c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
+    and wf: "state_wellFormed S"
+    and nofail: "(\<forall>i. (i, AFail) \<notin> set tr)"
+    and no_step_in_i: "(\<forall>a. (i, a) \<notin> set tr)"
+    and prog_wf: "program_wellFormed uids (prog S)"
+    and not_in_ls: "\<forall>i' ls. i'\<noteq>i \<longrightarrow> localState S i' \<triangleq> ls \<longrightarrow> uid \<notin> uids ls"
+  shows "uid \<notin> knownIds S'"
+using steps_private_uniqueIds_h[OF assms] by simp
 
 end

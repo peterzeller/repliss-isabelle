@@ -715,7 +715,7 @@ lemma getContext_happensBefore:
   apply (auto simp add: getContextH_def split: option.splits)
   done
 
--- "getContext is not changed by actions in other transactions"
+\<comment> \<open>getContext is not changed by actions in other transactions\<close>
 lemma unchangedInTransaction_getContext:
   assumes differentSessions[simp]: "sa \<noteq> sb"
     and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
@@ -792,7 +792,7 @@ qed
 
 
 
--- "invcontext is not changed by actions in other transactions"
+\<comment> \<open>invcontext is not changed by actions in other transactions\<close>
 lemma unchangedInTransaction_getInvContext:
   assumes differentSessions[simp]: "sa \<noteq> sb"
     and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"

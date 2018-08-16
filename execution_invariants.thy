@@ -784,7 +784,7 @@ qed
 lemma exists_implementation:
   assumes "state_wellFormed S"
     and "currentProc S i \<triangleq> impl"
-    and "prog S = progr"
+    and "progr = prog S"
   shows "\<exists>p args lsInit. procedure progr p args \<triangleq> (lsInit, impl)"
   using assms proof (induct rule: wellFormed_induct)
   case initial
@@ -795,5 +795,6 @@ next
     apply (auto simp add: step.simps wellFormed_invoc_notStarted  split: if_splits)
     by auto
 qed
+
 
 end
