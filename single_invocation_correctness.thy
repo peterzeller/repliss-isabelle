@@ -1232,9 +1232,45 @@ proof (auto simp add: programCorrect_s_def)
 
     with step1 and a_def
     have "invInitial"
-      apply (auto simp add: step_s.simps )
-      using [[smt_solver=cvc4]]
-      by (smt invContextH_same_allCommitted wellFormed_callOrigin_dom3 wellFormed_happensBefore_calls_l wellFormed_happensBefore_calls_r wellFormed_state_callOrigin_transactionStatus wf_transaction_status_iff_origin)
+    proof (auto simp add: step_s.simps )
+      fix initState impl C'
+      assume a0: "a = (AInvoc p args, False)"
+        and a1: "invariant (prog C')          (invContextH2 (callOrigin C') (transactionOrigin C') (transactionStatus C') (happensBefore C') (calls C') (knownIds C') (invocationOp C'(i \<mapsto> (p, args)))            (invocationRes C'))"
+        and a2: "invocationOp (initialState (prog C')) i = None"
+        and a3: "procedure (prog C') p args \<triangleq> (initState, impl)"
+        and a4: "uniqueIdsInList args \<subseteq> knownIds C'"
+        and a5: "state_wellFormed C'"
+        and a6: "\<forall>x. transactionStatus C' x \<noteq> Some Uncommited"
+        and a7: "invariant_all C'"
+        and a8: "invocationOp C' i = None"
+        and a9: "program = prog C'"
+        and a10: "S_init = C'         \<lparr>localState := localState C'(i \<mapsto> initState), currentProc := currentProc C'(i \<mapsto> impl), visibleCalls := visibleCalls C'(i \<mapsto> {}),            invocationOp := invocationOp C'(i \<mapsto> (p, args))\<rparr>"
+        and a11: "\<forall>x. transactionOrigin C' x \<noteq> Some i"
+        and a12: "\<not> invInitial"
+        and a13: "\<not> invariant (prog C')             (invContextH (callOrigin C') (transactionOrigin C') (transactionStatus C') (happensBefore C') (calls C') (knownIds C') (invocationOp C'(i \<mapsto> (p, args)))               (invocationRes C'))"
+
+      have contextSame:
+           "(invContextH  (callOrigin C') (transactionOrigin C') (transactionStatus C') (happensBefore C') (calls C') (knownIds C') (invocationOp C'(i \<mapsto> (p, args))) (invocationRes C'))
+          = (invContextH2 (callOrigin C') (transactionOrigin C') (transactionStatus C') (happensBefore C') (calls C') (knownIds C') (invocationOp C'(i \<mapsto> (p, args))) (invocationRes C'))"
+      proof (rule invContextH_same_allCommitted)
+        show "\<And>c. (calls C' c = None) = (callOrigin C' c = None)"
+          using a5 wellFormed_callOrigin_dom3 by blast
+        show "\<And>c tx. callOrigin C' c \<triangleq> tx \<Longrightarrow> transactionStatus C' tx \<noteq> None"
+          by (simp add: a5 wf_callOrigin_implies_transactionStatus_defined)
+        show "\<And>a b. (a, b) \<in> happensBefore C' \<Longrightarrow> calls C' a \<noteq> None"
+          using a5 wellFormed_happensBefore_calls_l by blast
+        show "\<And>a b. (a, b) \<in> happensBefore C' \<Longrightarrow> calls C' b \<noteq> None"
+          by (simp add: a5 wellFormed_happensBefore_calls_r)
+        show "\<And>c. (transactionOrigin C' c = None) = (transactionStatus C' c = None)"
+          by (simp add: a5 wf_transaction_status_iff_origin)
+        show "\<And>t. transactionStatus C' t \<noteq> Some Uncommited"
+          by (simp add: a6)
+      qed
+
+      show "False"
+        using a1 a13 contextSame by auto
+
+    qed
 
 
 
@@ -1444,7 +1480,6 @@ definition checkCorrect2 :: "('localState, 'any::valueType) prog \<Rightarrow> c
  "checkCorrect2 progr txCalls S i \<equiv> \<exists>n. (checkCorrect2F^^n) bot (progr, txCalls, S, i)"
 
 
-find_theorems "op^^" Suc
 
 lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or> (\<exists>n. P (Suc n)))"
   apply auto

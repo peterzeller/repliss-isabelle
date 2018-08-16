@@ -1125,8 +1125,7 @@ proof -
       by (auto simp add: precondition_beginAtomic)
     moreover have "transactionStatus A tx = None" using transactionStatus_mono 5 exec by blast 
     ultimately show ?thesis using unchangedInTransaction
-      using [[smt_solver=cvc4]]
-      by (smt ABeginAtomic aIsNotCommit contra_subsetD differentSessions exec mem_Collect_eq option.distinct(1) precondition_beginAtomic snd_conv subsetI transactionStatus_mono2)
+      by (smt ABeginAtomic Collect_cong differentSessions exec local.committed_same option.distinct(1) precondition_beginAtomic)
   next
     case AEndAtomic
     then show ?thesis
@@ -1824,8 +1823,38 @@ lemma one_compaction_step2:
     and no_endatomic: "snd x \<noteq> AEndAtomic"
     and noFail: "\<And>i. (i, AFail) \<notin> set tr"
   shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ trStart @ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C)"
-  using [[smt_solver=cvc4]]
-  by (smt Un_iff local.wf noFail no_endatomic one_compaction_step set_append splitTrace state_wellFormed_combine steps_append txaInTx xOutside)
+proof 
+  assume "s_init ~~ tr \<leadsto>* C"
+  with steps_append 
+  obtain S_mid where "s_init ~~ trStart \<leadsto>* S_mid" and "S_mid ~~ (s, ABeginAtomic tx ntxns) # txa @ x # rest \<leadsto>* C"
+    using splitTrace by blast
+
+  have "state_wellFormed S_mid"
+    using \<open>s_init ~~ trStart \<leadsto>* S_mid\<close> local.wf noFail splitTrace state_wellFormed_combine by fastforce
+
+
+  from `S_mid ~~ (s, ABeginAtomic tx ntxns) # txa @ x # rest \<leadsto>* C`
+  have "S_mid ~~ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C"
+    using \<open>state_wellFormed S_mid\<close> no_endatomic one_compaction_step txaInTx xOutside by blast
+
+  thus "s_init ~~ trStart @ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C"
+    using \<open>s_init ~~ trStart \<leadsto>* S_mid\<close> steps_append2 by blast
+next \<comment> \<open>Other direction is very similar: \<close>
+  assume "s_init ~~ trStart @ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C"
+  with steps_append 
+  obtain S_mid where "s_init ~~ trStart \<leadsto>* S_mid" and "S_mid ~~ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C"
+    by blast
+
+  have "state_wellFormed S_mid"
+    using \<open>s_init ~~ trStart \<leadsto>* S_mid\<close> local.wf noFail splitTrace state_wellFormed_combine by fastforce
+
+  from `S_mid ~~ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C`
+  have "S_mid ~~ (s, ABeginAtomic tx ntxns) # txa @ x # rest \<leadsto>* C"
+    using \<open>state_wellFormed S_mid\<close> no_endatomic one_compaction_step txaInTx xOutside by blast
+
+  thus "s_init ~~ tr \<leadsto>* C"
+    using \<open>s_init ~~ trStart \<leadsto>* S_mid\<close> splitTrace steps_append2 by blast
+qed
 
 
 lemma one_compaction_step3:
@@ -2331,9 +2360,8 @@ proof (intro if_cases2; clarsimp)
     show "\<And>aa. \<lbrakk>a = (aa, ABeginAtomic t ts); i = length tr\<rbrakk> \<Longrightarrow> aa \<in> sessionsInTransaction (tr @ [(aa, ABeginAtomic t ts)]) (length tr)"
       by (auto simp add: nth_append sessionsInTransaction_def inTransaction_def  split: if_splits)[1]
     show "\<And>aa x. \<lbrakk>a = (aa, ABeginAtomic t ts); i = length tr; x \<in> sessionsInTransaction tr (length tr - Suc 0)\<rbrakk> \<Longrightarrow> x \<in> sessionsInTransaction (tr @ [(aa, ABeginAtomic t ts)]) (length tr)"
-      apply (auto simp add: nth_append sessionsInTransaction_def  split: if_splits)[1]
-      using [[smt_solver=cvc4]]
-      by (smt Nitpick.size_list_simp(2) One_nat_def butlast_snoc fst_conv inTransaction_def le_SucI le_less_Suc_eq le_less_trans length_append_singleton length_greater_0_conv length_tl not_less_eq_eq nth_append_length nth_butlast)
+      apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def  split: if_splits)[1]
+      by (metis Suc_diff_Suc le0 le_less_trans less_Suc_eq_le minus_nat.diff_0)
   qed
 next
   assume a0: "i = length tr"
@@ -2345,8 +2373,7 @@ next
       apply (smt Suc_pred inc_induct less_Suc_eq less_imp_le_nat linorder_neqE_nat not_less_zero)
      apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def sndI split: if_splits)[1]
     apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
-    using [[smt_solver=cvc4]]
-    by (smt Nitpick.size_list_simp(2) One_nat_def le_SucI length_tl less_Suc_eq_le not_less_eq_eq not_less_zero)
+    by (metis Suc_pred leD le_SucI length_greater_0_conv less_Suc_eq_le list.size(3) not_less_zero)
 next
   assume a0: "i = length tr"
     and a1: "\<forall>t ts. snd a \<noteq> ABeginAtomic t ts"
@@ -2567,9 +2594,8 @@ proof -
       define min_i' where min_i'_def: "min_i' = otherI + length trStart + 1"
 
       have [simp]: "fst (tr ! min_i') = s'"
-        by (smt Suc_eq_plus1 \<open>otherI < min_i - Suc j\<close> add.assoc add.commute arith_simp diff_Suc_eq_diff_pred diff_commute length_take min_i'_def min_simp2 nth_drop nth_take s'_def trStart_def txa_def)
-
-
+        using min_i'_def s'_def trStart_def txa_def
+        by (auto simp add: Suc_leI add.commute)
 
       have other_least_1: "min_i' < length tr"
         using min_i'_def \<open>otherI < min_i - Suc j\<close> less_diff_conv min_i1 trStart_def by auto
@@ -2718,9 +2744,8 @@ proof -
       define min_i' where min_i'_def: "min_i' = otherI + length trStart + 1"
 
       have [simp]: "fst (tr ! min_i') = s'"
-        by (smt Suc_eq_plus1 \<open>otherI < min_i - Suc j\<close> add.assoc add.commute arith_simp diff_Suc_eq_diff_pred diff_commute length_take min_i'_def min_simp2 nth_drop nth_take s'_def trStart_def txa_def)
-
-
+        using min_i'_def s'_def trStart_def txa_def
+        by (auto simp add: Suc_leI add.commute  j1)
 
       have other_least_1: "min_i' < length tr"
         using min_i'_def \<open>otherI < min_i - Suc j\<close> less_diff_conv i1 trStart_def by auto
@@ -3339,7 +3364,6 @@ lemma split_take:
   by (simp add: assms)
 
 
-find_theorems name:induct "op\<subset>"
 
 
 
@@ -3706,7 +3730,7 @@ proof -
   from steps
   have "initialState program ~~ (tr'@[tr!failPos]@drop (Suc failPos) tr) \<leadsto>* C"
     by (metis \<open>failPos < length tr\<close> append.assoc append_take_drop_id take_Suc_conv_app_nth tr'_def)
-  hence "\<exists>C''. (op ~~ C' \<leadsto> (tr ! failPos)) C''"
+  hence "\<exists>C''. C' ~~ tr ! failPos  \<leadsto>  C''"
     using  tr'_steps by (auto simp add: steps_append2 steps_appendFront)
 
   hence C'_fails: "\<And>s. C' ~~ (s, AInvcheck False) \<leadsto> C'"  
@@ -4660,6 +4684,9 @@ shows "\<exists>i'. i' < length xs' \<and> xs'!i' = x"
   using assms apply auto
   by (meson in_set_conv_nth subset_h1)
 
+lemma nth_drop_if: 
+"drop n xs ! i = (if n \<le> length xs then xs ! (n + i) else [] ! i)"
+  by auto
 
 lemma maintain_no_invariant_checks_in_transaction:
   assumes "no_invariant_checks_in_transaction tr"
@@ -4708,10 +4735,7 @@ proof (rule show_no_invariant_checks_in_transaction)
            apply (metis Suc_pred \<open>ib' < j\<close> \<open>tr ! j = (s, AEndAtomic)\<close> assms(2) ib'_def less_Suc_eq_0_disj linorder_neqE_nat not_less_eq snd_conv)
           apply (metis Suc_pred \<open>tr ! j = (s, AEndAtomic)\<close> assms(2) linorder_neqE_nat not_less_eq snd_conv zero_less_Suc)
       using \<open>j < i'\<close> a4' less_imp_diff_less less_trans apply blast
-        apply (metis \<open>j < i'\<close> \<open>tr ! j = (s, AEndAtomic)\<close> a4' add_diff_inverse_nat assms(2) assms(3) dual_order.strict_trans less_SucE less_imp_le min.absorb2 nth_drop snd_conv)
-      using a3 a4' dual_order.strict_trans i'_def less_imp_diff_less apply auto[1]
-      apply (metis (no_types, lifting) Suc_less_SucD \<open>tr ! j = (s, AEndAtomic)\<close> a4' add_diff_inverse_nat assms(3) dual_order.strict_trans i'_def less_imp_le min.absorb2 nth_drop)
-      done
+      using Suc_leI assms(3)  by (auto simp add: \<open>tr ! j = (s, AEndAtomic)\<close> min.absorb2)
   qed
 qed
 
@@ -5564,7 +5588,9 @@ proof (rule show_programCorrect_noTransactionInterleaving')
             by simp
 
           have other_invocation: "\<And>a. a \<in> set (drop (Suc pos) trace') \<Longrightarrow> fst a \<noteq> invoc"
-            by (smt \<open>min (length trace') pos = pos\<close> add.commute add_Suc_right append_eq_append_conv_if gr_implies_not_zero in_set_conv_nth invoc_def le_eq_less_or_eq length_drop length_take less_diff_conv list.size(3) maxPos not_less_eq nth_drop self_append_conv2)
+            using `invoc = fst (trace' ! pos)` `min (length trace') pos = pos` `\<And>pos'. \<lbrakk>pos < pos'; pos' < length trace'\<rbrakk> \<Longrightarrow> fst (trace' ! pos') \<noteq> fst (trace' ! pos)`
+            apply (auto simp add: in_set_conv_nth)
+            by (metis Suc_leI add_Suc fst_conv le_add_diff_inverse less_add_Suc1 nat_add_left_cancel_less pos_less)
 
           have other_invocation'[simp]: "\<And>a. (invoc, a) \<notin> set (drop (Suc pos) trace')" 
             by (meson fst_conv other_invocation)
@@ -5625,8 +5651,8 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 
             (* We already have an beginAtomic before, so we already have an invocation*)
             have "invocationOp S_pos invoc \<noteq> None"
-              using [[smt_solver=cvc4]]
-              by (smt AInvoc S_pos_step' S_pos_steps S_pos_wf \<open>j \<le> pos\<close> \<open>pos < length trace'\<close> currentTransaction dual_order.strict_trans le_eq_less_or_eq length_take less.prems(3) local.beginAtomic min.absorb2 noEndAtomic nth_mem nth_take option.simps(3) pos_action_def preconditionI precondition_beginAtomic precondition_invoc wellFormed_invoc_notStarted(1))
+              using AInvoc S_pos_step' S_pos_steps S_pos_wf \<open>j \<le> pos\<close> \<open>pos < length trace'\<close> currentTransaction dual_order.strict_trans le_eq_less_or_eq length_take less.prems(3) local.beginAtomic min.absorb2 noEndAtomic nth_mem nth_take option.simps(3) pos_action_def preconditionI precondition_beginAtomic precondition_invoc wellFormed_invoc_notStarted(1)
+              by (smt action.simps(42) inTransaction_trace less.prems(1) prod.inject)
 
 
             with AInvoc
@@ -6016,9 +6042,6 @@ proof
     by (auto simp add: step.simps allowed_context_switch_def)
 qed
 
-
-
-
 lemma noContextSwitchesInTransaction_when_packed_and_all_end:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and "allTransactionsEnd tr"
@@ -6129,8 +6152,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
   (* but since we are already in a transaction, that cannot work  *)
 
   have "drop (Suc j_min) tr = take (back_min - Suc j_min) (drop (Suc j_min) tr) @ drop back_min tr"
-    using [[smt_solver=cvc4]]
-    by (smt Suc_diff_Suc \<open>back_min \<le> length tr\<close> \<open>j_min < back_min\<close> append_Cons append_eq_conv_conj drop_Suc_Cons drop_all drop_append dual_order.strict_trans length_take less_not_refl min.absorb2 not_less self_append_conv2 take_all tr_split)
+    by (auto simp add: Suc_leI \<open>back_min \<le> length tr\<close> \<open>j_min < back_min\<close> min.absorb2 min_diff nth_append add.commute intro: nth_equalityI)
   hence "drop (Suc j_min) tr = take (back_min - Suc j_min) (drop (Suc j_min) tr) @ tr!back_min # drop (Suc back_min) tr"
     using Cons_nth_drop_Suc \<open>back_min < length tr\<close> by fastforce
 

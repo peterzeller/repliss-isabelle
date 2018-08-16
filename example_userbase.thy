@@ -93,7 +93,6 @@ schematic_goal name_distinct2[simp]: "?X"
 lemma "users_remove \<noteq> users_name_assign"
   by simp
 
-find_theorems "op &&&"
 thm conjI
 thm name_distinct2[intro]
 
@@ -389,12 +388,13 @@ lemma uniqueId_no_nested: "x \<in> uniqueIds uid \<Longrightarrow> x = (uid :: v
 lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exists>u. x = UserId u \<and> uid = UserId u)"
   by (auto simp add: uniqueIds_val_def split: val.splits)
 
+definition "progr_uids  ls \<equiv> uniqueIds (ls_u ls)"
 
-lemma progr_wf: "program_wellFormed progr"
+lemma progr_wf: "program_wellFormed progr_uids progr"
 proof (auto simp add: program_wellFormed_def)
-  show "procedures_cannot_guess_ids procedures"
-    apply (rule show_procedures_cannot_guess_ids[where uids="\<lambda>ls. uniqueIds (ls_u ls)"])
-    apply (auto simp add: procedures_cannot_guess_ids_def procedures_def split: localAction.splits)
+  show "procedures_cannot_guess_ids progr_uids procedures"
+    apply (rule show_procedures_cannot_guess_ids )
+    apply (auto simp add: procedures_cannot_guess_ids_def procedures_def progr_uids_def split: localAction.splits)
     by (auto simp add: uniqueIdsInList_def getUserImpl_def removeUserImpl_def updateMailImpl_def registerUserImpl_def  lsInit_def uniqueId_no_nested  split: list.splits val.splits if_splits nat.splits)
 
   show "queries_cannot_guess_ids (querySpec progr)"
