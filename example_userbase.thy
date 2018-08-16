@@ -925,13 +925,40 @@ show "example_userbase.inv (invContext' S'e)"
           have "generatedIds S' uid \<triangleq> i"
             by (auto simp add: S'_def)
 
+          from S'a_mono
+          obtain tr
+            where "S' ~~ tr \<leadsto>* S'a"
+              and "\<forall>(i',a)\<in>set tr. i' \<noteq> i" 
+              and "\<forall>i. (i, AFail) \<notin> set tr"
+            by (auto simp add: state_monotonicGrowth_def)
 
-          hence "uid \<notin> knownIds S'a"
+
+          from `S' ~~ tr \<leadsto>* S'a` \<open>generatedIds S' uid \<triangleq> i\<close> `uid \<notin> knownIds S'`
+          have "uid \<notin> knownIds S'a"
  (* the uid is not written to the database and not known and it cannot be generated again, so
     it cannot become known in the monotonic growth step  *)
+          proof (rule steps_private_uniqueIds)
+            show " \<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
+              apply (auto simp add: S'_def)
+              using `generatedIds Sa uid = None` \<comment> \<open>id did not exist in Sa, so it cannot be in a call\<close>
+              sorry
+            show "state_wellFormed S'"
+              using S'a_mono state_monotonicGrowth_wf1 by blast
 
-            find_theorems S' Sa
-            find_theorems S' S'a
+            show "\<forall>i. (i, AFail) \<notin> set tr"
+              by (simp add: \<open>\<forall>i. (i, AFail) \<notin> set tr\<close>)
+
+            show "\<forall>a. (i, a) \<notin> set tr"
+              using \<open>\<forall>(i', a)\<in>set tr. i' \<noteq> i\<close> by blast
+
+            show " program_wellFormed progr_uids (prog S')"
+              by (simp add: \<open>prog S' = progr\<close> progr_wf)
+
+            show "\<forall>i' ls. i' \<noteq> i \<longrightarrow> localState S' i' \<triangleq> ls \<longrightarrow> uid \<notin> progr_uids ls"
+              apply (auto simp add: S'_def)
+              using `generatedIds Sa uid = None` \<comment> \<open>id did not exist in Sa, so it cannot be in a local state\<close>
+              sorry
+          qed
 
           show x: "False"
             if c0: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
@@ -946,7 +973,7 @@ show "example_userbase.inv (invContext' S'e)"
 
             from c3
             have "calls S' delete \<triangleq> Call users_remove [ls_u ls] Undef"
-              using state_monotonicGrowth_calls[OF ` state_monotonicGrowth S' S'a`]
+              using state_monotonicGrowth_calls[OF ` state_monotonicGrowth i S' S'a`]
 
               find_theorems state_monotonicGrowth calls
 
