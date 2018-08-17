@@ -185,6 +185,21 @@ lemma state_monotonicGrowth_invocationOp:
   shows "invocationOp S' s \<triangleq> info \<Longrightarrow> invocationOp S s \<triangleq> info"
   using assms by (auto simp add: state_monotonicGrowth_def steps_do_not_change_invocationOp)
 
+lemma state_monotonicGrowth_invocationOp_i:
+  assumes "state_monotonicGrowth i S' S"
+  shows "invocationOp S i = invocationOp S' i"
+  using assms proof (auto simp add: state_monotonicGrowth_def)
+  fix tr
+  assume a0: "state_wellFormed S'"
+    and steps: "S' ~~ tr \<leadsto>* S"
+    and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
+    and a3: "\<forall>i. (i, AFail) \<notin> set tr"
+
+  from steps no_i
+  show "invocationOp S i = invocationOp S' i"
+    by (induct rule: steps.induct, auto simp add: step.simps)
+qed
+
 lemma state_monotonicGrowth_invocationRes:
   assumes "state_monotonicGrowth i S' S"
   shows "invocationRes S' s \<triangleq> info \<Longrightarrow> invocationRes S s \<triangleq> info"
