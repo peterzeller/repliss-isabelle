@@ -1017,87 +1017,321 @@ show "example_userbase.inv (invContext' S'e)"
     qed
 
 
+  next
+    fix uid S' t S'a newTxns S'' vis' ls x2 c res S'b vis'a hb' x2a ca resa S'c vis'b hb'a x2b S'd
+    assume a0: "generatedIds Sa uid = None"
+      and isUserId: "isUserId uid"
+      and uniqueIds_uid1: "uniqueIds uid = {uid}"
+      and S'_def: "S' = Sa         \<lparr>currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),            invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail])),            localState := localState Sa(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = uid, ls_name = name, ls_mail = mail, ls_exists = False\<rparr>), generatedIds := generatedIds Sa(uid \<mapsto> i)\<rparr>"
+      and a2: "localState S' i \<triangleq> ls"
+      and a3: "transactionStatus S' t = None"
+      and a4: "prog S'a = prog S'"
+      and old_inv: "invariant (prog S') (invContext' S'a)"
+      and a6: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommited"
+      and S'a_wf: "state_wellFormed S'a"
+      and S''_wf: "state_wellFormed S''"
+      and S'a_mono: "state_monotonicGrowth i S' S'a"
+      and tranactionOriginUnchanged: "\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin S'a t \<triangleq> i"
+      and a10: "localState S'a i \<triangleq> ls"
+      and a11: "currentProc S'a i \<triangleq> registerUserImpl"
+      and a12: "currentTransaction S'a i = None"
+      and a13: "visibleCalls S' i \<triangleq> {}"
+      and a14: "visibleCalls S'a i \<triangleq> {}"
+      and a15: "vis' = callsInTransaction S'a newTxns \<down> happensBefore S'a"
+      and a16: "newTxns \<subseteq> dom (transactionStatus S'a)"
+      and a17: "consistentSnapshot S'a vis'"
+      and a18: "transactionStatus S'a t = None"
+      and t_origin: "\<forall>c. callOrigin S'a c \<noteq> Some t"
+      and a20: "transactionOrigin S'a t = None"
+      and S''_def: "S'' = S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i), currentTransaction := currentTransaction S'a(i \<mapsto> t),            localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
+      and a22: "currentTransaction S'' i \<triangleq> x2"
+      and calls_S'': "calls S'' c = None"
+      and a24: "querySpec progr users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] (getContextH (calls S'') (happensBefore S'') (Some vis')) res"
+      and visibleCalls_S'': "visibleCalls S'' i \<triangleq> vis'"
+      and a26: "vis'a = visibleCalls S''(i \<mapsto> insert c vis')"
+      and hb'_def: "hb' = updateHb (happensBefore S'') vis' [c]"
+      and S'b_def: "S'b = S''         \<lparr>localState := localState S''(i \<mapsto> the (localState S'' i)\<lparr>ls_pc := 3\<rparr>),            calls := calls S''(c \<mapsto> Call users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] res), callOrigin := callOrigin S''(c \<mapsto> x2),            visibleCalls := vis'a, happensBefore := hb'\<rparr>"
+      and a29: "currentTransaction S'b i \<triangleq> x2a"
+      and a30: "calls S'b ca = None"
+      and a31: "querySpec progr users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))]          (getContextH (calls S'b) (happensBefore S'b) (Some (insert c vis'))) resa"
+      and a32: "visibleCalls S'b i \<triangleq> insert c vis'"
+      and a33: "vis'b = visibleCalls S'b(i \<mapsto> insert ca (insert c vis'))"
+      and hb'a_def: "hb'a = updateHb (happensBefore S'b) (insert c vis') [ca]"
+      and S'c_def: "S'c = S'b         \<lparr>localState := localState S'b(i \<mapsto> the (localState S'b i)\<lparr>ls_pc := 4\<rparr>),            calls := calls S'b(ca \<mapsto> Call users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] resa),            callOrigin := callOrigin S'b(ca \<mapsto> x2a), visibleCalls := vis'b, happensBefore := hb'a\<rparr>"
+      and a36: "currentTransaction S'c i \<triangleq> x2b"
+      and S'd_def: "S'd = S'c         \<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),            transactionStatus := transactionStatus S'c(x2b \<mapsto> Commited)\<rparr>"
+      and a38: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
 
 
-    show "example_userbase.inv (invContext' S'd)"
+        have invocationOp_unchanged: "invocationOp S'd = invocationOp S'a"
+          by (subst S'd_def S'c_def S'b_def S''_def, simp)+
+
+        find_theorems hb'
+
+        text {* Same transcation TODO: remember in verification condition generation  *}
+        have[simp]: "x2a = t"
+          using `currentTransaction S'b i \<triangleq> x2a` S''_def by (auto simp add: S'b_def)
+        have [simp]: "x2 = t"
+          using `currentTransaction S'' i \<triangleq> x2` S''_def by (auto simp add: S'b_def)
+
+        have [simp]: "c \<noteq> ca" "ca \<noteq> c"
+          using `calls S'b ca = None` by (auto simp add: S'b_def)
+
+
+        have i_callOriginI_h_update:
+            "(i_callOriginI_h (callOrigin S'd) (transactionOrigin S'd))
+           = (i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a))(c \<mapsto> i, ca \<mapsto> i)"
+          apply (rule ext)
+          apply (subst S'd_def S'c_def S'b_def S''_def hb'a_def hb'_def, simp?)+
+          by (auto simp add: i_callOriginI_h_def t_origin split: option.splits if_splits)
+
+
+        have happensBefore_update:
+             "happensBefore S'd = updateHb (happensBefore S'a) vis' [c, ca]"
+          apply (subst S'd_def S'c_def S'b_def S''_def hb'a_def hb'_def, simp?)+
+          by (auto simp add: updateHb_chain) (* TODO add updateHb_chain lemma above *)
+
+
+        hence happensBefore_update2:
+             "happensBefore S'd = (happensBefore S'a \<union> (vis' \<times> {c, ca}) \<union> {(c, ca)})"
+          by (auto simp add: updateHb_cons)
+
+
+        from `calls S'' c = None`
+        have "calls S'a c = None"
+          by (auto simp add: S''_def)
+
+        hence [simp]: "callOrigin S'a c = None"
+          by (simp add: S'a_wf)
+
+        from S''_def `calls S'b ca = None` S'b_def
+        have "calls S'a ca = None"
+          by auto
+
+        hence [simp]: "callOrigin S'a ca = None"
+          by (simp add: S'a_wf)
+
+        have [simp]: "c \<notin> vis'"
+          using S''_wf calls_S'' visibleCalls_S'' wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
+        have [simp]: "ca \<notin> vis'"
+          using `calls S'b ca = None` `visibleCalls S'b i \<triangleq> insert c vis'`
+            S''_wf visibleCalls_S'' wellFormed_visibleCallsSubsetCalls2
+          by (auto simp add: S'b_def)
+
+
+        from `invocationOp Sa i = None`
+        have "transactionOrigin Sa tx \<noteq> Some i" for tx
+          by (simp add: Sa_wf wf_no_invocation_no_origin)
+
+
+        have "transactionOrigin Sa tx \<noteq> Some i" for tx
+          by (simp add: c8)
+        hence "transactionOrigin S' tx \<noteq> Some i" for tx
+          by (simp add: S'_def)
+        hence "transactionOrigin S'a tx \<noteq> Some i" for tx
+          using tranactionOriginUnchanged by blast
+
+
+        have invocationHb_update:
+          "invocation_happensBeforeH (i_callOriginI_h (callOrigin S'd) (transactionOrigin S'd)) (happensBefore S'd)
+            = invocation_happensBeforeH (i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a)) (happensBefore S'a)
+             \<union> {i'. (\<forall>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i') }  \<times> {i}"
+          (* {i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i} *)
+          apply (subst happensBefore_update)
+          apply (rule invocation_happensBeforeH_update)
+                apply (auto simp add: i_callOriginI_h_update split: option.splits)
+                    apply (auto simp add: i_callOriginI_h_def split: option.splits)
+          using S'a_wf \<open>calls S'a c = None\<close> wellFormed_happensBefore_calls_r apply blast
+          using S'a_wf \<open>calls S'a ca = None\<close> wellFormed_happensBefore_calls_r apply blast
+          using S'a_wf \<open>calls S'a c = None\<close> wellFormed_happensBefore_calls_l apply blast
+          using S'a_wf \<open>calls S'a ca = None\<close> wellFormed_happensBefore_calls_l apply blast
+          using \<open>\<And>tx. transactionOrigin S'a tx \<noteq> Some i\<close> by blast
+
+        from `prog Sa = progr` 
+        have "prog S' = progr"
+          by (auto simp add: S'_def)
+
+
+        from `invariant (prog S') (invContext' S'a)`
+        have old_inv1: "inv1 (invContext' S'a)"
+          by (simp add: \<open>prog S' = progr\<close> example_userbase.inv_def)
+
+        have invocationRes_S'e: "invocationRes S'd i' \<triangleq> r" if "invocationRes S'a i' \<triangleq> r" for i' r
+          using that state_wellFormed_no_result_when_running[OF S'a_wf a10] by (auto simp add: S'd_def S'c_def S'b_def S''_def)
+
+        have invocationRes_S'e2: "invocationRes S'd = (invocationRes S'a)"
+          by (auto simp add: S'd_def S'c_def S'b_def S''_def)
+
+        have "invocationOp S' i \<triangleq> (registerUser, [String name, String mail])"
+          by (auto simp add: S'_def)
+        hence [simp]: "invocationOp S'a i \<triangleq> (registerUser, [String name, String mail])"
+          using S'a_mono state_monotonicGrowth_invocationOp by blast
+        hence [simp]: "invocationOp S'd i \<triangleq> (registerUser, [String name, String mail])"
+          using invocationOp_unchanged by auto
+
+        show "example_userbase.inv (invContext' S'd)"
+        proof (auto simp add: inv_def)
+
+          show "inv1 (invContext' S'd)"
+            apply (auto simp add: inv1_def invocationOp_unchanged invocationHb_update)
+            using old_inv1 by (auto simp add: inv1_def invocationRes_S'e2)
+
+          have "inv2 (invContext' S'a)"
+            using \<open>prog S' = progr\<close> example_userbase.inv_def old_inv by auto
+
+
+          thus "inv2 (invContext' S'd)"
+            apply (auto simp add: inv2_def invocationOp_unchanged invocationRes_S'e2)
+            apply (auto simp add: S'd_def S'c_def S'b_def S''_def)
+            apply (drule_tac x=u in spec)
+            apply (drule_tac x=ia in spec)
+            apply auto
+            apply (rule_tac x=cb in exI)
+            apply (auto simp add: \<open>calls S'a c = None\<close> \<open>calls S'a ca = None\<close>)
+            apply (auto simp add:  i_callOriginI_h_def split: option.splits)
+            using t_origin by blast
+
+          have "inv3 (invContext' S'a)"
+            using \<open>prog S' = progr\<close> example_userbase.inv_def old_inv by auto
 
 
 
+          thus "inv3 (invContext' S'd)"
+            apply (auto simp add: inv3_def invocationOp_unchanged invocationRes_S'e2)
+             apply (auto simp add: S'd_def split: if_splits)
+             apply (auto simp add: S'c_def split: if_splits)
+              apply (auto simp add: S'b_def split: if_splits)
+               apply (auto simp add: S''_def split: if_splits)
+               apply (auto simp add: hb'a_def updateHb_cons S'b_def hb'_def S''_def)
+          proof -
+
+            show "False"
+              if c0: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+                and c1: "delete \<noteq> ca"
+                and c2: "delete \<noteq> c"
+                and c3: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+                and c4: "res = Undef"
+                and c5: "(delete, c) \<in> happensBefore S'a"
+              for  delete
+            using S'a_wf \<open>calls S'a c = None\<close> wellFormed_happensBefore_calls_r that by blast
+
+          find_theorems generatedIds name: "local."
 
 
-        show "programCorrect_s progr"
-        proof (rule show_program_correct_single_invocation)
-          show "\<And>S i. S \<in> initialStates progr i \<Longrightarrow> invariant_all S"
-          proof (auto simp add: invariant_all_def inv_def)
-            fix S i vis
-            assume a0: "S \<in> initialStates progr i"
-              and vis_cs: "consistentSnapshot S vis"
+          find_theorems ls
+          from `localState S' i \<triangleq> ls`
+          have "ls_u ls = uid"
+            by (auto simp add: S'_def)
 
 
-            from a0 
-            obtain Spre procName args initState impl
-              where S_def: "S = Spre\<lparr>localState := localState Spre(i \<mapsto> initState), currentProc := currentProc Spre(i \<mapsto> impl), visibleCalls := visibleCalls Spre(i \<mapsto> {}), invocationOp := invocationOp Spre(i \<mapsto> (procName, args))\<rparr>"
-                and a1: "prog Spre = progr"
-                and a2: "procedure progr procName args \<triangleq> (initState, impl)"
-                and a3: "uniqueIdsInList args \<subseteq> knownIds Spre"
-                and pre_inv_all: "invariant_all Spre"
-                and pre_wf: "state_wellFormed Spre"
-                and a6: "invocationOp Spre i = None"
-              by (subst(asm) initialStates_def, auto)
-
-            from `consistentSnapshot S vis` 
-            have vis_cs_pre: "consistentSnapshot Spre vis"
-              by (auto simp add: consistentSnapshot_def S_def)
-
-            from pre_inv_all
-            have pre_inv: "inv (invContextVis Spre vis)"
-              by (auto simp add: invariant_all_def `prog Spre = progr` `consistentSnapshot Spre vis`)
-
-
-            from pre_inv 
-            have "inv1 (invContextVis Spre vis)"
-              using example_userbase.inv_def by blast
-            thus "inv1 (invContextVis S vis)"
-              apply (auto simp add: inv1_def  split: if_splits)
-              apply (auto simp add: invariant_simps)
-
-
-              apply (auto simp add: invContextH_def invocation_happensBefore_def i_callOriginI_def )
+          from `generatedIds Sa uid = None` `localState S' i \<triangleq> ls`
+          have "generatedIds Sa (ls_u ls) = None" 
+            by (auto simp add: S'_def)
 
 
 
-              apply (subst(asm) invariantContext.simps)+
-              apply (auto simp add: restrict_relation_def restrict_map_def)
+          from `generatedIds Sa uid = None`
+          have "uid \<notin> knownIds Sa"
+            using Sa_wf \<open>prog Sa = progr\<close> progr_wf wf_knownIds_subset_generatedIds2 by fastforce
 
-              find_theorems i_transactionOrigin
-              apply (drule_tac x=r in spec)
-              apply (drule_tac x=g in spec)
-              sorry (* apply (auto simp add: invocation_happensBefore_def) *)
+          hence "uid \<notin> knownIds S'"
+            by (simp add: S'_def)
 
-(* TODO add simplification rules for "i_invocationOp (invContextVis S vis)" and other fields *)
+          have "generatedIds S' uid \<triangleq> i"
+            by (auto simp add: S'_def)
 
-
-            show "inv2 (invContextVis S vis)"
-              using a0 apply (subst(asm) initialStates_def)
-              apply (auto simp add: inv2_def invContextH_def restrict_relation_def restrict_map_def i_callOriginI_def invariantContext.defs split: if_splits option.splits)
-              apply (simp add: state_wellFormed_invocation_before_result)
-              sorry
-
-            show "inv3 (invContextVis S vis)"
-              using a0 apply (subst(asm) initialStates_def)
-              apply (auto simp add: inv3_def  invContextH_def restrict_relation_def restrict_map_def  split: if_splits)
+          from S'a_mono
+          obtain tr
+            where "S' ~~ tr \<leadsto>* S'a"
+              and "\<forall>(i',a)\<in>set tr. i' \<noteq> i" 
+              and "\<forall>i. (i, AFail) \<notin> set tr"
+            by (auto simp add: state_monotonicGrowth_def)
 
 
-              sorry
+          from `S' ~~ tr \<leadsto>* S'a` \<open>generatedIds S' uid \<triangleq> i\<close> `uid \<notin> knownIds S'`
+          thm steps_private_uniqueIds_h
+          have "uid \<notin> knownIds S'a  
+              \<and> (\<forall>i' ls. localState S'a i' \<triangleq> ls \<longrightarrow> i' \<noteq> i \<longrightarrow> uid \<notin> progr_uids ls) \<and> (\<forall>c opr args r. calls S'a c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
+ (* the uid is not written to the database and not known and it cannot be generated again, so
+    it cannot become known in the monotonic growth step.
+       TODO: this could be a general lemma in the framework for monotonicGrowth  *)
 
-            show "\<And>bound S i. S \<in> initialStates progr i \<Longrightarrow> checkCorrect progr S i bound"
+          proof (rule steps_private_uniqueIds_h)
+            show " \<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
+              apply (auto simp add: S'_def)
+              using `generatedIds Sa uid = None` \<comment> \<open>id did not exist in Sa, so it cannot be in a call\<close>
+              using Sa_wf \<open>prog Sa = progr\<close> progr_wf wf_onlyGeneratedIdsInCalls by force
+            show "state_wellFormed S'"
+              using S'a_mono state_monotonicGrowth_wf1 by blast
+
+            show "\<forall>i. (i, AFail) \<notin> set tr"
+              by (simp add: \<open>\<forall>i. (i, AFail) \<notin> set tr\<close>)
+
+            show "\<forall>a. (i, a) \<notin> set tr"
+              using \<open>\<forall>(i', a)\<in>set tr. i' \<noteq> i\<close> by blast
+
+            show " program_wellFormed progr_uids (prog S')"
+              by (simp add: \<open>prog S' = progr\<close> progr_wf)
+
+            show "\<forall>i' ls. i' \<noteq> i \<longrightarrow> localState S' i' \<triangleq> ls \<longrightarrow> uid \<notin> progr_uids ls"
+              apply (auto simp add: S'_def)
+              using `generatedIds Sa uid = None` \<comment> \<open>id did not exist in Sa, so it cannot be in a local state\<close>
+              using Sa_wf \<open>prog Sa = progr\<close> progr_wf wf_onlyGeneratedIdsInLocalState by fastforce
+          qed
+          hence S'a_uid_not_known: "uid \<notin> knownIds S'a"  
+              and S'a_uid_not_in_ls:"\<And>i' ls. localState S'a i' \<triangleq> ls \<Longrightarrow> i' \<noteq> i \<Longrightarrow> uid \<notin> progr_uids ls"
+              and S'a_uid_not_in_calls: "\<And>c opr args r. calls S'a c \<triangleq> Call opr args r \<Longrightarrow> uid \<notin> uniqueIdsInList args"
+            by blast+
 
 
+          have not_deleted: "calls S'a delete \<noteq> Some (Call users_remove [ls_u ls] Undef)" for delete
+          proof (rule ccontr, simp)
+            assume "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+            hence "uid \<notin> uniqueIdsInList [ls_u ls]"
+              by (rule S'a_uid_not_in_calls)
+
+            moreover have "uid \<in> uniqueIdsInList [ls_u ls]"
+              by (auto simp add: uniqueIdsInList_def \<open>ls_u ls = uid\<close> uniqueIds_uid1)
+
+            ultimately show  "False"
+              by blast
+          qed
+
+          show x: "False"
+            if c0: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+              and c1: "delete \<noteq> ca"
+              and c2: "delete \<noteq> c"
+              and c3: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+              and c4: "res = Undef"
+              and c5: "delete \<in> vis'"
+            for  delete
+            using not_deleted c3 by blast
 
 
-              apply (auto simp add: programCorrect_s_def)
-              apply (auto simp add: prog_def step_s.simps)
+        show "False"
+          if c0: "resa = Undef"
+            and c1: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+            and c2: "delete \<noteq> ca"
+            and c3: "delete \<noteq> c"
+            and c4: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+            and c5: "(delete, ca) \<in> happensBefore S'a"
+          for  delete
+          using c5 S'a_wf \<open>calls S'a ca = None\<close> wellFormed_happensBefore_calls_r by blast
 
 
+        show "False"
+          if c0: "resa = Undef"
+            and c1: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+            and c2: "delete \<noteq> ca"
+            and c3: "delete \<noteq> c"
+            and c4: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+            and c5: "delete \<in> vis'"
+          for  delete
+          using not_deleted c4 by blast
+      qed
+    qed
+  qed
+
+(* TODO Schritt von S'd nach S'e geht dann ja deutlich einfacher hoffentlich*)
 
 end
