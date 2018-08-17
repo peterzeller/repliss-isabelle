@@ -19,6 +19,9 @@ abbreviation orElse :: "'a option \<Rightarrow> 'a \<Rightarrow> 'a" (infixr "or
 
 typedecl invocation
 
+axiomatization where 
+  infinitely_many_invocations: " infinite (UNIV::invocation set)"
+
 term "x::'a::ord"
 
 class valueType =

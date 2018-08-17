@@ -555,7 +555,7 @@ next
 qed
 
 
-lemma steps_private_uniqueIds:
+lemma steps_private_knownIds:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and uid_generated: "generatedIds S uid \<triangleq> i"
     and not_known: "uid \<notin> knownIds S"
@@ -567,5 +567,182 @@ lemma steps_private_uniqueIds:
     and not_in_ls: "\<forall>i' ls. i'\<noteq>i \<longrightarrow> localState S i' \<triangleq> ls \<longrightarrow> uid \<notin> uids ls"
   shows "uid \<notin> knownIds S'"
 using steps_private_uniqueIds_h[OF assms] by simp
+
+lemma steps_private_localIds:
+  assumes steps: "S ~~ tr \<leadsto>* S'"
+    and uid_generated: "generatedIds S uid \<triangleq> i"
+    and not_known: "uid \<notin> knownIds S"
+    and not_in_db: "\<forall>c opr args r. calls S c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
+    and wf: "state_wellFormed S"
+    and nofail: "(\<forall>i. (i, AFail) \<notin> set tr)"
+    and no_step_in_i: "(\<forall>a. (i, a) \<notin> set tr)"
+    and prog_wf: "program_wellFormed uids (prog S)"
+    and not_in_ls: "\<forall>i' ls. i'\<noteq>i \<longrightarrow> localState S i' \<triangleq> ls \<longrightarrow> uid \<notin> uids ls"
+  shows "localState S' i' \<triangleq> ls \<Longrightarrow> i' \<noteq> i \<longrightarrow> uid \<notin> uids ls"
+using steps_private_uniqueIds_h[OF assms] by simp
+
+lemma steps_private_callIds:
+  assumes steps: "S ~~ tr \<leadsto>* S'"
+    and uid_generated: "generatedIds S uid \<triangleq> i"
+    and not_known: "uid \<notin> knownIds S"
+    and not_in_db: "\<forall>c opr args r. calls S c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
+    and wf: "state_wellFormed S"
+    and nofail: "(\<forall>i. (i, AFail) \<notin> set tr)"
+    and no_step_in_i: "(\<forall>a. (i, a) \<notin> set tr)"
+    and prog_wf: "program_wellFormed uids (prog S)"
+    and not_in_ls: "\<forall>i' ls. i'\<noteq>i \<longrightarrow> localState S i' \<triangleq> ls \<longrightarrow> uid \<notin> uids ls"
+  shows " calls S' c \<triangleq> Call opr args r \<Longrightarrow> uid \<notin> uniqueIdsInList args"
+  using steps_private_uniqueIds_h[OF assms] by blast 
+
+
+lemma wf_onlyGeneratedIdsAreUsed:
+  fixes S :: "('localState, 'any::valueType) state"
+  assumes wf: "state_wellFormed S"
+    and prog_wf: "program_wellFormed uids (prog S)"
+    and not_generated: "generatedIds S uid = None"
+  shows "uid \<notin> knownIds S \<and> (\<forall>i ls. localState S i \<triangleq> ls \<longrightarrow> uid \<notin> uids ls) \<and> (\<forall>c opr args r. calls S c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
+ using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case 
+    by (auto simp add: initialState_def)
+next
+  case (step S a S')
+
+  have " S ~~ [a] \<leadsto>* S'"
+    by (simp add: step.hyps(3))
+
+  have not_generated_S: "generatedIds S uid = None"
+    using generatedIds_mono[OF `S ~~ [a] \<leadsto>* S'`] `generatedIds S' uid = None`
+    by (meson domExists_simp domIff)
+
+  have progr_wf_S: "program_wellFormed uids (prog S)"
+    using \<open>S ~~ [a] \<leadsto>* S'\<close> step.prems(1) steps_do_not_change_prog by fastforce
+
+  have IH1: "uid \<notin> knownIds S"
+    using not_generated_S progr_wf_S step.hyps(2) by blast
+
+  have IH2: "\<And>i ls. localState S i \<triangleq> ls \<Longrightarrow> uid \<notin> uids ls" 
+    using not_generated_S progr_wf_S step.hyps(2) by blast
+  have IH3: "\<And>c opr args r. calls S c \<triangleq> Call opr args r \<Longrightarrow> uid \<notin> uniqueIdsInList args"
+    using not_generated_S progr_wf_S step.hyps(2) by blast
+
+  from `S ~~ a \<leadsto> S'`
+  show "uid \<notin> knownIds S' \<and> (\<forall>i ls. localState S' i \<triangleq> ls \<longrightarrow> uid \<notin> uids ls) \<and> (\<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
+  proof (induct rule: step.cases)
+    case (local C s ls f ls')
+    thus ?case 
+    proof (intro conjI)
+      show "uid \<notin> knownIds S'" using IH1 local by auto
+      show "\<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
+        using IH3 local by auto
+
+      show " \<forall>i' ls. localState S' i' \<triangleq> ls \<longrightarrow> uid \<notin> uids ls"
+        using IH2 local apply auto
+        using \<open>program_wellFormed uids (prog S')\<close> \<open>state_wellFormed S\<close> program_wellFormed_procedures_cannot_guess_ids_LocalStep by fastforce
+    qed
+
+  next
+    case (newId C s ls f ls' nuid ls'')
+
+    have "currentProc S s \<triangleq> f"
+      by (simp add: newId.hyps)
+
+    have "uid \<notin> uids ls"
+      using IH2 newId.hyps(1) newId.hyps(4) by blast
+
+
+    
+    show ?case
+    proof (intro conjI)
+      show "uid \<notin> knownIds S'" using IH1 newId by auto
+      show "\<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
+        using IH3 newId by auto
+
+      show " \<forall>i' ls. localState S' i' \<triangleq> ls \<longrightarrow> uid \<notin> uids ls"
+        using IH2 newId `generatedIds S' uid = None` 
+          program_wellFormed_procedures_cannot_guess_ids_NewId[OF `program_wellFormed uids (prog S)` `currentProc S s \<triangleq> f` \<open>state_wellFormed S\<close> ` f ls = NewId ls'` `ls' nuid \<triangleq> ls''`, where x=uid] by (auto split: if_splits)
+    qed
+  next
+    case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+    then show ?case
+      using IH1 IH2 IH3 apply auto
+      using \<open>program_wellFormed uids (prog S)\<close> \<open>state_wellFormed S\<close> program_wellFormed_procedures_cannot_guess_ids_BeginAtomic by fastforce
+
+
+  next
+    case (endAtomic C s ls f ls' t)
+    then show ?case 
+      using IH1 IH2 IH3 apply auto
+      using \<open>program_wellFormed uids (prog S)\<close> \<open>state_wellFormed S\<close> program_wellFormed_procedures_cannot_guess_ids_EndAtomic by fastforce
+  next
+    case (dbop C s ls f Op args ls' t c res vis)
+
+    have "program_wellFormed uids (prog C)"
+      using \<open>program_wellFormed uids (prog S)\<close> dbop.hyps(1) by auto
+
+    have "state_wellFormed C"
+      using \<open>state_wellFormed S\<close> dbop.hyps(1) by auto
+
+    have [simp]: "uid \<notin> uniqueIdsInList args"
+      using IH2 \<open>program_wellFormed uids (prog C)\<close> \<open>state_wellFormed C\<close> dbop.hyps(1) dbop.hyps(4) dbop.hyps(5) dbop.hyps(6) program_wellFormed_procedures_cannot_guess_ids_DbOperation2 by fastforce
+
+
+    from dbop
+    show ?case 
+      using IH1 IH2 IH3 apply auto
+      by (metis (no_types, lifting) \<open>program_wellFormed uids (prog C)\<close> \<open>state_wellFormed C\<close> \<open>uid \<notin> uniqueIdsInList args\<close> call.collapse program_wellFormed_procedures_cannot_guess_ids_DbOperation program_wellFormed_queries_cannot_guess_ids_getContextH)
+  next
+    case (invocation C s procName args initialState impl)
+    then show ?case 
+      using IH1 IH2 IH3 apply auto
+      using \<open>program_wellFormed uids (prog S')\<close> program_wellFormed_procedures_cannot_guess_ids_init by fastforce
+
+  next
+    case (return C s ls f res)
+    then show ?case using IH1 IH2 IH3 apply auto
+      using \<open>program_wellFormed uids (prog S')\<close> \<open>state_wellFormed S\<close> program_wellFormed_procedures_cannot_guess_ids_Return step.prems(2) by fastforce
+  next
+    case (fail C s ls)
+    then show ?case
+      using step.hyps(4) by auto
+      
+
+  next
+    case (invCheck C res s)
+    then show ?case
+      using IH1 IH2 IH3 by auto 
+
+  qed
+qed
+
+lemma wf_onlyGeneratedIdsInKnownIds:
+  fixes S :: "('localState, 'any::valueType) state"
+  assumes wf: "state_wellFormed S"
+    and prog_wf: "program_wellFormed uids (prog S)"
+    and not_generated: "generatedIds S uid = None"
+  shows "uid \<notin> knownIds S"
+  using local.wf not_generated prog_wf wf_onlyGeneratedIdsAreUsed by blast
+
+
+lemma wf_onlyGeneratedIdsInLocalState:
+  fixes S :: "('localState, 'any::valueType) state"
+  assumes wf: "state_wellFormed S"
+    and prog_wf: "program_wellFormed uids (prog S)"
+    and not_generated: "generatedIds S uid = None"
+  shows "localState S i \<triangleq> ls \<Longrightarrow> uid \<notin> uids ls"
+  using local.wf not_generated prog_wf wf_onlyGeneratedIdsAreUsed by blast
+
+
+lemma wf_onlyGeneratedIdsInCalls:
+  fixes S :: "('localState, 'any::valueType) state"
+  assumes wf: "state_wellFormed S"
+    and prog_wf: "program_wellFormed uids (prog S)"
+    and not_generated: "generatedIds S uid = None"
+  shows "calls S c \<triangleq> Call opr args r \<Longrightarrow> uid \<notin> uniqueIdsInList args"
+  using local.wf not_generated prog_wf wf_onlyGeneratedIdsAreUsed by blast
+
+
+
+
 
 end

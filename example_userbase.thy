@@ -934,14 +934,18 @@ show "example_userbase.inv (invContext' S'e)"
 
 
           from `S' ~~ tr \<leadsto>* S'a` \<open>generatedIds S' uid \<triangleq> i\<close> `uid \<notin> knownIds S'`
-          have "uid \<notin> knownIds S'a"
+          thm steps_private_uniqueIds_h
+          have "uid \<notin> knownIds S'a  
+              \<and> (\<forall>i' ls. localState S'a i' \<triangleq> ls \<longrightarrow> i' \<noteq> i \<longrightarrow> uid \<notin> progr_uids ls) \<and> (\<forall>c opr args r. calls S'a c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
  (* the uid is not written to the database and not known and it cannot be generated again, so
-    it cannot become known in the monotonic growth step  *)
-          proof (rule steps_private_uniqueIds)
+    it cannot become known in the monotonic growth step.
+       TODO: this could be a general lemma in the framework for monotonicGrowth  *)
+
+          proof (rule steps_private_uniqueIds_h)
             show " \<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
               apply (auto simp add: S'_def)
               using `generatedIds Sa uid = None` \<comment> \<open>id did not exist in Sa, so it cannot be in a call\<close>
-              sorry
+              using Sa_wf \<open>prog Sa = progr\<close> progr_wf wf_onlyGeneratedIdsInCalls by force
             show "state_wellFormed S'"
               using S'a_mono state_monotonicGrowth_wf1 by blast
 
@@ -957,7 +961,25 @@ show "example_userbase.inv (invContext' S'e)"
             show "\<forall>i' ls. i' \<noteq> i \<longrightarrow> localState S' i' \<triangleq> ls \<longrightarrow> uid \<notin> progr_uids ls"
               apply (auto simp add: S'_def)
               using `generatedIds Sa uid = None` \<comment> \<open>id did not exist in Sa, so it cannot be in a local state\<close>
-              sorry
+              using Sa_wf \<open>prog Sa = progr\<close> progr_wf wf_onlyGeneratedIdsInLocalState by fastforce
+          qed
+          hence S'a_uid_not_known: "uid \<notin> knownIds S'a"  
+              and S'a_uid_not_in_ls:"\<And>i' ls. localState S'a i' \<triangleq> ls \<Longrightarrow> i' \<noteq> i \<Longrightarrow> uid \<notin> progr_uids ls"
+              and S'a_uid_not_in_calls: "\<And>c opr args r. calls S'a c \<triangleq> Call opr args r \<Longrightarrow> uid \<notin> uniqueIdsInList args"
+            by blast+
+
+
+          have not_deleted: "calls S'a delete \<noteq> Some (Call users_remove [ls_u ls] Undef)" for delete
+          proof (rule ccontr, simp)
+            assume "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+            hence "uid \<notin> uniqueIdsInList [ls_u ls]"
+              by (rule S'a_uid_not_in_calls)
+
+            moreover have "uid \<in> uniqueIdsInList [ls_u ls]"
+              by (auto simp add: uniqueIdsInList_def \<open>ls_u ls = uid\<close> uniqueIds_uid1)
+
+            ultimately show  "False"
+              by blast
           qed
 
           show x: "False"
@@ -968,49 +990,36 @@ show "example_userbase.inv (invContext' S'e)"
               and c4: "res = Undef"
               and c5: "delete \<in> vis'"
             for  delete
-          proof -
-            
-
-            from c3
-            have "calls S' delete \<triangleq> Call users_remove [ls_u ls] Undef"
-              using state_monotonicGrowth_calls[OF ` state_monotonicGrowth i S' S'a`]
-
-              find_theorems state_monotonicGrowth calls
-
-            find_theorems knownIds
-              (* TODO if the delete is in vis, then it must have used a differt userId, because ls_u was just created and not returned yet *)
-            sorry
+            using not_deleted c3 by blast
 
 
-          show "False"
-            if c0: "resa = Undef"
-              and c1: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
-              and c2: "delete \<noteq> ca"
-              and c3: "delete \<noteq> c"
-              and c4: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
-              and c5: "(delete, ca) \<in> happensBefore S'a"
-            for  delete
-            using c5 S'a_wf \<open>calls S'a ca = None\<close> wellFormed_happensBefore_calls_r by blast
-            
+        show "False"
+          if c0: "resa = Undef"
+            and c1: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+            and c2: "delete \<noteq> ca"
+            and c3: "delete \<noteq> c"
+            and c4: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+            and c5: "(delete, ca) \<in> happensBefore S'a"
+          for  delete
+          using c5 S'a_wf \<open>calls S'a ca = None\<close> wellFormed_happensBefore_calls_r by blast
 
-          show "False"
-            if c0: "resa = Undef"
-              and c1: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
-              and c2: "delete \<noteq> ca"
-              and c3: "delete \<noteq> c"
-              and c4: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
-              and c5: "delete \<in> vis'"
-            for  delete
 
-              (* same as above (x) *)
-            sorry
-        qed
+        show "False"
+          if c0: "resa = Undef"
+            and c1: "\<forall>write delete u. calls S'a delete \<triangleq> Call users_remove [u] Undef \<longrightarrow> (\<forall>v. calls S'a write \<noteq> Some (Call users_name_assign [u, v] Undef) \<and> calls S'a write \<noteq> Some (Call users_mail_assign [u, v] Undef)) \<or> (delete, write) \<notin> happensBefore S'a"
+            and c2: "delete \<noteq> ca"
+            and c3: "delete \<noteq> c"
+            and c4: "calls S'a delete \<triangleq> Call users_remove [ls_u ls] Undef"
+            and c5: "delete \<in> vis'"
+          for  delete
+          using not_deleted c4 by blast
       qed
+    qed
 
 
 
 
-
+    show "example_userbase.inv (invContext' S'd)"
 
 
 
