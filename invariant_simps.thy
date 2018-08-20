@@ -50,7 +50,7 @@ lemma invocation_happensBeforeH_one_transaction_simp:
     and wf_hb2: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c' \<triangleq> t"
   shows "invocation_happensBeforeH (i_callOriginI_h co' (to(t \<mapsto> i))) (updateHb hb vis' cs)
                       = invocation_happensBeforeH (i_callOriginI_h co to) hb 
-                        \<union> {i'. \<exists>i' t' c'. c' \<in> vis' \<and> co c' \<triangleq> t' \<and> to t' \<triangleq> i' \<and> (\<forall>c'' t''. co c'' \<triangleq> t'' \<and> to t'' \<triangleq> i' \<longrightarrow> c'' \<in> vis' )} \<times> {i}"
+                        \<union> {i'. \<exists>t' c'. c' \<in> vis' \<and> co c' \<triangleq> t' \<and> to t' \<triangleq> i' \<and> (\<forall>c'' t''. co c'' \<triangleq> t'' \<and> to t'' \<triangleq> i' \<longrightarrow> c'' \<in> vis' )} \<times> {i}"
 proof (standard; standard; case_tac x; auto)
   fix x y
   assume a0: "(x, y) \<in> invocation_happensBeforeH (i_callOriginI_h co' (to(t \<mapsto> i))) (updateHb hb vis' cs)"
