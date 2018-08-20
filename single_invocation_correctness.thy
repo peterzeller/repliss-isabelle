@@ -31,6 +31,90 @@ lemma updateHb_chain:
 using assms apply (induct cs arbitrary: hb vis vis' c )
   by (fastforce simp add:  updateHb_cons)+
 
+lemma updateHb_simp1:
+  assumes "x \<notin> set cs"
+  shows "(x,y) \<in> updateHb hb vis cs \<longleftrightarrow> ((x,y) \<in> hb \<or> x\<in>vis \<and> y \<in> set cs)"
+  using assms proof (induct cs arbitrary: hb vis)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a cs)
+  then show ?case 
+    by (auto simp add: updateHb_cons)
+qed
+
+
+lemma updateHb_simp2:
+  assumes "y \<notin> set cs"
+  shows "(x,y) \<in> updateHb hb vis cs \<longleftrightarrow> (x,y) \<in> hb"
+  using assms proof (induct cs arbitrary: hb vis)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a cs)
+  then show ?case 
+    by (auto simp add: updateHb_cons)
+qed
+
+lemma updateHb_in_vis:
+  assumes 
+    "x\<in>vis"
+    and "y\<in>set cs"
+   shows "(x,y) \<in> updateHb hb vis cs"
+  using assms proof (induct cs arbitrary: hb vis)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a cs)
+  then show ?case 
+    apply (auto simp add: updateHb_cons  )
+    by (metis UnI2 insert_is_Un mem_Sigma_iff singletonI updateHb_simp2)
+qed
+
+lemma updateHb_simp3:
+  assumes 
+    "cs!i = x"
+    and "cs!j = y"
+    and "i<j"
+    and "j<length cs"
+   shows "(x,y) \<in> updateHb hb vis cs"
+  using assms proof (induct cs arbitrary: hb vis i j)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a cs)
+  then show ?case 
+    apply (auto simp add: updateHb_cons in_set_conv_nth nth_Cons' )
+    by (simp add: updateHb_in_vis)
+qed
+
+lemma updateHb_simp_distinct:
+  assumes 
+    "distinct cs"
+  shows "(x,y) \<in> updateHb hb vis cs 
+  \<longleftrightarrow> ((x, y)\<in>hb \<or> x\<in>vis \<and> y\<in>set cs \<or> (\<exists>i j. cs!i=x \<and> cs!j=y \<and> i < j \<and> j < length cs))"
+  using assms proof (induct cs arbitrary: hb vis)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons a cs)
+
+  have IH:
+    "(x,y) \<in> updateHb (hb \<union> vis \<times> {a}) (insert a vis) cs
+\<longleftrightarrow> ((x, y)\<in>(hb \<union> vis \<times> {a}) \<or> x\<in>(insert a vis) \<and> y\<in>set cs \<or> (\<exists>i j. cs!i=x \<and> cs!j=y \<and> i < j \<and> j < length cs))"
+    apply (rule Cons) using Cons.prems by auto
+
+  show ?case 
+    apply (auto simp add: updateHb_cons IH )
+    apply (metis One_nat_def in_set_conv_nth list.sel(3) not_less_eq nth_Cons_0 nth_Cons_pos nth_tl zero_less_Suc)
+    apply (metis One_nat_def Suc_mono diff_Suc_1 nth_Cons_Suc)
+    apply (metis One_nat_def Suc_less_eq Suc_pred nat_neq_iff not_less_zero nth_Cons')
+    by (metis One_nat_def diff_Suc_1 gr_implies_not0 less_Suc_eq_0_disj nth_Cons')
+qed
+
+
+
+
 (* TODO remove? *)
 abbreviation invariant_all' :: "('localState, 'any) state \<Rightarrow> bool" where
 "invariant_all' state \<equiv>  invariant (prog state) (invContext' state)"
