@@ -260,14 +260,14 @@ definition crdtSpec :: "operation \<Rightarrow> val list \<Rightarrow> val opera
 definition inv1 :: "val invariantContext \<Rightarrow> bool" where
   "inv1 ctxt \<equiv> \<forall>r g u.
     i_invocationOp ctxt r \<triangleq> (removeUser, [u])
-  \<and> i_invocationOp ctxt g \<triangleq> (getUser, [u])
-  \<and> (r,g) \<in> invocation_happensBefore ctxt
+  \<longrightarrow> i_invocationOp ctxt g \<triangleq> (getUser, [u])
+  \<longrightarrow> (r,g) \<in> invocation_happensBefore ctxt
   \<longrightarrow> i_invocationRes ctxt g \<triangleq> NotFound"
 
 definition inv2 :: "val invariantContext \<Rightarrow> bool" where
   "inv2 ctxt \<equiv> \<forall>u i.
     i_invocationOp ctxt i \<triangleq> (removeUser, [u])
-  \<and> i_invocationRes ctxt i \<noteq> None
+  \<longrightarrow> i_invocationRes ctxt i \<noteq> None
   \<longrightarrow> (\<exists>c. i_callOriginI ctxt c \<triangleq> i \<and> calls ctxt c \<triangleq> Call users_remove [u] Undef)"
 
 definition inv3 :: "val invariantContext \<Rightarrow> bool" where
@@ -350,12 +350,14 @@ lemma in_sequence_nil[simp]: "in_sequence [] = (\<lambda>x y. False)"
   apply (rule ext)+
   by (auto simp add: in_sequence_def)
 
+
 lemma in_sequence_cons:
   "in_sequence (x # xs) a b \<longleftrightarrow> (x=a \<and> b\<in>set xs \<or> in_sequence xs a b)"
   apply (auto simp add: in_sequence_def)
     apply (metis (no_types, lifting) Suc_diff_eq_diff_pred Suc_less_eq Suc_pred gr_implies_not_zero not_gr_zero nth_Cons' zero_less_diff)
    apply (metis Suc_mono in_set_conv_nth nth_Cons_0 nth_Cons_Suc zero_less_Suc)
   by (meson Suc_mono nth_Cons_Suc)
+
 
 
 lemma in_sequence_in1: "in_sequence xs x y \<Longrightarrow> x\<in>set xs"
@@ -435,7 +437,6 @@ lemma invocation_happensBeforeH_update:
     apply (metis cs_no_orig option.distinct(1) option.sel)
   using cs_notin_vis option.simps(3) apply fastforce
   using cs_nonempty last_in_set by blast
-
 
 
 (*
@@ -623,6 +624,15 @@ proof (rule show_programCorrect_using_checkCorrect)
         "Ex (querySpec progr users_mail_assign [u, n] ctxt)"
         for u n ctxt
         by (auto simp add: progr_def crdtSpec_def )
+
+      
+
+      from ` example_userbase.inv (invContext' Sa)`
+      have inv1_Sa: "inv1 (invContext' Sa)"
+        and inv2_Sa: "inv2 (invContext' Sa)"
+        and inv3_Sa: "inv3 (invContext' Sa)"
+        by (auto simp add: inv_def)
+
 
       paragraph {* Case register User: *}
       show "\<exists>bound. (checkCorrect2F ^^ bound) bot (progr, {}, Sa \<lparr>localState := localState Sa(i \<mapsto> lsInit\<lparr>ls_name := name, ls_mail := mail\<rparr>), currentProc := currentProc Sa(i \<mapsto> registerUserImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (registerUser, [String name, String mail]))\<rparr>, i)"
@@ -1227,8 +1237,8 @@ show "example_userbase.inv (invContext' S'e)"
             and old_inv3: "inv3 (invContext' S')"
             by (auto simp add: inv_def)
 
-
-          note a = this 
+          have invocationOp_S'_i[simp]: "invocationOp S' i \<triangleq> (updateMail, [UserId u, String mail])"
+            by (auto simp add: state_monotonicGrowth_invocationOp_i[OF S'_growth])
 
           have [simp]: "currentProc S'' i \<triangleq> updateMailImpl"
             by (auto simp add: S''_def a9)
@@ -1354,11 +1364,10 @@ show "example_userbase.inv (invContext' S'e)"
                         for  r g u'
                       proof -
 
-                        have "invocationOp S' i \<triangleq>  (updateMail, [UserId u, String mail])"
-                          using state_monotonicGrowth_invocationOp_i[OF S'_growth] by auto
- 
-                        hence [simp]: "i \<noteq> r" and [simp]: "i \<noteq> g"
+                        have [simp]: "r \<noteq> i" and [simp]: "g \<noteq> i"
                           using c0 c1 by auto
+                        hence [simp]: "i \<noteq> r" and [simp]: "i \<noteq> g"
+                          by blast+
                               (*Alternatively, we could prove that they are not equal because there are no call in i and we need calls for i-happens-before*)
 
 
@@ -1464,6 +1473,14 @@ show "example_userbase.inv (invContext' S'e)"
 
                   assume e2: "example_userbase.inv (invContext' S'd)"
 
+
+                  from  e2 
+                  have S'd_inv1: "inv1 (invContext' S'd)"
+                    and S'd_inv2: "inv2 (invContext' S'd)"
+                    and S'd_inv3: "inv3 (invContext' S'd)"
+                    using example_userbase.inv_def by auto
+
+
                   have [simp]: "currentProc S'd i \<triangleq> updateMailImpl"
                     by (auto simp add: S'd_def)
 
@@ -1476,58 +1493,114 @@ show "example_userbase.inv (invContext' S'e)"
                   show "(checkCorrect2F ^^ 10) bot (progr, insert ca (insert c vis'), S'd, i)"
                   proof (rule checkCorrect2F_step, auto simp add: updateMailImpl_def lsInit_def split: localAction.splits option.splits, unfold Def_def, rename_tac S'e)
                     fix S'e
-                    assume f0: "S'e = S'd
+                    assume S'e_def: "S'e = S'd
                         \<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),
                            invocationRes := invocationRes S'd(i \<mapsto> Undef)\<rparr>"
                       and f1: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommited"
 
+                    find_theorems invocationOp u
+                    have [simp]: "invocationOp S'd i \<triangleq> (updateMail, [UserId u, String mail])"
+                      by (auto simp add: S'd_def S'c_def S'b_def S'a_def S''_def state_monotonicGrowth_invocationOp_i[OF S'_growth, simplified])
+
                     show "example_userbase.inv (invContext' S'e)"
-                      sorry
+                    proof (auto simp add: inv_def)
+                      show " inv1 (invContext' S'e)"
+                        using S'd_inv1 by (auto simp add: S'e_def inv1_def)
+
+                      show "inv2 (invContext' S'e)"
+                        using S'd_inv2 by (auto simp add: S'e_def inv2_def)
+
+                      show "inv3 (invContext' S'e)"
+                        using S'd_inv3 by (auto simp add: S'e_def inv3_def)
+                    qed
                   qed
                 qed
               qed
             next \<comment> \<open>Case 2: The user does not exist -- we do not update the email and directly go to the return statement\<close>
 
               fix S'b
-              assume c0: "res \<noteq> Bool True"
-                and c1: "S'b = S'a\<lparr>localState := localState S'a(i \<mapsto> \<lparr>ls_pc = 4, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>)\<rparr>"
+              assume res_userExists_false: "res_userExists \<noteq> Bool True"
+                and S'b_def: "S'b = S'a\<lparr>localState := localState S'a(i \<mapsto> \<lparr>ls_pc = 4, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>)\<rparr>"
+
 
               have [simp]: "currentProc S'b i \<triangleq> updateMailImpl"
-                by (auto simp add: c1)
+                by (auto simp add: S'b_def)
 
               have [simp]: "localState S'b i \<triangleq> \<lparr>ls_pc = 4, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>"
-                by (auto simp add: c1)
+                by (auto simp add: S'b_def)
 
               have [simp]: "currentTransaction S'b i \<triangleq> t" 
-                by (auto simp add: c1)
+                by (auto simp add: S'b_def)
 
               show "(checkCorrect2F ^^ 12) bot (progr, insert c vis', S'b, i)"
               proof (rule checkCorrect2F_step, auto simp add: updateMailImpl_def lsInit_def split: localAction.splits option.splits, unfold Def_def; rename_tac S'c)
                 fix S'c
-                assume d0: "S'c = S'b             \<lparr>localState := localState S'b(i \<mapsto> \<lparr>ls_pc = 5, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>),                currentTransaction := (currentTransaction S'b)(i := None), transactionStatus := transactionStatus S'b(t \<mapsto> Commited)\<rparr>"
+                assume S'c_def: "S'c = S'b             \<lparr>localState := localState S'b(i \<mapsto> \<lparr>ls_pc = 5, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>),                currentTransaction := (currentTransaction S'b)(i := None), transactionStatus := transactionStatus S'b(t \<mapsto> Commited)\<rparr>"
                   and d1: "\<forall>t. transactionStatus S'c t \<noteq> Some Uncommited"
 
+                thm old_inv1
+                have [simp]: "invocationOp S'c i \<triangleq> (updateMail, [UserId u, String mail])"
+                  by (auto simp add: S'c_def S'b_def S'a_def S''_def)
+
                 show "example_userbase.inv (invContext' S'c)"
-                  sorry
+                proof (auto simp add: inv_def)
+                  show " inv1 (invContext' S'c)"
+                  proof (auto simp add: inv1_def S'c_def S'b_def S'a_def S''_def)
+
+                    show "invocationRes S' g \<triangleq> NotFound"
+                      if c0: "invocationOp S' r \<triangleq> (removeUser, [u])"
+                        and c1: "invocationOp S' g \<triangleq> (getUser, [u])"
+                        and c2: "(r, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S'(c \<mapsto> t)) (transactionOrigin S'(t \<mapsto> i))) (updateHb (happensBefore S') vis' [c])"
+                      for  r g u
+                      using c0 c1
+                    proof (rule old_inv1[simplified inv1_def invContextH2_i_invocationRes invContextH2_i_invocationOp, rule_format])
+
+                      from c0 have [simp]: "r \<noteq> i"
+                        using invocationOp_S'_i by auto
+
+                      from c1 have [simp]: "g \<noteq> i"
+                        using invocationOp_S'_i by auto
+
+                      have [simp]: "i \<noteq> r" and [simp]: "i \<noteq> g"
+                        using \<open>r \<noteq> i\<close> \<open>g \<noteq> i\<close> by blast+
+                        
+
+                      from c2
+                      show "(r, g) \<in> invocation_happensBefore (invContext' S')"
+                        apply (auto simp add:  invocation_happensBeforeH_def  i_callOriginI_h_def updateHb_cons split: option.splits if_splits)
+                        by (metis S'_wf \<open>calls S' c = None\<close> a15 option.distinct(1) wellFormed_callOrigin_dom2 wellFormed_state_callOrigin_transactionStatus)
+                    qed
+                  qed
+                  show "inv2 (invContext' S'c)"
+                    using old_inv2
+                    apply (auto simp add: inv2_def S'c_def S'b_def S'a_def S''_def)
+                    apply (auto simp add:  invocation_happensBeforeH_def  i_callOriginI_h_def updateHb_cons split: option.splits if_splits)
+                    by fastforce
+
+                  show "inv3 (invContext' S'c)"
+                    using old_inv3
+                    by (auto simp add: inv3_def S'c_def S'b_def S'a_def S''_def updateHb_cons)
+                qed
 
                 have [simp]: "currentProc S'c i \<triangleq> updateMailImpl"
-                  by (auto simp add: d0)
+                  by (auto simp add: S'c_def)
 
                 have [simp]: "localState S'c i \<triangleq> \<lparr>ls_pc = 5, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>"
-                  by (auto simp add: d0)
+                  by (auto simp add: S'c_def)
 
                 have [simp]: "currentTransaction S'c i = None" 
-                  by (auto simp add: d0)
+                  by (auto simp add: S'c_def)
 
                 assume d2: "example_userbase.inv (invContext' S'c)"
                 show "(checkCorrect2F ^^ 11) bot (progr, insert c vis', S'c, i)"
                 proof (rule checkCorrect2F_step, auto simp add: updateMailImpl_def lsInit_def split: localAction.splits option.splits, unfold Def_def; rename_tac S'd)
                   fix S'd
-                  assume e0: "S'd = S'c             \<lparr>localState := (localState S'c)(i := None), currentProc := (currentProc S'c)(i := None), visibleCalls := (visibleCalls S'c)(i := None),                invocationRes := invocationRes S'c(i \<mapsto> Undef)\<rparr>"
+                  assume S'd_def: "S'd = S'c             \<lparr>localState := (localState S'c)(i := None), currentProc := (currentProc S'c)(i := None), visibleCalls := (visibleCalls S'c)(i := None),                invocationRes := invocationRes S'c(i \<mapsto> Undef)\<rparr>"
                     and e1: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
 
-                  show "example_userbase.inv (invContext' S'd)"
-                    sorry
+                  show "inv (invContext' S'd)"
+                    using `inv (invContext' S'c)`
+                    by  (auto simp add: inv_def inv1_def inv2_def inv3_def S'd_def)
                 qed
               qed
             qed
