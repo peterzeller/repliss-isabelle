@@ -20,6 +20,24 @@ lemma i_callOriginI_h_simp2: "i_callOriginI_h (callOrigin S'(c \<mapsto> t)) (tr
   by auto
 
 
+lemma i_callOriginI_h_simp_update_co:
+  shows "i_callOriginI_h (co(c \<mapsto> t)) to c'
+  = (if c = c' then to t else i_callOriginI_h co to c')"
+  by (auto simp add: i_callOriginI_h_def split: option.splits)
+
+lemma i_callOriginI_h_update_to:
+  assumes "\<And>c. co c \<noteq> Some t"
+  shows "i_callOriginI_h co (to(t \<mapsto> i)) c'
+  = i_callOriginI_h co to c'"
+  by (auto simp add: i_callOriginI_h_def  assms split: option.splits)
+
+lemma i_callOriginI_h_update_to2:
+  shows "i_callOriginI_h co (to(t \<mapsto> i)) c
+  = (if co c \<triangleq> t then Some i else  i_callOriginI_h co to c)"
+  by (auto simp add: i_callOriginI_h_def split: option.splits)
+
+lemmas i_callOriginI_h_simps = i_callOriginI_h_simp_update_co i_callOriginI_h_update_to2
+
 abbreviation 
   "i_callOriginI ctxt \<equiv> i_callOriginI_h (i_callOrigin ctxt) (i_transactionOrigin ctxt)"
 
@@ -35,9 +53,6 @@ definition
 
 abbreviation 
   "invocation_happensBefore ctxt \<equiv> invocation_happensBeforeH (i_callOriginI ctxt) (happensBefore ctxt)"
-
-abbreviation 
-  "invocation_happensBefore2 ctxt \<equiv> invocation_happensBeforeH (i_callOriginI ctxt) (happensBefore ctxt)"
 
 lemma invocation_happensBeforeH_one_transaction_simp:
   assumes cs_nonempty: "cs \<noteq> []"
