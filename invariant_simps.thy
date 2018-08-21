@@ -36,6 +36,9 @@ definition
 abbreviation 
   "invocation_happensBefore ctxt \<equiv> invocation_happensBeforeH (i_callOriginI ctxt) (happensBefore ctxt)"
 
+abbreviation 
+  "invocation_happensBefore2 ctxt \<equiv> invocation_happensBeforeH (i_callOriginI ctxt) (happensBefore ctxt)"
+
 lemma invocation_happensBeforeH_one_transaction_simp:
   assumes cs_nonempty: "cs \<noteq> []"
     and cs_distinct: "distinct cs"

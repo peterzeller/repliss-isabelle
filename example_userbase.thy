@@ -258,11 +258,12 @@ definition crdtSpec :: "operation \<Rightarrow> val list \<Rightarrow> val opera
     False"
 
 definition inv1 :: "val invariantContext \<Rightarrow> bool" where
-  "inv1 ctxt \<equiv> \<forall>r g u.
+  "inv1 ctxt \<equiv> \<forall>r g u g_res.
     i_invocationOp ctxt r \<triangleq> (removeUser, [u])
   \<longrightarrow> i_invocationOp ctxt g \<triangleq> (getUser, [u])
   \<longrightarrow> (r,g) \<in> invocation_happensBefore ctxt
-  \<longrightarrow> i_invocationRes ctxt g \<triangleq> NotFound"
+  \<longrightarrow> i_invocationRes ctxt g \<triangleq> g_res
+  \<longrightarrow> g_res = NotFound"
 
 definition inv2 :: "val invariantContext \<Rightarrow> bool" where
   "inv2 ctxt \<equiv> \<forall>u i.
@@ -280,6 +281,11 @@ definition inv3 :: "val invariantContext \<Rightarrow> bool" where
 
 definition inv :: "val invariantContext \<Rightarrow> bool" where
   "inv ctxt \<equiv> inv1 ctxt \<and> inv2 ctxt \<and> inv3 ctxt"
+
+lemma show_inv[intro]:
+  assumes "inv1 S" and "inv2 S" and "inv3 S"
+  shows "inv S"
+  using assms  by (auto simp add: inv_def)
 
 definition progr :: "(localState, val) prog" where
   "progr \<equiv> \<lparr>
@@ -530,7 +536,7 @@ proof (rule show_programCorrect_using_checkCorrect)
           and c3: "impl = removeUserImpl"
           and c4: "initState = lsInit\<lparr>ls_u := UserId u\<rparr>"
         for  u
-      proof (auto simp add: inv_def)
+      proof 
         show "inv1 (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (removeUser, [UserId u])))
            (invocationRes S'))"
           using old_inv
@@ -560,7 +566,7 @@ proof (rule show_programCorrect_using_checkCorrect)
           and c3: "impl = getUserImpl"
           and c4: "initState = lsInit\<lparr>ls_u := UserId u\<rparr>"
         for  u
-      proof (auto simp add: inv_def)
+      proof
 
         from old_inv
         show "inv1 (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S') (invocationOp S'(i \<mapsto> (getUser, [UserId u])))
@@ -861,11 +867,12 @@ show "example_userbase.inv (invContext' S'e)"
           using invocationOp_unchanged by auto
 
         show "example_userbase.inv (invContext' S'd)"
-        proof (auto simp add: inv_def)
+        proof
 
           show "inv1 (invContext' S'd)"
             apply (auto simp add: inv1_def invocationOp_unchanged invocationHb_update)
             using old_inv1 by (auto simp add: inv1_def invocationRes_S'e2)
+
 
           have "inv2 (invContext' S'a)"
             using \<open>prog S' = progr\<close> example_userbase.inv_def old_inv by auto
@@ -1176,7 +1183,7 @@ show "example_userbase.inv (invContext' S'e)"
           by (auto simp add: S'd_def S'c_def S'b_def S''_def S'_def intro!: state_monotonicGrowth_invocationOp[OF `state_monotonicGrowth i S' S'a`])
 
         show "example_userbase.inv (invContext' S'e)"
-        proof (auto simp add: inv_def)
+        proof
 
           show "inv1 (invContext' S'e)"
             using old_inv1 by (auto simp add: S'e_def inv1_def)
@@ -1348,7 +1355,7 @@ show "example_userbase.inv (invContext' S'e)"
 
 
                   show "example_userbase.inv (invContext' S'd)"
-                  proof (auto simp add: inv_def)
+                  proof 
 
 
 
@@ -1357,11 +1364,12 @@ show "example_userbase.inv (invContext' S'e)"
 
                       find_theorems "updateHb"
 
-                      show "invocationRes S' g \<triangleq> NotFound"
+                      show "g_res = NotFound"
                         if c0: "invocationOp S' r \<triangleq> (removeUser, [u'])"
                           and c1: "invocationOp S' g \<triangleq> (getUser, [u'])"
                           and c2: "(r, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S'(t \<mapsto> i))) hb'c"
-                        for  r g u'
+                          and c3: "invocationRes S' g \<triangleq> g_res"
+                        for  r g u' g_res
                       proof -
 
                         have [simp]: "r \<noteq> i" and [simp]: "g \<noteq> i"
@@ -1414,7 +1422,8 @@ show "example_userbase.inv (invContext' S'e)"
                           apply (auto simp add: hb'c_def S'a_def updateHb_cons S'b_def S''_def)
                           done
                         thus ?thesis
-                          using old_inv1[simplified inv1_def] c0 c1 by auto
+                          using old_inv1[simplified inv1_def] c0 c1 c3 by auto
+
                       qed
                     qed
 
@@ -1503,7 +1512,7 @@ show "example_userbase.inv (invContext' S'e)"
                       by (auto simp add: S'd_def S'c_def S'b_def S'a_def S''_def state_monotonicGrowth_invocationOp_i[OF S'_growth, simplified])
 
                     show "example_userbase.inv (invContext' S'e)"
-                    proof (auto simp add: inv_def)
+                    proof
                       show " inv1 (invContext' S'e)"
                         using S'd_inv1 by (auto simp add: S'e_def inv1_def)
 
@@ -1543,15 +1552,18 @@ show "example_userbase.inv (invContext' S'e)"
                   by (auto simp add: S'c_def S'b_def S'a_def S''_def)
 
                 show "example_userbase.inv (invContext' S'c)"
-                proof (auto simp add: inv_def)
+                proof
                   show " inv1 (invContext' S'c)"
                   proof (auto simp add: inv1_def S'c_def S'b_def S'a_def S''_def)
 
-                    show "invocationRes S' g \<triangleq> NotFound"
+
+
+                    show "g_res = NotFound"
                       if c0: "invocationOp S' r \<triangleq> (removeUser, [u])"
                         and c1: "invocationOp S' g \<triangleq> (getUser, [u])"
                         and c2: "(r, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S'(c \<mapsto> t)) (transactionOrigin S'(t \<mapsto> i))) (updateHb (happensBefore S') vis' [c])"
-                      for  r g u
+                        and c3: "invocationRes S' g \<triangleq> g_res"
+                      for  r g u g_res
                       using c0 c1
                     proof (rule old_inv1[simplified inv1_def invContextH2_i_invocationRes invContextH2_i_invocationOp, rule_format])
 
@@ -1569,6 +1581,10 @@ show "example_userbase.inv (invContext' S'e)"
                       show "(r, g) \<in> invocation_happensBefore (invContext' S')"
                         apply (auto simp add:  invocation_happensBeforeH_def  i_callOriginI_h_def updateHb_cons split: option.splits if_splits)
                         by (metis S'_wf \<open>calls S' c = None\<close> a15 option.distinct(1) wellFormed_callOrigin_dom2 wellFormed_state_callOrigin_transactionStatus)
+
+                      show "invocationRes S' g \<triangleq> g_res"
+                        using c3 .
+      
                     qed
                   qed
                   show "inv2 (invContext' S'c)"
@@ -1707,21 +1723,19 @@ show "example_userbase.inv (invContext' S'e)"
               using wf_S' wellFormed_happensBefore_calls_l by blast
 
             show "example_userbase.inv (invContext' S'b)"
-            proof (auto simp add: inv_def)
+            proof
               show "inv1 (invContext' S'b)"
               proof (auto simp add: inv1_def S'b_def S'a_def S''_def)
 
 
 
 
-
-                show "invocationRes S' g \<triangleq> NotFound"
-                  if c0: "invocationOp S' r \<triangleq> (removeUser, [u'])"
-                    and c1: "invocationOp S' g \<triangleq> (getUser, [u'])"
+                show "g_res = NotFound"
+                  if c0: "invocationOp S' r \<triangleq> (removeUser, [u])"
+                    and c1: "invocationOp S' g \<triangleq> (getUser, [u])"
                     and c2: "(r, g) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S'(c \<mapsto> t)) (transactionOrigin S'(t \<mapsto> i))) hb'"
-                  for  r g u'
-
-                  thm inv1_S'[simplified inv1_def invContextH2_i_invocationRes invContextH2_i_invocationOp, rule_format]
+                    and c3: "invocationRes S' g \<triangleq> g_res"
+                  for  r g u g_res
                   using c0 c1
                 proof (rule inv1_S'[simplified inv1_def invContextH2_i_invocationRes invContextH2_i_invocationOp, rule_format])
 
@@ -1768,7 +1782,7 @@ show "example_userbase.inv (invContext' S'e)"
                   show "(r, g) \<in> invocation_happensBefore (invContext' S')"
                     apply (auto simp add: h1 h2 invocation_happensBeforeH_def hb'_def updateHb_cons S''_def)
                     by (auto simp add: i_callOriginI_h_def otherC split: option.splits)
-
+                  show "invocationRes S' g \<triangleq> g_res" using c3 .
                 qed
               qed
 
@@ -1821,7 +1835,7 @@ show "example_userbase.inv (invContext' S'e)"
                 using a1 by (auto simp add: progr_def crdtSpec_def)
 
               show "inv (invContext' S'd)"
-              proof (auto simp add: inv_def)
+              proof 
                 show "inv1 (invContext' S'd)"
                   using `inv (invContext' S'c)`
                   by (auto simp add: inv_def inv1_def S'd_def)
@@ -1874,6 +1888,10 @@ show "example_userbase.inv (invContext' S'e)"
 
         have [simp]: "invocationOp S' i \<triangleq> (getUser, [UserId u])"
           using state_monotonicGrowth_invocationOp_i[OF S'_growth ] by simp
+
+        have [simp]: "invocationRes S' i = None"
+          by (simp add: S'_wf a8 wf_localState_noReturn)
+
 
 
         from `invariant (prog Sa) (invContext' S')`
@@ -2035,32 +2053,27 @@ show "example_userbase.inv (invContext' S'e)"
                   qed
 
                   show "example_userbase.inv (invContext' S'f)"
-                  proof (auto simp add: inv_def)
+                  proof 
                     show "inv1 (invContext' S'f)"
                       using inv1_S' apply (auto simp add: inv1_def S'f_def S'e_def hb'e_def S'd_def hb'd_def hb'_def S'b_def S'a_def updateHb_chain)
                       apply (subst(asm) updateHb_chain, force, simp)
                       apply (subst(asm) ihb_simps)
-                      apply auto
+                      by auto
 
 
-(*
-So r is a call to removeUser
-by inv2 we have a call to remove
-but this cannot be in vis, because then the result of the query ...
-this reasoning will be required later ...
+                    show "inv2 (invContext' S'f)"
+                      using inv2_S'  apply (auto simp add: inv2_def S'f_def S'e_def hb'e_def S'd_def hb'd_def hb'_def S'b_def S'a_def cong: conj_cong)
+                      apply (auto simp add: i_callOriginI_h_def split: option.splits  cong: conj_cong)
+                      by fastforce
 
-actually the problem here is much simpler, we have an unfinished call to get_user ...
+                    show "inv3 (invContext' S'f)"
+                      using inv3_S' by (auto simp add: inv3_def S'f_def S'e_def hb'e_def S'd_def hb'd_def hb'_def S'b_def S'a_def  updateHb_cons cong: conj_cong)
+                  qed
+                  hence "inv1 (invContext' S'f)" and "inv2 (invContext' S'f)" and "inv3 (invContext' S'f)"
+                    using example_userbase.inv_def by auto
 
-Solution 1: update ihb, so that it only includes completed invocations -- that would not be good for writing invariants
-Solution 2: Adapt inv1
-  a) add: "if there is a result" -- this seems like the way to go
-  b) change it to "result is not 'found'"
 
-*)
-                      find_theorems updateHb name: chain
 
-                    find_theorems  name: local
-                    sorry
 
                   have [simp]: "currentProc S'f i \<triangleq> getUserImpl"
                     by (auto simp add: S'f_def)
@@ -2079,15 +2092,40 @@ Solution 2: Adapt inv1
                     assume S'g_def: "S'g = S'f             \<lparr>localState := (localState S'f)(i := None), currentProc := (currentProc S'f)(i := None), visibleCalls := (visibleCalls S'f)(i := None),                invocationRes := invocationRes S'f(i \<mapsto> Found (stringval res_name) (stringval res))\<rparr>"
                       and  "\<forall>t. transactionStatus S'g t \<noteq> Some Uncommited"
 
+                    have [simp]: "invocationOp S'f i \<triangleq> (getUser, [UserId u])"
+                      by (auto simp add: S'f_def S'e_def S'd_def S'b_def S'a_def)
+
                     show "example_userbase.inv (invContext' S'g)"
-                      sorry
+                    proof
+                      show "inv1 (invContext' S'g)"
+                        using `inv1 (invContext' S'f)` apply (auto simp add: inv1_def S'g_def)
+                        text \<open>There cannot be a remove before, since we got the result that the user exists.\<close> 
+                      proof -
+                        fix r
+                        assume r: "invocationOp S'f r \<triangleq> (removeUser, [UserId u])"
+                          and r_hb: "(r, i) \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin S'f) (transactionOrigin S'f)) (happensBefore S'f)"
+
+                        have "\<exists>rc. i_callOriginI (invContext' S'f) rc \<triangleq> r \<and> calls (invContext' S'f) rc \<triangleq> Call users_remove [UserId u] Undef"
+                        proof (rule `inv2 (invContext' S'f)`[simplified inv2_def, rule_format])
+                          apply (auto simp add: inv2_def)
+
+                        show "False"
+
+                          sorry
+                      qed
+
+                      show "inv2 (invContext' S'g)"
+                        using `inv2 (invContext' S'f)` by (auto simp add: inv2_def S'g_def)
+                      show "inv3 (invContext' S'g)"
+                        using `inv3 (invContext' S'f)` by (auto simp add: inv3_def S'g_def)
                   qed
                 qed
               qed
             qed
+          qed
             text \<open> Now the case that the user does not exist: \<close>
             show "(checkCorrect2F ^^ 12) bot (progr, insert c vis', S'c, i)"
-              if res_False: "res \<noteq> Bool True"
+              if res_False: "res_contains \<noteq> Bool True"
                 and S'c_def: "S'c = S'b\<lparr>localState := localState S'b(i \<mapsto> \<lparr>ls_pc = 5, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>)\<rparr>"
               for  S'c
             proof (rule checkCorrect2F_step, auto simp add: getUserImpl_def lsInit_def S'c_def split: localAction.splits option.splits, unfold Def_def, rename_tac S'c)
@@ -2128,7 +2166,19 @@ Solution 2: Adapt inv1
   qed
 qed
 
+(*
+So r is a call to removeUser
+by inv2 we have a call to remove
+but this cannot be in vis, because then the result of the query ...
+this reasoning will be required later ...
 
+actually the problem here is much simpler, we have an unfinished call to get_user ...
+
+Solution 1: update ihb, so that it only includes completed invocations -- that would not be good for writing invariants
+Solution 2: Adapt inv1
+  a) add: "if there is a result" -- this seems like the way to go
+  b) change it to "result is not 'found'"
+*)
 
 
 end
