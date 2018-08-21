@@ -2168,8 +2168,13 @@ show "example_userbase.inv (invContext' S'e)"
                           by (auto simp add: cr_info_def S'f_def S'b_def S'c_def S'd_def S'e_def split: if_splits)
 
                         from `(cr, c)\<in>happensBefore S'f`
-                        have [simp]: "cr \<in> vis'"
-                          sorry
+                        have "(cr, c) \<in> updateHb (happensBefore S'a) vis' [c, ca, cb]"
+                          apply (auto simp add: S'f_def S'e_def hb'e_def S'd_def hb'd_def S'b_def hb'_def updateHb_chain)
+                          apply (subst(asm) updateHb_chain)
+                          by auto
+
+                        hence [simp]: "cr \<in> vis'"
+                          by (metis S'a_wf \<open>calls S'a ca = None\<close> \<open>calls S'a cr \<triangleq> Call users_remove [UserId u] Undef\<close> call_c_None in_sequence_cons option.distinct(1) single_invocation_correctness.updateHb_nil updateHb_cases wellFormed_happensBefore_calls_r)
 
                         text \<open>But that is not compatible with the result we got for the query:\<close>
                         from `querySpec progr users_contains_key [UserId u] (getContextH (calls S'a) (happensBefore S'a) (Some vis')) res_contains`
