@@ -5,7 +5,7 @@ begin
 
 
 
-(* ^^^^ *)
+\<comment> \<open>  ^^^^  \<close>
 
 datatype val =
   String string
@@ -89,33 +89,33 @@ schematic_goal constants_distinct2[simp]: "?P"
 
 definition sendMessageImpl :: "(localState, val) procedureImpl" where
   "sendMessageImpl ls \<equiv> [
-   (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
-   (* 1 *) NewId (\<lambda>x. (ls\<lparr>ls_t := x, ls_pc := 2\<rparr> :: localState)),
-   (* 2 *) DbOperation message_author_assign [ls_t ls, ls_from ls] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
-   (* 3 *) DbOperation message_content_assign [ls_t ls, ls_content ls] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
-   (* 4 *) DbOperation message_chat_assign [ls_t ls, ls_from ls] (\<lambda>r. ls\<lparr>ls_pc := 5\<rparr>),
-   (* 5 *) DbOperation chat_add [ls_to ls, ls_t ls] (\<lambda>r. ls\<lparr>ls_pc := 6\<rparr>),
-   (* 6 *) EndAtomic (ls\<lparr>ls_pc := 6\<rparr>),
-   (* 7 *) Return (ls_t ls)
+   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
+   \<comment> \<open>  1  \<close> NewId (\<lambda>x. (ls\<lparr>ls_t := x, ls_pc := 2\<rparr> :: localState)),
+   \<comment> \<open>  2  \<close> DbOperation message_author_assign [ls_t ls, ls_from ls] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
+   \<comment> \<open>  3  \<close> DbOperation message_content_assign [ls_t ls, ls_content ls] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
+   \<comment> \<open>  4  \<close> DbOperation message_chat_assign [ls_t ls, ls_from ls] (\<lambda>r. ls\<lparr>ls_pc := 5\<rparr>),
+   \<comment> \<open>  5  \<close> DbOperation chat_add [ls_to ls, ls_t ls] (\<lambda>r. ls\<lparr>ls_pc := 6\<rparr>),
+   \<comment> \<open>  6  \<close> EndAtomic (ls\<lparr>ls_pc := 6\<rparr>),
+   \<comment> \<open>  7  \<close> Return (ls_t ls)
    ] ! ls_pc ls"
 
 definition editMessageImpl :: "(localState, val) procedureImpl" where
   "editMessageImpl ls \<equiv> [
-   (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
-   (* 1 *) DbOperation message_exists [ls_id ls] (\<lambda>r. if r = Bool True then ls\<lparr>ls_pc := 2\<rparr> else ls\<lparr>ls_pc := 3\<rparr>),
-   (* 2 *) DbOperation message_content_assign [ls_id ls, ls_content ls] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
-   (* 3 *) EndAtomic  (ls\<lparr>ls_pc := 4\<rparr>),
-   (* 4 *) Return Undef
+   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
+   \<comment> \<open>  1  \<close> DbOperation message_exists [ls_id ls] (\<lambda>r. if r = Bool True then ls\<lparr>ls_pc := 2\<rparr> else ls\<lparr>ls_pc := 3\<rparr>),
+   \<comment> \<open>  2  \<close> DbOperation message_content_assign [ls_id ls, ls_content ls] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
+   \<comment> \<open>  3  \<close> EndAtomic  (ls\<lparr>ls_pc := 4\<rparr>),
+   \<comment> \<open>  4  \<close> Return Undef
    ] ! ls_pc ls"   
 
 definition deleteMessageImpl :: "(localState, val) procedureImpl" where
   "deleteMessageImpl ls \<equiv> [
-   (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
-   (* 1 *) DbOperation message_chat_read [ls_id ls] (\<lambda>r. ls\<lparr>ls_pc := 2, ls_c := r\<rparr>),
-   (* 2 *) DbOperation chat_remove [ls_c ls, ls_id ls] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
-   (* 3 *) DbOperation message_delete [ls_id ls] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
-   (* 4 *) EndAtomic  (ls\<lparr>ls_pc := 5\<rparr>),
-   (* 5 *) Return Undef
+   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
+   \<comment> \<open>  1  \<close> DbOperation message_chat_read [ls_id ls] (\<lambda>r. ls\<lparr>ls_pc := 2, ls_c := r\<rparr>),
+   \<comment> \<open>  2  \<close> DbOperation chat_remove [ls_c ls, ls_id ls] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
+   \<comment> \<open>  3  \<close> DbOperation message_delete [ls_id ls] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
+   \<comment> \<open>  4  \<close> EndAtomic  (ls\<lparr>ls_pc := 5\<rparr>),
+   \<comment> \<open>  5  \<close> Return Undef
    ] ! ls_pc ls"      
 
 
@@ -178,7 +178,7 @@ definition crdtSpec_message_author_read :: "val list \<Rightarrow> val operation
      \<and> (\<forall>c2\<in>callsWithOpArgs ctxt message_delete args. (c2,c1)\<in>happensBefore ctxt)))"
 
 definition is_message_updateH  where
-  (*:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where *)
+  \<comment> \<open> :: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where  \<close>
   "is_message_updateH mid c \<equiv> 
   case c of 
      Call upd (mid'#args) _ \<Rightarrow> upd \<in> {message_author_assign, message_content_assign, message_chat_assign} \<and> mid = mid' 
@@ -200,11 +200,11 @@ lemma is_message_updateH_simp4[simp]: "  \<not>is_message_updateH mid (Call upd 
   using that  by (auto simp add: is_message_updateH_def )
 
 definition message_updates :: "(callId \<rightharpoonup> val call) \<Rightarrow> val \<Rightarrow> callId set" where
-  (*:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where *)
+  \<comment> \<open> :: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where  \<close>
   "message_updates ctxt_calls mId \<equiv> {c | c call . ctxt_calls c = Some call \<and> is_message_updateH mId call}"
 
 abbreviation is_message_update :: "(val, 'b) operationContext_scheme \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where
-  (*:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where *)
+  \<comment> \<open> :: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where  \<close>
   "is_message_update ctxt c mId \<equiv> c \<in> message_updates (calls ctxt) mId "
 
 definition crdtSpec_message_exists_h :: "val list \<Rightarrow> val operationContext \<Rightarrow> bool" where
@@ -225,7 +225,7 @@ definition crdtSpec_message_exists :: "val list \<Rightarrow> val operationConte
   "crdtSpec_message_exists args ctxt res \<equiv> 
   res = Bool (crdtSpec_message_exists_h args ctxt)"
 
-(* ignores map-deletes as they are not used *)
+\<comment> \<open>  ignores map-deletes as they are not used  \<close>
 definition crdtSpec_chat_contains_h :: "val list \<Rightarrow> val operationContext \<Rightarrow> bool" where
   "crdtSpec_chat_contains_h args ctxt \<equiv> 
   (callsWithOpArgs ctxt chat_add args \<noteq> {})
@@ -243,7 +243,7 @@ definition crdtSpec :: "operation \<Rightarrow> val list \<Rightarrow> val opera
   else if oper = chat_contains then crdtSpec_chat_contains
   else if oper = message_exists then crdtSpec_message_exists
   else 
-    (* other operations are updates and don't have a result *)
+    \<comment> \<open>  other operations are updates and don't have a result  \<close>
     (\<lambda>args ctxt res. res = Undef)"
 
 
@@ -333,7 +333,7 @@ definition initialStates :: "('localState, 'any) prog \<Rightarrow> invocation \
   \<and> procedure progr procName args \<triangleq> (initState, impl)  
   \<and> uniqueIdsInList args \<subseteq> knownIds S
   \<and> invariant_all S
-  \<and> state_wellFormed S (*  TODO add wellformed? *)
+  \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
   \<and> invocationOp S i = None
 }"
 *)
@@ -1022,7 +1022,7 @@ proof (rule show_correctness_via_single_session)
             proof (cases "{c,ca} \<subseteq> visa")
               case False
               with c14
-              have [simp]: "c \<notin> visa" and [simp]: "ca \<notin> visa" (* all or nothing *)
+              have [simp]: "c \<notin> visa" and [simp]: "ca \<notin> visa" \<comment> \<open>  all or nothing  \<close>
                  apply (auto simp add: consistentSnapshotH_def )
                  apply (smt fun_upd_other fun_upd_same transactionConsistent_def)
                 apply (smt fun_upd_other fun_upd_same transactionConsistent_def)
@@ -1093,7 +1093,7 @@ proof (rule show_correctness_via_single_session)
                         cong: conj_cong)
                    by metis+
 
-                 (*from `inv2 (invContextVis S' (visa - {c,ca}))`*)
+                 \<comment> \<open> from `inv2 (invContextVis S' (visa - {c,ca}))` \<close>
                  show "inv2 ?state"
                  proof (auto simp add: inv2_def)
                    fix m

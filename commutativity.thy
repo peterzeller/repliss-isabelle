@@ -663,7 +663,7 @@ lemma precondition_return:
   done
 
 lemma precondition_fail:
-  "precondition (s, AFail) C = (\<exists>ls. localState C s \<triangleq> ls)" (* failures occur wherever something is running ;) *)
+  "precondition (s, AFail) C = (\<exists>ls. localState C s \<triangleq> ls)" \<comment> \<open>  failures occur wherever something is running ;)  \<close>
   apply (auto simp add: precondition_def intro: step.intros elim!: step_elims)
   done
 
@@ -1425,7 +1425,7 @@ next
 next
   case (ABeginAtomic tx txns)
   hence a_def[simp]: "a = ABeginAtomic tx txns" .
-      (*  case (APull txns) *)
+      \<comment> \<open>   case (APull txns)  \<close>
   show ?thesis
   proof (induct rule: show_commutativeS_pres2)
     case (preBfront s1)
@@ -1453,7 +1453,7 @@ next
     show "s2 = s2'" 
       apply (subst state_ext)
       using a2 step1 step2 step3 step4  
-      by (auto simp add: a1[symmetric] step_simps wellFormed_visibleCallsSubsetCalls2  split: if_splits) (* takes long*)
+      by (auto simp add: a1[symmetric] step_simps wellFormed_visibleCallsSubsetCalls2  split: if_splits) \<comment> \<open>  takes long \<close>
   qed
 qed
 
@@ -1529,7 +1529,7 @@ proof (rule useCommutativeS)
   next
     case (AInvoc x71 x72)
     then show ?thesis 
-      (*apply (auto simp add: commutativeS_def steps_appendFront step_simps a_is_in_transaction wellFormed_invoc_notStarted)*)
+      \<comment> \<open> apply (auto simp add: commutativeS_def steps_appendFront step_simps a_is_in_transaction wellFormed_invoc_notStarted) \<close>
       apply (auto simp add: commutativeS_def steps_appendFront)
        apply (metis a_is_in_transaction local.wf option.distinct(1) preconditionI precondition_invoc wellFormed_invoc_notStarted(1))
       by (metis a_is_in_transaction b_is_a_different_session local.wf option.distinct(1) preconditionI precondition_invoc unchangedInTransaction(5) wellFormed_invoc_notStarted(1))
@@ -1595,7 +1595,7 @@ proof -
       using ABeginAtomic by (auto simp add: step_simps split: if_splits)
 
   next
-    case AEndAtomic (* this is not commutative, since the transaction committed could be included in ht next snapshot*)
+    case AEndAtomic \<comment> \<open>  this is not commutative, since the transaction committed could be included in ht next snapshot \<close>
     thus ?thesis
       using no_end_atomic by auto 
   next
@@ -1639,7 +1639,7 @@ qed
 
 
 
-(* todo and now move everything out of transactions ... *)
+\<comment> \<open>  todo and now move everything out of transactions ...  \<close>
 
 lemma show_programCorrect:
   assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s \<rbrakk> \<Longrightarrow> traceCorrect trace"
@@ -1838,7 +1838,7 @@ proof
 
   thus "s_init ~~ trStart @ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C"
     using \<open>s_init ~~ trStart \<leadsto>* S_mid\<close> steps_append2 by blast
-next \<comment> \<open>Other direction is very similar: \<close>
+next \<comment> \<open>Other direction is very similar:\<close>
   assume "s_init ~~ trStart @ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C"
   with steps_append 
   obtain S_mid where "s_init ~~ trStart \<leadsto>* S_mid" and "S_mid ~~ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C"
@@ -1891,7 +1891,7 @@ lemma transactionIsPackedMeasure_zero_iff:
   "transactionIsPackedMeasure tr tx = 0 \<longleftrightarrow>  transactionIsPacked tr tx" 
   by (auto simp add: transactionIsPackedMeasure_def transactionIsPacked_def)
 
-(* this is an alternative definition, which might be easier to work with in some cases *)
+\<comment> \<open>  this is an alternative definition, which might be easier to work with in some cases  \<close>
 definition transactionIsPackedAlt :: "'any trace \<Rightarrow> txid \<Rightarrow> bool" where
   "transactionIsPackedAlt tr tx \<equiv> 
   if \<exists>i s ntxns. i < length tr \<and> tr!i = (s, ABeginAtomic tx ntxns) then
@@ -2210,7 +2210,7 @@ lemma transactionIsPacked_show:
     and endAtomic2: "tr!endAtomic = (s, AEndAtomic)"
     and a1: "\<forall>i. beginAtomic \<le> i \<and> i \<le> endAtomic \<longrightarrow> fst (tr ! i) = s"
   shows "transactionIsPacked tr tx"
-    (* by (smt a1 beginAtomic1 beginAtomic2 endAtomic1 endAtomic2 fst_conv indexInOtherTransaction_def leI less_imp_le_nat less_trans steps transactionIdsUnique transactionIsPacked_def) *)
+    \<comment> \<open>  by (smt a1 beginAtomic1 beginAtomic2 endAtomic1 endAtomic2 fst_conv indexInOtherTransaction_def leI less_imp_le_nat less_trans steps transactionIdsUnique transactionIsPacked_def)  \<close>
 proof (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
   fix k i s' ntxns
   assume b0: "k < length tr"
@@ -2241,10 +2241,10 @@ lemma transactionIsPacked_from_sublist:
   shows "transactionIsPacked tr tx" 
   using packed split
   apply (auto simp add: transactionIsPacked_def)
-  oops (* TODO needs more restrictive definition of transactionIsPacked *)
+  oops \<comment> \<open>  TODO needs more restrictive definition of transactionIsPacked  \<close>
 
 
-(* the set of transactions occurring in the trace *)    
+\<comment> \<open>  the set of transactions occurring in the trace  \<close>    
 definition traceTransactions :: "'any trace \<Rightarrow> txid set" where
   "traceTransactions tr \<equiv> {tx | s tx txns. (s, ABeginAtomic tx txns) \<in> set tr}"
 
@@ -2265,18 +2265,18 @@ it appears.
 *}
 
 
-(* checks if sessions s is in a transaction at position i in trace tr *)
+\<comment> \<open>  checks if sessions s is in a transaction at position i in trace tr  \<close>
 definition inTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocation \<Rightarrow> bool"  where 
   "inTransaction tr i s \<equiv>
   \<exists>j. j\<le>i \<and> i<length tr \<and> (\<exists>t txns. tr!j = (s, ABeginAtomic t txns))
      \<and> (\<forall>k. j<k \<and> k < length tr \<and> k\<le>i \<longrightarrow> tr!k \<noteq> (s, AEndAtomic))
 "
 
-(* returns the set of all transactions, which are in a transaction at point i in the trace*)
+\<comment> \<open>  returns the set of all transactions, which are in a transaction at point i in the trace \<close>
 definition sessionsInTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocation set"  where 
   "sessionsInTransaction tr i \<equiv> {s. inTransaction tr i s}"
 
-(* counts how many concurrent transactions are active *)
+\<comment> \<open>  counts how many concurrent transactions are active  \<close>
 definition transactionsArePackedMeasure :: "'any trace \<Rightarrow> nat" where
   "transactionsArePackedMeasure tr \<equiv> 
 \<Sum>i\<in>{..<length tr}. card (sessionsInTransaction tr i - {fst (tr!i)})  "
@@ -2410,7 +2410,7 @@ lemma transactionsArePackedMeasure_iff:
   apply (drule_tac x=s in spec)
   apply auto
   by (metis antisym_conv2 less_imp_le_nat prod.collapse prod.inject)
-    (* TODO nicer proof*)
+    \<comment> \<open>  TODO nicer proof \<close>
 
 lemma not_packed_example:
   assumes notPacked: "\<not>transactionsArePacked tr"
@@ -2534,7 +2534,7 @@ proof -
 
 
   have "tr = trStart @ (s, ABeginAtomic tx txns) # txa @ (tr!min_i) # rest"
-    (* this proof should be easier ... *)
+    \<comment> \<open>  this proof should be easier ...  \<close>
     apply (auto simp add: trStart_def txa_def rest_def append_eq_conv_conj2 cons_eq_conv_conj)
     using j_len apply auto[1]
      apply (simp add: hd_drop_conv_nth j1 less_imp_le_nat min.absorb2 tr_j)
@@ -2574,7 +2574,7 @@ proof -
 
 
 
-    { (* First consider the case where we have an earlier AEndAtomic for s *)
+    { \<comment> \<open>  First consider the case where we have an earlier AEndAtomic for s  \<close>
       assume "(txa ! otherI) = (s, AEndAtomic)"
       with noEndAtomic
       have "False"
@@ -2583,7 +2583,7 @@ proof -
     }
     note case_endAtomic = this
 
-    { (* Next, we consider the case where txa contains an action from a different invocation*)
+    { \<comment> \<open>  Next, we consider the case where txa contains an action from a different invocation \<close>
       assume differentSession: "fst (txa ! otherI) \<noteq> s"
 
       define s' where s'_def: "s' = fst (txa ! otherI)"
@@ -2684,7 +2684,7 @@ proof -
 
 
   have "tr = trStart @ (s, ABeginAtomic tx txns) # txa @ (tr!min_i) # rest"
-    (* this proof should be easier ... *)
+    \<comment> \<open>  this proof should be easier ...  \<close>
     apply (auto simp add: trStart_def txa_def rest_def append_eq_conv_conj2 cons_eq_conv_conj)
     using j1 apply auto[1]
      apply (simp add: hd_drop_conv_nth j1 less_imp_le_nat min.absorb2 tr_j)
@@ -2724,7 +2724,7 @@ proof -
 
 
 
-    { (* First consider the case where we have an earlier AEndAtomic for s *)
+    { \<comment> \<open>  First consider the case where we have an earlier AEndAtomic for s  \<close>
       assume "(txa ! otherI) = (s, AEndAtomic)"
       with noEndAtomic
       have "False"
@@ -2733,7 +2733,7 @@ proof -
     }
     note case_endAtomic = this
 
-    { (* Next, we consider the case where txa contains an action from a different invocation*)
+    { \<comment> \<open>  Next, we consider the case where txa contains an action from a different invocation \<close>
       assume differentSession: "fst (txa ! otherI) \<noteq> s"
 
       define s' where s'_def: "s' = fst (txa ! otherI)"
@@ -2907,7 +2907,7 @@ lemma context_switches_in_packed:
     and split_tr: "tr = tr1@[(s,a),(s',a')]@tr2"
     and differentSession: "s \<noteq> s'"
   shows "allowed_context_switch a'"
-    (*"(\<exists>tx txns. a' = ABeginAtomic tx txns) \<or> (\<exists>p ar. a' = AInvoc p ar)"*)
+    \<comment> \<open> "(\<exists>tx txns. a' = ABeginAtomic tx txns) \<or> (\<exists>p ar. a' = AInvoc p ar)" \<close>
 proof -
   have "a' = snd(tr!(1+length tr1))"
     using split_tr by (auto simp add: nth_append)
@@ -3371,7 +3371,7 @@ lemma pack_trace_for_one_session:
         \<and> (\<forall>s. (s, AFail) \<notin> set tr')
         \<and> (\<forall>s a. (s,a)\<in>set tr' \<longrightarrow> \<not>is_AInvcheck a)"
   text {* By induction over the minimal index that is not packed.*}
-    (* I could not figure out how to write this down as an induction over the minimum, so I reversed it and made it an induction over the maximum. *)
+    \<comment> \<open>  I could not figure out how to write this down as an induction over the minimum, so I reversed it and made it an induction over the maximum.  \<close>
   using steps noFail noInvcheck        
 proof (induct "max_natset {length tr - i  | i.
         0<i 
@@ -4278,7 +4278,7 @@ proof -
     
 qed
 
-(* TODO *)
+\<comment> \<open>  TODO  \<close>
 lemma remove_DBOp_step: 
   fixes S_start S_end :: "('ls,'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
@@ -5085,7 +5085,7 @@ lemma move_invariant_checks_out_of_transactions:
           by (metis (full_types) Suc_1 Suc_diff_Suc Suc_le_lessD \<open>2 \<le> length trace\<close> action_def diff_less less.prems(4) less.prems(6) less.prems(7) lessI nth_mem zero_less_numeral)
       qed
       show ?thesis
-      proof (rule less.hyps) (* USE induction hypothesis*)
+      proof (rule less.hyps) \<comment> \<open>  USE induction hypothesis \<close>
         from `S1 ~~ (s, AInvcheck False) \<leadsto> S1`
         show " initialState program ~~ take (length trace - 2) trace @ [(s, AInvcheck False)] \<leadsto>* S1"
           using steps_S1 steps_step by blast
@@ -5147,7 +5147,7 @@ lemma move_invariant_checks_out_of_transactions:
       define new_s where "new_s = fst(trace ! (length trace - 3))" 
 
       show ?thesis
-      proof (rule less.hyps) (* USE induction hypothesis*)
+      proof (rule less.hyps) \<comment> \<open>  USE induction hypothesis \<close>
         from `S1 ~~ (new_s, AInvcheck False) \<leadsto> S1`
         show " initialState program ~~ take (length trace - 2) trace @ [(new_s, AInvcheck False)] \<leadsto>* S1"
           using steps_S1 steps_step by blast
@@ -5206,7 +5206,7 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
   proof (rule ccontr)
     assume a: "\<not> traceCorrect trace"
 
-    (* get the first failing invariant check *)
+    \<comment> \<open>  get the first failing invariant check  \<close>
     obtain i 
       where i1: "\<exists>s. trace ! i = (s, AInvcheck False)"
         and i2: "i < length trace"
@@ -5222,9 +5222,9 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
 
 
     show "False"
-    proof (cases "\<exists>ib (*s*) tx txns. trace!ib = (s, ABeginAtomic tx txns) \<and> ib < i \<and> (\<forall>j. ib<j \<and> j<i \<longrightarrow> trace!j \<noteq> (s, AEndAtomic))")
+    proof (cases "\<exists>ib \<comment> \<open> s \<close> tx txns. trace!ib = (s, ABeginAtomic tx txns) \<and> ib < i \<and> (\<forall>j. ib<j \<and> j<i \<longrightarrow> trace!j \<noteq> (s, AEndAtomic))")
       case False
-        (* if it is not in a transaction: remove all others and use packedTracesCorrect  *)
+        \<comment> \<open>  if it is not in a transaction: remove all others and use packedTracesCorrect   \<close>
 
       have trace_split: "trace = take i trace @ trace!i # drop (Suc i) trace"
         by (simp add: \<open>i < length trace\<close> id_take_nth_drop)
@@ -5412,7 +5412,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
         apply (erule meta_mp)
         using less_imp_le order_trans by blast
 
-(* get new trace by removing action at pos *)
+\<comment> \<open>  get new trace by removing action at pos  \<close>
       define newTrace where "newTrace = take pos trace' @ drop (Suc pos) trace'"
 
       have newTraceLen: "length newTrace = length trace' - 1"
@@ -5427,7 +5427,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 
       have IH: " \<lbrakk>Greatest (induct_measure trace) < Greatest (induct_measure trace'); \<exists>S. initialState program ~~ trace \<leadsto>* S; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk>
      \<Longrightarrow> traceCorrect trace" for trace
-        using less.hyps   by auto (* TODO prove no_invariant_checks_in_transaction trace'*)
+        using less.hyps   by auto \<comment> \<open>  TODO prove no_invariant_checks_in_transaction trace' \<close>
 
 
       have "traceCorrect newTrace"
@@ -5643,7 +5643,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
           next
             case (AInvoc x61 x62)
 
-            (* We already have an beginAtomic before, so we already have an invocation*)
+            \<comment> \<open>  We already have an beginAtomic before, so we already have an invocation \<close>
             have "invocationOp S_pos invoc \<noteq> None"
               using AInvoc S_pos_step' S_pos_steps S_pos_wf \<open>j \<le> pos\<close> \<open>pos < length trace'\<close> currentTransaction dual_order.strict_trans le_eq_less_or_eq length_take less.prems(3) local.beginAtomic min.absorb2 noEndAtomic nth_mem nth_take option.simps(3) pos_action_def preconditionI precondition_beginAtomic precondition_invoc wellFormed_invoc_notStarted(1)
               by (smt action.simps(42) inTransaction_trace less.prems(1) prod.inject)
@@ -5697,7 +5697,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
           qed
         qed
 
-(* because no inv-checks in transaction *)
+\<comment> \<open>  because no inv-checks in transaction  \<close>
       have removedNoInvCheck: "snd (trace'!pos) \<noteq> AInvcheck v" for v
         find_theorems trace'
         using `no_invariant_checks_in_transaction trace'`
@@ -6084,7 +6084,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
 
 
 
-  (* we are still in a transaction: *)
+  \<comment> \<open>  we are still in a transaction:  \<close>
   obtain tx 
     where currentTx: "currentTransaction S_j_min_pre invoc \<triangleq> tx"
     by (smt \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> a0 a1 a3 a4_min a5_min append_take_drop_id currentTransaction length_take less_imp_le less_le_trans min.absorb2 noFail nth_append_first nth_mem)
@@ -6100,7 +6100,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
     by (auto simp add: step.simps currentTx)
 
 
-  (* there must be an endAtomic for the beginAtomic  *)
+  \<comment> \<open>  there must be an endAtomic for the beginAtomic   \<close>
   from `allTransactionsEnd tr` 
   obtain i_end 
     where "tr!i_end = (invoc, AEndAtomic)" and "i_end \<ge> k" and "i_end \<le> length tr"
@@ -6108,7 +6108,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
     by (smt a0 a1 a3 a4 a5 dual_order.order_iff_strict dual_order.strict_trans not_less_eq not_less_less_Suc_eq)
 
 
-  (* this means, we must go back to invoc. Take the first index where we go back to invoc *)
+  \<comment> \<open>  this means, we must go back to invoc. Take the first index where we go back to invoc  \<close>
   from this
   obtain back_min 
     where "back_min > j_min"
@@ -6125,7 +6125,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
       by (smt \<open>back_min \<le> length tr\<close> \<open>j_min < back_min\<close> a1 a3 a4_min a5_min allTransactionsEnd_def assms(2) back_min_min dual_order.strict_trans fst_conv le_neq_implies_less not_le_imp_less)
 
 
-  (* this must be a valid context switch, since it is the first to change back *)
+  \<comment> \<open>  this must be a valid context switch, since it is the first to change back  \<close>
   from `packed_trace tr`
   have "allowed_context_switch (snd (tr ! back_min))"
   proof (rule use_packed_trace)
@@ -6143,7 +6143,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
       by (auto simp add: `fst (tr!back_min) = invoc`)
   qed
 
-  (* but since we are already in a transaction, that cannot work  *)
+  \<comment> \<open>  but since we are already in a transaction, that cannot work   \<close>
 
   have "drop (Suc j_min) tr = take (back_min - Suc j_min) (drop (Suc j_min) tr) @ drop back_min tr"
     by (auto simp add: Suc_leI \<open>back_min \<le> length tr\<close> \<open>j_min < back_min\<close> min.absorb2 min_diff nth_append add.commute intro: nth_equalityI)
@@ -6206,7 +6206,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
 
 
 
-  (* a contradiction *)
+  \<comment> \<open>  a contradiction  \<close>
   with `S_back_min_pre ~~ tr!back_min \<leadsto> S_back_min`
     and `allowed_context_switch (snd (tr ! back_min))`
     and \<open>fst (tr ! back_min) = invoc\<close>

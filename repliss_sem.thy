@@ -91,7 +91,7 @@ record ('localState, 'any) distributed_state = "'any operationContext" +
   prog :: "('localState, 'any) prog"
   callOrigin :: "callId \<rightharpoonup> txid"
   transactionOrigin :: "txid \<rightharpoonup> invocation"
-  generatedIds :: "'any \<rightharpoonup> invocation" (* unique identifiers and which invocation generated them*)
+  generatedIds :: "'any \<rightharpoonup> invocation" \<comment> \<open>  unique identifiers and which invocation generated them \<close>
   knownIds :: "'any set"
   invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
   invocationRes :: "invocation \<rightharpoonup> 'any"
@@ -470,7 +470,7 @@ proof auto
     by (simp add: downwardsClosure.downwardsClosure_include)
 qed
 
-(* we can calculate downwards closure by using the transitive closure and filtering *)
+\<comment> \<open>  we can calculate downwards closure by using the transitive closure and filtering  \<close>
 lemma dc_def3[code]: "(S\<down>R) = S \<union> fst ` Set.filter (\<lambda>(x,y). y\<in>S) (R\<^sup>+)"
 apply (subst dc_def2)
 apply auto
@@ -487,7 +487,7 @@ lemma downwardsClosure_subset2:
 
 
   
-(* example *)  
+\<comment> \<open>  example  \<close>  
 lemma "{5::int, 9} \<down> {(3,5),(2,3),(4,9)} = {2,3,4,5,9}"
 apply eval
 done
@@ -518,7 +518,7 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocatio
    currentProc C s \<triangleq> f; 
    f ls = NewId ls';
    generatedIds C uid = None;
-   uniqueIds uid = {uid}; (* there is exactly one unique id *)
+   uniqueIds uid = {uid}; \<comment> \<open>  there is exactly one unique id  \<close>
    ls' uid \<triangleq> ls''
    \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls''), 
                                    generatedIds := (generatedIds C)(uid \<mapsto> s)  \<rparr>)"   
@@ -529,11 +529,11 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocatio
    currentTransaction C s = None;   
    transactionStatus C t = None;
    visibleCalls C s \<triangleq> vis;
-   (* choose a set of commited transactions to add to the snapshot *)
+   \<comment> \<open>  choose a set of commited transactions to add to the snapshot  \<close>
    newTxns \<subseteq> commitedTransactions C;
-   (* determine new visible calls: downwards-closure wrt. causality  *)
+   \<comment> \<open>  determine new visible calls: downwards-closure wrt. causality   \<close>
    newCalls = callsInTransaction C newTxns \<down> happensBefore C;
-   (* transaction snapshot *)
+   \<comment> \<open>  transaction snapshot  \<close>
    snapshot = vis \<union> newCalls
    \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t newTxns) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls'), 
                 currentTransaction := (currentTransaction C)(s \<mapsto> t),
@@ -563,7 +563,7 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocatio
                 happensBefore := happensBefore C \<union> vis \<times> {c}  \<rparr>)"                
 
 | invocation:
-  "\<lbrakk>localState C s = None; (* TODO this might not be necessary *)
+  "\<lbrakk>localState C s = None; \<comment> \<open>  TODO this might not be necessary  \<close>
    procedure (prog C) procName args \<triangleq> (initialState, impl);
    uniqueIdsInList args \<subseteq> knownIds C;
    invocationOp C s = None
@@ -587,7 +587,7 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocatio
                  currentTransaction := (currentTransaction C)(s := None),
                  currentProc := (currentProc C)(s := None),
                  visibleCalls := (visibleCalls C)(s := None) \<rparr>)"                  
-| invCheck: (* checks a snapshot*)
+| invCheck: \<comment> \<open>  checks a snapshot \<close>
   "\<lbrakk>invariant (prog C) (invContext C) = res
    \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto> C"   
 
@@ -642,7 +642,7 @@ inductive steps :: "('localState, 'any::valueType) state \<Rightarrow> (invocati
   "\<lbrakk>S ~~ tr \<leadsto>* S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> S ~~ tr@[a] \<leadsto>* S''"
 
 
-(* with a given trace, the execution is deterministic *)
+\<comment> \<open>  with a given trace, the execution is deterministic  \<close>
 lemma stepDeterministic:
   assumes e1: "S ~~ tr \<leadsto> Sa" 
     and e2: "S ~~ tr \<leadsto> Sb"

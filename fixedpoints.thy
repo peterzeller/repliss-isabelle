@@ -84,7 +84,7 @@ lemma iterate_to_lfp:
   shows "lfp f x"
   by (metis (mono_tags, lifting) Kleene_iter_lpfp assms(1) assms(2) lfp_greatest rev_predicate1D)
 
-(* the function f only depends on finitely many values *)
+\<comment> \<open>  the function f only depends on finitely many values  \<close>
 definition finite_branching :: "(('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool) \<Rightarrow> bool" where
 "finite_branching f \<equiv> \<forall>f' x. f f' x \<longrightarrow> (\<exists>S. finite S \<and> (\<forall>f''. (\<forall>x\<in>S. f'' x = f' x) \<longrightarrow> f f'' x))"
 
@@ -502,7 +502,7 @@ end
 
 
 
-(* if result is false, result depends on a set S of recursive calls -- result is determined by checking conjunction of all recursive calls *)
+\<comment> \<open>  if result is false, result depends on a set S of recursive calls -- result is determined by checking conjunction of all recursive calls  \<close>
 definition tailrec :: "(('a \<Rightarrow> bool) \<Rightarrow> ('a \<Rightarrow> bool)) \<Rightarrow> bool" where
 "tailrec F \<equiv> \<forall>g x. \<not>F g x \<longrightarrow> (\<exists>S. \<forall>g'. F g' x \<longleftrightarrow> (\<forall>x'\<in>S. g' x'))"
 

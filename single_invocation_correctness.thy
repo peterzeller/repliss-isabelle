@@ -115,13 +115,13 @@ qed
 
 
 
-(* TODO remove? *)
+\<comment> \<open>  TODO remove?  \<close>
 abbreviation invariant_all' :: "('localState, 'any) state \<Rightarrow> bool" where
 "invariant_all' state \<equiv>  invariant (prog state) (invContext' state)"
 
 
 
-(* check program (with a given start-state, bound by a number of steps) *)
+\<comment> \<open>  check program (with a given start-state, bound by a number of steps)  \<close>
 definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool) 
                            \<Rightarrow> ('localState, 'any) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool" where
 "checkCorrectF \<equiv> (\<lambda>checkCorrect' (progr, S, i).
@@ -490,7 +490,7 @@ proof -
       by (metis append_take_drop_id steps_s_append_simp)
 
 
-(* get Sb so that S Sa Sb S*)
+\<comment> \<open>  get Sb so that S Sa Sb S \<close>
     from steps_until_after_j
     have "Sa ~~ (i, (take (j-1) (tl trace))@[trace!j]) \<leadsto>\<^sub>S* Sc"
       by (metis \<open>j \<noteq> 0\<close> drop_Nil drop_eq_Nil hd_drop_conv_nth leD take_eq_Nil take_hd_drop take_tl tl_append2 tl_take traceLen)
@@ -639,7 +639,7 @@ lemma invContextH_same_allCommitted':
      apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf3)
     apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf4)
    apply (metis (full_types) noUncommitted option.exhaust_sel transactionStatus.exhaust wf2)
-(* does not work, because now I have transaction origin leaked *)
+\<comment> \<open>  does not work, because now I have transaction origin leaked  \<close>
   oops
 
 
@@ -787,7 +787,7 @@ next
         using initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre that tx1 by fastforce
 
       from S_pre_correct tr_correct step_final  
-      have "a_inv = True" (*and "checkCorrect program S_fin i (bound - length trace)" *)
+      have "a_inv = True" \<comment> \<open> and "checkCorrect program S_fin i (bound - length trace)"  \<close>
         apply (subst(asm) checkCorrect_simps)
         using `state_wellFormed S_fin` invContext_same_allCommitted[OF `state_wellFormed S_fin`]
         by (auto simp add: tx1 step_s.simps Let_def hasInvocation onlyOneTx split: option.splits if_splits)
@@ -826,7 +826,7 @@ next
 
 
       from S_pre_correct tr_correct step_final  
-      have "a_inv = True" (*and "checkCorrect program S_fin i (bound - length trace)" *)
+      have "a_inv = True" \<comment> \<open> and "checkCorrect program S_fin i (bound - length trace)"  \<close>
         apply (subst(asm) checkCorrect_simps)
         using \<open>state_wellFormed S_fin\<close> invContextSimp apply (auto simp add: onlyOneTx step_s.simps Let_def hasInvocation invContextSimp None split: option.splits if_splits)
         apply (subst(asm) invContextH_same_allCommitted)
@@ -1443,7 +1443,7 @@ definition Def (infix "::=" 50) where
 definition DefSome (infix "::\<triangleq>" 50) where
 "x ::\<triangleq> y \<equiv> y = Some x"
 
-(* check program (with a given start-state, bound by a number of steps) *)
+\<comment> \<open>  check program (with a given start-state, bound by a number of steps)  \<close>
 definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool) 
                            \<Rightarrow> ('localState, 'any) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool" where
 "checkCorrect2F \<equiv> (\<lambda>checkCorrect' (progr, txCalls, S, i).
@@ -1466,7 +1466,7 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
               \<and> state_wellFormed S'
               \<and> state_wellFormed S''
               \<and> state_monotonicGrowth i S S'
-               (* transactions in current invocation unchanged:  *)
+               \<comment> \<open>  transactions in current invocation unchanged:   \<close>
               \<and> (\<forall>t . transactionOrigin S t \<triangleq> i \<longleftrightarrow> transactionOrigin S' t \<triangleq> i)
               \<and> localState S' i \<triangleq> ls
               \<and> currentProc S' i \<triangleq> impl
@@ -1794,7 +1794,7 @@ next
           by (simp add: state_monotonicGrowth_transactionStatus)
         with `transactionStatus S' t = None`
         have "transactionStatus S t = None"
-          by (simp add: less_eq_option_None_is_None) (*EXTRACT*)
+          by (simp add: less_eq_option_None_is_None) \<comment> \<open> EXTRACT \<close>
           
 
 
@@ -2136,7 +2136,7 @@ definition initialStates' :: "('localState, 'any::valueType) prog \<Rightarrow> 
   \<and> procedure progr procName args \<triangleq> (initState, impl)  
   \<and> uniqueIdsInList args \<subseteq> knownIds S
   \<and> invariant_all' S
-  \<and> state_wellFormed S (*  TODO add wellformed? *)
+  \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
   \<and> invocationOp S i = None
   \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommited)
   \<and> (\<forall>tx. transactionOrigin S tx \<noteq> Some i)

@@ -22,7 +22,7 @@ definition initialStates :: "('localState, 'any::valueType) prog \<Rightarrow> i
   \<and> procedure progr procName args \<triangleq> (initState, impl)  
   \<and> uniqueIdsInList args \<subseteq> knownIds S
   \<and> invariant_all S
-  \<and> state_wellFormed S (*  TODO add wellformed? *)
+  \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
   \<and> invocationOp S i = None
   \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommited)
   \<and> (\<forall>tx. transactionOrigin S tx \<noteq> Some i)
@@ -160,7 +160,7 @@ next
   qed
 qed
 
-(* TODO could use lemma state_wellFormed_s_to_wf above to simplify lemmas below*)
+\<comment> \<open>  TODO could use lemma state_wellFormed_s_to_wf above to simplify lemmas below \<close>
 
 lemma wf_s_localState_to_invocationOp:
   "\<lbrakk>state_wellFormed_s S i; localState S i \<noteq> None\<rbrakk> \<Longrightarrow> invocationOp S i \<noteq> None"

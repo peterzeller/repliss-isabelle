@@ -5,7 +5,7 @@ begin
 
 
 
-(* ^^^^ *)
+\<comment> \<open>  ^^^^  \<close>
 
 datatype val =
   String string
@@ -55,7 +55,7 @@ definition lsInit :: "localState" where
   invariant :: "'any invariantContext \<Rightarrow> bool"
 *)
 
-(* define used names, to avoid typos and to help Isabelle*)
+\<comment> \<open>  define used names, to avoid typos and to help Isabelle \<close>
 
 definition "users_name_assign \<equiv> ''users_name_assign''"
 definition "users_mail_assign \<equiv> ''users_mail_assign''"
@@ -159,41 +159,41 @@ find_consts "val \<Rightarrow> bool"
 
 definition registerUserImpl :: "(localState, val) procedureImpl" where
   "registerUserImpl ls \<equiv> pickLine ls [
-   (* 0 *) NewId (\<lambda>x. if isUserId x then Some (ls\<lparr>ls_u := x, ls_pc := 1\<rparr> :: localState) else None),
-   (* 1 *) BeginAtomic (ls\<lparr>ls_pc := 2\<rparr>),
-   (* 2 *) DbOperation users_name_assign [ls_u ls, String (ls_name ls)] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
-   (* 3 *) DbOperation users_mail_assign [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
-   (* 4 *) EndAtomic (ls\<lparr>ls_pc := 5\<rparr>),
-   (* 5 *) Return (ls_u ls)
+   \<comment> \<open>  0  \<close> NewId (\<lambda>x. if isUserId x then Some (ls\<lparr>ls_u := x, ls_pc := 1\<rparr> :: localState) else None),
+   \<comment> \<open>  1  \<close> BeginAtomic (ls\<lparr>ls_pc := 2\<rparr>),
+   \<comment> \<open>  2  \<close> DbOperation users_name_assign [ls_u ls, String (ls_name ls)] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
+   \<comment> \<open>  3  \<close> DbOperation users_mail_assign [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
+   \<comment> \<open>  4  \<close> EndAtomic (ls\<lparr>ls_pc := 5\<rparr>),
+   \<comment> \<open>  5  \<close> Return (ls_u ls)
    ]"
 
 definition updateMailImpl :: "(localState, val) procedureImpl" where
   "updateMailImpl ls \<equiv> pickLine ls [
-   (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
-   (* 1 *) DbOperation users_contains_key [ls_u ls] (\<lambda>r. ls\<lparr>ls_exists := (r = Bool True), ls_pc := 2 \<rparr>),
-   (* 2 *) LocalStep (if ls_exists ls then ls\<lparr>ls_pc := 3\<rparr> else ls\<lparr>ls_pc := 4\<rparr> ),
-   (* 3 *) DbOperation users_mail_assign [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
-   (* 4 *) EndAtomic  (ls\<lparr>ls_pc := 5\<rparr>),
-   (* 5 *) Return Undef
+   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
+   \<comment> \<open>  1  \<close> DbOperation users_contains_key [ls_u ls] (\<lambda>r. ls\<lparr>ls_exists := (r = Bool True), ls_pc := 2 \<rparr>),
+   \<comment> \<open>  2  \<close> LocalStep (if ls_exists ls then ls\<lparr>ls_pc := 3\<rparr> else ls\<lparr>ls_pc := 4\<rparr> ),
+   \<comment> \<open>  3  \<close> DbOperation users_mail_assign [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
+   \<comment> \<open>  4  \<close> EndAtomic  (ls\<lparr>ls_pc := 5\<rparr>),
+   \<comment> \<open>  5  \<close> Return Undef
    ]"   
 
 definition removeUserImpl :: "(localState, val) procedureImpl" where
   "removeUserImpl ls \<equiv> pickLine ls [
-   (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
-   (* 1 *) DbOperation users_remove [ls_u ls] (\<lambda>r. ls\<lparr>ls_pc := 2 \<rparr>),
-   (* 2 *) EndAtomic  (ls\<lparr>ls_pc := 3\<rparr>),
-   (* 3 *) Return Undef
+   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
+   \<comment> \<open>  1  \<close> DbOperation users_remove [ls_u ls] (\<lambda>r. ls\<lparr>ls_pc := 2 \<rparr>),
+   \<comment> \<open>  2  \<close> EndAtomic  (ls\<lparr>ls_pc := 3\<rparr>),
+   \<comment> \<open>  3  \<close> Return Undef
    ]"
 
 definition getUserImpl :: "(localState, val) procedureImpl" where
   "getUserImpl ls \<equiv> pickLine ls [
-   (* 0 *) BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
-   (* 1 *) DbOperation users_contains_key [ls_u ls] (\<lambda>r. ls\<lparr>ls_exists := (r = Bool True), ls_pc := 2 \<rparr>),
-   (* 2 *) LocalStep (if ls_exists ls then ls\<lparr>ls_pc := 3\<rparr> else ls\<lparr>ls_pc := 5\<rparr> ),
-   (* 3 *) DbOperation users_name_get [ls_u ls] (\<lambda>r. ls\<lparr>ls_name := stringval r, ls_pc := 4 \<rparr>),
-   (* 4 *) DbOperation users_mail_get [ls_u ls] (\<lambda>r. ls\<lparr>ls_mail := stringval r, ls_pc := 5 \<rparr>),
-   (* 5 *) EndAtomic  (ls\<lparr>ls_pc := 6\<rparr>),
-   (* 6 *) Return (if ls_exists ls then Found (ls_name ls) (ls_mail ls) else NotFound )
+   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
+   \<comment> \<open>  1  \<close> DbOperation users_contains_key [ls_u ls] (\<lambda>r. ls\<lparr>ls_exists := (r = Bool True), ls_pc := 2 \<rparr>),
+   \<comment> \<open>  2  \<close> LocalStep (if ls_exists ls then ls\<lparr>ls_pc := 3\<rparr> else ls\<lparr>ls_pc := 5\<rparr> ),
+   \<comment> \<open>  3  \<close> DbOperation users_name_get [ls_u ls] (\<lambda>r. ls\<lparr>ls_name := stringval r, ls_pc := 4 \<rparr>),
+   \<comment> \<open>  4  \<close> DbOperation users_mail_get [ls_u ls] (\<lambda>r. ls\<lparr>ls_mail := stringval r, ls_pc := 5 \<rparr>),
+   \<comment> \<open>  5  \<close> EndAtomic  (ls\<lparr>ls_pc := 6\<rparr>),
+   \<comment> \<open>  6  \<close> Return (if ls_exists ls then Found (ls_name ls) (ls_mail ls) else NotFound )
    ]"      
 
 
@@ -238,7 +238,7 @@ definition latest_mail_assign :: "val operationContext \<Rightarrow> val \<Right
 definition crdtSpec :: "operation \<Rightarrow> val list \<Rightarrow> val operationContext \<Rightarrow> val \<Rightarrow> bool" where
   "crdtSpec oper args ctxt res \<equiv> 
   if oper \<in> {users_name_assign, users_mail_assign, users_remove} then
-    (* update-operations always return Undef *)
+    \<comment> \<open>  update-operations always return Undef  \<close>
     res = Undef
   else if oper = users_contains_key then
     res = Bool (\<exists>c1 v. (calls ctxt c1 \<triangleq> Call users_name_assign (args @ [v]) Undef
@@ -616,7 +616,7 @@ proof (rule show_programCorrect_using_checkCorrect)
       have [simp]: "currentTransaction Sa i = None"
         by (simp add: Sa_wf invoc_Sa wellFormed_invoc_notStarted(1))
 
-(* ony unfold definitions, when needed for evaluation: *)
+\<comment> \<open>  ony unfold definitions, when needed for evaluation:  \<close>
       have h1[simp]:  "S' ::= S \<Longrightarrow> (currentProc S' i \<triangleq> x) \<longleftrightarrow> (currentProc S i \<triangleq> x)" for S' S i x  by (auto simp add: Def_def)
       have h2[simp]: "S' ::= S \<Longrightarrow>  ls_pc (the (localState S' i)) = ls_pc (the (localState S i))" for S' S i by (auto simp add: Def_def)
       have h3[simp]: "S' ::= S \<Longrightarrow>  (currentTransaction S' i = None) \<longleftrightarrow> (currentTransaction S i = None)" for S' S i by (auto simp add: Def_def)
@@ -786,7 +786,7 @@ show "example_userbase.inv (invContext' S'e)"
         have happensBefore_update:
           "happensBefore S'd = updateHb (happensBefore S'a) vis' [c, ca]"
           apply (subst S'd_def S'c_def S'b_def S''_def hb'a_def hb'_def, simp?)+
-          by (auto simp add: updateHb_chain) (* TODO add updateHb_chain lemma above *)
+          by (auto simp add: updateHb_chain) \<comment> \<open>  TODO add updateHb_chain lemma above  \<close>
 
 
         hence happensBefore_update2:
@@ -833,7 +833,7 @@ show "example_userbase.inv (invContext' S'e)"
           "invocation_happensBeforeH (i_callOriginI_h (callOrigin S'd) (transactionOrigin S'd)) (happensBefore S'd)
             = invocation_happensBeforeH (i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a)) (happensBefore S'a)
              \<union> {i'. (\<forall>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i') }  \<times> {i}"
-          (* {i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i} *)
+          \<comment> \<open>  {i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i}  \<close>
           apply (subst happensBefore_update)
           apply (rule invocation_happensBeforeH_update)
                 apply (auto simp add: i_callOriginI_h_update split: option.splits)
@@ -1103,7 +1103,7 @@ show "example_userbase.inv (invContext' S'e)"
         have happensBefore_update:
           "happensBefore S'e = updateHb (happensBefore S'a) vis' [c, ca]"
           apply (subst S'e_def S'd_def S'c_def S'b_def S''_def hb'a_def hb'_def, simp?)+
-          by (auto simp add: updateHb_chain) (* TODO add updateHb_chain lemma above *)
+          by (auto simp add: updateHb_chain) \<comment> \<open>  TODO add updateHb_chain lemma above  \<close>
 
 
         hence happensBefore_update2:
@@ -1150,7 +1150,7 @@ show "example_userbase.inv (invContext' S'e)"
           "invocation_happensBeforeH (i_callOriginI_h (callOrigin S'e) (transactionOrigin S'e)) (happensBefore S'e)
             = invocation_happensBeforeH (i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a)) (happensBefore S'a)
              \<union> {i'. (\<forall>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i') }  \<times> {i}"
-          (* {i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i} *)
+          \<comment> \<open>  {i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i}  \<close>
           apply (subst happensBefore_update)
           apply (rule invocation_happensBeforeH_update)
                 apply (auto simp add: i_callOriginI_h_update split: option.splits)
@@ -1375,7 +1375,7 @@ show "example_userbase.inv (invContext' S'e)"
                           using c0 c1 by auto
                         hence [simp]: "i \<noteq> r" and [simp]: "i \<noteq> g"
                           by blast+
-                            (*Alternatively, we could prove that they are not equal because there are no call in i and we need calls for i-happens-before*)
+                            \<comment> \<open> Alternatively, we could prove that they are not equal because there are no call in i and we need calls for i-happens-before \<close>
 
 
                         from c2 
@@ -1997,7 +1997,7 @@ show "example_userbase.inv (invContext' S'e)"
                     and  "\<forall>t. transactionStatus S'f t \<noteq> Some Uncommited"
 
                   have S'f_wf: "state_wellFormed S'f"
-                    sorry (* TODO: add state_wellFormed to checkCorrect etc. *)
+                    sorry \<comment> \<open>  TODO: add state_wellFormed to checkCorrect etc.  \<close>
 
                   have [simp]: "c \<noteq> ca" and [simp]: "ca \<noteq> c"
                     using `calls S'b ca = None`

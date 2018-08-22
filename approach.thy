@@ -85,16 +85,16 @@ text {* Coupling invariant: S is state from distributed execution and S is state
 definition state_coupling :: "('ls,'any::valueType) state \<Rightarrow> ('ls,'any) state \<Rightarrow> invocation \<Rightarrow> bool \<Rightarrow> bool" where
   "state_coupling S S' i sameSession \<equiv> 
    if sameSession then
-      (* did a step in the same invocation *)
+      \<comment> \<open>  did a step in the same invocation  \<close>
       S' = S
 (*
       if currentTransaction S i = None 
-      then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S i orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(i := vis') \<rparr> (* TODO maybe can get equality here*)
+      then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S i orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(i := vis') \<rparr> \<comment> \<open>  TODO maybe can get equality here \<close>
       else S' = S*)
    else 
-      (* did step in a different invocation *)
+      \<comment> \<open>  did step in a different invocation  \<close>
         state_monotonicGrowth i S' S
-      (* local state on s unchanged *)
+      \<comment> \<open>  local state on s unchanged  \<close>
       \<and> localState S i = localState S' i
       \<and> currentProc S i = currentProc S' i
       \<and> currentTransaction S i = currentTransaction S' i
@@ -159,8 +159,8 @@ lemma only_one_commmitted_transaction_h:
     and packed: "packed_trace tr"
     and status: "transactionStatus S' tx \<triangleq> Uncommited"
     and noFails: "\<And>s. (s, AFail) \<notin> set tr"
-    (*    and tr_len: "length tr > 0"*)
-    (*    and allEnd: "allTransactionsEnd tr"*)
+    \<comment> \<open>     and tr_len: "length tr > 0" \<close>
+    \<comment> \<open>     and allEnd: "allTransactionsEnd tr" \<close>
     and noSwitch: "noContextSwitchesInTransaction tr"
     and initial: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
   shows "(currentTransaction S' (fst (last tr)) \<triangleq> tx) 
@@ -754,13 +754,13 @@ by (auto simp add: initialState_def step_simps_all wellFormed_state_callOrigin_t
 
 lemma wellFormed_state_transaction_consistent:
 assumes wf: "state_wellFormed S"
-(* contains only committed calls and calls from current transaction:  *)
+\<comment> \<open>  contains only committed calls and calls from current transaction:   \<close>
 shows "\<And>s vis c tx. \<lbrakk>visibleCalls S s \<triangleq> vis; c\<in>vis; callOrigin S c \<triangleq> tx\<rbrakk> \<Longrightarrow> transactionStatus S tx \<triangleq> Commited \<or> currentTransaction S s \<triangleq> tx"
-(* contains all calls from a transaction *)
+\<comment> \<open>  contains all calls from a transaction  \<close>
   and "\<And>s vis c1 c2. \<lbrakk>visibleCalls S s \<triangleq> vis; c1\<in>vis; callOrigin S c1 = callOrigin S c2\<rbrakk> \<Longrightarrow> c2\<in>vis"
-(* happens-before consistent with transactions *)
+\<comment> \<open>  happens-before consistent with transactions  \<close>
   and "\<And>x1 y1 x2 y2. \<lbrakk>callOrigin S x1 \<noteq> callOrigin S y1; callOrigin S x1 = callOrigin S x2; callOrigin S y1 = callOrigin S y2 \<rbrakk> \<Longrightarrow>  (x1,y1) \<in> happensBefore S \<longleftrightarrow> (x2, y2) \<in> happensBefore S"
-(* happens-before only towards committed transactions or to the same transaction *)  
+\<comment> \<open>  happens-before only towards committed transactions or to the same transaction  \<close>  
   and "\<And>x y tx tx'. \<lbrakk>(x,y)\<in>happensBefore S; callOrigin S y \<triangleq> tx; callOrigin S x \<triangleq> tx'\<rbrakk> \<Longrightarrow> transactionStatus S tx' \<triangleq> Commited \<or> tx' = tx"
 using assms  proof (induct  rule: wellFormed_induct)
   case initial
@@ -780,21 +780,21 @@ using assms  proof (induct  rule: wellFormed_induct)
 next
   case (step C a C')
   
-  (* contains only committed calls and calls from current transaction:  *)
+  \<comment> \<open>  contains only committed calls and calls from current transaction:   \<close>
   from step 
   have IH1: "\<And>s vis c tx. \<lbrakk>visibleCalls C s \<triangleq> vis; c\<in>vis; callOrigin C c \<triangleq> tx\<rbrakk> \<Longrightarrow> transactionStatus C tx \<triangleq> Commited \<or> currentTransaction C s \<triangleq> tx"
     by auto
-(* contains all calls from a transaction *)
+\<comment> \<open>  contains all calls from a transaction  \<close>
   from step 
   have IH2: "\<And>s vis c1 c2. \<lbrakk>visibleCalls C s \<triangleq> vis; c1\<in>vis; callOrigin C c1 = callOrigin C c2\<rbrakk> \<Longrightarrow> c2\<in>vis"
     by auto
-(* happens-before consistent with transactions *)
+\<comment> \<open>  happens-before consistent with transactions  \<close>
   from step 
   have IH3: "\<And>x1 y1 x2 y2. \<lbrakk>callOrigin C x1 \<noteq> callOrigin C y1; callOrigin C x1 = callOrigin C x2; callOrigin C y1 = callOrigin C y2 \<rbrakk> \<Longrightarrow>  (x1,y1) \<in> happensBefore C \<longleftrightarrow> (x2, y2) \<in> happensBefore C"
     by blast
   hence IH3_to: "\<And>x1 y1 x2 y2. \<lbrakk>(x1,y1) \<in> happensBefore C; callOrigin C x1 = callOrigin C x2; callOrigin C y1 = callOrigin C y2; callOrigin C x1 \<noteq> callOrigin C y1 \<rbrakk> \<Longrightarrow> (x2, y2) \<in> happensBefore C"   
     by blast
-(* happens-before only towards committed transactions or to the same transaction *)  
+\<comment> \<open>  happens-before only towards committed transactions or to the same transaction  \<close>  
   from step 
   have IH4: "\<And>x y tx tx'. \<lbrakk>(x,y)\<in>happensBefore C; callOrigin C y \<triangleq> tx; callOrigin C x \<triangleq> tx'\<rbrakk> \<Longrightarrow> transactionStatus C tx' \<triangleq> Commited \<or> tx' = tx"
     by auto
@@ -1268,12 +1268,12 @@ lemma convert_to_single_session_trace:
     and noFails: "\<And>s. (s, AFail) \<notin> set tr"
     and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
     and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
-    (* invariant holds on all states in the execution *)
+    \<comment> \<open>  invariant holds on all states in the execution  \<close>
     and inv: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S' "
   shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<forall>a. (a, False)\<notin>set tr')
         \<and> (state_coupling S' S2 s (tr = [] \<or> fst (last tr) = s))"
-    (* TODO special case for fail, pull (and others?) *)
+    \<comment> \<open>  TODO special case for fail, pull (and others?)  \<close>
   using steps S_wellformed packed inv noFails noUncommitted noCtxtSwitchInTx proof (induct rule: steps.induct)
   case (steps_refl S)
 
@@ -1337,12 +1337,12 @@ next
 
   show  "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 s (tr @ [a] = [] \<or> fst (last (tr @ [a])) = s)"  
   proof (cases "fst a = s"; simp)
-    case True (* the new action is on invocation s *)
+    case True \<comment> \<open>  the new action is on invocation s  \<close>
     hence [simp]: "fst a = s" .
 
     show "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 s True"  (is ?goal) 
     proof (cases "tr = [] \<or> fst (last tr) = s")
-      case True (* the previous action was on the same trace (if there was a previous action) *)
+      case True \<comment> \<open>  the previous action was on the same trace (if there was a previous action)  \<close>
       hence [simp]: "tr = [] \<or> fst (last tr) = s" by simp
       hence ih3: "state_coupling S' S2 s True"
         using ih3' by simp
@@ -1822,7 +1822,7 @@ next
           by (metis (no_types, lifting) isPrefix_appendI steps_step.prems(3)) 
 
 
-(*from a2 a3 a4 a5 *)
+\<comment> \<open> from a2 a3 a4 a5  \<close>
         from a2 a3 a4 a5 a1
         have step_s: "S' ~~ (s,(AEndAtomic,True)) \<leadsto>\<^sub>S S''"
         proof (rule step_s.endAtomic)  
@@ -1970,7 +1970,7 @@ next
           by (metis S_wf True noCurrentTransaction_s option.exhaust steps steps_empty steps_step.prems(5) wellFormed_currentTransactionUncommited)
 
         from at_most_one_tx and noCurrentTransaction
-        have noOpenTxns: "openTransactions tr = {}" (* TODO allgemeines lemma raus ziehen *)
+        have noOpenTxns: "openTransactions tr = {}" \<comment> \<open>  TODO allgemeines lemma raus ziehen  \<close>
           by auto
 
 
@@ -2120,7 +2120,7 @@ next
         qed
       qed
     next
-      case False (* we are coming from a different invocation and executing an action on s now  *)
+      case False \<comment> \<open>  we are coming from a different invocation and executing an action on s now   \<close>
       hence [simp]: "tr \<noteq> []" and [simp]: "fst (last tr) \<noteq> s" by auto
 
       hence ih3: "state_coupling S' S2 s  False" using ih3' by simp
@@ -2440,7 +2440,7 @@ next
 
     from step
     have new_coupling: "state_coupling S'' S2 s False"
-    proof (induct rule: step.cases) (* prove this with a case distinction on the action *)
+    proof (induct rule: step.cases) \<comment> \<open>  prove this with a case distinction on the action  \<close>
       case (local C s ls f ls')
       then show ?case 
         using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
@@ -2495,15 +2495,15 @@ fixes tr :: "'any::valueType trace"
 assumes step: "S ~~ (s,a) \<leadsto> S'"
     and S_wellformed: "state_wellFormed S"
     and noFails: "a \<noteq> AFail"
-    (* invariant holds in the initial state *)
+    \<comment> \<open>  invariant holds in the initial state  \<close>
     and inv: "invariant_all S"
-    (* invariant no longer holds *)
+    \<comment> \<open>  invariant no longer holds  \<close>
     and not_inv: "\<not>invariant_all S'"
     and coupling: "state_coupling S S2 s sameSession"
-    and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" (* (\<exists>tx txns. a = ABeginAtomic tx txns) \<or> (\<exists>p ar. a = AInvoc p ar) *)
+    and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" \<comment> \<open>  (\<exists>tx txns. a = ABeginAtomic tx txns) \<or> (\<exists>p ar. a = AInvoc p ar)  \<close>
     and noUncommitted:  "a \<noteq> AEndAtomic \<Longrightarrow>  \<forall>tx. transactionStatus S tx \<noteq> Some Uncommited"
-    (* we assume that we are not in a transaction (inside a transaction it is not necessary for invariants to hold)*)
-    (* and not_in_transaction: "currentTransaction S s = None " *)
+    \<comment> \<open>  we assume that we are not in a transaction (inside a transaction it is not necessary for invariants to hold) \<close>
+    \<comment> \<open>  and not_in_transaction: "currentTransaction S s = None "  \<close>
 shows "\<exists>tr' S2'. (S2 ~~ (s, tr') \<leadsto>\<^sub>S* S2') 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
 using step proof (cases rule: step.cases)
@@ -2692,7 +2692,7 @@ next
 next
   case (invCheck  res)
   then show ?thesis
-    using inv not_inv by blast (* same state *)
+    using inv not_inv by blast \<comment> \<open>  same state  \<close>
 qed
 
 lemma uncommitted_tx_is_current_somewhere:
@@ -2844,9 +2844,9 @@ assumes steps: "S ~~ tr \<leadsto>* S'"
     and noFails: "\<And>s. (s, AFail) \<notin> set tr"
     and noUncommittedTx: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
     and noContextSwitches: "noContextSwitchesInTransaction tr"
-    (* invariant holds in the initial state *)
+    \<comment> \<open>  invariant holds in the initial state  \<close>
     and inv: "invariant_all S"
-    (* invariant no longer holds *)
+    \<comment> \<open>  invariant no longer holds  \<close>
     and not_inv: "\<not> invariant_all S'"
 shows "\<exists>tr' S2 s. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
@@ -3375,7 +3375,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
         show "packed_trace tr'"
           using \<open>isPrefix tr' trace\<close> packed prefixes_are_packed by blast
         show "\<And>s'. (s', AFail) \<notin> set tr'"
-          using `isPrefix tr' trace` noFail apply (auto simp add: isPrefix_def) (* IMPROVE extract lemma for isPrefix with \<in> or \<subseteq>*)
+          using `isPrefix tr' trace` noFail apply (auto simp add: isPrefix_def) \<comment> \<open>  IMPROVE extract lemma for isPrefix with \<in> or \<subseteq> \<close>
           by (metis in_set_takeD)
         show "invariant_all (initialState program)"
           using inv_init .
