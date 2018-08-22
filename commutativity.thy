@@ -1592,8 +1592,7 @@ proof -
       using ABeginAtomic apply (auto simp add: step_simps contra_subsetD split: if_splits)[1]
       using ABeginAtomic   apply (auto simp add: step_simps contra_subsetD split: if_splits)[1]
       apply (subst state_ext)
-      using ABeginAtomic   apply (auto simp add: step_simps)
-      using fun_upd_twist map_upd_nonempty by force
+      using ABeginAtomic by (auto simp add: step_simps split: if_splits)
 
   next
     case AEndAtomic (* this is not commutative, since the transaction committed could be included in ht next snapshot*)
@@ -2994,7 +2993,7 @@ proof (auto simp add: canSwap_def)
     show "state_wellFormed C1" using a2.
   qed
 qed
-
+       
 lemma show_canSwap':
   assumes "x = a" 
     and"\<And>(C1::('ls,'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
@@ -3003,6 +3002,7 @@ lemma show_canSwap':
 
 method prove_canSwap = (rule show_canSwap, auto simp add: step_simps, subst state_ext, auto)  
 method prove_canSwap' = (rule show_canSwap', auto simp add: step_simps, subst state_ext, auto)
+method prove_canSwap'' = (rule show_canSwap', auto del: ext  simp add: step_simps intro!: stateEqI ext)
 
 lemma commutativeS_canSwap:
   assumes comm: "\<And>(C::('ls,'any::valueType) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
@@ -3056,31 +3056,25 @@ next
       by (simp add: commutativeS_canSwap) 
   next
     case (ANewId x2)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (ABeginAtomic x31 x32)
-    then show ?thesis 
-      apply (rule show_canSwap')
-      apply (auto simp add: step_simps)
-       apply (auto)
-      apply (subst state_ext)
-      apply auto
-      done
+    then show ?thesis by prove_canSwap''
   next
     case AEndAtomic
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (ADbOp x51 x52 x53 x54)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (AInvoc x61 x62)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (AReturn x7)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case AFail
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (AInvcheck r)
     then show ?thesis
@@ -3092,26 +3086,26 @@ next
   then show ?thesis 
   proof (cases a)
     case ALocal
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (ANewId x2)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (ABeginAtomic x31 x32)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case AEndAtomic
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (ADbOp x51 x52 x53 x54)
     then show ?thesis
       by (meson canSwap_def commutative_Dbop_other useCommutativeS)  
   next
     case (AInvoc x61 x62)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (AReturn x7)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case AFail
     then show ?thesis
@@ -3132,28 +3126,28 @@ next
   then show ?thesis 
   proof (cases a)
     case ALocal
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (ANewId x2)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (ABeginAtomic x31 x32)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case AEndAtomic
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (ADbOp x51 x52 x53 x54)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (AInvoc x61 x62)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (AReturn x7)
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case AFail
-    then show ?thesis by prove_canSwap'
+    then show ?thesis by prove_canSwap''
   next
     case (AInvcheck r)
     then show ?thesis

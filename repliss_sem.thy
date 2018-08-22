@@ -122,6 +122,24 @@ lemma state_ext: "((x::('localState, 'any) state) = y) \<longleftrightarrow> (
 )"
   by auto
 
+lemma stateEqI: 
+  assumes "calls x = calls y"
+  and "happensBefore x = happensBefore y"
+  and "prog x = prog y"
+  and "localState x = localState y"
+  and "currentProc x = currentProc y"
+  and "visibleCalls x = visibleCalls y"
+  and "currentTransaction x = currentTransaction y"
+  and "transactionStatus x = transactionStatus y"
+  and "callOrigin x = callOrigin y"
+  and "transactionOrigin x = transactionOrigin y"
+  and "generatedIds x = generatedIds y"
+  and "knownIds x = knownIds y"
+  and "invocationOp x = invocationOp y"
+  and "invocationRes x = invocationRes y"
+shows "(x::('localState, 'any) state) = y"
+  using assms by (auto simp add: state_ext)
+
 lemma state_ext_exI: 
   fixes P :: "('localState, 'any) state \<Rightarrow> bool"
   assumes "
