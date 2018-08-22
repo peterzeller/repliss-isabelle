@@ -1995,9 +1995,8 @@ show "example_userbase.inv (invContext' S'e)"
                   fix S'f
                   assume S'f_def: "S'f = S'e             \<lparr>localState := localState S'e(i \<mapsto> \<lparr>ls_pc = 6, ls_u = UserId u, ls_name = stringval res_name, ls_mail = stringval res, ls_exists = True\<rparr>),                currentTransaction := (currentTransaction S'e)(i := None), transactionStatus := transactionStatus S'e(t \<mapsto> Commited)\<rparr>"
                     and  "\<forall>t. transactionStatus S'f t \<noteq> Some Uncommited"
+                    and S'f_wf: "state_wellFormed S'f"
 
-                  have S'f_wf: "state_wellFormed S'f"
-                    sorry \<comment> \<open>  TODO: add state_wellFormed to checkCorrect etc.  \<close>
 
                   have [simp]: "c \<noteq> ca" and [simp]: "ca \<noteq> c"
                     using `calls S'b ca = None`

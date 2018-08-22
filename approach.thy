@@ -87,10 +87,10 @@ definition state_coupling :: "('ls,'any::valueType) state \<Rightarrow> ('ls,'an
    if sameSession then
       \<comment> \<open>  did a step in the same invocation  \<close>
       S' = S
-(*
+\<comment> \<open>
       if currentTransaction S i = None 
       then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S i orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(i := vis') \<rparr> \<comment> \<open>  TODO maybe can get equality here \<close>
-      else S' = S*)
+      else S' = S \<close>
    else 
       \<comment> \<open>  did step in a different invocation  \<close>
         state_monotonicGrowth i S' S
@@ -1829,6 +1829,8 @@ next
           from `invariant_all S'`
           show "True = invariant_all S''"
             by (simp add: inv'')
+          show "state_wellFormed S''"
+            using S_wf noFails state_wellFormed_combine steps' by blast
         qed  
 
         with `S2 = S'`
@@ -2581,6 +2583,9 @@ next
         using that apply (auto simp add: S2'_def `S2 = S`)
         using S2'_def local.endAtomic(2) that(2) that(3) by blast
     qed
+    show "state_wellFormed S2'"
+      by (metis (full_types) S2'_def S_wellformed \<open>sameSession\<close> action.distinct(49) coupling local.endAtomic(1) local.endAtomic(2) local.step snd_conv state_coupling_def state_wellFormed_combine_step)
+
   qed
   
   then show ?thesis

@@ -1496,6 +1496,7 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
                   currentTransaction := (currentTransaction S)(i := None),
                   transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>)
                 \<longrightarrow> (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
+                     \<longrightarrow> state_wellFormed S'
                      \<longrightarrow> (invariant progr (invContext' S')
                           \<and> (invariant progr (invContext' S')  \<longrightarrow> checkCorrect' (progr, txCalls, S', i))
                         ))
@@ -1870,7 +1871,7 @@ next
 
 
         show inv: "invariant progr (invContextH2 (callOrigin S) (transactionOrigin S) (transactionStatus S(tx \<mapsto> Commited)) (happensBefore S) (calls S) (knownIds S) (invocationOp S) (invocationRes S))"
-          using use_checkCorrect2
+          using use_checkCorrect2 local.wf 
           apply simp
           apply (subst(asm) checkCorrect2F_def)
           apply (auto simp add: Def_def EndAtomic all_committed tx split: option.splits if_splits)
@@ -1907,7 +1908,7 @@ next
 
           show "(checkCorrect2F ^^ bound) bot
              (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>, i)"
-            using use_checkCorrect2
+            using use_checkCorrect2 local.wf 
             apply simp
             apply (subst(asm) checkCorrect2F_def)
             by (auto simp add: Def_def EndAtomic all_committed tx split: option.splits if_splits)

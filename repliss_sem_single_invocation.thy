@@ -362,6 +362,7 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocat
    C' = (C\<lparr>localState := (localState C)(s \<mapsto> ls'), 
                 currentTransaction := (currentTransaction C)(s := None),
                 transactionStatus := (transactionStatus C)(t \<mapsto> Commited) \<rparr>);
+   state_wellFormed C';
    valid = invariant_all C'
    \<rbrakk> \<Longrightarrow> C ~~ (s, AEndAtomic, valid) \<leadsto>\<^sub>S C'"
 | dbop: 
