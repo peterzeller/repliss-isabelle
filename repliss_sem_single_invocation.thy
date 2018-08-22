@@ -314,7 +314,7 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocat
    currentProc C s \<triangleq> f; 
    f ls = NewId ls';
    generatedIds C uid = None;
-   uniqueIds uid = {uid}; (* there is exactly one unique id *)
+   uniqueIds uid = {uid}; \<comment> \<open> there is exactly one unique id \<close>
    ls' uid \<triangleq> ls''
    \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid, True) \<leadsto>\<^sub>S (C\<lparr>localState := (localState C)(s \<mapsto> ls''), 
                                    generatedIds := (generatedIds C)( uid \<mapsto> s) \<rparr>)"   
@@ -324,12 +324,12 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocat
    f ls = BeginAtomic ls';
    currentTransaction C s = None;
    transactionStatus C t = None;
-   (* we assume a nondeterministic state change to C' here *) (* TODO add more restrictions *)
+   \<comment> \<open> we assume a nondeterministic state change to C' here TODO add more restrictions \<close>
    prog C' = prog C;
    state_monotonicGrowth s C C';
    \<And>t. transactionOrigin C t \<triangleq> s \<longleftrightarrow> transactionOrigin C' t \<triangleq> s;
-   (* new transaction has no calls yet *)
-   (* invariant maintained *)
+   \<comment> \<open> new transaction has no calls yet \<close>
+   \<comment> \<open> invariant maintained \<close>
    invariant_all C';
    \<And>tx. transactionStatus C' tx \<noteq> Some Uncommited;
    (* well formed history *)
