@@ -18,9 +18,7 @@ datatype val =
 instantiation val :: valueType begin
 definition uniqueIds_val where 
   "uniqueIds_val x \<equiv> case x of UserId u \<Rightarrow> {UserId u} | _ \<Rightarrow> {}"
-instance
-proof               
-qed
+instance by standard
 end
 
 definition "isUserId x \<equiv> case x of UserId _ \<Rightarrow> True | _ \<Rightarrow> False"
