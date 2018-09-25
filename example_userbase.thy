@@ -877,14 +877,7 @@ show "example_userbase.inv (invContext' S'e)"
 
 
           thus "inv2 (invContext' S'd)"
-            apply (auto simp add: inv2_def invocationOp_unchanged invocationRes_S'e2)
-            apply (auto simp add: S'd_def S'c_def S'b_def S''_def)
-            apply (drule_tac x=u in spec)
-            apply (drule_tac x=ia in spec)
-            apply auto
-            apply (drule_tac x=cb in spec)
-            apply (auto simp add: \<open>calls S'a c = None\<close> \<open>calls S'a ca = None\<close> )
-            by (auto simp add:  i_callOriginI_h_simps split: option.splits if_splits)
+            by (auto simp add: inv2_def invocationOp_unchanged S'd_def S'c_def S'b_def S''_def i_callOriginI_h_simps  split: option.splits if_splits)
 
           have "inv3 (invContext' S'a)"
             using \<open>prog S' = progr\<close> example_userbase.inv_def old_inv by auto
