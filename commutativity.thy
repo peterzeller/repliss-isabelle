@@ -417,7 +417,7 @@ proof (rule iffI2; clarsimp)
           apply (rule exI[where x="S2\<lparr>
                 localState := localState S2(s \<mapsto> ls'), 
                 currentTransaction := currentTransaction S2(s \<mapsto> t), 
-                transactionStatus := transactionStatus S1(t \<mapsto> Uncommited),
+                transactionStatus := transactionStatus S1(t \<mapsto> Uncommitted),
                 transactionOrigin := transactionOrigin S2(t \<mapsto> s),
                 visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> newCalls)\<rparr>"])
           using induct_step.coupling no_fail beginAtomic
@@ -430,7 +430,7 @@ proof (rule iffI2; clarsimp)
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S1(t \<mapsto> Commited)\<rparr>"])
+          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S1(t \<mapsto> Committed)\<rparr>"])
           using induct_step.coupling no_fail endAtomic
           by (auto simp add: step_simps state_ext  induct_step)
       next
@@ -636,7 +636,7 @@ lemma precondition_beginAtomic:
       \<and> currentTransaction C s = None 
       \<and> transactionStatus C tx = None
       \<and> visibleCalls C s \<noteq> None
-      \<and> newTxns \<subseteq> commitedTransactions C)"
+      \<and> newTxns \<subseteq> committedTransactions C)"
   by (auto simp add: precondition_def step_simps )
 
 lemma precondition_endAtomic:
@@ -797,7 +797,7 @@ lemma unchangedInTransaction_getInvContext:
   assumes differentSessions[simp]: "sa \<noteq> sb"
     and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
     and aIsInInvoc: "localState A sa \<triangleq> lsa"
-    and txUncommited[simp]: "transactionStatus A tx \<triangleq> Uncommited" 
+    and txUncommitted[simp]: "transactionStatus A tx \<triangleq> Uncommitted" 
     and aIsNotCommit: "a \<noteq> AEndAtomic"
     and exec: "A ~~ (sa, a) \<leadsto> B"
     and visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
@@ -832,41 +832,41 @@ next
       and 8: "calls A callId = None"
     apply atomize_elim
     using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
-  have commitedSame: "commitedCalls B = commitedCalls A"        
-    apply (auto simp add: commitedCallsH_def isCommittedH_def  B_def)
+  have committedSame: "committedCalls B = committedCalls A"        
+    apply (auto simp add: committedCallsH_def isCommittedH_def  B_def)
     using "8" origin_inv by auto
 
-  have commitedCallsSame: "\<And>x. x \<in> commitedCalls A \<Longrightarrow> calls A x = calls B x"
+  have committedCallsSame: "\<And>x. x \<in> committedCalls A \<Longrightarrow> calls A x = calls B x"
     apply (auto simp add: B_def)
-    using "8" commitedCallsH_def isCommittedH_def origin_inv
+    using "8" committedCallsH_def isCommittedH_def origin_inv
     by (smt domI domIff mem_Collect_eq) 
 
-  have [simp]: "callId \<notin> commitedCalls A"
-    by (smt "8" domIff commitedCallsH_def isCommittedH_def domI mem_Collect_eq origin_inv) 
+  have [simp]: "callId \<notin> committedCalls A"
+    by (smt "8" domIff committedCallsH_def isCommittedH_def domI mem_Collect_eq origin_inv) 
 
 
   show ?thesis 
   proof (rule invariantContext_eqI)
     show "calls (invContext A) = calls (invContext B)"
-      apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
+      apply (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def)
       done
     show "happensBefore (invContext A) = happensBefore (invContext B)"
-      apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
+      apply (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def)
        apply (auto simp add: restrict_relation_def B_def)
       done
 
     show "i_callOrigin (invContext A) = i_callOrigin (invContext B)"
-      apply (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def)
+      apply (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def)
       apply (auto simp add: B_def)
       done
     show "i_knownIds (invContext A ) = i_knownIds (invContext B )"
-      by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
+      by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
     show "i_invocationOp (invContext A ) = i_invocationOp (invContext B )"
-      by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
+      by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
     show "i_invocationRes (invContext A ) = i_invocationRes (invContext B )"
-      by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
+      by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
     show "i_transactionOrigin (invContext A ) = i_transactionOrigin (invContext B )"
-      by (auto simp add: invContextH_def commitedSame commitedCallsSame restrict_map_def B_def)
+      by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
   qed
 
 
@@ -912,7 +912,7 @@ lemma transactionStatus_mono:
   done
 
 lemma transactionStatus_mono2:
-  "\<lbrakk>transactionStatus B tx \<triangleq> Commited; A ~~ a \<leadsto> B; snd a\<noteq>AEndAtomic\<rbrakk> \<Longrightarrow> transactionStatus A tx \<triangleq> Commited"
+  "\<lbrakk>transactionStatus B tx \<triangleq> Committed; A ~~ a \<leadsto> B; snd a\<noteq>AEndAtomic\<rbrakk> \<Longrightarrow> transactionStatus A tx \<triangleq> Committed"
   apply (erule step.cases)
           apply (auto split: if_splits)
   done
@@ -938,14 +938,14 @@ lemma prog_inv:
 lemma committed_same: 
   assumes exec: "A ~~ (sa, a) \<leadsto> B"
     and aIsNotCommit: "a \<noteq> AEndAtomic"
-  shows "transactionStatus A t \<triangleq> Commited \<longleftrightarrow> transactionStatus B t \<triangleq> Commited" 
+  shows "transactionStatus A t \<triangleq> Committed \<longleftrightarrow> transactionStatus B t \<triangleq> Committed" 
   using exec apply (rule step.cases)
   by (auto simp add: aIsNotCommit)    
 
 lemma happensBefore_same_committed2: 
   assumes exec: "A ~~ (sa, a) \<leadsto> B"
     and wellFormed: "state_wellFormed A"
-    and committed: "transactionStatus A tx \<triangleq> Commited " 
+    and committed: "transactionStatus A tx \<triangleq> Committed " 
     and orig_y: "callOrigin A y \<triangleq> tx"
   shows "(x,y) \<in> happensBefore A  \<longleftrightarrow> (x,y) \<in> happensBefore B" 
   using exec apply (rule step.cases)
@@ -954,7 +954,7 @@ lemma happensBefore_same_committed2:
 lemma invContextSame_h: 
   assumes exec: "A ~~ (sa, a) \<leadsto> B"
     and wellFormed: "state_wellFormed A"
-    and 1: "\<And>t. t\<in>txns \<Longrightarrow> transactionStatus B t \<triangleq> Commited"
+    and 1: "\<And>t. t\<in>txns \<Longrightarrow> transactionStatus B t \<triangleq> Committed"
     and aIsNotCommit: "a \<noteq> AEndAtomic"
   shows "(callsInTransaction A txns \<down> happensBefore A) = (callsInTransaction B txns \<down> happensBefore B)"
   apply (auto simp add: callsInTransactionH_def downwardsClosure_in)
@@ -978,45 +978,45 @@ lemma inTransaction_localState:
 lemma invContextSnapshot_same: 
   assumes exec: "A ~~ (sa, a) \<leadsto> B"
     and wellFormed: "state_wellFormed A"
-    and 1: "\<And>t. t\<in>txns \<Longrightarrow> transactionStatus B t \<triangleq> Commited"
+    and 1: "\<And>t. t\<in>txns \<Longrightarrow> transactionStatus B t \<triangleq> Committed"
     and aIsNotCommit: "a \<noteq> AEndAtomic"
     and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
-    and txIsUncommited: "transactionStatus A tx \<triangleq> Uncommited"
+    and txIsUncommitted: "transactionStatus A tx \<triangleq> Uncommitted"
   shows "(invContext A) = (invContext B)"
 proof (auto simp add: invContextH_def invContextSame_h[OF exec wellFormed 1 aIsNotCommit])
-  have committed_same: "commitedCalls B = commitedCalls A"
+  have committed_same: "committedCalls B = committedCalls A"
     using exec apply (rule step.cases)
-            apply (auto simp add: commitedCallsH_def  isCommittedH_def aIsNotCommit wellFormed)
+            apply (auto simp add: committedCallsH_def  isCommittedH_def aIsNotCommit wellFormed)
     apply force
     done
 
-  have committed_subset: "commitedCalls A \<subseteq> dom (calls A)"
-    apply (auto simp add: commitedCallsH_def isCommittedH_def aIsNotCommit wellFormed)
+  have committed_subset: "committedCalls A \<subseteq> dom (calls A)"
+    apply (auto simp add: committedCallsH_def isCommittedH_def aIsNotCommit wellFormed)
     using wellFormed wellFormed_callOrigin_dom by fastforce
 
 
 
-  show "calls A |` commitedCalls A = calls B |` commitedCalls B"
+  show "calls A |` committedCalls A = calls B |` committedCalls B"
     using exec apply (rule step.cases)
-            apply (auto simp add: commitedCallsH_def isCommittedH_def aIsInTransaction aIsNotCommit )
-     apply (metis option.inject transactionStatus.distinct(1) txIsUncommited)
+            apply (auto simp add: committedCallsH_def isCommittedH_def aIsInTransaction aIsNotCommit )
+     apply (metis option.inject transactionStatus.distinct(1) txIsUncommitted)
     by (metis (no_types, lifting) option.distinct(1) wellFormed wellFormed_callOrigin_dom2)
 
-  show "\<And>a b. (a, b) \<in> happensBefore A |r commitedCalls A \<Longrightarrow> (a, b) \<in> happensBefore B |r commitedCalls B"
+  show "\<And>a b. (a, b) \<in> happensBefore A |r committedCalls A \<Longrightarrow> (a, b) \<in> happensBefore B |r committedCalls B"
     apply (simp add: committed_same)
     using exec apply (rule step.cases)
     by (auto simp add: restrict_relation_def )
 
 
-  show "\<And>a b. (a, b) \<in> happensBefore B |r commitedCalls B \<Longrightarrow> (a, b) \<in> happensBefore A |r commitedCalls A"
+  show "\<And>a b. (a, b) \<in> happensBefore B |r committedCalls B \<Longrightarrow> (a, b) \<in> happensBefore A |r committedCalls A"
     apply (simp add: committed_same)
     using exec apply (rule step.cases)
-    by (auto simp add: restrict_relation_def commitedCallsH_def isCommittedH_def wellFormed)
+    by (auto simp add: restrict_relation_def committedCallsH_def isCommittedH_def wellFormed)
 
-  show "callOrigin A |` commitedCalls A = callOrigin B |` commitedCalls B"
+  show "callOrigin A |` committedCalls A = callOrigin B |` committedCalls B"
     apply (simp add: committed_same)
     using exec apply (rule step.cases)
-            apply (auto simp add:  commitedCallsH_def isCommittedH_def)
+            apply (auto simp add:  committedCallsH_def isCommittedH_def)
     by (meson domI domIff wellFormed wellFormed_callOrigin_dom2)
 
 
@@ -1049,7 +1049,7 @@ proof (auto simp add: invContextH_def invContextSame_h[OF exec wellFormed 1 aIsN
     by (auto simp add: aIsInTransaction)
 
 
-  show "transactionOrigin A |` commitedTransactions A = transactionOrigin B |` commitedTransactions B"
+  show "transactionOrigin A |` committedTransactions A = transactionOrigin B |` committedTransactions B"
     using exec apply (rule step.cases)
             apply (auto simp add: restrict_map_def aIsInTransaction)
     using aIsNotCommit exec committed_same by auto[1]
@@ -1062,7 +1062,7 @@ lemma commutativePreservesPrecondition:
   assumes preconditionHolds: "precondition (sb,b) B"
     and differentSessions[simp]: "sa \<noteq> sb"
     and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
-    and txIsUncommited: "transactionStatus A tx \<triangleq> Uncommited"
+    and txIsUncommitted: "transactionStatus A tx \<triangleq> Uncommitted"
     and aIsInLocal: "localState A sa \<triangleq> lsa"
     and aIsNotCommit: "a \<noteq> AEndAtomic"
     and exec: "A ~~ (sa, a) \<leadsto> B"
@@ -1077,16 +1077,16 @@ proof -
     by (simp add: wellFormed wellFormed_visibleCallsSubsetCalls_h(2))
 
   from exec
-  have committed_same: "transactionStatus A t \<triangleq> Commited \<longleftrightarrow> transactionStatus B t \<triangleq> Commited" for t
+  have committed_same: "transactionStatus A t \<triangleq> Committed \<longleftrightarrow> transactionStatus B t \<triangleq> Committed" for t
     using aIsNotCommit committed_same by blast
 
   from exec
-  have callOrigin_same_committed: "callOrigin A c \<triangleq> tx \<longleftrightarrow> callOrigin B c \<triangleq> tx" if "transactionStatus A tx \<triangleq> Commited " for c tx
+  have callOrigin_same_committed: "callOrigin A c \<triangleq> tx \<longleftrightarrow> callOrigin B c \<triangleq> tx" if "transactionStatus A tx \<triangleq> Committed " for c tx
     using callOrigin_same_committed that wellFormed by blast    
 
   from exec
   have happensBefore_same_committed2: "(x,y) \<in> happensBefore A  \<longleftrightarrow> (x,y) \<in> happensBefore B" 
-    if "transactionStatus A tx \<triangleq> Commited " 
+    if "transactionStatus A tx \<triangleq> Committed " 
       and "callOrigin A y \<triangleq> tx"
     for tx x y
     using that happensBefore_same_committed2 wellFormed by blast 
@@ -1120,7 +1120,7 @@ proof -
         and 3: "f ls = BeginAtomic ls'"
         and 4: "currentTransaction B sb = None"
         and 5: "transactionStatus B tx = None"
-        and 6: "newTxns \<subseteq> commitedTransactions B"
+        and 6: "newTxns \<subseteq> committedTransactions B"
         and 7: "visibleCalls B sb \<triangleq> vis"
       by (auto simp add: precondition_beginAtomic)
     moreover have "transactionStatus A tx = None" using transactionStatus_mono 5 exec by blast 
@@ -1178,7 +1178,7 @@ proof -
       by (auto simp add: precondition_invcheck)
 
     have invContextSame: "(invContext A) = (invContext B)"
-      using aIsInTransaction aIsNotCommit exec invContextSnapshot_same txIsUncommited wellFormed by blast
+      using aIsInTransaction aIsNotCommit exec invContextSnapshot_same txIsUncommitted wellFormed by blast
 
     have "precondition (sb, AInvcheck res) A"  
       using prog_inv[OF exec] by (auto simp add: precondition_invcheck  committed_same 2 invContextSame)
@@ -1216,11 +1216,11 @@ happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
 *)
 
 lemma invContext_unchanged_happensBefore[simp]:
-  assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
+  assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommitted"
   shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir 
     = invContextH co to ts hbOld cs ki io ir "
   apply (simp add: invContextH_def)
-  using assms apply (auto simp add: restrict_relation_def commitedCallsH_def isCommittedH_def)
+  using assms apply (auto simp add: restrict_relation_def committedCallsH_def isCommittedH_def)
   done  
 
 lemma invContext_unchanged_happensBefore2[simp]:
@@ -1228,30 +1228,30 @@ lemma invContext_unchanged_happensBefore2[simp]:
   shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir  
     = invContextH co to ts hbOld cs ki io ir  "
   apply (simp add: invContextH_def)
-  using assms apply (auto simp add: restrict_relation_def commitedCallsH_def isCommittedH_def)
+  using assms apply (auto simp add: restrict_relation_def committedCallsH_def isCommittedH_def)
   done  
 
-lemma commitedCalls_uncommitedNotIn:
+lemma committedCalls_uncommittedNotIn:
   assumes "callOrigin S c \<triangleq> t"
-    and "transactionStatus S t \<triangleq> Uncommited"
-  shows  "c \<notin> commitedCalls S"
-  using assms by (auto simp add: commitedCallsH_def isCommittedH_def)
+    and "transactionStatus S t \<triangleq> Uncommitted"
+  shows  "c \<notin> committedCalls S"
+  using assms by (auto simp add: committedCallsH_def isCommittedH_def)
 
 
 find_consts "'a \<Rightarrow> 'a option \<Rightarrow> 'a"
 
 
 
-lemma wellFormed_commitedCallsExist:
+lemma wellFormed_committedCallsExist:
   assumes a1: "calls S c = None"
     and a2: "state_wellFormed S"
-  shows "c \<notin> commitedCalls S"
+  shows "c \<notin> committedCalls S"
   using a1 a2
-  by (smt commitedCallsH_def isCommittedH_def domIff mem_Collect_eq option.simps(3) wellFormed_callOrigin_dom) 
+  by (smt committedCallsH_def isCommittedH_def domIff mem_Collect_eq option.simps(3) wellFormed_callOrigin_dom) 
 
-lemma noOrigin_notCommited:
-  "callOrigin S c = None \<Longrightarrow> c \<notin> commitedCalls S"  
-  by (auto simp add: commitedCallsH_def isCommittedH_def)
+lemma noOrigin_notCommitted:
+  "callOrigin S c = None \<Longrightarrow> c \<notin> committedCalls S"  
+  by (auto simp add: committedCallsH_def isCommittedH_def)
 
 
 
@@ -1268,40 +1268,40 @@ lemma commutative_other_ALocal[simp]:
   shows "commutativeS S (sa, a) (sb, ALocal)"
   using assms commutativeS_switchArgs by force
 
-lemma commitedCallsH_notin[simp]:
+lemma committedCallsH_notin[simp]:
   assumes "co c = None"
-  shows "c \<notin> commitedCallsH co ts"
-  by (simp add: assms commitedCallsH_def isCommittedH_def)
+  shows "c \<notin> committedCallsH co ts"
+  by (simp add: assms committedCallsH_def isCommittedH_def)
 
-lemma commitedCallsH_in:
-  shows "(c \<in> commitedCallsH co ts) \<longleftrightarrow> (case co c of None \<Rightarrow> False | Some t \<Rightarrow> ts t \<triangleq> Commited) "
-  by (auto simp add: commitedCallsH_def isCommittedH_def split: option.splits)
+lemma committedCallsH_in:
+  shows "(c \<in> committedCallsH co ts) \<longleftrightarrow> (case co c of None \<Rightarrow> False | Some t \<Rightarrow> ts t \<triangleq> Committed) "
+  by (auto simp add: committedCallsH_def isCommittedH_def split: option.splits)
 
 lemma invContextH_update_callOrigin:
-  assumes "co c = None" and "ts t \<triangleq> Uncommited"
+  assumes "co c = None" and "ts t \<triangleq> Uncommitted"
   shows "invContextH (co(c \<mapsto> t)) to ts hb cs ki io ir   =
        invContextH co to ts hb cs ki io ir  "
   using assms by (auto simp add: invContextH_def)
 
 lemma invContextH_update_calls:
-  assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommited"
+  assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommitted"
   shows "invContextH co to ts hb (cs(c \<mapsto> newCall)) ki io ir   =
        invContextH co to ts hb cs ki io ir  "
-  using assms by (auto simp add: invContextH_def commitedCallsH_in)
+  using assms by (auto simp add: invContextH_def committedCallsH_in)
 
 
 
-lemma commitedCallsH_update_uncommited[simp]:
+lemma committedCallsH_update_uncommitted[simp]:
   assumes "ts t = None"
-  shows "commitedCallsH co (ts(t \<mapsto> Uncommited))
-     = commitedCallsH co ts"
-  using assms apply (auto simp add: commitedCallsH_def isCommittedH_def)
+  shows "committedCallsH co (ts(t \<mapsto> Uncommitted))
+     = committedCallsH co ts"
+  using assms apply (auto simp add: committedCallsH_def isCommittedH_def)
   by force
 
 
 lemma invContextH_update_txstatus:
   assumes "ts t = None" 
-  shows "invContextH co to (ts(t\<mapsto>Uncommited)) hb cs ki io ir  =
+  shows "invContextH co to (ts(t\<mapsto>Uncommitted)) hb cs ki io ir  =
        invContextH co to ts hb cs ki io ir "
   using assms by (auto simp add: invContextH_def restrict_map_def)
 
@@ -1344,7 +1344,7 @@ lemma callsInTransactionH_originUpdate_unchanged[simp]:
   assumes a1: "currentTransaction S sa \<triangleq> t"
     and a2: "state_wellFormed S"
     and a3: "calls S c = None"
-    and a4: "txns \<subseteq> commitedTransactions S"
+    and a4: "txns \<subseteq> committedTransactions S"
   shows "callsInTransactionH (callOrigin S(c \<mapsto> t)) txns
            = callsInTransactionH (callOrigin S) txns"
   apply (auto simp add: callsInTransactionH_def)
@@ -4143,10 +4143,10 @@ proof -
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
 
   define P where
-    p_def: "P \<equiv> \<lambda>S::('ls,'any) state. t \<notin> commitedTransactions S \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow>  currentTransaction S i' \<noteq> Some t)"
+    p_def: "P \<equiv> \<lambda>S::('ls,'any) state. t \<notin> committedTransactions S \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow>  currentTransaction S i' \<noteq> Some t)"
 
   have "currentTransaction S_start i \<noteq> Some t" for i
-    by (metis local.wf noOrig option.simps(3) wellFormed_currentTransactionUncommited wf_transaction_status_iff_origin)
+    by (metis local.wf noOrig option.simps(3) wellFormed_currentTransactionUncommitted wf_transaction_status_iff_origin)
 
   hence "P S_mid"
     using step_a
@@ -4216,7 +4216,7 @@ proof -
                (invocationRes C) 
           = invContext C "
           using P_S `S = C`
-          by (auto simp add: invContextH_def restrict_map_def p_def commitedCallsH_def  isCommittedH_def restrict_relation_def intro!: ext split: if_splits)
+          by (auto simp add: invContextH_def restrict_map_def p_def committedCallsH_def  isCommittedH_def restrict_relation_def intro!: ext split: if_splits)
 
 
         with invCheck
@@ -4349,7 +4349,7 @@ proof -
   define P where
     p_def: "P \<equiv> \<lambda>S::('ls,'any) state. 
                      callOrigin S cId \<triangleq> start_txn 
-                   \<and> transactionStatus S start_txn \<triangleq> Uncommited
+                   \<and> transactionStatus S start_txn \<triangleq> Uncommitted
                    \<and> (\<forall>i'. i\<noteq>i' \<longrightarrow> currentTransaction S i' \<noteq> Some start_txn)
                    \<and> (\<forall>x. (cId, x) \<notin> happensBefore S)
                    \<and> (\<forall>i' vis. i\<noteq>i' \<and> visibleCalls S i' \<triangleq> vis \<longrightarrow> cId \<notin> vis)"
@@ -4367,7 +4367,7 @@ proof -
 
     from step_a
     show "P S_mid"
-      using \<open>currentTransaction S_start i \<triangleq> start_txn\<close> local.wf wellFormed_currentTransactionUncommited apply (auto simp add: p_def step_simps a_def )
+      using \<open>currentTransaction S_start i \<triangleq> start_txn\<close> local.wf wellFormed_currentTransactionUncommitted apply (auto simp add: p_def step_simps a_def )
       using wellFormed_currentTransaction_unique apply blast
       using hb2 apply blast
       using wellFormed_visibleCallsSubsetCalls2 apply blast
@@ -4377,7 +4377,7 @@ proof -
 
       
 
-    have cId_not_in_calls: "cId \<notin> callsInTransaction S newTxns \<down> happensBefore S" if "newTxns \<subseteq> commitedTransactions S" and "P S" for S newTxns
+    have cId_not_in_calls: "cId \<notin> callsInTransaction S newTxns \<down> happensBefore S" if "newTxns \<subseteq> committedTransactions S" and "P S" for S newTxns
       using that  by (auto simp add: p_def callsInTransactionH_contains downwardsClosure_in)
 
 
@@ -4423,7 +4423,7 @@ proof -
 
               hence ?left
                 apply  (auto simp add: callsInTransactionH_def downwardsClosure_def split: if_splits)
-                using P_S ` newTxns \<subseteq> commitedTransactions C` `S = C` p_def by auto 
+                using P_S ` newTxns \<subseteq> committedTransactions C` `S = C` p_def by auto 
             }
             moreover
             {
@@ -4439,10 +4439,10 @@ proof -
                 have "txn = start_txn"
                   using P_S `S = C` p_def by auto
 
-                moreover have "transactionStatus C txn \<triangleq> Uncommited"
+                moreover have "transactionStatus C txn \<triangleq> Uncommitted"
                   using P_S `S = C` calculation p_def by blast
 
-                with `txn \<in> newTxns` `newTxns \<subseteq> commitedTransactions C`
+                with `txn \<in> newTxns` `newTxns \<subseteq> committedTransactions C`
                 show False
                   by auto
               qed
@@ -4497,10 +4497,10 @@ proof -
       next
         case (invCheck C res s)
         have [simp]: "\<not>isCommitted C cId"
-          using P_S commitedCalls_uncommitedNotIn invCheck.hyps(1) p_def
+          using P_S committedCalls_uncommittedNotIn invCheck.hyps(1) p_def
           by (simp add: isCommittedH_def) 
-        have [simp]: "cId \<notin> commitedCalls C"
-          using P_S commitedCalls_uncommitedNotIn invCheck.hyps(1) p_def by blast
+        have [simp]: "cId \<notin> committedCalls C"
+          using P_S committedCalls_uncommittedNotIn invCheck.hyps(1) p_def by blast
 
         have [simp]: "isCommittedH ((callOrigin C)(cId := None)) (transactionStatus C) x
                   \<longleftrightarrow> isCommittedH (callOrigin C) (transactionStatus C) x"  for x
@@ -4513,7 +4513,7 @@ proof -
            )
           = invContext C"
           using P_S `S = C`
-          by (auto simp add: p_def invContextH_def restrict_map_def commitedCallsH_def restrict_relation_def downwardsClosure_def callsInTransactionH_def intro!: ext)
+          by (auto simp add: p_def invContextH_def restrict_map_def committedCallsH_def restrict_relation_def downwardsClosure_def callsInTransactionH_def intro!: ext)
 
 
         with invCheck
@@ -5040,7 +5040,7 @@ lemma move_invariant_checks_out_of_transactions:
           using `S1 ~~ (s, action) \<leadsto> S2` ADbOp
           apply (auto simp add:  step_simps)
           done
-        hence uncommitted: "transactionStatus S1 tx \<triangleq> Uncommited"
+        hence uncommitted: "transactionStatus S1 tx \<triangleq> Uncommitted"
           using local.wf by auto
 
         have "calls S1 cId = None"
@@ -5050,15 +5050,15 @@ lemma move_invariant_checks_out_of_transactions:
           by (simp add: local.wf)
 
 
-        have "commitedCalls S2 = commitedCalls S1" 
+        have "committedCalls S2 = committedCalls S1" 
           using `S1 ~~ (s, action) \<leadsto> S2` ADbOp
-          by (auto simp add:  step_simps ls_none commitedCallsH_def isCommittedH_def currentTransaction uncommitted `callOrigin S1 cId = None` split: if_splits)
+          by (auto simp add:  step_simps ls_none committedCallsH_def isCommittedH_def currentTransaction uncommitted `callOrigin S1 cId = None` split: if_splits)
 
         have "invContext S2 = invContext S1 "
-          apply (auto simp add: invContextH_def `commitedCalls S2 = commitedCalls S1`)
+          apply (auto simp add: invContextH_def `committedCalls S2 = committedCalls S1`)
           using `S1 ~~ (s, action) \<leadsto> S2` ADbOp
                   apply (auto simp add: invContextH_def step_simps ls_none )
-           using \<open>callOrigin S1 cId = None\<close> noOrigin_notCommited  by (auto simp add: restrict_map_def restrict_relation_def )
+           using \<open>callOrigin S1 cId = None\<close> noOrigin_notCommitted  by (auto simp add: restrict_map_def restrict_relation_def )
 
 
          with invariant_fail_S2

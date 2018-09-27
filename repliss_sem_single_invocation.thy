@@ -13,11 +13,11 @@ definition
 
 definition
 "transactionConsistent origin txStatus vis \<equiv>
-    (\<forall>c tx. c\<in>vis \<and> origin c \<triangleq> tx \<longrightarrow> txStatus tx \<triangleq> Commited)
+    (\<forall>c tx. c\<in>vis \<and> origin c \<triangleq> tx \<longrightarrow> txStatus tx \<triangleq> Committed)
   \<and> (\<forall>c1 c2. c1\<in>vis \<and> origin c1 = origin c2 \<longrightarrow> c2\<in>vis)"
 
-lemma transactionConsistent_Commited:
-shows "\<lbrakk>transactionConsistent origin txStatus vis; c\<in>vis; origin c \<triangleq> tx; origin c \<triangleq> tx\<rbrakk> \<Longrightarrow> txStatus tx \<triangleq> Commited"
+lemma transactionConsistent_Committed:
+shows "\<lbrakk>transactionConsistent origin txStatus vis; c\<in>vis; origin c \<triangleq> tx; origin c \<triangleq> tx\<rbrakk> \<Longrightarrow> txStatus tx \<triangleq> Committed"
 by (auto simp add:  transactionConsistent_def) 
 
 lemma transactionConsistent_all_from_same:
@@ -45,7 +45,7 @@ and "transactionConsistent s_callOrigin s_transactionStatus vis"
   using assms by (auto simp add: consistentSnapshotH_def)
 
 definition 
-"state_monotonicGrowth_txStable callOrigin_S callOrigin_S' transactionStatus_S' \<equiv> (\<forall>c tx. callOrigin_S c \<triangleq> tx \<and> transactionStatus_S' tx \<triangleq> Commited \<longrightarrow> callOrigin_S' c \<triangleq> tx)"
+"state_monotonicGrowth_txStable callOrigin_S callOrigin_S' transactionStatus_S' \<equiv> (\<forall>c tx. callOrigin_S c \<triangleq> tx \<and> transactionStatus_S' tx \<triangleq> Committed \<longrightarrow> callOrigin_S' c \<triangleq> tx)"
 
 definition state_monotonicGrowth :: "invocation \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth i S S' \<equiv> state_wellFormed S \<and> (\<exists>tr. (S ~~ tr \<leadsto>* S') \<and> (\<forall>(i',a)\<in>set tr. i' \<noteq> i) \<and> (\<forall>i. (i, AFail) \<notin> set tr))"
@@ -88,7 +88,7 @@ definition state_monotonicGrowth :: "('localState, 'any::valueType) state \<Righ
       \<comment> \<open>  no new calls are added before existing calls  \<close>
       \<and> (\<forall>c c' x y. calls S' c = None \<and> calls S c \<triangleq> x \<and> calls S' c' \<triangleq> y  \<longrightarrow> (c,c') \<notin> happensBefore S')
       \<comment> \<open>  no new calls are added to committed transactions  \<close>
-      \<and> (\<forall>c tx. callOrigin S c \<triangleq> tx \<and> calls S' c = None  \<longrightarrow> transactionStatus S' tx \<noteq> Some Commited)
+      \<and> (\<forall>c tx. callOrigin S c \<triangleq> tx \<and> calls S' c = None  \<longrightarrow> transactionStatus S' tx \<noteq> Some Committed)
       \<comment> \<open>  Program unchanged  \<close>
       \<and> prog S = prog S'"
 *)
@@ -138,7 +138,7 @@ lemma state_monotonicGrowth_no_new_calls_in_committed_transactions:
   assumes "state_monotonicGrowth i S' S"
     and "callOrigin S c \<triangleq> tx"
     and "calls S' c = None"
-  shows "transactionStatus S' tx \<noteq> Some Commited"
+  shows "transactionStatus S' tx \<noteq> Some Committed"
   using assms by (auto simp add: state_monotonicGrowth_def no_new_calls_in_committed_transactions)
 
 lemma state_monotonicGrowth_transactionOrigin: 
@@ -212,7 +212,7 @@ lemma state_monotonicGrowth_transactionStatus:
 
 lemma state_monotonicGrowth_transactionStatus2:
   assumes "state_monotonicGrowth i S' S"
-  shows "transactionStatus S' tx \<triangleq> Commited \<Longrightarrow>  transactionStatus S tx \<triangleq> Commited"
+  shows "transactionStatus S' tx \<triangleq> Committed \<Longrightarrow>  transactionStatus S tx \<triangleq> Committed"
   using assms by (auto simp add: state_monotonicGrowth_def transactionStatus_mono1)
 
 
@@ -228,7 +228,7 @@ lemma state_monotonicGrowth_invocationOp2:
 
 lemma state_monotonicGrowth_committed_transactions_fixed:
   assumes "state_monotonicGrowth i S' S"
-and "transactionStatus S' tx \<triangleq> Commited"
+and "transactionStatus S' tx \<triangleq> Committed"
 and "callOrigin S x \<triangleq> tx"
 shows "callOrigin S' x \<triangleq> tx"
 proof -
@@ -248,7 +248,7 @@ lemma state_monotonicGrowth_committed_transactions_fixed1:
 
 lemma state_monotonicGrowth_committed_transactions_fixed2:
   assumes "state_monotonicGrowth i S' S"
-and "transactionStatus S' tx \<triangleq> Commited"
+and "transactionStatus S' tx \<triangleq> Committed"
 shows "{c. callOrigin S' c \<triangleq> tx} = {c. callOrigin S c \<triangleq> tx}"
   using assms state_monotonicGrowth_callOrigin state_monotonicGrowth_committed_transactions_fixed by blast
 
@@ -305,121 +305,122 @@ All other sessions are simulated by nondeterministic state changes, with respect
   
 inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocation \<times> 'any action \<times> bool) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
   local: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = LocalStep ls' 
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ALocal, True)  \<leadsto>\<^sub>S (C\<lparr>localState := (localState C)(s \<mapsto> ls') \<rparr>)"
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ALocal, True)  \<leadsto>\<^sub>S (S\<lparr>localState := (localState S)(i \<mapsto> ls') \<rparr>)"
 | newId: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = NewId ls';
-   generatedIds C uid = None;
+   generatedIds S uid = None;
    uniqueIds uid = {uid}; \<comment> \<open> there is exactly one unique id \<close>
    ls' uid \<triangleq> ls''
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid, True) \<leadsto>\<^sub>S (C\<lparr>localState := (localState C)(s \<mapsto> ls''), 
-                                   generatedIds := (generatedIds C)( uid \<mapsto> s) \<rparr>)"   
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ANewId uid, True) \<leadsto>\<^sub>S (S\<lparr>localState := (localState S)(i \<mapsto> ls''), 
+                                   generatedIds := (generatedIds S)( uid \<mapsto> i) \<rparr>)"   
 | beginAtomic: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = BeginAtomic ls';
-   currentTransaction C s = None;
-   transactionStatus C t = None;
+   currentTransaction S i = None;
+   transactionStatus S t = None;
    \<comment> \<open> we assume a nondeterministic state change to C' here TODO add more restrictions \<close>
-   prog C' = prog C;
-   state_monotonicGrowth s C C';
-   \<And>t. transactionOrigin C t \<triangleq> s \<longleftrightarrow> transactionOrigin C' t \<triangleq> s;
+   prog S' = prog S;
+   state_monotonicGrowth i S S';
+   \<And>t. transactionOrigin S t \<triangleq> i \<longleftrightarrow> transactionOrigin S' t \<triangleq> i; \<comment> \<open>No new transactions are added to current invocation.\<close>
    \<comment> \<open> new transaction has no calls yet \<close>
    \<comment> \<open> invariant maintained \<close>
-   invariant_all C';
-   \<And>tx. transactionStatus C' tx \<noteq> Some Uncommited;
+   invariant_all S';
+   \<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted;
    \<comment> \<open>  well formed history  \<close>
-   state_wellFormed C';
-   state_wellFormed C'';
+   state_wellFormed S';
+   state_wellFormed S'';
    \<comment> \<open>  local changes:  \<close>
-   localState C' s \<triangleq> ls;
-   currentProc C' s \<triangleq> f;
-   currentTransaction C' s = None;
-   visibleCalls C s \<triangleq> vis;
-   visibleCalls C' s \<triangleq> vis;
-   vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C';
-   newTxns \<subseteq> dom (transactionStatus C');
-   consistentSnapshot C' vis';
-   transactionStatus C' t = None;
-   \<And>c. callOrigin C' c \<noteq> Some t;
-   transactionOrigin C' t = None;
-   (C'' = C'\<lparr>transactionStatus := (transactionStatus C')(t \<mapsto> Uncommited),
-              transactionOrigin := (transactionOrigin C')(t \<mapsto> s),
-              currentTransaction := (currentTransaction C')(s \<mapsto> t),
-              localState := (localState C')(s \<mapsto> ls'),
-              visibleCalls := (visibleCalls C')(s \<mapsto> vis')
+   localState S' i \<triangleq> ls;
+   currentProc S' i \<triangleq> f;
+   currentTransaction S' i = None;
+   visibleCalls S i \<triangleq> vis;
+   visibleCalls S' i \<triangleq> vis;
+   newTxns \<subseteq> dom (transactionStatus S');
+   newCalls = callsInTransaction S' newTxns \<down> happensBefore S';
+   vis' = vis \<union> newCalls;
+   consistentSnapshot S' vis';
+   transactionStatus S' t = None;
+   \<And>c. callOrigin S' c \<noteq> Some t;
+   transactionOrigin S' t = None;
+   (S'' = S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommitted),
+              transactionOrigin := (transactionOrigin S')(t \<mapsto> i),
+              currentTransaction := (currentTransaction S')(i \<mapsto> t),
+              localState := (localState S')(i \<mapsto> ls'),
+              visibleCalls := (visibleCalls S')(i \<mapsto> vis')
     \<rparr>)
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t txns, True) \<leadsto>\<^sub>S C''"
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ABeginAtomic t txns, True) \<leadsto>\<^sub>S S''"
 | endAtomic: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = EndAtomic ls';
-   currentTransaction C s \<triangleq> t;
-   C' = (C\<lparr>localState := (localState C)(s \<mapsto> ls'), 
-                currentTransaction := (currentTransaction C)(s := None),
-                transactionStatus := (transactionStatus C)(t \<mapsto> Commited) \<rparr>);
-   state_wellFormed C';
-   valid = invariant_all C'
-   \<rbrakk> \<Longrightarrow> C ~~ (s, AEndAtomic, valid) \<leadsto>\<^sub>S C'"
+   currentTransaction S i \<triangleq> t;
+   S' = (S\<lparr>localState := (localState S)(i \<mapsto> ls'), 
+                currentTransaction := (currentTransaction S)(i := None),
+                transactionStatus := (transactionStatus S)(t \<mapsto> Committed) \<rparr>);
+   state_wellFormed S';
+   valid = invariant_all S'
+   \<rbrakk> \<Longrightarrow> S ~~ (i, AEndAtomic, valid) \<leadsto>\<^sub>S S'"
 | dbop: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = DbOperation Op args ls';
-   currentTransaction C s \<triangleq> t;
-   calls C c = None;
-   querySpec (prog C) Op args (getContext C s)  res;
-   visibleCalls C s \<triangleq> vis
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, ADbOp c Op args res, True) \<leadsto>\<^sub>S (C\<lparr>localState := (localState C)(s \<mapsto> ls' res), 
-                calls := (calls C)(c \<mapsto> Call Op args res ),
-                callOrigin := (callOrigin C)(c \<mapsto> t),
-                visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> {c}),
-                happensBefore := happensBefore C \<union> vis \<times> {c}  \<rparr>)"                
+   currentTransaction S i \<triangleq> t;
+   calls S c = None;
+   querySpec (prog S) Op args (getContext S i)  res;
+   visibleCalls S i \<triangleq> vis
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, ADbOp c Op args res, True) \<leadsto>\<^sub>S (S\<lparr>localState := (localState S)(i \<mapsto> ls' res), 
+                calls := (calls S)(c \<mapsto> Call Op args res ),
+                callOrigin := (callOrigin S)(c \<mapsto> t),
+                visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
+                happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>)"                
 (* TODO integrate pull into beginAtomic
 | pull:
   "\<lbrakk>localState C s \<triangleq> ls; 
    currentTransaction C s = None;
    visibleCalls C s \<triangleq> vis;
-   \<comment> \<open>  choose a set of commited transactions to pull in \<close>
-   newTxns \<subseteq> commitedTransactions C;
+   \<comment> \<open>  choose a set of committed transactions to pull in \<close>
+   newTxns \<subseteq> committedTransactions C;
    \<comment> \<open>  pull in calls from the transactions and their dependencies  \<close>
    newCalls = callsInTransaction C newTxns \<down> happensBefore C
    \<rbrakk> \<Longrightarrow>  C ~~ (s, APull newTxns) \<leadsto>\<^sub>S (C\<lparr> visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> newCalls)\<rparr>)"                         
 *)
 | invocation:
   "\<lbrakk>\<comment> \<open> localState C s = None; \<close>
-   invocationOp C s = None;
-   procedure (prog C) procName args \<triangleq> (initState, impl);
-   uniqueIdsInList args \<subseteq> knownIds C';
+   invocationOp S i = None;
+   procedure (prog S) procName args \<triangleq> (initState, impl);
+   uniqueIdsInList args \<subseteq> knownIds S';
    \<comment> \<open>   TODO add welformedness?  \<close>
-   state_wellFormed C';
-   \<And>tx. transactionStatus C' tx \<noteq> Some Uncommited;
-   invariant_all C';
-   invocationOp C' s = None;
-   prog C' = prog C;
+   state_wellFormed S';
+   \<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted;
+   invariant_all S';
+   invocationOp S' i = None;
+   prog S' = prog S;
    \<comment> \<open>  TODO some connection between C and C' or allow anything that preserves invariant? maybe C is not needed at all?  \<close>
-   C'' = (C'\<lparr>localState := (localState C')(s \<mapsto> initState),
-                 currentProc := (currentProc C')(s \<mapsto> impl),
-                 visibleCalls := (visibleCalls C')(s \<mapsto> {}),
-                 invocationOp := (invocationOp C')(s \<mapsto> (procName, args)) \<rparr>);
+   C'' = (S'\<lparr>localState := (localState S')(i \<mapsto> initState),
+                 currentProc := (currentProc S')(i \<mapsto> impl),
+                 visibleCalls := (visibleCalls S')(i \<mapsto> {}),
+                 invocationOp := (invocationOp S')(i \<mapsto> (procName, args)) \<rparr>);
    valid = invariant_all C'';  \<comment> \<open>  TODO check invariant in C ?  \<close>            
-   \<And>tx. transactionOrigin C'' tx \<noteq> Some s
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvoc procName args, valid) \<leadsto>\<^sub>S C''"       
+   \<And>tx. transactionOrigin C'' tx \<noteq> Some i
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc procName args, valid) \<leadsto>\<^sub>S C''"       
 | return:
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = Return res;
-   currentTransaction C s = None; \<comment> \<open>  TODO maybe we can assume invariant_all for C?  \<close>
-   C' = (C\<lparr>localState := (localState C)(s := None),
-                 currentProc := (currentProc C)(s := None),
-                 visibleCalls := (visibleCalls C)(s := None),
-                 invocationRes := (invocationRes C)(s \<mapsto> res),
-                 knownIds := knownIds C \<union> uniqueIds res\<rparr>);
-   valid = invariant_all C'                   
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AReturn res, valid) \<leadsto>\<^sub>S C'"
+   currentTransaction S i = None; \<comment> \<open>  TODO maybe we can assume invariant_all for C?  \<close>
+   S' = (S\<lparr>localState := (localState S)(i := None),
+                 currentProc := (currentProc S)(i := None),
+                 visibleCalls := (visibleCalls S)(i := None),
+                 invocationRes := (invocationRes S)(i \<mapsto> res),
+                 knownIds := knownIds S \<union> uniqueIds res\<rparr>);
+   valid = invariant_all S'                   
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, AReturn res, valid) \<leadsto>\<^sub>S S'"
 
 inductive steps_s :: "('localState, 'any::valueType) state \<Rightarrow> invocation \<times> ('any action \<times> bool) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_s_refl:

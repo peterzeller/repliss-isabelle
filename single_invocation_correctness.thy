@@ -139,7 +139,7 @@ definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('loc
               \<and> transactionStatus S t = None
               \<and> prog S' = prog S
               \<and> invariant_all' S'
-              \<and> (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited)
+              \<and> (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted)
               \<and> state_wellFormed S'
               \<and> state_wellFormed S''
               \<and> state_monotonicGrowth i S S'
@@ -155,7 +155,7 @@ definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('loc
               \<and> transactionStatus S' t = None
               \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
               \<and> transactionOrigin S' t = None
-              \<and> (S'' = S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommited),
+              \<and> (S'' = S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommitted),
                           transactionOrigin := (transactionOrigin S')(t \<mapsto> i),
                           currentTransaction := (currentTransaction S')(i \<mapsto> t),
                           localState := (localState S')(i \<mapsto> ls'),
@@ -169,8 +169,8 @@ definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('loc
                 let S' = (S\<lparr>
                   localState := (localState S)(i \<mapsto> ls), 
                   currentTransaction := (currentTransaction S)(i := None),
-                  transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>) in
-                  (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
+                  transactionStatus := (transactionStatus S)(t \<mapsto> Committed) \<rparr>) in
+                  (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) 
                   \<and> state_wellFormed S'
                     \<longrightarrow> (invariant_all' S'
                          \<and> (invariant_all' S' \<longrightarrow> checkCorrect' (progr, S', i)))
@@ -208,7 +208,7 @@ definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('loc
                  visibleCalls := (visibleCalls S)(i := None),
                  invocationRes := (invocationRes S)(i \<mapsto> res),
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
-               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant_all' S'    
+               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) \<longrightarrow> invariant_all' S'    
             )
         )))
 "
@@ -517,7 +517,7 @@ qed
 
 lemma initialState_noTxns1:
   assumes initS: "S \<in> initialStates program i"
-  shows "transactionStatus S tx \<noteq> Some Uncommited"
+  shows "transactionStatus S tx \<noteq> Some Uncommitted"
   using initS by (auto simp add: initialStates_def)
 
 lemma initialState_noTxns2:
@@ -616,9 +616,9 @@ qed
 
 lemma committedCalls_allCommitted:
   assumes wf: "state_wellFormed S"
-    and noUncommitted: "\<And>t. transactionStatus S t \<noteq> Some Uncommited"
-  shows "commitedCalls S = dom (calls S)"
-  apply (auto simp add: commitedCallsH_def isCommittedH_def )
+    and noUncommitted: "\<And>t. transactionStatus S t \<noteq> Some Uncommitted"
+  shows "committedCalls S = dom (calls S)"
+  apply (auto simp add: committedCallsH_def isCommittedH_def )
    apply (simp add: domD domIff local.wf wellFormed_callOrigin_dom3)
   apply (case_tac "callOrigin S x", auto)
   apply (metis local.wf option.distinct(1) wellFormed_callOrigin_dom3)
@@ -630,11 +630,11 @@ lemma invContextH_same_allCommitted':
     and wf3: "\<And>a b. (a, b) \<in> state_happensBefore \<Longrightarrow> state_calls a \<noteq> None"
     and wf4: "\<And>a b. (a, b) \<in> state_happensBefore \<Longrightarrow> state_calls b \<noteq> None"
     and wf5: "\<And>c. (state_transactionOrigin c = None) \<longleftrightarrow> (state_transactionStatus c = None)"
-    and noUncommitted: "\<And>t c. \<lbrakk>state_transactionStatus t \<triangleq> Uncommited\<rbrakk> \<Longrightarrow> state_callOrigin c \<noteq> Some t"
+    and noUncommitted: "\<And>t c. \<lbrakk>state_transactionStatus t \<triangleq> Uncommitted\<rbrakk> \<Longrightarrow> state_callOrigin c \<noteq> Some t"
   shows "invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore state_calls state_knownIds state_invocationOp state_invocationRes
        = invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore state_calls state_knownIds state_invocationOp state_invocationRes"
   apply (auto simp add: invContextH_def invContextH2_def intro!: ext)
-      apply (auto simp add: commitedCallsH_def isCommittedH_def restrict_map_def restrict_relation_def)
+      apply (auto simp add: committedCallsH_def isCommittedH_def restrict_map_def restrict_relation_def)
       apply (metis (full_types) noUncommitted not_None_eq transactionStatus.exhaust wf1 wf2)
      apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf3)
     apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf4)
@@ -649,11 +649,11 @@ lemma invContextH_same_allCommitted:
     and wf3: "\<And>a b. (a, b) \<in> state_happensBefore \<Longrightarrow> state_calls a \<noteq> None"
     and wf4: "\<And>a b. (a, b) \<in> state_happensBefore \<Longrightarrow> state_calls b \<noteq> None"
     and wf5: "\<And>c. (state_transactionOrigin c = None) \<longleftrightarrow> (state_transactionStatus c = None)"
-    and noUncommitted: "\<And>t. state_transactionStatus t \<noteq> Some Uncommited"
+    and noUncommitted: "\<And>t. state_transactionStatus t \<noteq> Some Uncommitted"
   shows "invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore state_calls state_knownIds state_invocationOp state_invocationRes
        = invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore state_calls state_knownIds state_invocationOp state_invocationRes"
   apply (auto simp add: invContextH_def invContextH2_def intro!: ext)
-      apply (auto simp add: commitedCallsH_def isCommittedH_def restrict_map_def restrict_relation_def)
+      apply (auto simp add: committedCallsH_def isCommittedH_def restrict_map_def restrict_relation_def)
       apply (metis (full_types) noUncommitted option.exhaust_sel transactionStatus.exhaust wf1 wf2)
      apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf3)
     apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf4)
@@ -662,7 +662,7 @@ lemma invContextH_same_allCommitted:
 
 lemma invContext_same_allCommitted:
   assumes  wf: "state_wellFormed S"
-    and noUncommitted: "\<And>t. transactionStatus S t \<noteq> Some Uncommited"
+    and noUncommitted: "\<And>t. transactionStatus S t \<noteq> Some Uncommitted"
   shows "invContext S
        = invContext' S"
 proof (rule invContextH_same_allCommitted)
@@ -676,7 +676,7 @@ proof (rule invContextH_same_allCommitted)
      by (simp add: local.wf wellFormed_happensBefore_calls_r)
    show "\<And>c. (transactionOrigin S c = None) = (transactionStatus S c = None)"
      by (simp add: local.wf wf_transaction_status_iff_origin)
-   show "\<And>t. transactionStatus S t \<noteq> Some Uncommited"
+   show "\<And>t. transactionStatus S t \<noteq> Some Uncommitted"
      using noUncommitted by blast
  qed
 
@@ -780,10 +780,10 @@ next
 
 
 
-      have tx2: "transactionStatus S_pre tx \<triangleq> Uncommited"
+      have tx2: "transactionStatus S_pre tx \<triangleq> Uncommitted"
         using initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre tx1 by blast 
 
-      have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommited" if "t \<noteq> tx" for t
+      have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommitted" if "t \<noteq> tx" for t
         using initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre that tx1 by fastforce
 
       from S_pre_correct tr_correct step_final  
@@ -816,12 +816,12 @@ next
       case None
       hence notx[simp]: "currentTransaction S_pre i = None" by simp
 
-      have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommited" for t
+      have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommitted" for t
         using None initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre by fastforce
 
 
 
-      have invContextSimp: "invContext S_fin = invContext' S_fin" if "\<And>t. transactionStatus S_fin t \<noteq> Some Uncommited"
+      have invContextSimp: "invContext S_fin = invContext' S_fin" if "\<And>t. transactionStatus S_fin t \<noteq> Some Uncommitted"
         by (simp add: \<open>state_wellFormed S_fin\<close> invContext_same_allCommitted that) 
 
 
@@ -845,7 +845,7 @@ next
 
 
 
-      have invAll': "invariant_all' S_fin" if "invariant_all S_fin" and "\<And>t. transactionStatus S_fin t \<noteq> Some Uncommited"
+      have invAll': "invariant_all' S_fin" if "invariant_all S_fin" and "\<And>t. transactionStatus S_fin t \<noteq> Some Uncommitted"
         using that by (simp add: invContextSimp) 
 
       from step_final
@@ -878,7 +878,7 @@ next
                   transactionStatus C t = None \<and>
                   prog S' = prog C \<and>
                   invariant_all' S' \<and>
-                  (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited) \<and>
+                  (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted) \<and>
                   state_wellFormed S' \<and>
                   state_wellFormed S'' \<and>
                   state_monotonicGrowth i C S' \<and>
@@ -894,7 +894,7 @@ next
                   transactionStatus S' t = None \<and>
                   (\<forall>c. callOrigin S' c \<noteq> Some t) \<and>
                   transactionOrigin S' t = None \<and>
-                  S'' = S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i),
+                  S'' = S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i),
                              currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> ls'), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr> \<longrightarrow>
                   checkCorrect program S'' i)"
           apply (subst(asm) checkCorrect_simps)
@@ -905,7 +905,7 @@ next
           show "transactionStatus C t = None" using `transactionStatus C t = None` .
 
           show "invariant_all' C'"
-            using `invariant_all C'` `\<And>tx. transactionStatus C' tx \<noteq> Some Uncommited` `state_wellFormed C'` invContext_same_allCommitted by fastforce 
+            using `invariant_all C'` `\<And>tx. transactionStatus C' tx \<noteq> Some Uncommitted` `state_wellFormed C'` invContext_same_allCommitted by fastforce 
           show "state_wellFormed C'"  
             by (simp add: `state_wellFormed C'`)
           show "state_monotonicGrowth i C C'"
@@ -925,7 +925,7 @@ next
           show "prog C' = prog C"
             by (simp add: beginAtomic.hyps(9))
 
-          show " \<forall>tx. transactionStatus C' tx \<noteq> Some Uncommited"
+          show " \<forall>tx. transactionStatus C' tx \<noteq> Some Uncommitted"
             by (simp add: beginAtomic.hyps(13))
 
           show "visibleCalls C' i \<triangleq> vis"
@@ -956,7 +956,7 @@ next
             using beginAtomic.hyps(11) by auto
 
           show "S_fin = C'
-              \<lparr>transactionStatus := transactionStatus C'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin C'(t \<mapsto> i), currentTransaction := currentTransaction C'(i \<mapsto> t),
+              \<lparr>transactionStatus := transactionStatus C'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin C'(t \<mapsto> i), currentTransaction := currentTransaction C'(i \<mapsto> t),
                  localState := localState C'(i \<mapsto> ls'), visibleCalls := visibleCalls C'(i \<mapsto> vis')\<rparr>"  
             by (auto simp add: beginAtomic(3) beginAtomic(27) state_ext)
         qed
@@ -1088,7 +1088,7 @@ next
     next
       case (beginAtomic ls f ls' t S' vis vis' txns newTxns )
 
-      have "transactionStatus S_fin t \<triangleq> Uncommited"
+      have "transactionStatus S_fin t \<triangleq> Uncommitted"
         by (simp add: beginAtomic)
 
       find_theorems S_pre
@@ -1109,7 +1109,7 @@ next
                   transactionStatus initS t = None \<and>
                   prog S' = prog initS \<and>
                   invariant_all' S' \<and>
-                  (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited) \<and>
+                  (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted) \<and>
                   state_wellFormed S' \<and>
                   state_wellFormed S'' \<and>
                   state_monotonicGrowth i initS S' \<and>
@@ -1125,7 +1125,7 @@ next
                   transactionStatus S' t = None \<and>
                   (\<forall>c. callOrigin S' c \<noteq> Some t) \<and>
                   transactionOrigin S' t = None \<and>
-                  S'' = S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i),
+                  S'' = S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i),
                              currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> ls'), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr> \<longrightarrow>
                   checkCorrect program S'' i)"
         apply (subst(asm) checkCorrect_simps)
@@ -1324,7 +1324,7 @@ proof (auto simp add: programCorrect_s_def)
         and a3: "procedure (prog C') p args \<triangleq> (initState, impl)"
         and a4: "uniqueIdsInList args \<subseteq> knownIds C'"
         and a5: "state_wellFormed C'"
-        and a6: "\<forall>x. transactionStatus C' x \<noteq> Some Uncommited"
+        and a6: "\<forall>x. transactionStatus C' x \<noteq> Some Uncommitted"
         and a7: "invariant_all C'"
         and a8: "invocationOp C' i = None"
         and a9: "program = prog C'"
@@ -1347,7 +1347,7 @@ proof (auto simp add: programCorrect_s_def)
           by (simp add: a5 wellFormed_happensBefore_calls_r)
         show "\<And>c. (transactionOrigin C' c = None) = (transactionStatus C' c = None)"
           by (simp add: a5 wf_transaction_status_iff_origin)
-        show "\<And>t. transactionStatus C' t \<noteq> Some Uncommited"
+        show "\<And>t. transactionStatus C' t \<noteq> Some Uncommitted"
           by (simp add: a6)
       qed
 
@@ -1462,7 +1462,7 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
               \<and> transactionStatus S t = None
               \<and> prog S' = prog S
               \<and> invariant_all' S'
-              \<and> (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited)
+              \<and> (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted)
               \<and> state_wellFormed S'
               \<and> state_wellFormed S''
               \<and> state_monotonicGrowth i S S'
@@ -1479,7 +1479,7 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
               \<and> transactionStatus S' t = None
               \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
               \<and> transactionOrigin S' t = None
-              \<and> (S'' ::= S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommited),
+              \<and> (S'' ::= S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommitted),
                           transactionOrigin := (transactionOrigin S')(t \<mapsto> i),
                           currentTransaction := (currentTransaction S')(i \<mapsto> t),
                           localState := (localState S')(i \<mapsto> ls'),
@@ -1494,8 +1494,8 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
                  S' ::= (S\<lparr>
                   localState := (localState S)(i \<mapsto> ls), 
                   currentTransaction := (currentTransaction S)(i := None),
-                  transactionStatus := (transactionStatus S)(t \<mapsto> Commited) \<rparr>)
-                \<longrightarrow> (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) 
+                  transactionStatus := (transactionStatus S)(t \<mapsto> Committed) \<rparr>)
+                \<longrightarrow> (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) 
                      \<longrightarrow> state_wellFormed S'
                      \<longrightarrow> (invariant progr (invContext' S')
                           \<and> (invariant progr (invContext' S')  \<longrightarrow> checkCorrect' (progr, txCalls, S', i))
@@ -1538,7 +1538,7 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
                  visibleCalls := (visibleCalls S)(i := None),
                  invocationRes := (invocationRes S)(i \<mapsto> res),
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>) \<longrightarrow>
-               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant progr (invContext' S')  
+               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) \<longrightarrow> invariant progr (invContext' S')  
             )
         )))
 "
@@ -1597,19 +1597,19 @@ assumes "(
                        localState S' i \<triangleq> ls \<and>
                        currentProc S' i \<triangleq> impl \<and>
                        currentTransaction S' i \<triangleq> t \<and>
-                       transactionStatus S' t \<triangleq> Uncommited \<and>
+                       transactionStatus S' t \<triangleq> Uncommitted \<and>
                        transactionOrigin S' t \<triangleq> i \<and>
                        (\<forall>c. callOrigin S' c \<noteq> Some t) \<and>
                        visibleCalls S i \<triangleq> txCalls \<and>
                        vis' = txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S' \<and>
                        visibleCalls S' i \<triangleq> vis' \<and>
                        newTxns \<subseteq> dom (transactionStatus S') \<and>
-                       consistentSnapshot S' vis' \<and> (\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommited) \<and> invariant progr (invContext' S') \<and> (invariant progr (invContext S') \<longrightarrow>
+                       consistentSnapshot S' vis' \<and> (\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommitted) \<and> invariant progr (invContext' S') \<and> (invariant progr (invContext S') \<longrightarrow>
                        (checkCorrect2 progr vis' S' i)))
                | EndAtomic ls \<Rightarrow>
                    (case currentTransaction S i of None \<Rightarrow> False
-                   | Some t \<Rightarrow> let S' = S\<lparr>localState := localState S(i \<mapsto> ls), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(t \<mapsto> Commited)\<rparr>
-                               in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow>
+                   | Some t \<Rightarrow> let S' = S\<lparr>localState := localState S(i \<mapsto> ls), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(t \<mapsto> Committed)\<rparr>
+                               in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) \<longrightarrow>
                                   invariant progr (invContext' S') \<and> (invariant progr (invContext' S') \<longrightarrow> (checkCorrect2 progr txCalls S' i)))
                | NewId ls \<Rightarrow> \<forall>uid ls'. 
                             generatedIds S uid = None
@@ -1629,7 +1629,7 @@ assumes "(
                    currentTransaction S i = None \<and>
                    (let S' = S\<lparr>localState := (localState S)(i := None), currentProc := (currentProc S)(i := None), visibleCalls := (visibleCalls S)(i := None),
                                  invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>
-                    in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommited) \<longrightarrow> invariant progr (invContext' S'))))"
+                    in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) \<longrightarrow> invariant progr (invContext' S'))))"
 shows "checkCorrect2 progr txCalls S i"
   apply (insert assms)
   apply (subst checkCorrect2_unfold)
@@ -1772,9 +1772,9 @@ next
             and c0: "transactionStatus S t = None"
             and c2a: "progr = prog S'"
             and c1: "invariant_all' S'"
-            and c13: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
+            and c13: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
             and c2: "state_wellFormed S'"
-            and c6a: "state_wellFormed (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
+            and c6a: "state_wellFormed (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
             and c3: "state_monotonicGrowth i S S'"
             and c4: "localState S' i \<triangleq> ls"
             and c5: "currentProc S' i \<triangleq> proc"
@@ -1787,7 +1787,7 @@ next
             and c7: "transactionOrigin S' t = None"
             and transactionOriginUnchanged: "\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin S t \<triangleq> i"
 
-        define S'' where S''_def: "S'' = (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
+        define S'' where S''_def: "S'' = (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
 
 
         from `state_monotonicGrowth i S S'`
@@ -1866,11 +1866,11 @@ next
       show ?thesis
       proof (subst checkCorrect_simps, auto simp add: EndAtomic tx Let_def)
 
-        assume all_committed: "\<forall>t. t \<noteq> tx \<longrightarrow> transactionStatus S t \<noteq> Some Uncommited"
-          and wf: "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>)"
+        assume all_committed: "\<forall>t. t \<noteq> tx \<longrightarrow> transactionStatus S t \<noteq> Some Uncommitted"
+          and wf: "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>)"
 
 
-        show inv: "invariant progr (invContextH2 (callOrigin S) (transactionOrigin S) (transactionStatus S(tx \<mapsto> Commited)) (happensBefore S) (calls S) (knownIds S) (invocationOp S) (invocationRes S))"
+        show inv: "invariant progr (invContextH2 (callOrigin S) (transactionOrigin S) (transactionStatus S(tx \<mapsto> Committed)) (happensBefore S) (calls S) (knownIds S) (invocationOp S) (invocationRes S))"
           using use_checkCorrect2 local.wf 
           apply simp
           apply (subst(asm) checkCorrect2F_def)
@@ -1878,36 +1878,36 @@ next
           done
 
 
-        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>) i"
+        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>) i"
         proof (rule IH)
-          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>)"
+          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>)"
             using inv apply (auto simp add:)
             apply (subst invContextH_same_allCommitted)
             using wellFormed_callOrigin_dom3[OF `state_wellFormed S`] wellFormed_state_callOrigin_transactionStatus[OF `state_wellFormed S`]
                   wellFormed_happensBefore_calls_l[OF `state_wellFormed S`]
                   wellFormed_happensBefore_calls_r[OF `state_wellFormed S`]
-                (*  wellFormed_currentTransactionUncommited[OF `state_wellFormed S`]
+                (*  wellFormed_currentTransactionUncommitted[OF `state_wellFormed S`]
                   wf_transaction_status_iff_origin[OF `state_wellFormed S`]*)
                   all_committed
                   apply (auto simp add: Def_def)
-              apply (metis Suc.prems(2) not_Some_eq tx wellFormed_currentTransactionUncommited wf_transaction_status_iff_origin)
+              apply (metis Suc.prems(2) not_Some_eq tx wellFormed_currentTransactionUncommitted wf_transaction_status_iff_origin)
             using Suc.prems(2) wf_transaction_status_iff_origin apply blast
             using Suc.prems(2) wf_transaction_status_iff_origin by blast
 
           show "progr = progr" ..
 
-          show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>)"
+          show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>)"
             using local.wf by blast
 
-          show "progr = prog (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>)"
+          show "progr = prog (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>)"
             by simp
 
           from `visibleCalls S i \<triangleq> txCalls`
-          show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>) i \<triangleq> txCalls"
+          show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>) i \<triangleq> txCalls"
             by simp
 
           show "(checkCorrect2F ^^ bound) bot
-             (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Commited)\<rparr>, i)"
+             (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>, i)"
             using use_checkCorrect2 local.wf 
             apply simp
             apply (subst(asm) checkCorrect2F_def)
@@ -2030,7 +2030,7 @@ next
       proof (subst checkCorrect_simps, auto simp add: Return tx `visibleCalls S i \<triangleq> txCalls`)
 
         show "invariant progr (invContextH2 (callOrigin S) (transactionOrigin S) (transactionStatus S) (happensBefore S) (calls S) (knownIds S \<union> uniqueIds r) (invocationOp S) (invocationRes S(i \<mapsto> r)))"
-          if c0: "\<forall>t. transactionStatus S t \<noteq> Some Uncommited"
+          if c0: "\<forall>t. transactionStatus S t \<noteq> Some Uncommitted"
           using use_checkCorrect2
           apply simp
           apply (subst(asm) checkCorrect2F_def)
@@ -2139,7 +2139,7 @@ definition initialStates' :: "('localState, 'any::valueType) prog \<Rightarrow> 
   \<and> invariant_all' S
   \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
   \<and> invocationOp S i = None
-  \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommited)
+  \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted)
   \<and> (\<forall>tx. transactionOrigin S tx \<noteq> Some i)
 }"
 

@@ -219,7 +219,7 @@ lemma wellFormed_visibleCallsSubsetCalls:
 lemma wellFormed_currentTransaction_unique_h:
   assumes a1: "state_wellFormed S"
   shows "\<forall>sa sb t. currentTransaction S sa \<triangleq> t \<longrightarrow> currentTransaction S sb \<triangleq> t \<longrightarrow>  sa = sb"
-    and "\<forall>sa t. currentTransaction S sa \<triangleq> t \<longrightarrow> transactionStatus S t \<triangleq> Uncommited"
+    and "\<forall>sa t. currentTransaction S sa \<triangleq> t \<longrightarrow> transactionStatus S t \<triangleq> Uncommitted"
   using a1 apply (induct  rule: wellFormed_induct)
      apply (simp add: initialState_def)
     apply (simp add: initialState_def)
@@ -232,16 +232,16 @@ lemma wellFormed_currentTransaction_unique_h:
 
 
 lemmas wellFormed_currentTransaction_unique = wellFormed_currentTransaction_unique_h(1)[rule_format]
-lemmas wellFormed_currentTransactionUncommited[simp] = wellFormed_currentTransaction_unique_h(2)[rule_format]
+lemmas wellFormed_currentTransactionUncommitted[simp] = wellFormed_currentTransaction_unique_h(2)[rule_format]
 
 
 
 lemma wellFormed_currentTransaction_back:
   assumes steps: "steps  S_init tr S"
     and noFail: "\<And>s. (s, AFail) \<notin> set tr"
-    and noUncommitted: "\<And>tx. transactionStatus S_init tx \<noteq> Some Uncommited"
+    and noUncommitted: "\<And>tx. transactionStatus S_init tx \<noteq> Some Uncommitted"
     and wf: "state_wellFormed S_init"
-  shows "transactionStatus S t \<triangleq> Uncommited \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
+  shows "transactionStatus S t \<triangleq> Uncommitted \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
   using steps noFail proof (induct  rule: steps_induct)
   case initial
   then show ?case by (simp add: initialState_def noUncommitted)
@@ -250,9 +250,9 @@ next
   then show ?case 
   proof clarsimp
     assume a0: "S_init ~~ tr \<leadsto>* S'"
-      and a1: "transactionStatus S' t \<triangleq> Uncommited \<longrightarrow> (\<exists>!i. currentTransaction S' i \<triangleq> t)"
+      and a1: "transactionStatus S' t \<triangleq> Uncommitted \<longrightarrow> (\<exists>!i. currentTransaction S' i \<triangleq> t)"
       and a2: "S' ~~ a \<leadsto> S''"
-      and a3: "transactionStatus S'' t \<triangleq> Uncommited"
+      and a3: "transactionStatus S'' t \<triangleq> Uncommitted"
 
     have "state_wellFormed S'"
       using state_wellFormed_combine state_wellFormed_init step.steps local.wf step.prems by fastforce 
@@ -302,7 +302,7 @@ qed
 lemma wellFormed_currentTransaction_back2:
   assumes steps: "steps  (initialState progr) tr S"
     and noFail: "\<And>s. (s, AFail) \<notin> set tr"
-  shows "transactionStatus S t \<triangleq> Uncommited \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
+  shows "transactionStatus S t \<triangleq> Uncommitted \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
   using steps noFail  apply (rule wellFormed_currentTransaction_back)
    apply (simp add: initialState_def)
   apply simp
@@ -310,27 +310,27 @@ done
 
 lemma wellFormed_currentTransaction_back3:
   assumes wf: "state_wellFormed S"
-    and uncommitted: "transactionStatus S t \<triangleq> Uncommited"
+    and uncommitted: "transactionStatus S t \<triangleq> Uncommitted"
   shows "\<exists>!i. currentTransaction S i \<triangleq> t"
   using local.wf state_wellFormed_def uncommitted wellFormed_currentTransaction_back2 by blast
 
 lemma wellFormed_currentTransaction_back4:
   assumes wf: "state_wellFormed S"
     and uncommitted: "\<And>i. currentTransaction S i \<noteq> Some t"
-  shows "transactionStatus S t \<noteq> Some Uncommited"
+  shows "transactionStatus S t \<noteq> Some Uncommitted"
   using local.wf state_wellFormed_def uncommitted wellFormed_currentTransaction_back2 by blast
 
 
-lemma commitedCalls_unchanged_callOrigin[simp]:
-  assumes a1: "ts t \<triangleq> Uncommited"
+lemma committedCalls_unchanged_callOrigin[simp]:
+  assumes a1: "ts t \<triangleq> Uncommitted"
     and a2: "co c = None"
-  shows "commitedCallsH (co(c \<mapsto> t)) ts = commitedCallsH co ts"
-  using a1 a2 by (auto simp add: commitedCallsH_def isCommittedH_def)
+  shows "committedCallsH (co(c \<mapsto> t)) ts = committedCallsH co ts"
+  using a1 a2 by (auto simp add: committedCallsH_def isCommittedH_def)
 
 lemma callOrigin_same_committed: 
   assumes exec: "A ~~ (sa, a) \<leadsto> B"
     and wellFormed: "state_wellFormed A"
-    and committed: "transactionStatus A tx \<triangleq> Commited "
+    and committed: "transactionStatus A tx \<triangleq> Committed "
   shows "callOrigin A c \<triangleq> tx \<longleftrightarrow> callOrigin B c \<triangleq> tx"     
   using exec apply (rule step.cases)
   using wellFormed committed by auto  
@@ -514,13 +514,13 @@ next
   then show ?case 
     apply (auto simp add: step.simps less_eq_option_None_is_None split: if_splits)
     using less_eq_option_None_is_None apply force
-    by (metis linear onlyCommitedGreater)
+    by (metis linear onlyCommittedGreater)
 qed
 
 lemma transactionStatus_mono1: 
   assumes "S ~~ tr \<leadsto>* S'"
-  shows "transactionStatus S tx \<triangleq> Commited \<Longrightarrow> transactionStatus S' tx \<triangleq> Commited"
-  by (metis assms onlyCommitedGreater transactionStatus_mono)
+  shows "transactionStatus S tx \<triangleq> Committed \<Longrightarrow> transactionStatus S' tx \<triangleq> Committed"
+  by (metis assms onlyCommittedGreater transactionStatus_mono)
 
 lemma calls_mono: 
   assumes "S ~~ tr \<leadsto>* S'"
@@ -542,7 +542,7 @@ lemma no_new_calls_in_committed_transactions:
     and "calls S c = None"
     and "state_wellFormed S"
     and "(\<forall>i. (i, AFail) \<notin> set tr)"
-  shows "transactionStatus S tx \<noteq> Some Commited"
+  shows "transactionStatus S tx \<noteq> Some Committed"
   using assms proof (induct rule: steps_induct)
   case initial
   then show ?case 
@@ -562,7 +562,7 @@ next
     `calls S c = None` step.IH `state_wellFormed S`
   show ?case 
     apply (auto simp add: step.simps split: if_splits)
-    using wellFormed_currentTransactionUncommited[OF `state_wellFormed S'`]
+    using wellFormed_currentTransactionUncommitted[OF `state_wellFormed S'`]
     using \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step step.steps transactionStatus_mono1 by blast
 
 qed
@@ -753,7 +753,7 @@ qed
 lemma steps_transactions_stable:
   assumes "S ~~ tr \<leadsto>* S'"
     and "callOrigin S' c \<triangleq> tx"
-    and "transactionStatus S tx \<triangleq> Commited"
+    and "transactionStatus S tx \<triangleq> Committed"
     and "state_wellFormed S"
     and "(\<forall>i. (i, AFail) \<notin> set tr)"
   shows "callOrigin S c \<triangleq> tx"
@@ -774,7 +774,7 @@ next
     `S ~~ tr \<leadsto>* S'`
     `S' ~~ a \<leadsto> S''`
     `callOrigin S'' c \<triangleq> tx`
-    `transactionStatus S tx \<triangleq> Commited`
+    `transactionStatus S tx \<triangleq> Committed`
     `state_wellFormed S`
   show ?case apply (auto simp add: step.simps split: if_splits)
     using \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step transactionStatus_mono1 by blast

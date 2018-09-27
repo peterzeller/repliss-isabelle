@@ -264,17 +264,17 @@ lemma mkContext_happensBefore[simp]:
 
 lemma mkContext_calls_simps: "calls (mkContext (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes vis)) 
-= state_calls |` (commitedCallsH state_callOrigin state_transactionStatus \<inter> (vis orElse {}))"
+= state_calls |` (committedCallsH state_callOrigin state_transactionStatus \<inter> (vis orElse {}))"
   by (auto simp add: mkContext_def invContextH_def )
 
 lemma mkContext_calls_eq_simps: "calls (mkContext (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes vis)) c \<triangleq> x
 \<longleftrightarrow> (isCommittedH state_callOrigin state_transactionStatus c \<and> c \<in> vis orElse {} \<and> state_calls c \<triangleq> x)"
-  by (auto simp add: mkContext_def invContextH_def commitedCallsH_def  restrict_map_def)
+  by (auto simp add: mkContext_def invContextH_def committedCallsH_def  restrict_map_def)
 
 lemma mkContext_happensBefore_simps: "happensBefore (mkContext (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes vis)) 
-= state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus |r (vis orElse {})"
+= state_happensBefore |r committedCallsH state_callOrigin state_transactionStatus |r (vis orElse {})"
   by (auto simp add: mkContext_def invContextH_def )
 
 lemma mkContext_happensBefore_contains_simps: "(c1,c2) \<in> happensBefore (mkContext (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
@@ -283,7 +283,7 @@ lemma mkContext_happensBefore_contains_simps: "(c1,c2) \<in> happensBefore (mkCo
     \<and> isCommittedH state_callOrigin state_transactionStatus c1 \<and> c1 \<in> vis orElse {} 
     \<and> isCommittedH state_callOrigin state_transactionStatus c2 \<and> c2 \<in> vis orElse {}
             )"
-  by (auto simp add: mkContext_def invContextH_def commitedCallsH_def restrict_map_def restrict_relation_def)
+  by (auto simp add: mkContext_def invContextH_def committedCallsH_def restrict_map_def restrict_relation_def)
 
 lemmas mkContext_simps = mkContext_happensBefore_contains_simps mkContext_calls_eq_simps
 
@@ -379,7 +379,7 @@ lemma pc_init[simp]: "ls_pc lsInit = 0"
 lemma is_message_update_vis_simps:
   "is_message_update (mkContext (invContextH co   to  ts  hb  cs  kids  iop  ires (Some vis))) c m
 \<longleftrightarrow> (\<exists>call. cs c \<triangleq> call \<and>  is_message_updateH m call \<and> isCommittedH co ts c \<and> c \<in> vis)"
-  by (auto simp add: message_updates_def mkContext_def invContextH_def restrict_map_def is_message_updateH_def commitedCallsH_def split: option.splits)
+  by (auto simp add: message_updates_def mkContext_def invContextH_def restrict_map_def is_message_updateH_def committedCallsH_def split: option.splits)
 
 
 
@@ -447,12 +447,12 @@ proof (auto simp add: consistentSnapshotH_def)
   show "transactionConsistent S_callOrigin S_transactionStatus (vis - txCalls)"
   proof (auto simp add: transactionConsistent_def)
 
-    show "S_transactionStatus t \<triangleq> Commited"
+    show "S_transactionStatus t \<triangleq> Committed"
       if c0: "c \<in> vis"
         and c1: "c \<notin> txCalls"
         and c2: "S_callOrigin c \<triangleq> t"
       for  c t
-      using that co1 co4 tc transactionConsistent_Commited ts1 by fastforce 
+      using that co1 co4 tc transactionConsistent_Committed ts1 by fastforce 
 
     show "c2 \<in> vis"
       if c0: "c1 \<in> vis"
@@ -584,11 +584,11 @@ lemma every_query_has_result:
 
 
 
-lemma commitedCalls_simps[simp]:
-  assumes noUncommitted: "\<And>tx. tx\<in>Option.these(range (callOrigin S)) \<Longrightarrow>  transactionStatus S tx \<noteq> Some Uncommited"
+lemma committedCalls_simps[simp]:
+  assumes noUncommitted: "\<And>tx. tx\<in>Option.these(range (callOrigin S)) \<Longrightarrow>  transactionStatus S tx \<noteq> Some Uncommitted"
     and wf: "state_wellFormed S"
-  shows "commitedCalls S = dom (calls S)"
-  using assms apply (auto simp add: commitedCallsH_def isCommittedH_def domD domIff wellFormed_callOrigin_dom3)
+  shows "committedCalls S = dom (calls S)"
+  using assms apply (auto simp add: committedCallsH_def isCommittedH_def domD domIff wellFormed_callOrigin_dom3)
   by (smt domD domIff in_these_eq option.distinct(1) rangeI transactionStatus.exhaust wellFormed_callOrigin_dom wellFormed_state_callOrigin_transactionStatus)
 
 
@@ -625,27 +625,27 @@ lemma calls_restrict_simps[simp]:
 "((calls S |` vis) c \<triangleq> ci) = (c \<in> vis \<and> calls S c \<triangleq> ci)"
   by (simp add: restrict_map_def)
 
-lemma commitedCallsH_true:
-  assumes "cOrig c \<triangleq> t" and "tStatus t \<triangleq> Commited"
-  shows "c \<in> commitedCallsH cOrig tStatus"
-  using assms  by (auto simp add: commitedCallsH_def isCommittedH_def)
+lemma committedCallsH_true:
+  assumes "cOrig c \<triangleq> t" and "tStatus t \<triangleq> Committed"
+  shows "c \<in> committedCallsH cOrig tStatus"
+  using assms  by (auto simp add: committedCallsH_def isCommittedH_def)
 
-lemma commitedCallsH_simp:
-  assumes "tStatus t \<triangleq> Commited"
-  shows "commitedCallsH (cOrig(c \<mapsto> t)) (tStatus) = insert c (commitedCallsH cOrig tStatus)"
-  using assms  by (auto simp add: commitedCallsH_def isCommittedH_def)
+lemma committedCallsH_simp:
+  assumes "tStatus t \<triangleq> Committed"
+  shows "committedCallsH (cOrig(c \<mapsto> t)) (tStatus) = insert c (committedCallsH cOrig tStatus)"
+  using assms  by (auto simp add: committedCallsH_def isCommittedH_def)
 
 lemma callsWithOpArgs_simps:
   assumes cs: "consistentSnapshotH state_calls state_happensBefore state_callOrigin state_transactionStatus vis"
     and wf: "dom state_callOrigin = dom  state_calls"
-    and noUncommitted: "\<forall>tx. state_transactionStatus tx \<noteq> Some Uncommited"
+    and noUncommitted: "\<forall>tx. state_transactionStatus tx \<noteq> Some Uncommitted"
   shows "callsWithOpArgs (mkContext (invContextH
 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes (Some vis)
   )) opName args = {c\<in>vis. state_calls c \<triangleq> Call opName args Undef}"
   apply (auto simp add: callsWithOpArgsH_def)
-    apply (auto simp add: commitedCallsH_def isCommittedH_def restrict_map_def  split: if_splits)
-  by (metis consistentSnapshotH_def cs domD domI local.wf transactionConsistent_Commited)
+    apply (auto simp add: committedCallsH_def isCommittedH_def restrict_map_def  split: if_splits)
+  by (metis consistentSnapshotH_def cs domD domI local.wf transactionConsistent_Committed)
 
 lemmas wellFormed_callOrigin_dom[simp]
 
@@ -669,14 +669,14 @@ lemma wellFormed_callOrigin_transactionStatus[simp]:
 lemma callsOfOp_simps:
   assumes cs: "consistentSnapshotH state_calls state_happensBefore state_callOrigin state_transactionStatus vis"
     and wf: "dom state_callOrigin = dom  state_calls"
-    and noUncommitted: "\<forall>tx. state_transactionStatus tx \<noteq> Some Uncommited"
+    and noUncommitted: "\<forall>tx. state_transactionStatus tx \<noteq> Some Uncommitted"
   shows "callsOfOp (mkContext (invContextH
 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes (Some vis)
   )) opName = {(c,args). c\<in>vis \<and> state_calls c \<triangleq> Call opName args Undef}"
   apply (auto simp add: callsOfOpH_def)
-    apply (auto simp add: commitedCallsH_def isCommittedH_def restrict_map_def   split: if_splits)
-  by (metis consistentSnapshotH_def cs domD domI local.wf transactionConsistent_Commited)
+    apply (auto simp add: committedCallsH_def isCommittedH_def restrict_map_def   split: if_splits)
+  by (metis consistentSnapshotH_def cs domD domI local.wf transactionConsistent_Committed)
 
 lemma is_message_update_simps1: 
   assumes cs: "consistentSnapshotH state_calls state_happensBefore state_callOrigin state_transactionStatus vis"
@@ -686,20 +686,20 @@ state_callOrigin state_transactionOrigin state_transactionStatus state_happensBe
    state_calls state_knownIds state_invocationOp state_invocationRes (Some vis)
   )) c mId \<longleftrightarrow> c\<in>vis \<and> (\<exists>call.  state_calls c = Some call \<and> is_message_updateH mId call)"
   apply (auto simp add: message_updates_def simp add: restrict_map_def split: option.splits)
-  by (metis commitedCallsH_true consistentSnapshotH_def cs domD domI local.wf transactionConsistent_Commited)
+  by (metis committedCallsH_true consistentSnapshotH_def cs domD domI local.wf transactionConsistent_Committed)
 
 
 lemma is_message_update_simps2: 
   assumes cs: "consistentSnapshotH state_calls state_happensBefore state_callOrigin state_transactionStatus vis"
     and wf: "dom state_callOrigin = dom  state_calls"
     and wf2: "Option.these (range state_callOrigin) \<subseteq> dom state_transactionStatus"
-    and noUncommitted: "\<forall>tx. state_transactionStatus tx \<noteq> Some Uncommited"
+    and noUncommitted: "\<forall>tx. state_transactionStatus tx \<noteq> Some Uncommitted"
 shows "is_message_update
          (invContextH
 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes (Some vis)
   ) c mId \<longleftrightarrow>(\<exists>call. state_calls c = Some call \<and> is_message_updateH mId call)"
-  apply (auto simp add: message_updates_def commitedCallsH_def  isCommittedH_def  simp add: restrict_map_def split: option.splits)
+  apply (auto simp add: message_updates_def committedCallsH_def  isCommittedH_def  simp add: restrict_map_def split: option.splits)
   by (smt domD domI in_these_eq less_eq_transactionStatus_def local.wf noUncommitted order_refl rangeI set_rev_mp wf2)
 
 lemmas is_message_update_simps = is_message_update_simps1 is_message_update_simps2
@@ -717,7 +717,7 @@ lemma restrict_case_simps:
 
 
 lemma invContextH_simps_allCommitted:
-  assumes no_uncommitted: "\<And>tx. state_transactionStatus tx \<noteq> Some Uncommited"
+  assumes no_uncommitted: "\<And>tx. state_transactionStatus tx \<noteq> Some Uncommitted"
     and wf1: "dom state_callOrigin = dom state_calls"
     and wf2: "Option.these (range state_callOrigin) \<subseteq> dom state_transactionStatus"
     and wf3a: "fst ` state_happensBefore \<subseteq> dom state_calls"
@@ -743,7 +743,7 @@ proof -
 
 
   show ?thesis
-    apply (auto simp add: invContextH_def restrict_map_def restrict_relation_def commitedCallsH_def  no_uncommitted intro!: ext split: if_splits)
+    apply (auto simp add: invContextH_def restrict_map_def restrict_relation_def committedCallsH_def  no_uncommitted intro!: ext split: if_splits)
     using h1 apply force
     using wf3a h1 apply auto[1]
     using wf3b h1 apply auto[1]
@@ -762,7 +762,7 @@ lemma wellFormed_happensBefore_calls_r'[simp]: "state_wellFormed S \<Longrightar
   using wellFormed_happensBefore_calls_r by fastforce
 
 lemma invContextH_simps_allCommitted2:
-  assumes no_uncommitted[simp]: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommited"
+  assumes no_uncommitted[simp]: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
     and wf[simp]: "state_wellFormed S"
   shows
  "invContextH (callOrigin S) (transactionOrigin S) (transactionStatus S) (happensBefore S)
@@ -921,7 +921,7 @@ proof (rule show_correctness_via_single_session)
         show "checkCorrect progr S i"
         proof (auto simp add: checkCorrect_simps editMessageImpl_def updateHb_chain; (subst invariant_all_def)?; auto? )
 
-          show "example_chat.inv (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Commited)) (updateHb (happensBefore S') vis [c, ca]) (calls S'(c \<mapsto> Call message_exists [MessageId mId] (Bool True), ca \<mapsto> Call message_content_assign [MessageId mId, ls_content lsInit] Undef)) (knownIds S') (invocationOp S') (invocationRes S') (Some visa))"
+          show "example_chat.inv (invContextH (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionOrigin S') (transactionStatus S'(t \<mapsto> Committed)) (updateHb (happensBefore S') vis [c, ca]) (calls S'(c \<mapsto> Call message_exists [MessageId mId] (Bool True), ca \<mapsto> Call message_content_assign [MessageId mId, ls_content lsInit] Undef)) (knownIds S') (invocationOp S') (invocationRes S') (Some visa))"
             if c0: "transactionStatus S t = None"
               and c1: "invariant_all S'"
               and c2[simp]: "state_wellFormed S'"
@@ -936,8 +936,8 @@ proof (rule show_correctness_via_single_session)
               and c10: "visibleCalls S' i \<triangleq> vis"
               and c11[simp]: "ca \<noteq> c"
               and c12[simp]: "calls S' ca = None"
-              and no_uncommitted[simp]: "\<forall>ta. ta \<noteq> t \<longrightarrow> transactionStatus S' ta \<noteq> Some Uncommited"
-              and c14[simp]: "consistentSnapshotH (calls S'(c \<mapsto> Call message_exists [MessageId mId] (Bool True), ca \<mapsto> Call message_content_assign [MessageId mId, ls_content lsInit] Undef)) (updateHb (happensBefore S') vis [c, ca]) (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) visa"
+              and no_uncommitted[simp]: "\<forall>ta. ta \<noteq> t \<longrightarrow> transactionStatus S' ta \<noteq> Some Uncommitted"
+              and c14[simp]: "consistentSnapshotH (calls S'(c \<mapsto> Call message_exists [MessageId mId] (Bool True), ca \<mapsto> Call message_content_assign [MessageId mId, ls_content lsInit] Undef)) (updateHb (happensBefore S') vis [c, ca]) (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Committed)) visa"
             for  t S' c vis ca visa
           proof (subst invContextH_simps_allCommitted; simp?)
             have [simp]: "c \<noteq> ca"
@@ -957,9 +957,9 @@ proof (rule show_correctness_via_single_session)
             hence visa_callOrigin: "\<And>c1. \<lbrakk>c1 \<in> visa; c1 \<noteq> c; c1 \<noteq> ca\<rbrakk> \<Longrightarrow> callOrigin S' c1 \<noteq> None"
               using c2 wellFormed_callOrigin_dom3 by blast
 
-            have [simp]: "commitedCalls S' = dom (calls S')"
-            proof (rule commitedCalls_simps)
-              show "\<And>tx. tx \<in> Option.these (range (callOrigin S')) \<Longrightarrow> transactionStatus S' tx \<noteq> Some Uncommited"
+            have [simp]: "committedCalls S' = dom (calls S')"
+            proof (rule committedCalls_simps)
+              show "\<And>tx. tx \<in> Option.these (range (callOrigin S')) \<Longrightarrow> transactionStatus S' tx \<noteq> Some Uncommitted"
                 by (metis c15 image_iff in_these_eq no_uncommitted)
 
               show "state_wellFormed S'"
@@ -1007,10 +1007,10 @@ proof (rule show_correctness_via_single_session)
                   using c12 c2 wellFormed_happensBefore_calls_l by blast
 
 
-                show "transactionConsistent (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Commited)) visa
+                show "transactionConsistent (callOrigin S'(c \<mapsto> t, ca \<mapsto> t)) (transactionStatus S'(t \<mapsto> Committed)) visa
                   \<Longrightarrow> transactionConsistent (callOrigin S') (transactionStatus S') (visa - {c, ca})"
                   apply (subst  transactionConsistent_def)
-                  by (auto simp add: visa_callOrigin c15 elim!:  transactionConsistent_all_from_same dest!:transactionConsistent_Commited split: if_splits)
+                  by (auto simp add: visa_callOrigin c15 elim!:  transactionConsistent_all_from_same dest!:transactionConsistent_Committed split: if_splits)
 
               qed
             qed

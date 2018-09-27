@@ -210,11 +210,11 @@ lemma invocation_happensBefore_simps:
                  \<longrightarrow> (cx,cy)\<in>state_happensBefore))"
   apply auto                 
      apply (auto simp add: invContextH_def invocation_happensBeforeH_def 
-      i_callOriginI_h_def restrict_map_def commitedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
+      i_callOriginI_h_def restrict_map_def committedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
     apply (auto simp add: invContextH_def invocation_happensBeforeH_def 
-      i_callOriginI_h_def restrict_map_def commitedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
+      i_callOriginI_h_def restrict_map_def committedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
    apply (auto simp add: invContextH_def invocation_happensBeforeH_def 
-      i_callOriginI_h_def restrict_map_def commitedCallsH_def restrict_relation_def split: option.splits if_splits)[1]   
+      i_callOriginI_h_def restrict_map_def committedCallsH_def restrict_relation_def split: option.splits if_splits)[1]   
     apply (drule_tac x=cx in spec)
     apply auto[1]
   oops

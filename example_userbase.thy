@@ -498,7 +498,7 @@ proof (rule show_programCorrect_using_checkCorrect)
         and old_inv: "example_userbase.inv (invContext' S')"
         and i4: "state_wellFormed S'"
         and i5: "invocationOp S' i = None"
-        and i6: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
+        and i6: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
       for  i S' procName args initState impl
       using i1 proof (subst(asm) procedure_cases2, auto)
 
@@ -605,7 +605,7 @@ proof (rule show_programCorrect_using_checkCorrect)
         and inv_Sa: "example_userbase.inv (invContext' Sa)"
         and Sa_wf: "state_wellFormed Sa"
         and invoc_Sa: "invocationOp Sa i = None"
-        and transactions_Sa: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommited"
+        and transactions_Sa: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommitted"
         and transactionOriginSa: "\<forall>tx. transactionOrigin Sa tx \<noteq> Some i"
       for  Sa procName args initState impl
       text {* We consider the case for each procedure separately:  *}
@@ -669,7 +669,7 @@ assume a0: "isUserId uid"
    and a5: "transactionStatus S' t = None"
    and a6: "prog S'a = prog S'"
    and a7: "invariant (prog S') (invContext' S'a)"
-   and a8: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommited"
+   and a8: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommitted"
    and a9: "state_wellFormed S'a"
    and a10: "state_wellFormed S''"
    and a11: "state_monotonicGrowth S' S'a"
@@ -685,7 +685,7 @@ assume a0: "isUserId uid"
    and a21: "transactionStatus S'a t = None"
    and a22: "\<forall>c. callOrigin S'a c \<noteq> Some t"
    and a23: "transactionOrigin S'a t = None"
-   and a24: "S'' = S'a\<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i), currentTransaction := currentTransaction S'a(i \<mapsto> t),                     localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
+   and a24: "S'' = S'a\<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'a(t \<mapsto> i), currentTransaction := currentTransaction S'a(i \<mapsto> t),                     localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
    and a25: "currentTransaction S'' i \<triangleq> x2"
    and a26: "calls S'' c = None"
    and a27: "querySpec progr users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] (getContextH (calls S'') (happensBefore S'') (Some vis')) res"
@@ -701,11 +701,11 @@ assume a0: "isUserId uid"
    and a37: "hb'a = updateHb (happensBefore S'b) (insert c vis') [ca]"
    and a38: "S'c = S'b\<lparr>localState := localState S'b(i \<mapsto> the (localState S'b i)\<lparr>ls_pc := 4\<rparr>),                     calls := calls S'b(ca \<mapsto> Call users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] resa), callOrigin := callOrigin S'b(ca \<mapsto> x2a),                     visibleCalls := vis'b, happensBefore := hb'a\<rparr>"
    and a39: "currentTransaction S'c i \<triangleq> x2b"
-   and a40: "S'd = S'c\<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),                     transactionStatus := transactionStatus S'c(x2b \<mapsto> Commited)\<rparr>"
-   and a41: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
+   and a40: "S'd = S'c\<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),                     transactionStatus := transactionStatus S'c(x2b \<mapsto> Committed)\<rparr>"
+   and a41: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommitted"
    and a42: "example_userbase.inv (invContext' S'd)"
    and a43: "S'e = S'd\<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),                     invocationRes := invocationRes S'd(i \<mapsto> ls_u (the (localState S'd i))), knownIds := knownIds S'd \<union> uniqueIds (ls_u (the (localState S'd i)))\<rparr>"
-   and a44: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommited"
+   and a44: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommitted"
 
 show "example_userbase.inv (invContext' S'e)"
 
@@ -722,7 +722,7 @@ show "example_userbase.inv (invContext' S'e)"
           and a3: "transactionStatus S' t = None"
           and a4: "prog S'a = prog S'"
           and old_inv: "invariant (prog S') (invContext' S'a)"
-          and a6: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommited"
+          and a6: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommitted"
           and S'a_wf: "state_wellFormed S'a"
           and S''_wf: "state_wellFormed S''"
           and S'a_mono: "state_monotonicGrowth i S' S'a"
@@ -738,7 +738,7 @@ show "example_userbase.inv (invContext' S'e)"
           and a18: "transactionStatus S'a t = None"
           and t_origin: "\<forall>c. callOrigin S'a c \<noteq> Some t"
           and a20: "transactionOrigin S'a t = None"
-          and S''_def: "S'' = S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i), currentTransaction := currentTransaction S'a(i \<mapsto> t),            localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
+          and S''_def: "S'' = S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'a(t \<mapsto> i), currentTransaction := currentTransaction S'a(i \<mapsto> t),            localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
           and a22: "currentTransaction S'' i \<triangleq> x2"
           and calls_S'': "calls S'' c = None"
           and a24: "querySpec progr users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))] (getContextH (calls S'') (happensBefore S'') (Some vis')) res"
@@ -754,8 +754,8 @@ show "example_userbase.inv (invContext' S'e)"
           and hb'a_def: "hb'a = updateHb (happensBefore S'b) (insert c vis') [ca]"
           and S'c_def: "S'c = S'b         \<lparr>localState := localState S'b(i \<mapsto> the (localState S'b i)\<lparr>ls_pc := 4\<rparr>),            calls := calls S'b(ca \<mapsto> Call users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] resa),            callOrigin := callOrigin S'b(ca \<mapsto> x2a), visibleCalls := vis'b, happensBefore := hb'a\<rparr>"
           and a36: "currentTransaction S'c i \<triangleq> x2b"
-          and S'd_def: "S'd = S'c         \<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),            transactionStatus := transactionStatus S'c(x2b \<mapsto> Commited)\<rparr>"
-          and a38: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
+          and S'd_def: "S'd = S'c         \<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),            transactionStatus := transactionStatus S'c(x2b \<mapsto> Committed)\<rparr>"
+          and a38: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommitted"
 
 
         have invocationOp_unchanged: "invocationOp S'd = invocationOp S'a"
@@ -1029,7 +1029,7 @@ show "example_userbase.inv (invContext' S'e)"
           and a3: "transactionStatus S' t = None"
           and a4: "prog S'a = prog S'"
           and old_inv: "invariant (prog S') (invContext' S'a)"
-          and a6: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommited"
+          and a6: "\<forall>tx. transactionStatus S'a tx \<noteq> Some Uncommitted"
           and S'a_wf: "state_wellFormed S'a"
           and S''_wf: "state_wellFormed S''"
           and S'a_mono: "state_monotonicGrowth i S' S'a"
@@ -1044,7 +1044,7 @@ show "example_userbase.inv (invContext' S'e)"
           and a18: "transactionStatus S'a t = None"
           and t_origin: "\<forall>c. callOrigin S'a c \<noteq> Some t"
           and a20: "transactionOrigin S'a t = None"
-          and S''_def: "S'' = S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'a(t \<mapsto> i),            currentTransaction := currentTransaction S'a(i \<mapsto> t), localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
+          and S''_def: "S'' = S'a         \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'a(t \<mapsto> i),            currentTransaction := currentTransaction S'a(i \<mapsto> t), localState := localState S'a(i \<mapsto> ls\<lparr>ls_pc := 2\<rparr>), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
           and a22: "currentTransaction S'' i \<triangleq> x2"
           and calls_S'': "calls S'' c = None"
           and a24: "querySpec progr users_name_assign [ls_u (the (localState S'' i)), String (ls_name (the (localState S'' i)))]          (getContextH (calls S'') (happensBefore S'') (Some vis')) res"
@@ -1060,11 +1060,11 @@ show "example_userbase.inv (invContext' S'e)"
           and hb'a_def: "hb'a = updateHb (happensBefore S'b) (insert c vis') [ca]"
           and S'c_def: "S'c = S'b         \<lparr>localState := localState S'b(i \<mapsto> the (localState S'b i)\<lparr>ls_pc := 4\<rparr>),            calls := calls S'b(ca \<mapsto> Call users_mail_assign [ls_u (the (localState S'b i)), String (ls_mail (the (localState S'b i)))] resa),            callOrigin := callOrigin S'b(ca \<mapsto> x2a), visibleCalls := vis'b, happensBefore := hb'a\<rparr>"
           and a36: "currentTransaction S'c i \<triangleq> x2b"
-          and S'd_def: "S'd = S'c         \<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),            transactionStatus := transactionStatus S'c(x2b \<mapsto> Commited)\<rparr>"
-          and a38: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
+          and S'd_def: "S'd = S'c         \<lparr>localState := localState S'c(i \<mapsto> the (localState S'c i)\<lparr>ls_pc := 5\<rparr>), currentTransaction := (currentTransaction S'c)(i := None),            transactionStatus := transactionStatus S'c(x2b \<mapsto> Committed)\<rparr>"
+          and a38: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommitted"
           and a39: "example_userbase.inv (invContext' S'd)"
           and S'e_def: "S'e = S'd         \<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),            invocationRes := invocationRes S'd(i \<mapsto> ls_u (the (localState S'd i))), knownIds := knownIds S'd \<union> uniqueIds (ls_u (the (localState S'd i)))\<rparr>"
-          and a41: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommited"
+          and a41: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommitted"
           and tranactionOriginUnchanged: "\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin S'a t \<triangleq> i"
 
 
@@ -1208,7 +1208,7 @@ show "example_userbase.inv (invContext' S'e)"
           assume a0: "transactionStatus Sa t = None"
             and a1: "prog S' = prog Sa"
             and a2: "invariant (prog Sa) (invContext' S')"
-            and a3: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
+            and a3: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
             and S'_wf: "state_wellFormed S'"
             and S''_wf: "state_wellFormed S''"
             and S'_growth: "state_monotonicGrowth i          (Sa\<lparr>localState := localState Sa(i \<mapsto> \<lparr>ls_pc = 0, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>), currentProc := currentProc Sa(i \<mapsto> updateMailImpl),                visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (updateMail, [UserId u, String mail]))\<rparr>)          S'"
@@ -1223,7 +1223,7 @@ show "example_userbase.inv (invContext' S'e)"
             and a15: "transactionStatus S' t = None"
             and a16: "\<forall>c. callOrigin S' c \<noteq> Some t"
             and a17[simp]: "transactionOrigin S' t = None"
-            and S''_def: "S'' = S'         \<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t),            localState := localState S'(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr>"
+            and S''_def: "S'' = S'         \<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t),            localState := localState S'(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr>"
 
 
           from `invariant (prog Sa) (invContext' S')`
@@ -1340,8 +1340,8 @@ show "example_userbase.inv (invContext' S'e)"
                   fix S'd
                   assume S'd_def: "S'd = S'c
                       \<lparr>localState := localState S'c(i \<mapsto> \<lparr>ls_pc = 5, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = True\<rparr>),
-                         currentTransaction := (currentTransaction S'c)(i := None), transactionStatus := transactionStatus S'c(t \<mapsto> Commited)\<rparr>"
-                    and e1: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
+                         currentTransaction := (currentTransaction S'c)(i := None), transactionStatus := transactionStatus S'c(t \<mapsto> Committed)\<rparr>"
+                    and e1: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommitted"
 
 
                   show "example_userbase.inv (invContext' S'd)"
@@ -1487,7 +1487,7 @@ show "example_userbase.inv (invContext' S'e)"
                     assume S'e_def: "S'e = S'd
                         \<lparr>localState := (localState S'd)(i := None), currentProc := (currentProc S'd)(i := None), visibleCalls := (visibleCalls S'd)(i := None),
                            invocationRes := invocationRes S'd(i \<mapsto> Undef)\<rparr>"
-                      and f1: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommited"
+                      and f1: "\<forall>t. transactionStatus S'e t \<noteq> Some Uncommitted"
 
                     find_theorems invocationOp u
                     have [simp]: "invocationOp S'd i \<triangleq> (updateMail, [UserId u, String mail])"
@@ -1526,8 +1526,8 @@ show "example_userbase.inv (invContext' S'e)"
               show "(checkCorrect2F ^^ 12) bot (progr, insert c vis', S'b, i)"
               proof (rule checkCorrect2F_step, auto simp add: updateMailImpl_def lsInit_def split: localAction.splits option.splits, unfold Def_def; rename_tac S'c)
                 fix S'c
-                assume S'c_def: "S'c = S'b             \<lparr>localState := localState S'b(i \<mapsto> \<lparr>ls_pc = 5, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>),                currentTransaction := (currentTransaction S'b)(i := None), transactionStatus := transactionStatus S'b(t \<mapsto> Commited)\<rparr>"
-                  and d1: "\<forall>t. transactionStatus S'c t \<noteq> Some Uncommited"
+                assume S'c_def: "S'c = S'b             \<lparr>localState := localState S'b(i \<mapsto> \<lparr>ls_pc = 5, ls_u = UserId u, ls_name = [], ls_mail = mail, ls_exists = False\<rparr>),                currentTransaction := (currentTransaction S'b)(i := None), transactionStatus := transactionStatus S'b(t \<mapsto> Committed)\<rparr>"
+                  and d1: "\<forall>t. transactionStatus S'c t \<noteq> Some Uncommitted"
 
                 thm old_inv1
                 have [simp]: "invocationOp S'c i \<triangleq> (updateMail, [UserId u, String mail])"
@@ -1597,7 +1597,7 @@ show "example_userbase.inv (invContext' S'e)"
                 proof (rule checkCorrect2F_step, auto simp add: updateMailImpl_def lsInit_def split: localAction.splits option.splits, unfold Def_def; rename_tac S'd)
                   fix S'd
                   assume S'd_def: "S'd = S'c             \<lparr>localState := (localState S'c)(i := None), currentProc := (currentProc S'c)(i := None), visibleCalls := (visibleCalls S'c)(i := None),                invocationRes := invocationRes S'c(i \<mapsto> Undef)\<rparr>"
-                    and e1: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
+                    and e1: "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommitted"
 
                   show "inv (invContext' S'd)"
                     using `inv (invContext' S'c)`
@@ -1622,7 +1622,7 @@ show "example_userbase.inv (invContext' S'e)"
         assume a0: "transactionStatus Sa t = None"
           and a1: "prog S' = prog Sa"
           and a2: "invariant (prog Sa) (invContext' S')"
-          and a3: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
+          and a3: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
           and wf_S': "state_wellFormed S'"
           and wf_S'': "state_wellFormed S''"
           and S'_growth: "state_monotonicGrowth i          (Sa\<lparr>localState := localState Sa(i \<mapsto> \<lparr>ls_pc = 0, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>), currentProc := currentProc Sa(i \<mapsto> removeUserImpl),                visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (removeUser, [UserId u]))\<rparr>)          S'"
@@ -1637,7 +1637,7 @@ show "example_userbase.inv (invContext' S'e)"
           and a15: "transactionStatus S' t = None"
           and no_call_in_t_S': "\<forall>c. callOrigin S' c \<noteq> Some t"
           and transactionOrigin_t_S': "transactionOrigin S' t = None"
-          and S''_def: "S'' = S'         \<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t),            localState := localState S'(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr>"
+          and S''_def: "S'' = S'         \<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t),            localState := localState S'(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr>"
 
         have [simp]: "invocationOp S' i \<triangleq> (removeUser, [UserId u])"
           using state_monotonicGrowth_invocationOp_i[OF S'_growth ] by simp
@@ -1684,8 +1684,8 @@ show "example_userbase.inv (invContext' S'e)"
           show "(checkCorrect2F ^^ 13) bot (progr, insert c vis', S'a, i)"
           proof (rule checkCorrect2F_step, auto simp add: removeUserImpl_def lsInit_def split: localAction.splits option.splits, unfold Def_def, rename_tac S'b)
             fix S'b
-            assume S'b_def: "S'b = S'a             \<lparr>localState := localState S'a(i \<mapsto> \<lparr>ls_pc = 3, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>),                currentTransaction := (currentTransaction S'a)(i := None), transactionStatus := transactionStatus S'a(t \<mapsto> Commited)\<rparr>"
-              and "\<forall>t. transactionStatus S'b t \<noteq> Some Uncommited"
+            assume S'b_def: "S'b = S'a             \<lparr>localState := localState S'a(i \<mapsto> \<lparr>ls_pc = 3, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>),                currentTransaction := (currentTransaction S'a)(i := None), transactionStatus := transactionStatus S'a(t \<mapsto> Committed)\<rparr>"
+              and "\<forall>t. transactionStatus S'b t \<noteq> Some Uncommitted"
 
             from `calls S'' c = None`
             have "calls S' c = None"
@@ -1794,8 +1794,8 @@ show "example_userbase.inv (invContext' S'e)"
 
 
             fix S'c
-            assume S'c_def: "S'c = S'a            \<lparr>localState := localState S'a(i \<mapsto> \<lparr>ls_pc = 3, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>),               currentTransaction := (currentTransaction S'a)(i := None), transactionStatus := transactionStatus S'a(t \<mapsto> Commited)\<rparr>"
-              and "\<forall>t. transactionStatus S'c t \<noteq> Some Uncommited"
+            assume S'c_def: "S'c = S'a            \<lparr>localState := localState S'a(i \<mapsto> \<lparr>ls_pc = 3, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>),               currentTransaction := (currentTransaction S'a)(i := None), transactionStatus := transactionStatus S'a(t \<mapsto> Committed)\<rparr>"
+              and "\<forall>t. transactionStatus S'c t \<noteq> Some Uncommitted"
               and "example_userbase.inv (invContext' S'c)"
 
             have [simp]: "currentProc S'c i \<triangleq> removeUserImpl"
@@ -1812,7 +1812,7 @@ show "example_userbase.inv (invContext' S'e)"
 
               fix S'd
               assume S'd_def: "S'd = S'c             \<lparr>localState := (localState S'c)(i := None), currentProc := (currentProc S'c)(i := None), visibleCalls := (visibleCalls S'c)(i := None),                invocationRes := invocationRes S'c(i \<mapsto> Undef)\<rparr>"
-                and "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
+                and "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommitted"
 
               have [simp]: "invocationOp S'c i \<triangleq> (removeUser, [UserId u])"
                 by (auto simp add: S'c_def S'a_def S''_def)
@@ -1857,7 +1857,7 @@ show "example_userbase.inv (invContext' S'e)"
         assume a0: "transactionStatus Sa t = None"
           and a1: "prog S' = prog Sa"
           and a2: "invariant (prog Sa) (invContext' S')"
-          and a3: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommited"
+          and a3: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
           and S'_wf: "state_wellFormed S'"
           and S'a_wf: "state_wellFormed S'a"
           and S'_growth: "state_monotonicGrowth i          (Sa\<lparr>localState := localState Sa(i \<mapsto> \<lparr>ls_pc = 0, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>), currentProc := currentProc Sa(i \<mapsto> getUserImpl),                visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (getUser, [UserId u]))\<rparr>)          S'"
@@ -1872,7 +1872,7 @@ show "example_userbase.inv (invContext' S'e)"
           and a15: "transactionStatus S' t = None"
           and a16: "\<forall>c. callOrigin S' c \<noteq> Some t"
           and a17: "transactionOrigin S' t = None"
-          and S'a_def: "S'a = S'         \<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommited), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t),            localState := localState S'(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr>"
+          and S'a_def: "S'a = S'         \<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t),            localState := localState S'(i \<mapsto> \<lparr>ls_pc = Suc 0, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr>"
 
         have [simp]: "invocationOp S' i \<triangleq> (getUser, [UserId u])"
           using state_monotonicGrowth_invocationOp_i[OF S'_growth ] by simp
@@ -1984,8 +1984,8 @@ show "example_userbase.inv (invContext' S'e)"
                 show "(checkCorrect2F ^^ 10) bot (progr, insert cb (insert ca (insert c vis')), S'e, i)"
                 proof (rule checkCorrect2F_step, auto simp add: getUserImpl_def lsInit_def S'c_def split: localAction.splits option.splits, unfold Def_def, rename_tac S'f)
                   fix S'f
-                  assume S'f_def: "S'f = S'e             \<lparr>localState := localState S'e(i \<mapsto> \<lparr>ls_pc = 6, ls_u = UserId u, ls_name = stringval res_name, ls_mail = stringval res, ls_exists = True\<rparr>),                currentTransaction := (currentTransaction S'e)(i := None), transactionStatus := transactionStatus S'e(t \<mapsto> Commited)\<rparr>"
-                    and  "\<forall>t. transactionStatus S'f t \<noteq> Some Uncommited"
+                  assume S'f_def: "S'f = S'e             \<lparr>localState := localState S'e(i \<mapsto> \<lparr>ls_pc = 6, ls_u = UserId u, ls_name = stringval res_name, ls_mail = stringval res, ls_exists = True\<rparr>),                currentTransaction := (currentTransaction S'e)(i := None), transactionStatus := transactionStatus S'e(t \<mapsto> Committed)\<rparr>"
+                    and  "\<forall>t. transactionStatus S'f t \<noteq> Some Uncommitted"
                     and S'f_wf: "state_wellFormed S'f"
 
 
@@ -2078,7 +2078,7 @@ show "example_userbase.inv (invContext' S'e)"
 
                     fix S'g
                     assume S'g_def: "S'g = S'f             \<lparr>localState := (localState S'f)(i := None), currentProc := (currentProc S'f)(i := None), visibleCalls := (visibleCalls S'f)(i := None),                invocationRes := invocationRes S'f(i \<mapsto> Found (stringval res_name) (stringval res))\<rparr>"
-                      and  "\<forall>t. transactionStatus S'g t \<noteq> Some Uncommited"
+                      and  "\<forall>t. transactionStatus S'g t \<noteq> Some Uncommitted"
 
                     have [simp]: "invocationOp S'f i \<triangleq> (getUser, [UserId u])"
                       by (auto simp add: S'f_def S'e_def S'd_def S'b_def S'a_def)
@@ -2189,8 +2189,8 @@ show "example_userbase.inv (invContext' S'e)"
             proof (rule checkCorrect2F_step, auto simp add: getUserImpl_def lsInit_def S'c_def split: localAction.splits option.splits, unfold Def_def, rename_tac S'c)
 
               fix S'c
-              assume S'c_def: "S'c = S'b             \<lparr>localState := localState S'b(i \<mapsto> \<lparr>ls_pc = 6, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>),                currentTransaction := (currentTransaction S'b)(i := None), transactionStatus := transactionStatus S'b(t \<mapsto> Commited)\<rparr>"
-                and "\<forall>t. transactionStatus S'c t \<noteq> Some Uncommited"
+              assume S'c_def: "S'c = S'b             \<lparr>localState := localState S'b(i \<mapsto> \<lparr>ls_pc = 6, ls_u = UserId u, ls_name = [], ls_mail = [], ls_exists = False\<rparr>),                currentTransaction := (currentTransaction S'b)(i := None), transactionStatus := transactionStatus S'b(t \<mapsto> Committed)\<rparr>"
+                and "\<forall>t. transactionStatus S'c t \<noteq> Some Uncommitted"
 
 
               have "invocationRes S' i = None"
@@ -2242,8 +2242,8 @@ show "example_userbase.inv (invContext' S'e)"
               proof (rule checkCorrect2F_step, auto simp add: getUserImpl_def lsInit_def S'c_def split: localAction.splits option.splits, unfold Def_def, rename_tac S'd)
 
                 fix S'd
-                assume S'd_def: "S'd = S'b             \<lparr>currentTransaction := (currentTransaction S'b)(i := None), transactionStatus := transactionStatus S'b(t \<mapsto> Commited), localState := (localState S'b)(i := None),                currentProc := (currentProc S'b)(i := None), visibleCalls := (visibleCalls S'b)(i := None), invocationRes := invocationRes S'b(i \<mapsto> NotFound)\<rparr>"
-                  and "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommited"
+                assume S'd_def: "S'd = S'b             \<lparr>currentTransaction := (currentTransaction S'b)(i := None), transactionStatus := transactionStatus S'b(t \<mapsto> Committed), localState := (localState S'b)(i := None),                currentProc := (currentProc S'b)(i := None), visibleCalls := (visibleCalls S'b)(i := None), invocationRes := invocationRes S'b(i \<mapsto> NotFound)\<rparr>"
+                  and "\<forall>t. transactionStatus S'd t \<noteq> Some Uncommitted"
 
                 show "example_userbase.inv (invContext' S'd)"
                 proof

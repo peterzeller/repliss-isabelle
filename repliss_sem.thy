@@ -53,12 +53,12 @@ type_synonym procedureName = string
 
 type_synonym ('localState, 'any) procedureImpl = "'localState \<Rightarrow> ('localState, 'any) localAction"
 
-datatype transactionStatus = Uncommited | Commited 
+datatype transactionStatus = Uncommitted | Committed 
 
 instantiation transactionStatus :: linorder 
 begin
-definition "less_eq_transactionStatus x y \<equiv> x = Uncommited \<or> y = Commited"
-definition "less_transactionStatus x y \<equiv> x = Uncommited \<and> y = Commited"
+definition "less_eq_transactionStatus x y \<equiv> x = Uncommitted \<or> y = Committed"
+definition "less_transactionStatus x y \<equiv> x = Uncommitted \<and> y = Committed"
 instance 
   apply standard
   using transactionStatus.exhaust by (auto simp add: less_eq_transactionStatus_def less_transactionStatus_def )
@@ -66,7 +66,7 @@ end
 
 lemmas transactionStatus_less_simps[simp] = less_eq_transactionStatus_def less_transactionStatus_def
 
-lemma onlyCommitedGreater: "a \<triangleq> Commited" if "a\<ge>Some Commited" for a
+lemma onlyCommittedGreater: "a \<triangleq> Committed" if "a\<ge>Some Committed" for a
   by (smt dual_order.antisym dual_order.trans less_eq_option_None_is_None less_eq_option_Some less_eq_transactionStatus_def order_refl split_option_ex that)
 
 
@@ -182,7 +182,7 @@ definition restrict_relation :: "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a re
   where "r |r A \<equiv> r \<inter> (A \<times> A)"
 
 
-abbreviation "commitedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Commited }"
+abbreviation "committedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Committed }"
 
 find_consts "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a set"
 
@@ -231,24 +231,24 @@ abbreviation "emptyInvariantContext \<equiv> \<lparr>
 \<rparr>"
 
 definition isCommittedH where
-  "isCommittedH state_callOrigin state_transactionStatus c \<equiv> \<exists>tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Commited"
+  "isCommittedH state_callOrigin state_transactionStatus c \<equiv> \<exists>tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Committed"
 
 abbreviation isCommitted :: "('localState, 'any) state \<Rightarrow> callId \<Rightarrow> bool" where
   "isCommitted state \<equiv> isCommittedH (callOrigin state) (transactionStatus state)"
 
-definition "commitedCallsH state_callOrigin state_transactionStatus \<equiv> 
+definition "committedCallsH state_callOrigin state_transactionStatus \<equiv> 
    {c. isCommittedH state_callOrigin state_transactionStatus c}"
 
-abbreviation commitedCalls :: "('localState, 'any) state \<Rightarrow> callId set" where
-  "commitedCalls state \<equiv> commitedCallsH (callOrigin state) (transactionStatus state)"
+abbreviation committedCalls :: "('localState, 'any) state \<Rightarrow> callId set" where
+  "committedCalls state \<equiv> committedCallsH (callOrigin state) (transactionStatus state)"
 
 definition invContextH  where
   "invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes = \<lparr>
-        calls = state_calls |` commitedCallsH state_callOrigin state_transactionStatus , 
-        happensBefore = state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus , 
-        i_callOrigin  = state_callOrigin |` commitedCallsH state_callOrigin state_transactionStatus,
-        i_transactionOrigin = state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Commited},
+        calls = state_calls |` committedCallsH state_callOrigin state_transactionStatus , 
+        happensBefore = state_happensBefore |r committedCallsH state_callOrigin state_transactionStatus , 
+        i_callOrigin  = state_callOrigin |` committedCallsH state_callOrigin state_transactionStatus,
+        i_transactionOrigin = state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Committed},
         i_knownIds = state_knownIds,
         i_invocationOp = state_invocationOp,
         i_invocationRes = state_invocationRes
@@ -258,27 +258,27 @@ definition invContextH  where
 lemma invContextH_calls[simp]:
 "calls (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
-= state_calls |` commitedCallsH state_callOrigin state_transactionStatus"
+= state_calls |` committedCallsH state_callOrigin state_transactionStatus"
   by (auto simp add: invContextH_def)
 
 
 lemma invContextH_happensBefore[simp]:
 "happensBefore (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes) 
-= state_happensBefore |r commitedCallsH state_callOrigin state_transactionStatus "
+= state_happensBefore |r committedCallsH state_callOrigin state_transactionStatus "
   by (auto simp add: invContextH_def)
 
 
 lemma invContextH_i_callOrigin[simp]:
 "i_callOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
-= state_callOrigin |` commitedCallsH state_callOrigin state_transactionStatus"
+= state_callOrigin |` committedCallsH state_callOrigin state_transactionStatus"
 by (auto simp add: invContextH_def)
 
 lemma invContextH_i_transactionOrigin[simp]:
 "i_transactionOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
-=  state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Commited}"
+=  state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Committed}"
   by (auto simp add: invContextH_def)
 
 lemma invContextH_i_knownIds[simp]:
@@ -399,8 +399,8 @@ abbreviation
 
 
 lemma invContextSnapshot_eq:
-  assumes "c_calls = commitedCallsH (callOrigin state) (transactionStatus state)"
-    and "c_txns = {t. transactionStatus state t \<triangleq> Commited}"
+  assumes "c_calls = committedCallsH (callOrigin state) (transactionStatus state)"
+    and "c_txns = {t. transactionStatus state t \<triangleq> Committed}"
   shows
     "invContext state =  \<lparr>
         calls = calls state |` c_calls , 
@@ -509,87 +509,87 @@ definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 
 inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocation \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = LocalStep ls' 
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ALocal)  \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls') \<rparr>)"
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ALocal)  \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls') \<rparr>)"
 | newId: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = NewId ls';
-   generatedIds C uid = None;
+   generatedIds S uid = None;
    uniqueIds uid = {uid}; \<comment> \<open>  there is exactly one unique id  \<close>
    ls' uid \<triangleq> ls''
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ANewId uid) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls''), 
-                                   generatedIds := (generatedIds C)(uid \<mapsto> s)  \<rparr>)"   
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ANewId uid) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls''), 
+                                   generatedIds := (generatedIds S)(uid \<mapsto> i)  \<rparr>)"   
 | beginAtomic: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = BeginAtomic ls';
-   currentTransaction C s = None;   
-   transactionStatus C t = None;
-   visibleCalls C s \<triangleq> vis;
-   \<comment> \<open>  choose a set of commited transactions to add to the snapshot  \<close>
-   newTxns \<subseteq> commitedTransactions C;
+   currentTransaction S i = None;   
+   transactionStatus S t = None;
+   visibleCalls S i \<triangleq> vis;
+   \<comment> \<open>  choose a set of committed transactions to add to the snapshot  \<close>
+   newTxns \<subseteq> committedTransactions S;
    \<comment> \<open>  determine new visible calls: downwards-closure wrt. causality   \<close>
-   newCalls = callsInTransaction C newTxns \<down> happensBefore C;
+   newCalls = callsInTransaction S newTxns \<down> happensBefore S;
    \<comment> \<open>  transaction snapshot  \<close>
    snapshot = vis \<union> newCalls
-   \<rbrakk> \<Longrightarrow> C ~~ (s, ABeginAtomic t newTxns) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls'), 
-                currentTransaction := (currentTransaction C)(s \<mapsto> t),
-                transactionStatus := (transactionStatus C)(t \<mapsto> Uncommited),
-                transactionOrigin := (transactionOrigin C)(t \<mapsto> s),
-                visibleCalls := (visibleCalls C)(s \<mapsto> snapshot)\<rparr>)"
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ABeginAtomic t newTxns) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls'), 
+                currentTransaction := (currentTransaction S)(i \<mapsto> t),
+                transactionStatus := (transactionStatus S)(t \<mapsto> Uncommitted),
+                transactionOrigin := (transactionOrigin S)(t \<mapsto> i),
+                visibleCalls := (visibleCalls S)(i \<mapsto> snapshot)\<rparr>)"
 | endAtomic: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = EndAtomic ls';
-   currentTransaction C s \<triangleq> t
-   \<rbrakk> \<Longrightarrow> C ~~ (s, AEndAtomic) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls'), 
-                currentTransaction := (currentTransaction C)(s := None),
-                transactionStatus := (transactionStatus C)(t \<mapsto> Commited) \<rparr>)"
+   currentTransaction S i \<triangleq> t
+   \<rbrakk> \<Longrightarrow> S ~~ (i, AEndAtomic) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls'), 
+                currentTransaction := (currentTransaction S)(i := None),
+                transactionStatus := (transactionStatus S)(t \<mapsto> Committed) \<rparr>)"
 | dbop: 
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = DbOperation Op args ls';
-   currentTransaction C s \<triangleq> t;
-   calls C c = None;
-   querySpec (prog C) Op args (getContext C s)  res;
-   visibleCalls C s \<triangleq> vis
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, ADbOp c Op args res) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> ls' res), 
-                calls := (calls C)(c \<mapsto> Call Op args res ),
-                callOrigin := (callOrigin C)(c \<mapsto> t),
-                visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> {c}),
-                happensBefore := happensBefore C \<union> vis \<times> {c}  \<rparr>)"                
+   currentTransaction S i \<triangleq> t;
+   calls S c = None;
+   querySpec (prog S) Op args (getContext S i)  res;
+   visibleCalls S i \<triangleq> vis
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, ADbOp c Op args res) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls' res), 
+                calls := (calls S)(c \<mapsto> Call Op args res ),
+                callOrigin := (callOrigin S)(c \<mapsto> t),
+                visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
+                happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>)"                
 
 | invocation:
-  "\<lbrakk>localState C s = None; \<comment> \<open>  TODO this might not be necessary  \<close>
-   procedure (prog C) procName args \<triangleq> (initialState, impl);
-   uniqueIdsInList args \<subseteq> knownIds C;
-   invocationOp C s = None
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvoc procName args) \<leadsto> (C\<lparr>localState := (localState C)(s \<mapsto> initialState),
-                 currentProc := (currentProc C)(s \<mapsto> impl),
-                 visibleCalls := (visibleCalls C)(s \<mapsto> {}),
-                 invocationOp := (invocationOp C)(s \<mapsto> (procName, args)) \<rparr>)"                   
+  "\<lbrakk>localState S i = None; \<comment> \<open>  TODO this might not be necessary  \<close>
+   procedure (prog S) procName args \<triangleq> (initialState, impl);
+   uniqueIdsInList args \<subseteq> knownIds S;
+   invocationOp S i = None
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc procName args) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> initialState),
+                 currentProc := (currentProc S)(i \<mapsto> impl),
+                 visibleCalls := (visibleCalls S)(i \<mapsto> {}),
+                 invocationOp := (invocationOp S)(i \<mapsto> (procName, args)) \<rparr>)"                   
 | return:
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentProc C s \<triangleq> f; 
+  "\<lbrakk>localState S i \<triangleq> ls; 
+   currentProc S i \<triangleq> f; 
    f ls = Return res;
-   currentTransaction C s = None
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AReturn res) \<leadsto> (C\<lparr>localState := (localState C)(s := None),
-                 currentProc := (currentProc C)(s := None),
-                 visibleCalls := (visibleCalls C)(s := None),
-                 invocationRes := (invocationRes C)(s \<mapsto> res),
-                 knownIds := knownIds C \<union> uniqueIds res\<rparr>)"                
+   currentTransaction S i = None
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, AReturn res) \<leadsto> (S\<lparr>localState := (localState S)(i := None),
+                 currentProc := (currentProc S)(i := None),
+                 visibleCalls := (visibleCalls S)(i := None),
+                 invocationRes := (invocationRes S)(i \<mapsto> res),
+                 knownIds := knownIds S \<union> uniqueIds res\<rparr>)"                
 | fail:
-  "localState C s \<triangleq> ls
-   \<Longrightarrow> C ~~ (s, AFail) \<leadsto> (C\<lparr>localState := (localState C)(s := None),
-                 currentTransaction := (currentTransaction C)(s := None),
-                 currentProc := (currentProc C)(s := None),
-                 visibleCalls := (visibleCalls C)(s := None) \<rparr>)"                  
+  "localState S i \<triangleq> ls
+   \<Longrightarrow> S ~~ (i, AFail) \<leadsto> (S\<lparr>localState := (localState S)(i := None),
+                 currentTransaction := (currentTransaction S)(i := None),
+                 currentProc := (currentProc S)(i := None),
+                 visibleCalls := (visibleCalls S)(i := None) \<rparr>)"                  
 | invCheck: \<comment> \<open>  checks a snapshot \<close>
-  "\<lbrakk>invariant (prog C) (invContext C) = res
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, AInvcheck res) \<leadsto> C"   
+  "\<lbrakk>invariant (prog S) (invContext S) = res
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvcheck res) \<leadsto> S"   
 
 inductive_simps step_simp_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
 inductive_simps step_simp_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "

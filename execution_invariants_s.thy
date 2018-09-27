@@ -24,7 +24,7 @@ definition initialStates :: "('localState, 'any::valueType) prog \<Rightarrow> i
   \<and> invariant_all S
   \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
   \<and> invocationOp S i = None
-  \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommited)
+  \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted)
   \<and> (\<forall>tx. transactionOrigin S tx \<noteq> Some i)
 }"
 
@@ -41,7 +41,7 @@ lemma initialStates_wellFormed:
     and "invariant_all Sa"
     and "state_wellFormed Sa"
     and "invocationOp Sa i = None"
-    and "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommited"
+    and "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommitted"
 
   have step: "Sa ~~ (i, AInvoc procName args) \<leadsto> S"
     apply (auto simp add: step.simps S_def)
@@ -234,7 +234,7 @@ qed
 
 lemma state_wellFormed_s_currentTransactions_iff_uncommitted:
   assumes wf: "state_wellFormed_s S i" 
-  shows "currentTransaction S i \<triangleq> tx \<longleftrightarrow> (transactionStatus S tx \<triangleq> Uncommited)"
+  shows "currentTransaction S i \<triangleq> tx \<longleftrightarrow> (transactionStatus S tx \<triangleq> Uncommitted)"
   using local.wf option.distinct(1) state_wellFormed_s_currentTransactionsOnlyInCurrent state_wellFormed_s_to_wf wellFormed_currentTransaction_back3 by fastforce
 
 
