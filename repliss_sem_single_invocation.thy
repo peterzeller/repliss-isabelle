@@ -402,13 +402,13 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocat
    invocationOp S' i = None;
    prog S' = prog S;
    \<comment> \<open>  TODO some connection between C and C' or allow anything that preserves invariant? maybe C is not needed at all?  \<close>
-   C'' = (S'\<lparr>localState := (localState S')(i \<mapsto> initState),
+   S'' = (S'\<lparr>localState := (localState S')(i \<mapsto> initState),
                  currentProc := (currentProc S')(i \<mapsto> impl),
                  visibleCalls := (visibleCalls S')(i \<mapsto> {}),
                  invocationOp := (invocationOp S')(i \<mapsto> (procName, args)) \<rparr>);
-   valid = invariant_all C'';  \<comment> \<open>  TODO check invariant in C ?  \<close>            
-   \<And>tx. transactionOrigin C'' tx \<noteq> Some i
-   \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc procName args, valid) \<leadsto>\<^sub>S C''"       
+   valid = invariant_all S'';  \<comment> \<open>  TODO check invariant in C ?  \<close>            
+   \<And>tx. transactionOrigin S'' tx \<noteq> Some i
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc procName args, valid) \<leadsto>\<^sub>S S''"       
 | return:
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
