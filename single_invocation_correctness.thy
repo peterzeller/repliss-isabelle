@@ -864,8 +864,7 @@ next
           apply (subst(asm) checkCorrect_simps)
           using newId by (auto simp add:  split: option.splits localAction.splits)
       next
-        case (beginAtomic C i' ls f ls' t C' C'' vis vis' newTxns txns)
-
+        case (beginAtomic C i' ls f ls' t C' C'' vis newTxns newCalls vis' txns)
 
         hence [simp]: "i' = i"
           by blast 
@@ -916,12 +915,12 @@ next
             using True beginAtomic.hyps by blast 
           show "currentTransaction C' i = None"  
             using True beginAtomic.hyps by blast
-          show "transactionStatus C' t = None"  
-            using beginAtomic.hyps(24) by blast
+          show "transactionStatus C' t = None"
+            using `transactionStatus C' t = None` .
           show "transactionOrigin C' t = None"  
-            using beginAtomic.hyps(26) by auto
-          show " \<forall>c. callOrigin C' c \<noteq> Some t"  
-            by (simp add: beginAtomic.hyps(25))
+            using `transactionOrigin C' t = None` .
+          show " \<forall>c. callOrigin C' c \<noteq> Some t"
+            using `\<And>c. callOrigin C' c \<noteq> Some t` by blast  
           show "prog C' = prog C"
             by (simp add: beginAtomic.hyps(9))
 
@@ -944,13 +943,13 @@ next
             using beginAtomic.hyps(19) by auto
 
           show "newTxns \<subseteq> dom (transactionStatus C')"
-            by (simp add: beginAtomic.hyps(22))
+            by (simp add: beginAtomic.hyps)
 
           show "vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C'"
-            using beginAtomic.hyps(21) by auto
+            using beginAtomic.hyps by auto
 
           show "consistentSnapshot C' vis'"
-            by (simp add: beginAtomic.hyps(23))
+            using `consistentSnapshot C' vis'` .
 
           show "\<forall>t. transactionOrigin C' t \<triangleq> i = transactionOrigin C t \<triangleq> i"
             using beginAtomic.hyps(11) by auto
@@ -958,7 +957,7 @@ next
           show "S_fin = C'
               \<lparr>transactionStatus := transactionStatus C'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin C'(t \<mapsto> i), currentTransaction := currentTransaction C'(i \<mapsto> t),
                  localState := localState C'(i \<mapsto> ls'), visibleCalls := visibleCalls C'(i \<mapsto> vis')\<rparr>"  
-            by (auto simp add: beginAtomic(3) beginAtomic(27) state_ext)
+            by (auto simp add: beginAtomic state_ext)
         qed
       next
         case (endAtomic C s ls f ls' t C' valid)
@@ -1086,7 +1085,7 @@ next
       case (newId ls f ls' uid)
       then show ?thesis using initS_correct by (auto simp add: checkCorrect_simps)
     next
-      case (beginAtomic ls f ls' t S' vis vis' txns newTxns )
+      case (beginAtomic ls f ls' t S' vis newTxns newCalls vis' txns)
 
       have "transactionStatus S_fin t \<triangleq> Uncommitted"
         by (simp add: beginAtomic)
@@ -1143,10 +1142,10 @@ next
           using invContext_same_allCommitted local.beginAtomic(12) local.beginAtomic(10) local.beginAtomic(11) by fastforce 
 
 
-        show "txns \<subseteq> dom (transactionStatus S')"
+        show "newTxns \<subseteq> dom (transactionStatus S')"
           using beginAtomic by simp
 
-        show "consistentSnapshot S' (vis \<union> callsInTransaction S' txns \<down> happensBefore S')"
+        show "consistentSnapshot S' (vis \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
           using beginAtomic   by simp
       qed
 

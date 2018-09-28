@@ -1768,7 +1768,7 @@ next
 
 
 
-        qed
+        qed simp
 
         moreover have "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
           using ih1 by auto
@@ -2334,7 +2334,7 @@ next
               by (simp add: state_coupling_def)
 
 
-          qed
+          qed simp
 
           thus "S ~~ (s, tr'@[(ABeginAtomic tx txns, True)]) \<leadsto>\<^sub>S*  S''"
             using ih1 steps_s_step by blast
