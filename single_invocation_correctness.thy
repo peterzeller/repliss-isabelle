@@ -1180,22 +1180,6 @@ lemma "\<lbrakk>\<not>P; P\<rbrakk> \<Longrightarrow> False"
 
 
 
-term "\<lparr>
-calls = ???,
-happensBefore = ???,
-  prog = ???,
-  callOrigin  = ???,
-  transactionOrigin  = ???,
-  generatedIds  = ???,
-  knownIds  = ???,
-  invocationOp  =???,
-  invocationRes =???,
-  transactionStatus  =???,
-  localState  =???,
-  currentProc  =???,
-  visibleCalls  =???,
-  currentTransaction  = ???
- \<rparr> :: (int, int) state"
 
 lemma show_exists_state:
   fixes P :: "('ls,'any) state \<Rightarrow> bool"
@@ -1207,11 +1191,11 @@ localState currentProc visibleCalls currentTransaction. P \<lparr>
   prog = prog,
   callOrigin  = callOrigin,
   transactionOrigin  = transactionOrigin,
+  transactionStatus  =transactionStatus,
   generatedIds  = generatedIds,
   knownIds  = knownIds,
   invocationOp  =invocationOp,
   invocationRes =invocationRes,
-  transactionStatus  =transactionStatus,
   localState  =localState,
   currentProc  =currentProc,
   visibleCalls  =visibleCalls,

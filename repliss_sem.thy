@@ -91,11 +91,11 @@ record ('localState, 'any) distributed_state = "'any operationContext" +
   prog :: "('localState, 'any) prog"
   callOrigin :: "callId \<rightharpoonup> txid"
   transactionOrigin :: "txid \<rightharpoonup> invocation"
+  transactionStatus :: "txid \<rightharpoonup> transactionStatus"
   generatedIds :: "'any \<rightharpoonup> invocation" \<comment> \<open>  unique identifiers and which invocation generated them \<close>
   knownIds :: "'any set"
   invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
   invocationRes :: "invocation \<rightharpoonup> 'any"
-  transactionStatus :: "txid \<rightharpoonup> transactionStatus"
 
 record ('localState, 'any) state = "('localState, 'any) distributed_state" + 
   localState :: "invocation \<rightharpoonup> 'localState"
@@ -163,11 +163,11 @@ happensBefore = s_happensBefore,
 prog = s_prog,
 callOrigin = s_callOrigin,
 transactionOrigin = s_transactionOrigin,
+transactionStatus = s_transactionStatus,
 generatedIds = s_generatedIds,
 knownIds = s_knownIds,
 invocationOp = s_invocationOp,
 invocationRes = s_invocationRes,
-transactionStatus = s_transactionStatus,
 localState = s_localState,
 currentProc = s_currentProc,
 visibleCalls = s_visibleCalls,
@@ -674,11 +674,11 @@ definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState,
   prog = program,
   callOrigin = Map.empty,
   transactionOrigin = Map.empty,
+  transactionStatus = Map.empty,
   generatedIds = Map.empty,
   knownIds = {},
   invocationOp = Map.empty,
   invocationRes = Map.empty,
-  transactionStatus = Map.empty,
   localState = Map.empty,
   currentProc = Map.empty,
   visibleCalls = Map.empty,
