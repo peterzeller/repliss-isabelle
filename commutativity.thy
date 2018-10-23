@@ -12,7 +12,7 @@ lemma iffI2: "\<lbrakk>A \<Longrightarrow> B; \<not>A \<Longrightarrow> \<not>B\
   by auto
 
 text {*
- The invocation info is set iff there was an invocation in the trace
+ The invocId info is set iff there was an invocId in the trace
 *}
 lemma invation_info_set_iff_invocation_happened:
   assumes steps: "initialState program ~~ tr \<leadsto>* S"
@@ -69,7 +69,7 @@ next
       case (dbop C s ls f Op args ls' t c res vis)
       then show ?case  using step.IH by (auto simp add: True)
     next
-      case (invocation C s procName args initialState impl)
+      case (invocId C s procName args initialState impl)
       then show ?case  using step.IH by (auto simp add: True)
     next
       case (return C s ls f res)
@@ -206,7 +206,7 @@ next
 qed
 
 text {*
- There can be no action on a invocation after a fail or return:
+ There can be no action on a invocId after a fail or return:
  (except for invariant checks)
 *}
 lemma nothing_after_fail_or_return:
@@ -262,7 +262,7 @@ qed
 
 (*
 text {*
-After a return or a failure no more actions on the same invocation are possible.
+After a return or a failure no more actions on the same invocId are possible.
 *}
 lemma nothing_after_fail_or_return:
 assumes steps: "initialState program ~~ tr \<leadsto>* S"
@@ -445,14 +445,14 @@ proof (rule iffI2; clarsimp)
           by (auto simp add: step_simps state_ext  induct_step)
 
       next
-        case (invocation s procName args initialLocalState impl)
+        case (invocId s procName args initialLocalState impl)
         from `initialState program ~~ tr \<leadsto>* S1` `invocationOp S1 s = None`
         have no_fail: "(s, AFail) \<notin> set tr"
           by (meson everything_starts_with_an_invocation in_set_conv_nth)
 
         show ?thesis 
           apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> initialLocalState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"])
-          using induct_step.coupling no_fail invocation
+          using induct_step.coupling no_fail invocId
           by (auto simp add: step_simps state_ext  induct_step)
       next
         case (return s ls f res)
@@ -490,7 +490,7 @@ proof (rule iffI2; clarsimp)
 qed
 
 
-definition commutativeS :: "('localState, 'any::valueType) state \<Rightarrow> invocation \<times> 'any action \<Rightarrow> invocation \<times> 'any action \<Rightarrow> bool" where
+definition commutativeS :: "('localState, 'any::valueType) state \<Rightarrow> invocId \<times> 'any action \<Rightarrow> invocId \<times> 'any action \<Rightarrow> bool" where
   "commutativeS s a b \<equiv> (\<forall>t. ((s ~~ [a,b] \<leadsto>*  t) \<longleftrightarrow> (s ~~ [b,a] \<leadsto>* t)))"
 
 
@@ -549,7 +549,7 @@ lemma show_commutativeS_pres[case_names preBfront preAfront preAback preBback co
   using a4 usePrecondition apply blast 
   done  
 
-definition differentIds :: "(invocation \<times> 'any action) \<Rightarrow> (invocation \<times> 'any action) \<Rightarrow> bool" where
+definition differentIds :: "(invocId \<times> 'any action) \<Rightarrow> (invocId \<times> 'any action) \<Rightarrow> bool" where
   "differentIds a b \<equiv> case (a,b) of
    ((s1, ANewId u1), (s2, ANewId u2)) \<Rightarrow> (u1 \<noteq> u2)
  | ((s1, ABeginAtomic u1 nt1), (s2, ABeginAtomic u2 nt2)) \<Rightarrow> (u1 \<noteq> u2)
@@ -2266,14 +2266,14 @@ it appears.
 
 
 \<comment> \<open>  checks if sessions s is in a transaction at position i in trace tr  \<close>
-definition inTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocation \<Rightarrow> bool"  where 
+definition inTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocId \<Rightarrow> bool"  where 
   "inTransaction tr i s \<equiv>
   \<exists>j. j\<le>i \<and> i<length tr \<and> (\<exists>t txns. tr!j = (s, ABeginAtomic t txns))
      \<and> (\<forall>k. j<k \<and> k < length tr \<and> k\<le>i \<longrightarrow> tr!k \<noteq> (s, AEndAtomic))
 "
 
 \<comment> \<open>  returns the set of all transactions, which are in a transaction at point i in the trace \<close>
-definition sessionsInTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocation set"  where 
+definition sessionsInTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocId set"  where 
   "sessionsInTransaction tr i \<equiv> {s. inTransaction tr i s}"
 
 \<comment> \<open>  counts how many concurrent transactions are active  \<close>
@@ -2307,7 +2307,7 @@ lemma " sessionsInTransaction [(s\<^sub>1, ABeginAtomic t\<^sub>1 txns), (s\<^su
   done
 
 (*
-fun sessionsInTransactionRevAlt :: "trace \<Rightarrow> nat \<Rightarrow> invocation set"  where
+fun sessionsInTransactionRevAlt :: "trace \<Rightarrow> nat \<Rightarrow> invocId set"  where
   "sessionsInTransactionRevAlt [] i = {}"
 | "sessionsInTransactionRevAlt ((s, ABeginAtomic t)#as) i = sessionsInTransactionRevAlt as (i-1) \<union> {s}"
 | "sessionsInTransactionRevAlt as 0 = {}"
@@ -2583,7 +2583,7 @@ proof -
     }
     note case_endAtomic = this
 
-    { \<comment> \<open>  Next, we consider the case where txa contains an action from a different invocation \<close>
+    { \<comment> \<open>  Next, we consider the case where txa contains an action from a different invocId \<close>
       assume differentSession: "fst (txa ! otherI) \<noteq> s"
 
       define s' where s'_def: "s' = fst (txa ! otherI)"
@@ -2733,7 +2733,7 @@ proof -
     }
     note case_endAtomic = this
 
-    { \<comment> \<open>  Next, we consider the case where txa contains an action from a different invocation \<close>
+    { \<comment> \<open>  Next, we consider the case where txa contains an action from a different invocId \<close>
       assume differentSession: "fst (txa ! otherI) \<noteq> s"
 
       define s' where s'_def: "s' = fst (txa ! otherI)"
@@ -3318,7 +3318,7 @@ next
   qed
 qed
 
-definition packed_trace_s :: "'any trace \<Rightarrow> invocation \<Rightarrow> bool" where
+definition packed_trace_s :: "'any trace \<Rightarrow> invocId \<Rightarrow> bool" where
   "packed_trace_s tr s \<equiv>
   \<forall>i.
       0<i
@@ -3423,7 +3423,7 @@ proof (induct "max_natset {length tr - i  | i.
       and i5: "\<not>(allowed_context_switch (snd(tr!i)))"
       by auto
 
-    text {* There must be a previous action on the same invocation (at least the invocation should be there, since i is no invocation). *}
+    text {* There must be a previous action on the same invocId (at least the invocId should be there, since i is no invocId). *}
     obtain prev
       where prev1: "fst(tr!prev) = s"
         and prev2: "prev < i"
@@ -3623,7 +3623,7 @@ lemma packed_trace_iff_all_sessions_packed:
   "packed_trace tr \<longleftrightarrow> (\<forall>s. packed_trace_s tr s)"
   by (auto simp add: packed_trace_def packed_trace_s_def)
 
-text {* Now we can just repeat fixing invocation by invocation, until all sessions are packed. *}
+text {* Now we can just repeat fixing invocId by invocId, until all sessions are packed. *}
 lemma pack_trace:
   assumes steps: "initialState program ~~ tr \<leadsto>* C"
     and noFail: "\<And>s. (s, AFail) \<notin> set tr"
@@ -3856,7 +3856,7 @@ proof -
 qed
 
 
-definition openTransactions :: "'any trace \<Rightarrow> (invocation \<times> txid) set" where
+definition openTransactions :: "'any trace \<Rightarrow> (invocId \<times> txid) set" where
 "openTransactions tr \<equiv> {(i, tx) | i j tx txns. j<length tr \<and> tr!j = (i, ABeginAtomic tx txns) \<and> (\<forall>k. k>j \<and> k<length tr \<longrightarrow> tr!k \<noteq> (i, AEndAtomic))}"
 
 
@@ -3922,7 +3922,7 @@ lemma allTransactionsEnd_def_alt:
 
 
 text {*
-If only the local states in invocation i differ,
+If only the local states in invocId i differ,
 we can transfer an execution to the different state,
 when the execution trace contains no action in i.
 *}
@@ -4072,7 +4072,7 @@ proof -
         case (dbop C s ls f Op args ls' t c res vis)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (invocation C s procName args initialState impl)
+        case (invocId C s procName args initialState impl)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
         case (return C s ls f res)
@@ -4202,7 +4202,7 @@ proof -
         case (dbop C s ls f Op args ls' t c res vis)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (invocation C s procName args initialState impl)
+        case (invocId C s procName args initialState impl)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
         case (return C s ls f res)
@@ -4486,7 +4486,7 @@ proof -
         show ?case using cId_not_used_again in_trace by (auto simp add: step_simps T_def state_ext sameContext)
 
       next
-        case (invocation C s procName args initialState impl)
+        case (invocId C s procName args initialState impl)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
         case (return C s ls f res)
@@ -4601,7 +4601,7 @@ next
       apply (auto simp add: step  split: if_splits)
       done
   next
-    case (invocation C s procName args initialState impl)
+    case (invocId C s procName args initialState impl)
     then show ?case 
       using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
       apply (subst state_ext)
@@ -4793,7 +4793,7 @@ theorem show_programCorrect_noTransactionInterleaving_no_passing_invchecks:
     "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; \<And>s. (s, AInvcheck True) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving)
-  fix trace :: "(invocation \<times> 'a action) list"
+  fix trace :: "(invocId \<times> 'a action) list"
   fix S
   assume steps: "initialState program ~~ trace \<leadsto>* S"
     and packed: "packed_trace trace" 
@@ -4803,7 +4803,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
   proof (rule ccontr)
     assume a: "\<not> traceCorrect trace"
 
-    define isNotTrueInvcheck :: "(invocation \<times> 'a action) \<Rightarrow> bool"
+    define isNotTrueInvcheck :: "(invocId \<times> 'a action) \<Rightarrow> bool"
       where "isNotTrueInvcheck \<equiv> (\<lambda>a. case a of (s, AInvcheck True) \<Rightarrow> False | _\<Rightarrow> True)"
     define trace' where "trace' \<equiv> filter isNotTrueInvcheck trace"
 
@@ -5193,7 +5193,7 @@ theorem show_programCorrect_noTransactionInterleaving':
     "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
-  fix trace :: "(invocation \<times> 'a action) list"
+  fix trace :: "(invocId \<times> 'a action) list"
   fix S
   assume steps: "initialState program ~~ trace \<leadsto>* S"
     and packed: "packed_trace trace" 
@@ -5277,7 +5277,7 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
         by (metis i2 length_take lessI min_less_iff_conj nth_mem nth_take trace'_def traceCorrect_def) 
     next
       case True
-    (* if it is in a transaction, move it right before the transaction and adapt it to the correct invocation
+    (* if it is in a transaction, move it right before the transaction and adapt it to the correct invocId
       then remove all others and use packedTracesCorrect  *)
 
       from this 
@@ -5346,7 +5346,7 @@ theorem show_programCorrect_noTransactionInterleaving'':
     "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving')
-  fix trace :: "(invocation \<times> 'a action) list"
+  fix trace :: "(invocId \<times> 'a action) list"
   fix s
   assume steps: "initialState program ~~ trace \<leadsto>* s"
     and packed: "packed_trace trace" 
@@ -5354,7 +5354,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
     and no_inv_checks: "no_invariant_checks_in_transaction trace"
 
 
-  define "induct_measure" where "induct_measure  \<equiv> \<lambda>trace::(invocation \<times> 'a action) list. \<lambda>pos'.
+  define "induct_measure" where "induct_measure  \<equiv> \<lambda>trace::(invocId \<times> 'a action) list. \<lambda>pos'.
     case pos' of
         0 \<Rightarrow> True
       | Suc pos \<Rightarrow>  pos<length trace \<and> (\<exists>i j tx txns. fst(trace!pos) = i \<and>  j\<le>pos \<and> trace!j = (i, ABeginAtomic tx txns) \<and> (\<nexists>k. k>j \<and> k<length trace \<and> trace!k = (i, AEndAtomic)))" 
@@ -5643,10 +5643,10 @@ proof (rule show_programCorrect_noTransactionInterleaving')
           next
             case (AInvoc x61 x62)
 
-            \<comment> \<open>  We already have an beginAtomic before, so we already have an invocation \<close>
+            \<comment> \<open>  We already have an beginAtomic before, so we already have an invocId \<close>
             have "invocationOp S_pos invoc \<noteq> None"
               using AInvoc S_pos_step' S_pos_steps S_pos_wf \<open>j \<le> pos\<close> \<open>pos < length trace'\<close> currentTransaction dual_order.strict_trans le_eq_less_or_eq length_take less.prems(3) local.beginAtomic min.absorb2 noEndAtomic nth_mem nth_take option.simps(3) pos_action_def preconditionI precondition_beginAtomic precondition_invoc wellFormed_invoc_notStarted(1)
-              by (smt action.simps(42) inTransaction_trace less.prems(1) prod.inject)
+              by (smt action.simps(42) inTransaction_trace less.prems(1) prod.inject) 
 
 
             with AInvoc
@@ -5677,7 +5677,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
         show "packed_trace newTrace"
           using `packed_trace trace'` apply (auto simp add: newTrace_def packed_trace_def nth_append)
           using \<open>pos < length trace'\<close> dual_order.strict_trans apply blast
-          by (smt Suc_eq_plus1_left add_diff_inverse_nat diff_add_zero lessI maxPos not_less_eq not_less_zero)
+          by (metis (no_types, hide_lams) Suc_pred diff_Suc_Suc diff_zero less_add_same_cancel1 maxPos not_gr_zero not_less_eq not_less_less_Suc_eq zero_less_Suc zero_less_diff)
         show " \<And>s. (s, AFail) \<notin> set newTrace"
           using `\<And>s. (s, AFail) \<notin> set trace'` by (auto simp add: newTrace_def dest: in_set_takeD in_set_dropD )
 

@@ -17,10 +17,10 @@ abbreviation eqsome :: "'a option \<Rightarrow> 'a \<Rightarrow> bool" (infixr "
 abbreviation orElse :: "'a option \<Rightarrow> 'a \<Rightarrow> 'a" (infixr "orElse" 70) where
   "x orElse y \<equiv> case x of Some a \<Rightarrow> a | None \<Rightarrow> y"
 
-typedecl invocation
+typedecl invocId
 
 axiomatization where 
-  infinitely_many_invocations: " infinite (UNIV::invocation set)"
+  infinitely_many_invocations: " infinite (UNIV::invocId set)"
 
 term "x::'a::ord"
 
@@ -77,10 +77,10 @@ record 'any operationContext =
 
 record 'any invariantContext = "'any operationContext" +
   i_callOrigin :: "callId \<rightharpoonup> txid"
-  i_transactionOrigin :: "txid \<rightharpoonup> invocation"
+  i_transactionOrigin :: "txid \<rightharpoonup> invocId"
   i_knownIds :: "'any set"
-  i_invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
-  i_invocationRes :: "invocation \<rightharpoonup> 'any"
+  i_invocationOp :: "invocId \<rightharpoonup> (procedureName \<times> 'any list)"
+  i_invocationRes :: "invocId \<rightharpoonup> 'any"
 
 record ('localState, 'any) prog =
   querySpec :: "operation \<Rightarrow> 'any list \<Rightarrow> 'any operationContext \<Rightarrow> 'any \<Rightarrow> bool"
@@ -90,18 +90,18 @@ record ('localState, 'any) prog =
 record ('localState, 'any) distributed_state = "'any operationContext" +
   prog :: "('localState, 'any) prog"
   callOrigin :: "callId \<rightharpoonup> txid"
-  transactionOrigin :: "txid \<rightharpoonup> invocation"
+  transactionOrigin :: "txid \<rightharpoonup> invocId"
   transactionStatus :: "txid \<rightharpoonup> transactionStatus"
-  generatedIds :: "'any \<rightharpoonup> invocation" \<comment> \<open>  unique identifiers and which invocation generated them \<close>
+  generatedIds :: "'any \<rightharpoonup> invocId" \<comment> \<open>  unique identifiers and which invocId generated them \<close>
   knownIds :: "'any set"
-  invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
-  invocationRes :: "invocation \<rightharpoonup> 'any"
+  invocationOp :: "invocId \<rightharpoonup> (procedureName \<times> 'any list)"
+  invocationRes :: "invocId \<rightharpoonup> 'any"
 
 record ('localState, 'any) state = "('localState, 'any) distributed_state" + 
-  localState :: "invocation \<rightharpoonup> 'localState"
-  currentProc :: "invocation \<rightharpoonup> ('localState, 'any) procedureImpl"
-  visibleCalls :: "invocation \<rightharpoonup> callId set"
-  currentTransaction :: "invocation \<rightharpoonup> txid"
+  localState :: "invocId \<rightharpoonup> 'localState"
+  currentProc :: "invocId \<rightharpoonup> ('localState, 'any) procedureImpl"
+  visibleCalls :: "invocId \<rightharpoonup> callId set"
+  currentTransaction :: "invocId \<rightharpoonup> txid"
 
 
 lemma state_ext: "((x::('localState, 'any) state) = y) \<longleftrightarrow> (
@@ -507,7 +507,7 @@ datatype 'any action =
 
 definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 
-inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocation \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
+inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -562,7 +562,7 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocatio
                 visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
                 happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>)"                
 
-| invocation:
+| invocId:
   "\<lbrakk>localState S i = None; \<comment> \<open>  TODO this might not be necessary  \<close>
    procedure (prog S) procName args \<triangleq> (initialState, impl);
    uniqueIdsInList args \<subseteq> knownIds S;
@@ -635,7 +635,7 @@ lemmas step_elims =
   step_elim_AFail
   step_elim_AInvcheck
 
-inductive steps :: "('localState, 'any::valueType) state \<Rightarrow> (invocation \<times> 'any action) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
+inductive steps :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
   steps_refl:
   "S ~~ [] \<leadsto>* S"
 | steps_step:
@@ -685,7 +685,7 @@ definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState,
   currentTransaction = Map.empty
 \<rparr>"
 
-type_synonym 'any trace = "(invocation\<times>'any action) list"
+type_synonym 'any trace = "(invocId\<times>'any action) list"
 
 definition traces where
   "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
@@ -704,10 +704,10 @@ definition "isAInvoc action = (case action of AInvoc _ _  \<Rightarrow> True | _
  splits a trace into three parts
   
 1. part until first (s, EndAtomic) on different sessions
-2. part until and including (s, EndAtomic); same invocation
+2. part until and including (s, EndAtomic); same invocId
 3. rest
 *)
-fun splitTrace :: "invocation \<Rightarrow> 'any trace \<Rightarrow> ('any trace \<times> 'any trace \<times> 'any trace)" where
+fun splitTrace :: "invocId \<Rightarrow> 'any trace \<Rightarrow> ('any trace \<times> 'any trace \<times> 'any trace)" where
   "splitTrace s [] = ([],[],[])"
 | "splitTrace s ((sa, a)#tr) = (
     if s = sa then
@@ -746,7 +746,7 @@ lemma splitTrace_len2[simp]:
 declare splitTrace.simps[simp del]
 
 
-fun compactTrace :: "invocation \<Rightarrow> 'any trace \<Rightarrow> 'any trace" where
+fun compactTrace :: "invocId \<Rightarrow> 'any trace \<Rightarrow> 'any trace" where
   compactTrace_empty:
   "compactTrace s [] = []"
 | compactTrace_step:

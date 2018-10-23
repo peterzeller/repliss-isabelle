@@ -2,16 +2,16 @@ theory execution_invariants_s
   imports repliss_sem_single_invocation execution_invariants
 begin
 
-section {* Invariants of single-invocation executions. *}
+section {* Invariants of single-invocId executions. *}
 
-text {* This theory includes proof for invariants that hold for all single-invocation executions.  *}
-
-
+text {* This theory includes proof for invariants that hold for all single-invocId executions.  *}
 
 
 
 
-definition initialStates :: "('localState, 'any::valueType) prog \<Rightarrow> invocation \<Rightarrow> ('localState, 'any) state set"  where
+
+
+definition initialStates :: "('localState, 'any::valueType) prog \<Rightarrow> invocId \<Rightarrow> ('localState, 'any) state set"  where
   "initialStates progr i \<equiv> {
     (S\<lparr>localState := (localState S)(i \<mapsto> initState),
        currentProc := (currentProc S)(i \<mapsto> impl),
@@ -144,7 +144,7 @@ next
     thus ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   next
-    case (invocation C s procName args initState impl C' C'' valid)
+    case (invocId C s procName args initState impl C' C'' valid)
     hence "C' ~~ (i, AInvoc procName args) \<leadsto> S'"
       apply (auto simp add: step_simps)
       using wf_localState_to_invocationOp by blast+

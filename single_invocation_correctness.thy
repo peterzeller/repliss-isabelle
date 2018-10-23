@@ -2,9 +2,9 @@ theory single_invocation_correctness
   imports approach execution_invariants_s fixedpoints
 begin
 
-section {* Single-invocation corrrectness *}
+section {* Single-invocId corrrectness *}
 
-text {* This theory includes techniques to prove that a program is correct in the single-invocation semantics. *}
+text {* This theory includes techniques to prove that a program is correct in the single-invocId semantics. *}
 
 text {*
   Start with initial state,
@@ -122,8 +122,8 @@ abbreviation invariant_all' :: "('localState, 'any) state \<Rightarrow> bool" wh
 
 
 \<comment> \<open>  check program (with a given start-state, bound by a number of steps)  \<close>
-definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool) 
-                           \<Rightarrow> ('localState, 'any) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool" where
+definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool) 
+                           \<Rightarrow> ('localState, 'any) prog \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool" where
 "checkCorrectF \<equiv> (\<lambda>checkCorrect' (progr, S, i).
 (case currentProc S i of
     None \<Rightarrow> True
@@ -218,13 +218,13 @@ definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('loc
 lemma checkCorrectF_mono[simp]:
 "mono checkCorrectF"
 proof (rule monoI)
-  show "checkCorrectF x \<le> checkCorrectF y" if c0: "x \<le> y"  for  x :: "(('localState, 'any::valueType) prog \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool)" and y
+  show "checkCorrectF x \<le> checkCorrectF y" if c0: "x \<le> y"  for  x :: "(('localState, 'any::valueType) prog \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool)" and y
     by (auto simp add: checkCorrectF_def Let_def intro: predicate1D[OF `x \<le> y`] split: option.splits localAction.splits)
 
 qed
 
 
-definition checkCorrect :: "('localState, 'any::valueType) prog \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> bool" where
+definition checkCorrect :: "('localState, 'any::valueType) prog \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocId \<Rightarrow> bool" where
  "checkCorrect progr S i \<equiv> lfp checkCorrectF (progr, S, i)"
 
 
@@ -347,7 +347,7 @@ next
     then show ?thesis 
       using checkCorrect_S by auto
   next
-    case (invocation procName args initState impl C' valid)
+    case (invocId procName args initState impl C' valid)
     then show ?thesis 
       using a_not_invoc by (case_tac a, auto simp add: isAInvoc_def)
   next
@@ -408,7 +408,7 @@ next
     case (dbop C s ls f Op args ls' t c res vis)
     thus ?case using i2 by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
-    case (invocation C s procName args initState impl C' C'' valid)
+    case (invocId C s procName args initState impl C' C'' valid)
     thus ?case using i2 by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
     case (return C s ls f res C' valid)
@@ -598,7 +598,7 @@ from `S ~~ (i, a) \<leadsto>\<^sub>S S'`
     with `state_wellFormed S` show ?case 
       by (rule state_wellFormed_combine1, simp)
   next
-    case (invocation C s procName args initState impl C' C'' valid)
+    case (invocId C s procName args initState impl C' C'' valid)
     hence "C' ~~ (i, AInvoc procName args) \<leadsto> C''"
       apply (auto simp add: step.simps)
       using wf_localState_to_invocationOp by blast+
@@ -972,11 +972,11 @@ next
           apply (subst(asm) checkCorrect_simps)
           using dbop notx by (auto simp add:  split: option.splits localAction.splits)
       next
-        case (invocation C s procName args initState impl C' C'' valid)
+        case (invocId C s procName args initState impl C' C'' valid)
         thus ?case
           apply (insert S_pre_correct)
           apply (subst(asm) checkCorrect_simps)
-          using invocation notx hasInvocation by (auto simp add:  split: option.splits localAction.splits)
+          using invocId notx hasInvocation by (auto simp add:  split: option.splits localAction.splits)
       next
         case (return C s ls f res C' valid)
 
@@ -1045,7 +1045,7 @@ next
       case (dbop ls f Op args ls' t c res vis)
       then show ?thesis  by auto
     next
-      case (invocation procName args initState impl C' valid)
+      case (invocId procName args initState impl C' valid)
       then show ?thesis
         by (simp add: hasInvocationOp) 
     next
@@ -1159,7 +1159,7 @@ next
       then show ?thesis using initS_correct 
         by (auto simp add:  noTransaction)
     next
-      case (invocation procName args initState impl C' valid)
+      case (invocId procName args initState impl C' valid)
       then show ?thesis using initS_correct 
         by (auto simp add:  hasInvocationOp)
     next
@@ -1427,8 +1427,8 @@ definition DefSome (infix "::\<triangleq>" 50) where
 "x ::\<triangleq> y \<equiv> y = Some x"
 
 \<comment> \<open>  check program (with a given start-state, bound by a number of steps)  \<close>
-definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool) 
-                           \<Rightarrow> ('localState, 'any) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool" where
+definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool) 
+                           \<Rightarrow> ('localState, 'any) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool" where
 "checkCorrect2F \<equiv> (\<lambda>checkCorrect' (progr, txCalls, S, i).
 (case currentProc S i of
     None \<Rightarrow> True
@@ -1449,7 +1449,7 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
               \<and> state_wellFormed S'
               \<and> state_wellFormed S''
               \<and> state_monotonicGrowth i S S'
-               \<comment> \<open>  transactions in current invocation unchanged:   \<close>
+               \<comment> \<open>  transactions in current invocId unchanged:   \<close>
               \<and> (\<forall>t . transactionOrigin S t \<triangleq> i \<longleftrightarrow> transactionOrigin S' t \<triangleq> i)
               \<and> localState S' i \<triangleq> ls
               \<and> currentProc S' i \<triangleq> impl
@@ -1531,7 +1531,7 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
 lemma checkCorrect2F_mono[simp]:
 "mono checkCorrect2F"
 proof (rule monoI)
-  show "checkCorrect2F x \<le> checkCorrect2F y" if c0: "x \<le> y"  for  x :: "(('localState, 'any::valueType) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocation \<Rightarrow> bool)" and y
+  show "checkCorrect2F x \<le> checkCorrect2F y" if c0: "x \<le> y"  for  x :: "(('localState, 'any::valueType) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool)" and y
     apply auto
     apply (auto simp add: checkCorrect2F_def Let_def Def_def intro!: predicate1D[OF `x \<le> y`] split: option.splits localAction.splits if_splits)
     by force
@@ -1540,11 +1540,11 @@ qed
 
 
 (*
-definition checkCorrect2 :: "('localState, 'any) prog \<Rightarrow> callId set \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> bool" where
+definition checkCorrect2 :: "('localState, 'any) prog \<Rightarrow> callId set \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocId \<Rightarrow> bool" where
  "checkCorrect2 progr txCalls S i \<equiv> lfp checkCorrect2F (progr, txCalls, S, i)"
 *)
 
-definition checkCorrect2 :: "('localState, 'any::valueType) prog \<Rightarrow> callId set \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocation \<Rightarrow> bool" where
+definition checkCorrect2 :: "('localState, 'any::valueType) prog \<Rightarrow> callId set \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocId \<Rightarrow> bool" where
  "checkCorrect2 progr txCalls S i \<equiv> \<exists>n. (checkCorrect2F^^n) bot (progr, txCalls, S, i)"
 
 
@@ -2109,7 +2109,7 @@ proof (rule show_correctness_via_single_session)
 qed
 
 
-definition initialStates' :: "('localState, 'any::valueType) prog \<Rightarrow> invocation \<Rightarrow> ('localState, 'any) state set"  where
+definition initialStates' :: "('localState, 'any::valueType) prog \<Rightarrow> invocId \<Rightarrow> ('localState, 'any) state set"  where
   "initialStates' progr i \<equiv> {
     (S\<lparr>localState := (localState S)(i \<mapsto> initState),
        currentProc := (currentProc S)(i \<mapsto> impl),

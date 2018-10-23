@@ -10,9 +10,9 @@ text {* This theory includes the soundness proof of our proof approach. *}
 (*
 TODO:
 
-1. single invocation semantics
+1. single invocId semantics
 
-2. show that multi-invocation trace with fixed invocation can be reduced to multiple single invocation traces by chopping
+2. show that multi-invocId trace with fixed invocId can be reduced to multiple single invocId traces by chopping
 
 3. other things
 
@@ -23,11 +23,11 @@ declare length_dropWhile_le[simp]
 
 (*
 split a trace into maximal chunks of actions in the same session.
-Each chunk can be used in single-invocation semantics.
+Each chunk can be used in single-invocId semantics.
 
-Remember that a trace is just a (invocation\<times>action) list
+Remember that a trace is just a (invocId\<times>action) list
 *)
-fun split_trace :: "'any trace \<Rightarrow> (invocation \<times> ('any action list)) list" where
+fun split_trace :: "'any trace \<Rightarrow> (invocId \<times> ('any action list)) list" where
   "split_trace [] = []"
 | "split_trace ((s,a)#rest) = (
    let same = map snd (takeWhile (\<lambda>x. fst x = s) rest);
@@ -81,18 +81,18 @@ lemma state_wellFormed_no_result_when_running:
 
 
 
-text {* Coupling invariant: S is state from distributed execution and S is state from single-invocation execution.  *}
-definition state_coupling :: "('ls,'any::valueType) state \<Rightarrow> ('ls,'any) state \<Rightarrow> invocation \<Rightarrow> bool \<Rightarrow> bool" where
+text {* Coupling invariant: S is state from distributed execution and S is state from single-invocId execution.  *}
+definition state_coupling :: "('ls,'any::valueType) state \<Rightarrow> ('ls,'any) state \<Rightarrow> invocId \<Rightarrow> bool \<Rightarrow> bool" where
   "state_coupling S S' i sameSession \<equiv> 
    if sameSession then
-      \<comment> \<open>  did a step in the same invocation  \<close>
+      \<comment> \<open>  did a step in the same invocId  \<close>
       S' = S
 \<comment> \<open>
       if currentTransaction S i = None 
       then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S i orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(i := vis') \<rparr> \<comment> \<open>  TODO maybe can get equality here \<close>
       else S' = S \<close>
    else 
-      \<comment> \<open>  did step in a different invocation  \<close>
+      \<comment> \<open>  did step in a different invocId  \<close>
         state_monotonicGrowth i S' S
       \<comment> \<open>  local state on s unchanged  \<close>
       \<and> localState S i = localState S' i
@@ -114,15 +114,15 @@ record distributed_state = operationContext +
   callOrigin :: "callId \<rightharpoonup> txid"
   generatedIds :: "'any set"
   knownIds :: "'any set"
-  invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
-  invocationRes :: "invocation \<rightharpoonup> 'any"
+  invocationOp :: "invocId \<rightharpoonup> (procedureName \<times> 'any list)"
+  invocationRes :: "invocId \<rightharpoonup> 'any"
   transactionStatus :: "txid \<rightharpoonup> transactionStatus"
 
 record state = distributed_state + 
-  localState :: "invocation \<rightharpoonup> localState"
-  currentProc :: "invocation \<rightharpoonup> procedureImpl"
-  visibleCalls :: "invocation \<rightharpoonup> callId set"
-  currentTransaction :: "invocation \<rightharpoonup> txid"
+  localState :: "invocId \<rightharpoonup> localState"
+  currentProc :: "invocId \<rightharpoonup> procedureImpl"
+  visibleCalls :: "invocId \<rightharpoonup> callId set"
+  currentTransaction :: "invocId \<rightharpoonup> txid"
 *)
 
 
@@ -371,15 +371,15 @@ next
     then show ?thesis
       using `a = (s, ADbOp c Op args res)` by (auto simp add: nth_append)
   next
-    case (invocation s procName args initialState impl)
+    case (invocId s procName args initialState impl)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
     proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
-        using `currentTransaction S'' i \<triangleq> tx` by (simp add:  invocation)
+        using `currentTransaction S'' i \<triangleq> tx` by (simp add:  invocId)
     qed
 
     then show ?thesis
-      using invocation by (auto simp add: nth_append)
+      using invocId by (auto simp add: nth_append)
   next
     case (return s ls f res)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
@@ -493,7 +493,7 @@ next
     case (dbop s ls f Op args ls' t c res vis)
     then show ?thesis using IH by (auto simp add: open_transactions_append_one)
   next
-    case (invocation s procName args initialState impl)
+    case (invocId s procName args initialState impl)
     then show ?thesis using IH by (auto simp add: open_transactions_append_one)
   next
     case (return s ls f res)
@@ -618,7 +618,7 @@ next
       case (dbop s ls f Op args ls' t c res vis)
       then show ?thesis using IH by auto
     next
-      case (invocation s procName args initialState impl)
+      case (invocId s procName args initialState impl)
       then show ?thesis using IH no_tx_if_context_switch by auto
     next
       case (return s ls f res)
@@ -846,15 +846,15 @@ next
       using IH1 by blast
       
   next
-    case (invocation s' procName args initialState impl)
+    case (invocId s' procName args initialState impl)
     show ?thesis 
-      using IH1 g1 g2 g3 by (auto simp add: invocation split: if_splits)
+      using IH1 g1 g2 g3 by (auto simp add: invocId split: if_splits)
   next
     case (return s ls f res)
-    then show ?thesis using IH1 g1 g2 g3 by (auto simp add: invocation split: if_splits)
+    then show ?thesis using IH1 g1 g2 g3 by (auto simp add: invocId split: if_splits)
   next
     case (fail s ls)
-    then show ?thesis using IH1 g1 g2 g3 by (auto simp add: invocation split: if_splits)
+    then show ?thesis using IH1 g1 g2 g3 by (auto simp add: invocId split: if_splits)
   next
     case (invCheck res s)
     then show ?thesis using IH1 g1 g2 g3 by auto
@@ -909,7 +909,7 @@ next
       using IH2 by blast
     qed
   next
-    case (invocation s procName args initialState impl)
+    case (invocId s procName args initialState impl)
     then show ?thesis  using IH2 g1 g2 g3 by (auto split: if_splits)
   next
     case (return s ls f res)
@@ -954,7 +954,7 @@ next
       using IH4 by blast
       
   next
-    case (invocation s procName args initialState impl)
+    case (invocId s procName args initialState impl)
     then show ?thesis using g1 g2 g3 IH4 by auto
   next
     case (return s ls f res)
@@ -1044,7 +1044,7 @@ next
           by (simp add: IH3_to)
       qed
     next
-      case (invocation s procName args initialState impl)
+      case (invocId s procName args initialState impl)
       then show ?thesis using whenUnchanged by auto
     next
       case (return s ls f res)
@@ -1254,13 +1254,13 @@ proof (auto simp add: transactionConsistent_def)
 qed
 
 text {*
-If we have an execution on a a single invocation starting with state satisfying the invariant, then we can convert 
-this trace to a single-invocation trace leading to an equivalent state.
+If we have an execution on a a single invocId starting with state satisfying the invariant, then we can convert 
+this trace to a single-invocId trace leading to an equivalent state.
 Moreover the new trace contains an invariant violation, if the original trace contained one.
 *}
 lemma convert_to_single_session_trace:
   fixes tr :: "'any::valueType trace"
-    and s :: invocation      
+    and s :: invocId      
     and S S' :: "('ls,'any) state"
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
@@ -1337,7 +1337,7 @@ next
 
   show  "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 s (tr @ [a] = [] \<or> fst (last (tr @ [a])) = s)"  
   proof (cases "fst a = s"; simp)
-    case True \<comment> \<open>  the new action is on invocation s  \<close>
+    case True \<comment> \<open>  the new action is on invocId s  \<close>
     hence [simp]: "fst a = s" .
 
     show "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 s True"  (is ?goal) 
@@ -1984,7 +1984,7 @@ next
 
         find_theorems S
         have step_s': "S ~~ (s, (AInvoc procName args, True)) \<leadsto>\<^sub>S S'' "
-        proof (rule step_s.invocation)
+        proof (rule step_s.invocId)
           show "invocationOp S' s = None"
             by (simp add: S2_invocationOp a5)
           show "procedure (prog S) procName args \<triangleq> (initialState, impl)"
@@ -2122,7 +2122,7 @@ next
         qed
       qed
     next
-      case False \<comment> \<open>  we are coming from a different invocation and executing an action on s now   \<close>
+      case False \<comment> \<open>  we are coming from a different invocId and executing an action on s now   \<close>
       hence [simp]: "tr \<noteq> []" and [simp]: "fst (last tr) \<noteq> s" by auto
 
       hence ih3: "state_coupling S' S2 s  False" using ih3' by simp
@@ -2136,7 +2136,7 @@ next
         by (auto simp add: state_coupling_def)
 
 
-      text {* Because the trace is packed, there can only be two cases where we can go from another invocation to s: *}
+      text {* Because the trace is packed, there can only be two cases where we can go from another invocId to s: *}
       have "allowed_context_switch (snd a)"
       proof (rule context_switches_in_packed[OF packed])
         show "tr @ [a] = butlast tr @ [(fst (last tr), snd (last tr)), (s, snd a)] @ []"
@@ -2465,7 +2465,7 @@ next
       then show ?case using old_coupling different_session wf_S'' 
         by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
     next
-      case (invocation C s procName args initialState impl)
+      case (invocId C s procName args initialState impl)
       then show ?case using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
     next
       case (return C s ls f res)
@@ -2492,7 +2492,7 @@ qed
 
 lemma convert_to_single_session_trace_invFail_step:
 fixes tr :: "'any::valueType trace"
-  and s :: invocation      
+  and s :: invocId      
   and S S' :: "('ls, 'any) state"
 assumes step: "S ~~ (s,a) \<leadsto> S'"
     and S_wellformed: "state_wellFormed S"
@@ -2558,7 +2558,7 @@ next
   thus ?thesis ..
 next
   case (endAtomic ls f ls' t)
-  text {* Ending a transaction includes an invariant-check in the single-invocation semantics, so we get a failing trace. *}
+  text {* Ending a transaction includes an invariant-check in the single-invocId semantics, so we get a failing trace. *}
   
   define S2' where "S2' \<equiv> S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S2(t \<mapsto> Committed)\<rparr>"
   
@@ -2606,7 +2606,7 @@ next
     by (simp add: inv not_inv)
   thus ?thesis ..
 next
-  case (invocation procName args initialState impl)
+  case (invocId procName args initialState impl)
   text {* invocations include an invariant-check *}
   
   define S2' where "S2' \<equiv> S2\<lparr>localState := localState S2(s \<mapsto> initialState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"
@@ -2615,20 +2615,20 @@ next
   proof (rule step_s.intros)
     
     have "localState S2 s = None"
-      using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
+      using invocId coupling by (auto simp add: state_coupling_def split: if_splits)
     have "\<And>x. invocationOp S2 s \<noteq> Some x"      
-      using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_invocationOp split: if_splits)
+      using invocId coupling by (auto simp add: state_coupling_def state_monotonicGrowth_invocationOp split: if_splits)
     thus "invocationOp S2 s = None" by blast     
     show "procedure (prog S2) procName args \<triangleq> (initialState, impl)"
-      using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_prog split: if_splits)
+      using invocId coupling by (auto simp add: state_coupling_def state_monotonicGrowth_prog split: if_splits)
     show "uniqueIdsInList args \<subseteq> knownIds S"
-      using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
+      using invocId coupling by (auto simp add: state_coupling_def split: if_splits)
     show "invocationOp S s = None"
-      using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
+      using invocId coupling by (auto simp add: state_coupling_def split: if_splits)
     show "invariant_all S"
       by (simp add: inv)
     show "S' = S\<lparr>localState := localState S(s \<mapsto> initialState), currentProc := currentProc S(s \<mapsto> impl), visibleCalls := visibleCalls S(s \<mapsto> {}), invocationOp := invocationOp S(s \<mapsto> (procName, args))\<rparr>"
-      using local.invocation(2) by blast  
+      using local.invocId(2) by blast  
     show "False = invariant_all S'"
       by (simp add: not_inv)
     show "prog S = prog S2" 
@@ -2636,10 +2636,10 @@ next
     show "state_wellFormed S"
       by (simp add: S_wellformed)
     show " \<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-      by (metis local.invocation(3) local.step noUncommitted option.distinct(1) preconditionI precondition_endAtomic)
+      by (metis local.invocId(3) local.step noUncommitted option.distinct(1) preconditionI precondition_endAtomic)
 
     have "\<And>tx. transactionOrigin S tx \<noteq> Some s"
-      by (simp add: S_wellformed local.invocation(6) wf_no_invocation_no_origin)
+      by (simp add: S_wellformed local.invocId(6) wf_no_invocation_no_origin)
     thus "\<And>tx. transactionOrigin S' tx \<noteq> Some s"
       using step `a = AInvoc procName args` by (auto simp add: step_simps)
 
@@ -2804,7 +2804,7 @@ proof (rule ccontr)
     qed
 
   next
-    case (invocation s procName args initialState impl)
+    case (invocId s procName args initialState impl)
     then show ?thesis by (auto simp add: consistentSnapshotH_def)
   next
     case (return s ls f res)
@@ -3315,7 +3315,7 @@ proof (rule ccontr)
 
 
 text {*
-When a program is correct in the single invocation semantics, 
+When a program is correct in the single invocId semantics, 
 it is also correct when executed in the concurrent interleaving semantics.
 *}
 theorem show_correctness_via_single_session:
@@ -3365,7 +3365,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
       using smallestPrefix_exists[where P="\<lambda>tr x. isPrefix tr trace \<and> (initialState program ~~ tr \<leadsto>* x) \<and> \<not> invariant_all x"]
       by metis
     
-    text {* Next get the invocation start before the failure *}  
+    text {* Next get the invocId start before the failure *}  
       
     find_theorems "(\<exists>x y. ?P x y) \<longleftrightarrow> (\<exists>y x. ?P x y)"
     
@@ -3421,7 +3421,6 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
   qed
 qed  
    
-unused_thms
 
 
 end

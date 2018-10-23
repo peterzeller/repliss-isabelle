@@ -389,12 +389,12 @@ proof -
       qed
 
     next
-      case (invocation C s procName args initialState impl)
+      case (invocId C s procName args initialState impl)
       have [simp]: "prog C = progr"
-        using \<open>prog S1 = progr\<close> invocation.hyps(1) by blast
+        using \<open>prog S1 = progr\<close> invocId.hyps(1) by blast
 
 
-      from invocation 
+      from invocId 
       show ?case using step.hyps cannotGuessLs[OF `procedure (prog C) procName args \<triangleq> (initialState, impl)`] 
         apply (auto simp add:  step_simps)
         using cannotGuessLs' by blast
@@ -532,7 +532,7 @@ next
       using IH1 IH2 IH3 apply auto
       by (metis (no_types, lifting) \<open>program_wellFormed uids (prog C)\<close> \<open>state_wellFormed C\<close> \<open>uid \<notin> uniqueIdsInList args\<close> call.collapse program_wellFormed_procedures_cannot_guess_ids_DbOperation program_wellFormed_queries_cannot_guess_ids_getContextH)
   next
-    case (invocation C s procName args initialState impl)
+    case (invocId C s procName args initialState impl)
     then show ?case 
       using IH1 IH2 IH3 apply auto
       using \<open>program_wellFormed uids (prog S')\<close> program_wellFormed_procedures_cannot_guess_ids_init by fastforce
@@ -692,7 +692,7 @@ next
       using IH1 IH2 IH3 apply auto
       by (metis (no_types, lifting) \<open>program_wellFormed uids (prog C)\<close> \<open>state_wellFormed C\<close> \<open>uid \<notin> uniqueIdsInList args\<close> call.collapse program_wellFormed_procedures_cannot_guess_ids_DbOperation program_wellFormed_queries_cannot_guess_ids_getContextH)
   next
-    case (invocation C s procName args initialState impl)
+    case (invocId C s procName args initialState impl)
     then show ?case 
       using IH1 IH2 IH3 apply auto
       using \<open>program_wellFormed uids (prog S')\<close> program_wellFormed_procedures_cannot_guess_ids_init by fastforce

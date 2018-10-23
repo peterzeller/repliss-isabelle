@@ -285,10 +285,10 @@ schematic_goal checkCorrect2F_step:
 
   i_visibleCalls :: "callId set"
   i_callOrigin :: "callId \<rightharpoonup> txid"
-  i_transactionOrigin :: "txid \<rightharpoonup> invocation"
+  i_transactionOrigin :: "txid \<rightharpoonup> invocId"
   i_knownIds :: "'any set"
-  i_invocationOp :: "invocation \<rightharpoonup> (procedureName \<times> 'any list)"
-  i_invocationRes :: "invocation \<rightharpoonup> 'any"
+  i_invocationOp :: "invocId \<rightharpoonup> (procedureName \<times> 'any list)"
+  i_invocationRes :: "invocId \<rightharpoonup> 'any"
 *)
 
 end

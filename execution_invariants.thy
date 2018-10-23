@@ -282,7 +282,7 @@ next
       case (dbop ls f Op args ls' t c res vis)
       then show ?thesis using a1 a3 by (auto split: if_splits)
     next
-      case (invocation procName args initialState impl)
+      case (invocId procName args initialState impl)
       then show ?thesis using a1 a3 by (auto split: if_splits)
     next
       case (return ls f res)

@@ -3,9 +3,9 @@ theory repliss_sem_single_invocation
 begin
 
 
-section {* Single invocation semantics *}
+section {* Single invocId semantics *}
 
-text {* This theory describes the single-invocation semantics used for our proof approach. *}
+text {* This theory describes the single-invocId semantics used for our proof approach. *}
 
 definition 
 "causallyConsistent hb vis \<equiv>
@@ -47,7 +47,7 @@ and "transactionConsistent s_callOrigin s_transactionStatus vis"
 definition 
 "state_monotonicGrowth_txStable callOrigin_S callOrigin_S' transactionStatus_S' \<equiv> (\<forall>c tx. callOrigin_S c \<triangleq> tx \<and> transactionStatus_S' tx \<triangleq> Committed \<longrightarrow> callOrigin_S' c \<triangleq> tx)"
 
-definition state_monotonicGrowth :: "invocation \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
+definition state_monotonicGrowth :: "invocId \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth i S S' \<equiv> state_wellFormed S \<and> (\<exists>tr. (S ~~ tr \<leadsto>* S') \<and> (\<forall>(i',a)\<in>set tr. i' \<noteq> i) \<and> (\<forall>i. (i, AFail) \<notin> set tr))"
 
 \<comment> \<open>  TODO add definitions  \<close>
@@ -58,8 +58,8 @@ definition state_monotonicGrowth :: "invocation \<Rightarrow> ('localState, 'any
    \<comment> \<open>  monotonic growth of sameTransaction  \<close>
    \<comment> \<open>  monotonic growth of origin  \<close>
    \<comment> \<open>  monotonic growth of invocations  \<close>
-   \<comment> \<open>  monotonic growth of invocation result  \<close>
-   \<comment> \<open>  monotonic growth of invocation happens-before  \<close>
+   \<comment> \<open>  monotonic growth of invocId result  \<close>
+   \<comment> \<open>  monotonic growth of invocId happens-before  \<close>
    \<comment> \<open>   --> no new calls can be added before \<close>
 (*
 definition state_monotonicGrowth :: "('localState, 'any::valueType) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
@@ -297,13 +297,13 @@ using assms by (auto simp add: )
       
 
 text {*
-The single invocation semantics only work on a single session.
+The single invocId semantics only work on a single session.
 All other sessions are simulated by nondeterministic state changes, with respect to the invariant.
 *}
 
 
   
-inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocation \<times> 'any action \<times> bool) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
+inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action \<times> bool) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
   local: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -327,7 +327,7 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocat
    \<comment> \<open> we assume a nondeterministic state change to C' here TODO add more restrictions \<close>
    prog S' = prog S;
    state_monotonicGrowth i S S';
-   \<And>t. transactionOrigin S t \<triangleq> i \<longleftrightarrow> transactionOrigin S' t \<triangleq> i; \<comment> \<open>No new transactions are added to current invocation.\<close>
+   \<And>t. transactionOrigin S t \<triangleq> i \<longleftrightarrow> transactionOrigin S' t \<triangleq> i; \<comment> \<open>No new transactions are added to current invocId.\<close>
    \<comment> \<open> new transaction has no calls yet \<close>
    \<comment> \<open> invariant maintained \<close>
    invariant_all S';
@@ -390,7 +390,7 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocat
    newCalls = callsInTransaction C newTxns \<down> happensBefore C
    \<rbrakk> \<Longrightarrow>  C ~~ (s, APull newTxns) \<leadsto>\<^sub>S (C\<lparr> visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> newCalls)\<rparr>)"                         
 *)
-| invocation:
+| invocId:
   "\<lbrakk>\<comment> \<open> localState C s = None; \<close>
    invocationOp S i = None;
    procedure (prog S) procName args \<triangleq> (initState, impl);
@@ -422,7 +422,7 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocat
    valid = invariant_all S'                   
    \<rbrakk> \<Longrightarrow>  S ~~ (i, AReturn res, valid) \<leadsto>\<^sub>S S'"
 
-inductive steps_s :: "('localState, 'any::valueType) state \<Rightarrow> invocation \<times> ('any action \<times> bool) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
+inductive steps_s :: "('localState, 'any::valueType) state \<Rightarrow> invocId \<times> ('any action \<times> bool) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_s_refl:
   "S ~~ (s, []) \<leadsto>\<^sub>S* S"
 | steps_s_step:

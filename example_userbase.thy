@@ -415,7 +415,7 @@ qed
 
 
 text {*
-Updating the invocation happens-before in the first transaction of an invocation.
+Updating the invocId happens-before in the first transaction of an invocId.
 
 TODO Problem: second transaction could remove HB. Maybe just consider HB with finished invocations on the left (and on the right?)
 *}
@@ -658,7 +658,7 @@ proof (rule show_programCorrect_using_checkCorrect)
       proof (unfold Def_def)
         print_cases
 
-        text {* Check invariant at end of invocation: *}
+        text {* Check invariant at end of invocId: *}
           (*
 fix uid S' t S'a newTxns S'' vis' ls x2 c res S'b vis'a hb' x2a ca resa S'c vis'b hb'a x2b S'd S'e
 assume a0: "isUserId uid"
@@ -1781,7 +1781,7 @@ show "example_userbase.inv (invContext' S'e)"
 
 
               show "inv2 (invContext' S'b)"
-                text \<open>The new invocation and call trivially satisfy the invariant (there is a call and there is no result yet).
+                text \<open>The new invocId and call trivially satisfy the invariant (there is a call and there is no result yet).
                        We need some manual work to establish, that the invariant still holds for old calls. \<close> 
                 using inv2_S'
                 apply (auto simp add: inv2_def S'b_def S'a_def S''_def)
@@ -2100,7 +2100,7 @@ show "example_userbase.inv (invContext' S'e)"
                         have [simp]: "callOrigin S'f c \<triangleq> t"
                           by (auto simp add: S'f_def S'e_def S'd_def S'b_def S'a_def)
 
-                        text \<open>Because invocation r happened before i, there must be a call in r, that happened before:\<close>
+                        text \<open>Because invocId r happened before i, there must be a call in r, that happened before:\<close>
                         from r_before_i
                         obtain cr cr_info cr_t
                           where cr_info: "calls S'f cr \<triangleq> cr_info"
