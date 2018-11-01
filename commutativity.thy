@@ -855,17 +855,17 @@ next
        apply (auto simp add: restrict_relation_def B_def)
       done
 
-    show "i_callOrigin (invContext A) = i_callOrigin (invContext B)"
+    show "callOrigin (invContext A) = callOrigin (invContext B)"
       apply (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def)
       apply (auto simp add: B_def)
       done
-    show "i_knownIds (invContext A ) = i_knownIds (invContext B )"
+    show "knownIds (invContext A ) = knownIds (invContext B )"
       by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
-    show "i_invocationOp (invContext A ) = i_invocationOp (invContext B )"
+    show "invocationOp (invContext A ) = invocationOp (invContext B )"
       by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
-    show "i_invocationRes (invContext A ) = i_invocationRes (invContext B )"
+    show "invocationRes (invContext A ) = invocationRes (invContext B )"
       by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
-    show "i_transactionOrigin (invContext A ) = i_transactionOrigin (invContext B )"
+    show "transactionOrigin (invContext A ) = transactionOrigin (invContext B )"
       by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
   qed
 

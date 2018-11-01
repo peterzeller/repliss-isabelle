@@ -37,6 +37,11 @@ abbreviation consistentSnapshot where
 "consistentSnapshot state vis \<equiv>
 consistentSnapshotH (calls state) (happensBefore state) (callOrigin state) (transactionStatus state) vis"
 
+abbreviation consistentSnapshotI where
+"consistentSnapshotI state vis \<equiv>
+consistentSnapshotH (calls state) (happensBefore state) (callOrigin state) (\<lambda>t. Some Committed) vis"
+
+
 lemma show_consistentSnapshot:
   assumes "vis \<subseteq> dom s_calls"
 and "causallyConsistent s_happensBefore vis"

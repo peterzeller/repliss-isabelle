@@ -257,15 +257,15 @@ definition crdtSpec :: "operation \<Rightarrow> val list \<Rightarrow> val opera
 
 definition inv1 :: "val invariantContext \<Rightarrow> bool" where
   "inv1 ctxt \<equiv> \<forall>r g u g_res.
-    i_invocationOp ctxt r \<triangleq> (removeUser, [u])
-  \<longrightarrow> i_invocationOp ctxt g \<triangleq> (getUser, [u])
+    invocationOp ctxt r \<triangleq> (removeUser, [u])
+  \<longrightarrow> invocationOp ctxt g \<triangleq> (getUser, [u])
   \<longrightarrow> (r,g) \<in> invocation_happensBefore ctxt
-  \<longrightarrow> i_invocationRes ctxt g \<triangleq> g_res
+  \<longrightarrow> invocationRes ctxt g \<triangleq> g_res
   \<longrightarrow> g_res = NotFound"
 
 definition inv2 :: "val invariantContext \<Rightarrow> bool" where
   "inv2 ctxt \<equiv> \<forall>u i c.
-    i_invocationOp ctxt i \<triangleq> (removeUser, [u])
+    invocationOp ctxt i \<triangleq> (removeUser, [u])
   \<longrightarrow> i_callOriginI ctxt c \<triangleq> i
   \<longrightarrow> calls ctxt c \<triangleq> Call users_remove [u] Undef"
 

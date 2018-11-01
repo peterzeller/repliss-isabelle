@@ -76,26 +76,21 @@ record 'any operationContext =
   happensBefore :: "callId rel"
 
 record 'any invariantContext = "'any operationContext" +
-  i_callOrigin :: "callId \<rightharpoonup> txid"
-  i_transactionOrigin :: "txid \<rightharpoonup> invocId"
-  i_knownIds :: "'any set"
-  i_invocationOp :: "invocId \<rightharpoonup> (procedureName \<times> 'any list)"
-  i_invocationRes :: "invocId \<rightharpoonup> 'any"
+  callOrigin :: "callId \<rightharpoonup> txid"
+  transactionOrigin :: "txid \<rightharpoonup> invocId"
+  knownIds :: "'any set"
+  invocationOp :: "invocId \<rightharpoonup> (procedureName \<times> 'any list)"
+  invocationRes :: "invocId \<rightharpoonup> 'any"
 
 record ('localState, 'any) prog =
   querySpec :: "operation \<Rightarrow> 'any list \<Rightarrow> 'any operationContext \<Rightarrow> 'any \<Rightarrow> bool"
   procedure :: "procedureName \<Rightarrow> 'any list \<rightharpoonup> ('localState \<times> ('localState, 'any) procedureImpl)"
   invariant :: "'any invariantContext \<Rightarrow> bool"
 
-record ('localState, 'any) distributed_state = "'any operationContext" +
+record ('localState, 'any) distributed_state = "'any invariantContext" +
   prog :: "('localState, 'any) prog"
-  callOrigin :: "callId \<rightharpoonup> txid"
-  transactionOrigin :: "txid \<rightharpoonup> invocId"
   transactionStatus :: "txid \<rightharpoonup> transactionStatus"
   generatedIds :: "'any \<rightharpoonup> invocId" \<comment> \<open>  unique identifiers and which invocId generated them \<close>
-  knownIds :: "'any set"
-  invocationOp :: "invocId \<rightharpoonup> (procedureName \<times> 'any list)"
-  invocationRes :: "invocId \<rightharpoonup> 'any"
 
 record ('localState, 'any) state = "('localState, 'any) distributed_state" + 
   localState :: "invocId \<rightharpoonup> 'localState"
@@ -160,14 +155,14 @@ s_invocationOp
 s_invocationRes. P \<lparr>
 calls = s_calls,
 happensBefore = s_happensBefore,
-prog = s_prog,
 callOrigin = s_callOrigin,
 transactionOrigin = s_transactionOrigin,
-transactionStatus = s_transactionStatus,
-generatedIds = s_generatedIds,
 knownIds = s_knownIds,
 invocationOp = s_invocationOp,
 invocationRes = s_invocationRes,
+prog = s_prog,
+transactionStatus = s_transactionStatus,
+generatedIds = s_generatedIds,
 localState = s_localState,
 currentProc = s_currentProc,
 visibleCalls = s_visibleCalls,
@@ -223,11 +218,11 @@ abbreviation
 abbreviation "emptyInvariantContext \<equiv> \<lparr>
         calls = Map.empty,
         happensBefore = {},
-        i_callOrigin  = Map.empty,
-        i_transactionOrigin = Map.empty,
-        i_knownIds = {},
-        i_invocationOp = Map.empty,
-        i_invocationRes = Map.empty
+        callOrigin  = Map.empty,
+        transactionOrigin = Map.empty,
+        knownIds = {},
+        invocationOp = Map.empty,
+        invocationRes = Map.empty
 \<rparr>"
 
 definition isCommittedH where
@@ -247,11 +242,11 @@ definition invContextH  where
    state_calls state_knownIds state_invocationOp state_invocationRes = \<lparr>
         calls = state_calls |` committedCallsH state_callOrigin state_transactionStatus , 
         happensBefore = state_happensBefore |r committedCallsH state_callOrigin state_transactionStatus , 
-        i_callOrigin  = state_callOrigin |` committedCallsH state_callOrigin state_transactionStatus,
-        i_transactionOrigin = state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Committed},
-        i_knownIds = state_knownIds,
-        i_invocationOp = state_invocationOp,
-        i_invocationRes = state_invocationRes
+        callOrigin  = state_callOrigin |` committedCallsH state_callOrigin state_transactionStatus,
+        transactionOrigin = state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Committed},
+        knownIds = state_knownIds,
+        invocationOp = state_invocationOp,
+        invocationRes = state_invocationRes
       \<rparr>"
 
 
@@ -270,32 +265,32 @@ lemma invContextH_happensBefore[simp]:
 
 
 lemma invContextH_i_callOrigin[simp]:
-"i_callOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"callOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_callOrigin |` committedCallsH state_callOrigin state_transactionStatus"
 by (auto simp add: invContextH_def)
 
 lemma invContextH_i_transactionOrigin[simp]:
-"i_transactionOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"transactionOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Committed}"
   by (auto simp add: invContextH_def)
 
 lemma invContextH_i_knownIds[simp]:
-"i_knownIds (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"knownIds (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_knownIds"
   by (auto simp add: invContextH_def)
 
 lemma invContextH_i_invocationOp[simp]:
-"i_invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_invocationOp"
 by (auto simp add: invContextH_def)
 
 
 lemma invContextH_i_invocationRes[simp]:
-"i_invocationRes (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"invocationRes (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_invocationRes"
 by (auto simp add: invContextH_def)
@@ -319,11 +314,11 @@ definition invContextH2  where
    state_calls state_knownIds state_invocationOp state_invocationRes = \<lparr>
         calls = state_calls , 
         happensBefore = state_happensBefore, 
-        i_callOrigin  = state_callOrigin,
-        i_transactionOrigin = state_transactionOrigin,
-        i_knownIds = state_knownIds,
-        i_invocationOp = state_invocationOp,
-        i_invocationRes = state_invocationRes
+        callOrigin  = state_callOrigin,
+        transactionOrigin = state_transactionOrigin,
+        knownIds = state_knownIds,
+        invocationOp = state_invocationOp,
+        invocationRes = state_invocationRes
       \<rparr>"
 
 
@@ -342,32 +337,32 @@ lemma invContextH2_happensBefore[simp]:
 
 
 lemma invContextH2_i_callOrigin[simp]:
-"i_callOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"callOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_callOrigin "
 by (auto simp add: invContextH2_def)
 
 lemma invContextH2_i_transactionOrigin[simp]:
-"i_transactionOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"transactionOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_transactionOrigin "
   by (auto simp add: invContextH2_def)
 
 lemma invContextH2_i_knownIds[simp]:
-"i_knownIds (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"knownIds (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_knownIds"
   by (auto simp add: invContextH2_def)
 
 lemma invContextH2_i_invocationOp[simp]:
-"i_invocationOp (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"invocationOp (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_invocationOp"
 by (auto simp add: invContextH2_def)
 
 
 lemma invContextH2_i_invocationRes[simp]:
-"i_invocationRes (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+"invocationRes (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_invocationRes"
 by (auto simp add: invContextH2_def)
@@ -405,11 +400,11 @@ lemma invContextSnapshot_eq:
     "invContext state =  \<lparr>
         calls = calls state |` c_calls , 
         happensBefore = happensBefore state |r c_calls , 
-        i_callOrigin  = callOrigin state |` c_calls,
-        i_transactionOrigin = transactionOrigin state |` c_txns,
-        i_knownIds = knownIds state,
-        i_invocationOp = invocationOp state,
-        i_invocationRes = invocationRes state\<rparr>"
+        callOrigin  = callOrigin state |` c_calls,
+        transactionOrigin = transactionOrigin state |` c_txns,
+        knownIds = knownIds state,
+        invocationOp = invocationOp state,
+        invocationRes = invocationRes state\<rparr>"
   by (auto simp add: assms  invContextH_def)
 
 
@@ -417,11 +412,11 @@ lemma invContextSnapshot_eq:
 lemma invariantContext_eqI: "\<lbrakk>
 calls x = calls y;
 happensBefore x = happensBefore y;
-i_callOrigin x = i_callOrigin y;
-i_transactionOrigin x = i_transactionOrigin y;
-i_knownIds x = i_knownIds y;
-i_invocationOp x = i_invocationOp y;
-i_invocationRes x = i_invocationRes y
+callOrigin x = callOrigin y;
+transactionOrigin x = transactionOrigin y;
+knownIds x = knownIds y;
+invocationOp x = invocationOp y;
+invocationRes x = invocationRes y
 \<rbrakk> \<Longrightarrow> x = (y::'any invariantContext)"
   by auto
 
@@ -671,14 +666,14 @@ definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState,
   "initialState program \<equiv> \<lparr>
   calls = Map.empty,
   happensBefore = {},
-  prog = program,
   callOrigin = Map.empty,
   transactionOrigin = Map.empty,
-  transactionStatus = Map.empty,
-  generatedIds = Map.empty,
   knownIds = {},
   invocationOp = Map.empty,
   invocationRes = Map.empty,
+  prog = program,
+  transactionStatus = Map.empty,
+  generatedIds = Map.empty,
   localState = Map.empty,
   currentProc = Map.empty,
   visibleCalls = Map.empty,

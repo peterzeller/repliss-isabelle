@@ -39,7 +39,7 @@ lemma i_callOriginI_h_update_to2:
 lemmas i_callOriginI_h_simps = i_callOriginI_h_simp_update_co i_callOriginI_h_update_to2
 
 abbreviation 
-  "i_callOriginI ctxt \<equiv> i_callOriginI_h (i_callOrigin ctxt) (i_transactionOrigin ctxt)"
+  "i_callOriginI ctxt \<equiv> i_callOriginI_h (callOrigin ctxt) (transactionOrigin ctxt)"
 
 text {* lifting the happensBefore relation on database-calls to the level of invocations. *}
 definition 
@@ -197,7 +197,7 @@ next
 qed
 
 lemma i_invocationOp_simps:
-  "(i_invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+  "(invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes ) r \<triangleq> Op) \<longleftrightarrow> (state_invocationOp r \<triangleq> Op)"
   by (auto simp add: invContextH_def)
 
