@@ -15,11 +15,14 @@ datatype val =
   | Bool bool
   | Undef
   | ListVal "val list"
+  | Pair val val
+  | NotFound
 
 fun uniqueIds_val_r  where 
   "uniqueIds_val_r (UserId i) = {UserId i}"
 | "uniqueIds_val_r (MessageId i) = {MessageId i}"
 | "uniqueIds_val_r (ListVal vs) = \<Union>(set (map uniqueIds_val_r vs))"
+| "uniqueIds_val_r (Pair x y) = uniqueIds_val_r x \<union> uniqueIds_val_r y"
 | "uniqueIds_val_r _ = {}"
 
 instantiation val :: valueType begin
@@ -71,13 +74,14 @@ definition "message_author_read \<equiv> ''message_author_read''"
 definition "sendMessage \<equiv> ''sendMessage''"
 definition "editMessage \<equiv> ''editMessage''"
 definition "deleteMessage \<equiv> ''deleteMessage''"
+definition "getMessage \<equiv> ''getMessage''"
 definition "chat_contains \<equiv> ''chat_contains''"
 
 lemma constants_distinct:
 "distinct [message_author_assign, message_content_assign, message_chat_assign, chat_add, message_exists, chat_remove, message_delete, message_chat_read, 
-  sendMessage, editMessage, deleteMessage, message_content_read, message_author_read, chat_contains]"
+  sendMessage, editMessage, deleteMessage, getMessage, message_content_read, message_author_read, chat_contains]"
   by (auto simp add: message_author_assign_def message_content_assign_def message_chat_assign_def chat_add_def message_exists_def chat_remove_def message_delete_def message_chat_read_def
-sendMessage_def editMessage_def deleteMessage_def message_author_read_def message_content_read_def chat_contains_def)
+sendMessage_def editMessage_def deleteMessage_def message_author_read_def message_content_read_def chat_contains_def getMessage_def)
 
 
 
@@ -135,6 +139,20 @@ definition deleteMessageImpl :: "(localState, val) procedureImpl" where
    ] ! ls_pc ls"      
 
 
+definition getMessageImpl :: "(localState, val) procedureImpl" where
+  "getMessageImpl ls \<equiv> [
+   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
+   \<comment> \<open>  1  \<close> DbOperation message_exists [ls_id ls] (\<lambda>r. if r = Bool True then ls\<lparr>ls_pc := 2\<rparr> else ls\<lparr>ls_pc := 7\<rparr>),
+   \<comment> \<open>  2  \<close> DbOperation message_content_read [ls_id ls] (\<lambda>r. ls\<lparr>ls_pc := 3, ls_c := r\<rparr>),
+   \<comment> \<open>  3  \<close> DbOperation message_author_read [ls_id ls] (\<lambda>r. ls\<lparr>ls_pc := 4, ls_from := r\<rparr>),
+   \<comment> \<open>  4  \<close> EndAtomic  (ls\<lparr>ls_pc := 5\<rparr>),
+   \<comment> \<open>  5  \<close> Return (Pair (ls_c ls) (ls_from ls)),
+   \<comment> \<open>  6  \<close> EndAtomic  (ls\<lparr>ls_pc := 7\<rparr>),
+   \<comment> \<open>  7  \<close> Return NotFound
+   ] ! ls_pc ls"      
+
+
+
 definition procedures where
   "procedures proc args \<equiv> 
   if proc = sendMessage then
@@ -151,6 +169,11 @@ definition procedures where
     case args of 
       [MessageId i] \<Rightarrow> 
         Some (lsInit\<lparr>ls_id := MessageId i \<rparr> , deleteMessageImpl)
+      | _ \<Rightarrow> None
+  else if proc = getMessage then 
+    case args of 
+      [MessageId i] \<Rightarrow> 
+        Some (lsInit\<lparr>ls_id := MessageId i \<rparr> , getMessageImpl)
       | _ \<Rightarrow> None
   else 
     None"
@@ -331,6 +354,18 @@ There are no updates to a message after it has been deleted
 *)
 definition inv2_h1 :: "val invariantContext \<Rightarrow> bool" where
   "inv2_h1 ctxt \<equiv> (\<forall>c mId. calls ctxt c \<triangleq> Call message_delete [mId] Undef \<longrightarrow> (\<nexists>c'. is_message_update ctxt c' mId \<and> (c,c')\<in>happensBefore ctxt ))"
+
+
+\<comment> \<open>The author of a message does not change\<close>
+definition inv3 :: "val invariantContext \<Rightarrow> bool" where
+  "inv3 ctxt \<equiv> (\<forall> m i1 a1 c1 i2  a2 c2. 
+     invocationOp ctxt i1 \<triangleq> (getMessage, [MessageId m]) 
+   \<and> invocationRes ctxt i1 \<triangleq> Pair a1 c1
+   \<and> invocationOp ctxt i2 \<triangleq> (getMessage, [MessageId m])
+   \<and> invocationRes ctxt i2 \<triangleq> Pair a2 c2
+   \<longrightarrow> a1 = a2
+     )"
+
 
 
 definition inv :: "val invariantContext \<Rightarrow> bool" where
