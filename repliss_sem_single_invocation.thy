@@ -307,6 +307,30 @@ All other sessions are simulated by nondeterministic state changes, with respect
 *}
 
 
+definition chooseSnapshot' where 
+"chooseSnapshot' snapshot vis S \<equiv>
+\<exists> newTxns newCalls.
+     newTxns \<subseteq> dom (transactionStatus S)
+   \<and> newCalls = callsInTransaction S newTxns \<down> happensBefore S
+   \<and> snapshot = vis \<union> newCalls"
+
+lemma in_dom:
+  assumes "S \<subseteq> dom T" and "x \<in> S" 
+  shows "\<exists>y. T x \<triangleq> y"
+  using assms by blast
+
+lemma not_uncommitted_cases:
+  shows "(x \<noteq> Some Uncommitted) \<longleftrightarrow> (\<forall>y. x = Some y \<longrightarrow> x = Some Committed)"
+  using transactionStatus.exhaust by auto
+
+
+lemma chooseSnapshot_same_if_everything_committed:
+  assumes "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+  shows "chooseSnapshot' snapshot vis S \<longleftrightarrow> chooseSnapshot snapshot vis S"
+  apply (auto simp add: chooseSnapshot'_def chooseSnapshot_def )
+  apply (rule_tac x=newTxns in exI)
+  using assms by (auto simp add: not_uncommitted_cases dest!: in_dom)
+
   
 inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action \<times> bool) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
   local: 
@@ -346,9 +370,7 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId
    currentTransaction S' i = None;
    visibleCalls S i \<triangleq> vis;
    visibleCalls S' i \<triangleq> vis;
-   newTxns \<subseteq> dom (transactionStatus S');
-   newCalls = callsInTransaction S' newTxns \<down> happensBefore S';
-   vis' = vis \<union> newCalls;
+   chooseSnapshot vis' vis S';
    consistentSnapshot S' vis';
    transactionStatus S' t = None;
    \<And>c. callOrigin S' c \<noteq> Some t;

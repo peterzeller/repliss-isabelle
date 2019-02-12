@@ -491,7 +491,7 @@ done
 datatype 'any action =
   ALocal
   | ANewId 'any
-  | ABeginAtomic txid "txid set"
+  | ABeginAtomic txid "callId set"
   | AEndAtomic
   | ADbOp callId operation "'any list" 'any
   | AInvoc procedureName "'any list"
@@ -501,6 +501,17 @@ datatype 'any action =
 
 
 definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
+
+definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> bool" where
+"chooseSnapshot snapshot vis S \<equiv>
+  \<exists>newTxns newCalls.
+  \<comment> \<open>  choose a set of committed transactions to add to the snapshot  \<close>
+   newTxns \<subseteq> committedTransactions S
+   \<comment> \<open>  determine new visible calls: downwards-closure wrt. causality   \<close>
+   \<and> newCalls = callsInTransaction S newTxns \<down> happensBefore S
+   \<comment> \<open>  transaction snapshot  \<close>
+   \<and> snapshot = vis \<union> newCalls"
+
 
 inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
@@ -524,13 +535,8 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \
    currentTransaction S i = None;   
    transactionStatus S t = None;
    visibleCalls S i \<triangleq> vis;
-   \<comment> \<open>  choose a set of committed transactions to add to the snapshot  \<close>
-   newTxns \<subseteq> committedTransactions S;
-   \<comment> \<open>  determine new visible calls: downwards-closure wrt. causality   \<close>
-   newCalls = callsInTransaction S newTxns \<down> happensBefore S;
-   \<comment> \<open>  transaction snapshot  \<close>
-   snapshot = vis \<union> newCalls
-   \<rbrakk> \<Longrightarrow> S ~~ (i, ABeginAtomic t newTxns) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls'), 
+   chooseSnapshot snapshot vis S
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ABeginAtomic t snapshot) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls'), 
                 currentTransaction := (currentTransaction S)(i \<mapsto> t),
                 transactionStatus := (transactionStatus S)(t \<mapsto> Uncommitted),
                 transactionOrigin := (transactionOrigin S)(t \<mapsto> i),

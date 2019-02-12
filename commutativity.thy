@@ -319,6 +319,42 @@ lemma exI_eq:
   using assms by (metis (full_types))
 
 
+lemma chooseSnapshot_unchanged:
+  assumes
+  a0: "chooseSnapshot snapshot vis S1"
+  and a2: "happensBefore S2 = happensBefore S1 "
+  and a4: "transactionStatus S2 = transactionStatus S1 "
+  and a5: "callOrigin S2 = callOrigin S1 "
+shows "chooseSnapshot snapshot vis S2"
+  using a0 a2 a4 a5 by (auto simp add: chooseSnapshot_def)
+
+lemma chooseSnapshot_unchanged_precise:
+  assumes
+  a0: "chooseSnapshot snapshot vis S1"
+  and a2: "committedTransactions S1 \<subseteq> committedTransactions S2"
+  and a3: "\<And>tx. transactionStatus S1 tx \<triangleq> Committed \<Longrightarrow> (\<forall>c. callOrigin S1 c \<triangleq> tx \<longleftrightarrow> callOrigin S2 c \<triangleq> tx)"
+  and a4: "\<And>tx c. \<lbrakk>transactionStatus S1 tx \<triangleq> Committed; callOrigin S1 c \<triangleq> tx\<rbrakk> \<Longrightarrow> (\<forall>c'. (c',c)\<in>happensBefore S1 \<longleftrightarrow> (c',c)\<in>happensBefore S2)"
+shows "chooseSnapshot snapshot vis S2"
+proof -
+  from a0 obtain newTxns newCalls
+    where "newTxns \<subseteq> committedTransactions S1"
+      and "newCalls = callsInTransaction S1 newTxns \<down> happensBefore S1"
+      and "snapshot = vis \<union> newCalls"
+    by (metis chooseSnapshot_def)
+
+  show "chooseSnapshot snapshot vis S2"
+    unfolding chooseSnapshot_def
+  proof (intro exI conjI)
+    show "snapshot = vis \<union> newCalls" using `snapshot = vis \<union> newCalls`.
+    show "newTxns \<subseteq> committedTransactions S2"
+      using \<open>newTxns \<subseteq> committedTransactions S1\<close> a2 by blast
+    show "newCalls = callsInTransaction S2 newTxns \<down> happensBefore S2"
+      using `newCalls = callsInTransaction S1 newTxns \<down> happensBefore S1`
+      using \<open>newTxns \<subseteq> committedTransactions S1\<close> a3 a4  by (auto simp add: callsInTransactionH_def downwardsClosure_def, blast)
+  qed
+qed
+
+
 lemma can_ignore_fails:
   shows "(\<forall>tr\<in>traces program. traceCorrect tr) 
   \<longleftrightarrow> (\<forall>tr\<in>traces program. (\<nexists>s. (s, AFail) \<in> set tr) \<longrightarrow>  traceCorrect tr)"
@@ -407,7 +443,7 @@ proof (rule iffI2; clarsimp)
           by (auto simp add: step_simps state_ext  induct_step)
 
       next
-        case (beginAtomic s ls f ls' t vis newTxns newCalls snapshot)
+        case (beginAtomic s ls f ls' t vis snapshot)
         from `initialState program ~~ tr \<leadsto>* S1` `localState S1 s \<triangleq> ls`
         have no_fail: "(s, AFail) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
@@ -419,9 +455,10 @@ proof (rule iffI2; clarsimp)
                 currentTransaction := currentTransaction S2(s \<mapsto> t), 
                 transactionStatus := transactionStatus S1(t \<mapsto> Uncommitted),
                 transactionOrigin := transactionOrigin S2(t \<mapsto> s),
-                visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> newCalls)\<rparr>"])
+                visibleCalls := visibleCalls S2(s \<mapsto> snapshot)\<rparr>"])
           using induct_step.coupling no_fail beginAtomic
-          by (auto simp add: step_simps state_ext  induct_step)
+          apply (auto simp add: step_simps state_ext  induct_step)
+          using `chooseSnapshot snapshot vis S1` chooseSnapshot_unchanged induct_step.coupling by blast 
 
       next
         case (endAtomic s ls f ls' t)
@@ -628,15 +665,15 @@ lemma precondition_newid:
   done
 
 lemma precondition_beginAtomic:
-  "precondition (s, ABeginAtomic tx newTxns) C = 
-    (\<exists>ls f ls'. 
+  "precondition (s, ABeginAtomic tx snapshot) C = 
+    (\<exists>ls f ls' vis. 
         localState C s \<triangleq> ls 
       \<and> currentProc C s \<triangleq> f 
       \<and> f ls = BeginAtomic ls' 
       \<and> currentTransaction C s = None 
       \<and> transactionStatus C tx = None
-      \<and> visibleCalls C s \<noteq> None
-      \<and> newTxns \<subseteq> committedTransactions C)"
+      \<and> visibleCalls C s \<triangleq> vis
+      \<and> chooseSnapshot snapshot vis C)"
   by (auto simp add: precondition_def step_simps )
 
 lemma precondition_endAtomic:
@@ -1113,19 +1150,20 @@ proof -
     thus ?thesis
       by (metis "1" "2" 4 6 7 ANewId differentSessions exec precondition_newid unchangedInTransaction(1) unchangedInTransaction(2)) 
   next
-    case (ABeginAtomic tx newTxns)
+    case (ABeginAtomic tx snapshot)
     with preconditionHolds obtain ls f ls' vis
       where 1: "localState B sb \<triangleq> ls"
         and 2: "currentProc B sb \<triangleq> f"
         and 3: "f ls = BeginAtomic ls'"
         and 4: "currentTransaction B sb = None"
         and 5: "transactionStatus B tx = None"
-        and 6: "newTxns \<subseteq> committedTransactions B"
+        and 6: "chooseSnapshot snapshot vis B"
         and 7: "visibleCalls B sb \<triangleq> vis"
       by (auto simp add: precondition_beginAtomic)
-    moreover have "transactionStatus A tx = None" using transactionStatus_mono 5 exec by blast 
-    ultimately show ?thesis using unchangedInTransaction
-      by (smt ABeginAtomic Collect_cong differentSessions exec local.committed_same option.distinct(1) precondition_beginAtomic)
+    have tx_none: "transactionStatus A tx = None" using transactionStatus_mono 5 exec by blast 
+    show ?thesis 
+      using exec differentSessions differentSessions[symmetric] 1 2 3 4 5 6 7 tx_none txIsUncommitted wellFormed 
+      by (auto simp add: aIsInTransaction aIsNotCommit step.simps `b = ABeginAtomic tx snapshot` precondition_beginAtomic elim!: chooseSnapshot_unchanged_precise split: if_splits)
   next
     case AEndAtomic
     then show ?thesis
@@ -1260,7 +1298,7 @@ lemma commutative_ALocal_other[simp]:
   assumes a1: "sa \<noteq> sb"
   shows "commutativeS S (sa, ALocal) (sb, a)"
   apply (case_tac a)
-  by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist)
+  by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist elim!: chooseSnapshot_unchanged_precise)
 
 
 lemma commutative_other_ALocal[simp]:
@@ -1430,7 +1468,8 @@ next
   proof (induct rule: show_commutativeS_pres2)
     case (preBfront s1)
     then show "precondition (sb, a) S" 
-      by (auto simp add: precondition_dbop precondition_beginAtomic step_simps split: if_splits)
+      using a2 by (auto simp add: precondition_dbop precondition_beginAtomic step_simps split: if_splits elim!: chooseSnapshot_unchanged_precise)
+
   next
     case (preAfront s1)
     then show "precondition (sa, ADbOp c operation args res) S" 
@@ -1442,7 +1481,7 @@ next
   next
     case (preBback s1)
     then show "precondition (sb, a) s1" 
-      by (auto simp add: precondition_dbop precondition_beginAtomic step_simps)
+      using a2 by (auto simp add: precondition_dbop precondition_beginAtomic step_simps split: if_splits elim!: chooseSnapshot_unchanged_precise)
   next
     case (commute s1 s2 s1' s2')
     hence step1: "S ~~ (sa, ADbOp c operation args res) \<leadsto> s1"
@@ -1469,7 +1508,7 @@ next
   then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 next
   case (ABeginAtomic x3)
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
+  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute elim!: chooseSnapshot_unchanged_precise)
 next
   case AEndAtomic
   then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
@@ -1496,7 +1535,7 @@ lemma commutative_fail_other[simp]:
     and a2: "state_wellFormed S"
   shows "commutativeS S (sa, AFail) (sb, a)"
   apply (case_tac a)
-  by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
+  by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute elim!: chooseSnapshot_unchanged_precise)
 
 
 lemma move_transaction:
@@ -1589,10 +1628,10 @@ proof -
     case (ABeginAtomic t txns)
     show ?thesis 
       apply  (rule show_commutativeS)
-      using ABeginAtomic apply (auto simp add: step_simps contra_subsetD split: if_splits)[1]
-      using ABeginAtomic   apply (auto simp add: step_simps contra_subsetD split: if_splits)[1]
+      using ABeginAtomic apply (auto simp add: step_simps contra_subsetD split: if_splits elim!: chooseSnapshot_unchanged_precise)[1]
+      using ABeginAtomic   apply (auto simp add: step_simps contra_subsetD split: if_splits elim!: chooseSnapshot_unchanged_precise)[1]
       apply (subst state_ext)
-      using ABeginAtomic by (auto simp add: step_simps split: if_splits)
+      using ABeginAtomic by (auto simp add: step_simps split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
   next
     case AEndAtomic \<comment> \<open>  this is not commutative, since the transaction committed could be included in ht next snapshot \<close>
@@ -1609,10 +1648,10 @@ proof -
     auto, smt mem_Collect_eq option.inject subsetCE transactionStatus.distinct(1))*)
   next
     case (AInvoc x71 x72)
-    then show ?thesis by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits)
+    then show ?thesis by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits elim!: chooseSnapshot_unchanged_precise)
   next
     case (AReturn x8)
-    then show ?thesis by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits)
+    then show ?thesis by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits elim!: chooseSnapshot_unchanged_precise)
   next
     case AFail
     then show ?thesis
@@ -3000,9 +3039,9 @@ lemma show_canSwap':
   shows "canSwap (t::'ls itself) x b"
   by (simp add: assms show_canSwap)
 
-method prove_canSwap = (rule show_canSwap, auto simp add: step_simps, subst state_ext, auto)  
-method prove_canSwap' = (rule show_canSwap', auto simp add: step_simps, subst state_ext, auto)
-method prove_canSwap'' = (rule show_canSwap', auto del: ext  simp add: step_simps intro!: stateEqI ext)
+method prove_canSwap = (rule show_canSwap, auto simp add: step_simps elim!: chooseSnapshot_unchanged_precise, subst state_ext, auto)  
+method prove_canSwap' = (rule show_canSwap', auto simp add: step_simps elim!: chooseSnapshot_unchanged_precise, subst state_ext, auto)
+method prove_canSwap'' = (rule show_canSwap', auto del: ext  simp add: step_simps intro!: stateEqI ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
 lemma commutativeS_canSwap:
   assumes comm: "\<And>(C::('ls,'any::valueType) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
@@ -3991,7 +4030,7 @@ proof -
 
       from `S ~~ (i',a) \<leadsto> S'` 
       show "T S ~~ (i',a) \<leadsto> T S'"
-        by (induct rule: step.cases, auto simp add: step_simps T_def state_ext)
+        by (induct rule: step.cases, auto simp add: step_simps T_def state_ext elim: chooseSnapshot_unchanged_precise)
     qed
   qed
 
@@ -4063,8 +4102,8 @@ proof -
         then show ?case 
           using in_trace uid_not_used by (auto simp add: step_simps T_def state_ext)
       next
-        case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
-        then show ?case by (auto simp add: step_simps T_def state_ext)
+        case (beginAtomic C s ls f ls' t vis snapshot)
+        then show ?case by (auto simp add: step_simps T_def state_ext elim: chooseSnapshot_unchanged_precise)
       next
         case (endAtomic C s ls f ls' t)
         then show ?case by (auto simp add: step_simps T_def state_ext)
@@ -4188,9 +4227,9 @@ proof -
         then show ?case 
           using in_trace t_not_used1 by (auto simp add: step_simps T_def state_ext)
       next
-        case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+        case (beginAtomic C s ls f ls' t vis snapshot)
         then show ?case 
-          using in_trace t_not_used1 apply (auto simp add: step_simps T_def state_ext)
+          using in_trace t_not_used1 apply (auto simp add: step_simps T_def state_ext elim!: chooseSnapshot_unchanged_precise)
           using p_def `P S` by auto
       next
         case (endAtomic C s ls f ls' t)
@@ -4277,6 +4316,19 @@ proof -
     by (smt Suc_leI \<open>tr = take (Suc i) tr @ drop (Suc i) tr\<close> assms(3) assms(4) in_set_conv_nth le_add_diff_inverse2 length_drop length_take less_diff_conv min_def min_less_iff_conj not_less_eq nth_append)
     
 qed
+
+lemma chooseSnapshot_committed:
+  assumes a1: "chooseSnapshot snapshot vis S"
+    and a2: "c \<in> snapshot"
+    and a3: "callOrigin S c \<triangleq> tx"
+    and a5: "\<forall>x. (c, x) \<notin> happensBefore S"
+    and a2': "c \<notin> vis"
+  shows "transactionStatus S tx \<triangleq> Committed"
+  using a1 a2 a2' a3 apply (auto simp add: chooseSnapshot_def)
+  apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
+  using a5 by blast
+
+
 
 \<comment> \<open>  TODO  \<close>
 lemma remove_DBOp_step: 
@@ -4383,11 +4435,7 @@ proof -
 
     show "\<And>a S S'. \<lbrakk>a \<in> set tr; S ~~ a \<leadsto> S'; P S\<rbrakk> \<Longrightarrow> P S'"
       using no_i cId_not_used_again 
-      by (auto simp add: step.simps p_def cId_not_in_calls  split: if_splits, fastforce+)
-      
-
-
-
+      by (auto simp add: step.simps p_def cId_not_in_calls chooseSnapshot_committed  split: if_splits, fastforce+)
 
     have "T S ~~ (i',a) \<leadsto> T S'" if in_trace: "(i',a) \<in> set tr" and  a_step: "S ~~ (i',a) \<leadsto> S'" and P_S: "P S" for i' a S S'
     proof -
@@ -4405,8 +4453,8 @@ proof -
         then show ?case 
           using in_trace  by (auto simp add: step_simps T_def state_ext)
       next
-        case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
-
+        case (beginAtomic C s ls f ls' t vis snapshot)
+(*
         have callsInTransactions_same: 
              "x \<in> callsInTransactionH ((callOrigin C)(cId := None)) newTxns \<down> (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId})
          \<longleftrightarrow>  x \<in> callsInTransaction C newTxns \<down> happensBefore C" (is "?left \<longleftrightarrow> ?right")  for x
@@ -4462,9 +4510,25 @@ proof -
               by fastforce+
           qed
         qed
+*)
+        define C' where "C' \<equiv> C\<lparr>
+            calls := (calls C)(cId := None), 
+            happensBefore := happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId},
+            localState := (localState C)(i := localState S_start i),
+            visibleCalls := (visibleCalls C)(i := visibleCalls S_start i),
+            callOrigin := (callOrigin C)(cId := None)\<rparr>"
 
         from beginAtomic show ?case 
-          by (auto simp add: step_simps T_def callsInTransactions_same state_ext intro!: ext)
+          apply (auto simp add: step.simps T_def  state_ext intro!: ext)
+
+          apply (rule_tac x=C' in exI)
+          apply (auto simp add: C'_def)
+          apply (rule chooseSnapshot_unchanged_precise)
+          apply assumption
+            using P_S p_def by (auto )
+
+
+
 
 
       next
@@ -4580,11 +4644,11 @@ next
       apply (auto simp add: step  split: if_splits)
       done
   next
-    case (beginAtomic C s ls f ls' t vis newTxns newCalls snapshot)
+    case (beginAtomic C s ls f ls' t vis snapshot)
     then show ?case 
       using `fst a \<noteq> i` apply (auto simp add: step_simps S_mid_def)
       apply (subst state_ext)
-      apply (auto simp add: step  split: if_splits)
+      apply (auto simp add: step  split: if_splits elim: chooseSnapshot_unchanged)
       done
   next
     case (endAtomic C s ls f ls' t)

@@ -176,6 +176,16 @@ lemma wellFormed_callOrigin_dom3:
 lemma range_empty[simp]: "range Map.empty = {None}"
   by auto
 
+lemma chooseSnapshot_subsetOfCalls:
+  assumes  a1: "state_wellFormed S"
+      and a2: "chooseSnapshot snapshot vis S"
+      and a3: "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
+      and a4: "vis \<subseteq> dom (calls S)"
+  shows "snapshot \<subseteq> dom (calls S)"
+  using a2 apply (auto simp add: chooseSnapshot_def)
+  using a4 apply blast
+  by (smt a1 a3 callsInTransactionH_contains domD domIff downwardsClosure_in mem_Sigma_iff option.case(1) subsetCE wellFormed_callOrigin_dom2)
+
 
 
 lemma wellFormed_visibleCallsSubsetCalls_h:
@@ -190,20 +200,7 @@ lemma wellFormed_visibleCallsSubsetCalls_h:
     apply blast
    apply blast
   apply (erule step.cases)
-          apply (auto split: if_splits)
-            apply blast
-           apply blast
-          apply blast
-         apply (auto simp add: callsInTransactionH_contains downwardsClosure_in split: option.splits)[1]
-         apply (metis not_None_eq wellFormed_callOrigin_dom2)
-        apply blast
-       apply blast
-      apply blast
-     apply blast
-    apply blast
-   apply blast
-  apply blast
-  done  
+  using chooseSnapshot_subsetOfCalls by (auto split: if_splits, blast+)
 
 
 
@@ -269,7 +266,7 @@ next
       case (newId ls f ls' uid)
       then show ?thesis using a1 a3 by (auto split: if_splits)
     next
-      case (beginAtomic ls f ls' t vis newTxns newCalls snapshot)
+      case (beginAtomic ls f ls' t vis snapshot)
       then show ?thesis using a0 a1 a3 \<open>state_wellFormed S'\<close> apply (auto split: if_splits )
         by (metis option.simps(3))
 
