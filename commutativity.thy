@@ -3410,7 +3410,7 @@ lemma pack_trace_for_one_session:
         \<and> (\<forall>s. (s, AFail) \<notin> set tr')
         \<and> (\<forall>s a. (s,a)\<in>set tr' \<longrightarrow> \<not>is_AInvcheck a)"
   text {* By induction over the minimal index that is not packed.*}
-    \<comment> \<open>  I could not figure out how to write this down as an induction over the minimum, so I reversed it and made it an induction over the maximum.  \<close>
+    \<comment> \<open>  I could not figure out how to write this down as an induction over the minimum, so I reversed it and made it an induction over the maximum inversed index.  \<close>
   using steps noFail noInvcheck        
 proof (induct "max_natset {length tr - i  | i.
         0<i 
