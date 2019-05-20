@@ -398,7 +398,7 @@ next
     case (newId C s ls f ls' uid)
     thus ?case using i2 by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
-    case (beginAtomic C s ls f ls' t C' C'' vis vis' newTxns txns)
+    case (beginAtomic C s ls f ls' t C' C'' vis vis' txns)
     thus ?case using i2 state_monotonicGrowth_invocationOp[OF `state_monotonicGrowth s C C'`]
       by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
@@ -864,7 +864,7 @@ next
           apply (subst(asm) checkCorrect_simps)
           using newId by (auto simp add:  split: option.splits localAction.splits)
       next
-        case (beginAtomic C i' ls f ls' t C' C'' vis newTxns newCalls vis' txns)
+        case (beginAtomic C i' ls f ls' t C' C'' vis  vis' txns)
 
         hence [simp]: "i' = i"
           by blast 
@@ -898,6 +898,12 @@ next
                   checkCorrect program S'' i)"
           apply (subst(asm) checkCorrect_simps)
           by (auto simp add: beginAtomic[simplified]  split: option.splits localAction.splits)
+
+        from `chooseSnapshot vis' vis C'`
+        obtain newTxns
+          where newTxns1: "newTxns \<subseteq> committedTransactions C'"
+            and newTxns2: "vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C'"
+          by (auto simp add: chooseSnapshot_def)
 
         show ?case
         proof (rule S_pre_correct'[rule_format], intro conjI)
@@ -943,10 +949,10 @@ next
             using beginAtomic.hyps(19) by auto
 
           show "newTxns \<subseteq> dom (transactionStatus C')"
-            by (simp add: beginAtomic.hyps)
+            using newTxns1 by auto
 
           show "vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C'"
-            using beginAtomic.hyps by auto
+            by (simp add: newTxns2)
 
           show "consistentSnapshot C' vis'"
             using `consistentSnapshot C' vis'` .
@@ -1085,7 +1091,7 @@ next
       case (newId ls f ls' uid)
       then show ?thesis using initS_correct by (auto simp add: checkCorrect_simps)
     next
-      case (beginAtomic ls f ls' t S' vis newTxns newCalls vis' txns)
+      case (beginAtomic ls f ls' t S' vis  vis' txns)
 
       have "transactionStatus S_fin t \<triangleq> Uncommitted"
         by (simp add: beginAtomic)
@@ -1132,6 +1138,13 @@ next
 
       thm  initS_correct2[rule_format]
 
+
+      from `chooseSnapshot vis' vis S'`
+      obtain newTxns
+        where newTxns1: "newTxns \<subseteq> committedTransactions S'"
+          and newTxns2: "vis' = vis \<union> callsInTransaction S' newTxns \<down> happensBefore S'"
+        by (auto simp add: chooseSnapshot_def)
+
       show ?thesis
       proof (rule initS_correct2[rule_format], intro conjI; (solves\<open> simp add:  beginAtomic[simplified]\<close>)?)
 
@@ -1143,10 +1156,10 @@ next
 
 
         show "newTxns \<subseteq> dom (transactionStatus S')"
-          using beginAtomic by simp
+          using newTxns1 by auto
 
-        show "consistentSnapshot S' (vis \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
-          using beginAtomic   by simp
+        show "vis' = vis \<union> callsInTransaction S' newTxns \<down> happensBefore S'"
+          by (simp add: newTxns2)
       qed
 
 

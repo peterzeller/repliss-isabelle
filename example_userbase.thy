@@ -2269,19 +2269,4 @@ show "example_userbase.inv (invContext' S'e)"
   qed
 qed
 
-(*
-So r is a call to removeUser
-by inv2 we have a call to remove
-but this cannot be in vis, because then the result of the query ...
-this reasoning will be required later ...
-
-actually the problem here is much simpler, we have an unfinished call to get_user ...
-
-Solution 1: update ihb, so that it only includes completed invocations -- that would not be good for writing invariants
-Solution 2: Adapt inv1
-  a) add: "if there is a result" -- this seems like the way to go
-  b) change it to "result is not 'found'"
-*)
-
-
 end
