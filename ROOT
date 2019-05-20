@@ -17,6 +17,7 @@ session "repliss" = "HOL" +
     "~~/src/HOL/Library/Option_ord" *)
   theories [show_question_marks = false, names_short]
     invariant_simps
+    example_userbase
   document_files
     "root.tex"
     "mathpartir.sty"
