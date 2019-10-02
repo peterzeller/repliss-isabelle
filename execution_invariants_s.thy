@@ -2,9 +2,9 @@ theory execution_invariants_s
   imports repliss_sem_single_invocation execution_invariants
 begin
 
-section {* Invariants of single-invocId executions. *}
+section \<open>Invariants of single-invocId executions.\<close>
 
-text {* This theory includes proof for invariants that hold for all single-invocId executions.  *}
+text \<open>This theory includes proof for invariants that hold for all single-invocId executions.\<close>
 
 
 
@@ -47,11 +47,11 @@ lemma initialStates_wellFormed:
     apply (auto simp add: step.simps S_def)
     by (metis \<open>invocationOp Sa i = None\<close> \<open>procedure (prog Sa) procName args \<triangleq> (initState, impl)\<close> \<open>state_wellFormed Sa\<close> \<open>uniqueIdsInList args \<subseteq> knownIds Sa\<close> state.surjective state.update_convs(1) state.update_convs(2) wf_localState_to_invocationOp)
 
-  with `state_wellFormed Sa`
+  with \<open>state_wellFormed Sa\<close>
   have "state_wellFormed S"
     using state_wellFormed_combine_step by fastforce
 
-  thus " state_wellFormed
+  then show " state_wellFormed
             (Sa\<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),
                   invocationOp := invocationOp Sa(i \<mapsto> (procName, args))\<rparr>)"
     using S_def by simp
@@ -100,7 +100,7 @@ proof -
       using initial_P by blast 
   next
     case (step tr S a S')
-    thus ?case
+    then show ?case
       using step_P by blast
   qed      
 qed
@@ -113,19 +113,19 @@ proof (induct rule: state_wellFormed_s_induct)
     by simp 
 next
   case (step tr S a S' progr)
-  from `S ~~ (i, a) \<leadsto>\<^sub>S S'`
+  from \<open>S ~~ (i, a) \<leadsto>\<^sub>S S'\<close>
   show ?case 
   proof (induct rule: step_s.cases)
     case (local C s ls f ls')
-    hence "S ~~ (i, ALocal) \<leadsto> S'"
+    then have "S ~~ (i, ALocal) \<leadsto> S'"
       by (auto simp add: step_simps)
-    thus ?case
+    then show ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   next
     case (newId C s ls f ls' uid)
-    hence "S ~~ (i, ANewId uid) \<leadsto> S'"
+    then have "S ~~ (i, ANewId uid) \<leadsto> S'"
       by (auto simp add: step_simps)
-    thus ?case
+    then show ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   next
     case (beginAtomic C s ls f ls' t C' C'' vis vis')
@@ -133,34 +133,34 @@ next
       by blast 
   next
     case (endAtomic C s ls f ls' t C' valid)
-        hence "S ~~ (i, AEndAtomic) \<leadsto> S'"
+        then have "S ~~ (i, AEndAtomic) \<leadsto> S'"
       by (auto simp add: step_simps)
-    thus ?case
+    then show ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   next
     case (dbop C s ls f Op args ls' t c res vis)
-    hence "S ~~ (i, ADbOp c Op args res) \<leadsto> S'"
+    then have "S ~~ (i, ADbOp c Op args res) \<leadsto> S'"
       by (auto simp add: step_simps)
-    thus ?case
+    then show ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   next
     case (invocId C s procName args initState impl C' C'' valid)
-    hence "C' ~~ (i, AInvoc procName args) \<leadsto> S'"
+    then have "C' ~~ (i, AInvoc procName args) \<leadsto> S'"
       apply (auto simp add: step_simps)
       using wf_localState_to_invocationOp by blast+
 
     then show ?case
-      using `state_wellFormed C'` state_wellFormed_combine_step by fastforce 
+      using \<open>state_wellFormed C'\<close> state_wellFormed_combine_step by fastforce 
   next
     case (return C s ls f res C' valid)
-    hence "S ~~ (i, AReturn res) \<leadsto> S'"
+    then have "S ~~ (i, AReturn res) \<leadsto> S'"
       by (auto simp add: step_simps)
-    thus ?case
+    then show ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   qed
 qed
 
-\<comment> \<open>  TODO could use lemma state_wellFormed_s_to_wf above to simplify lemmas below \<close>
+\<comment> \<open>TODO could use lemma state_wellFormed_s_to_wf above to simplify lemmas below\<close>
 
 lemma wf_s_localState_to_invocationOp:
   "\<lbrakk>state_wellFormed_s S i; localState S i \<noteq> None\<rbrakk> \<Longrightarrow> invocationOp S i \<noteq> None"

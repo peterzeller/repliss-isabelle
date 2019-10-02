@@ -1,7 +1,7 @@
 theory doc
 imports "replissSem1"
   "~~/src/HOL/Library/LaTeXsugar"
-\<comment> \<open>   "~~/src/HOL/Library/OptionalSugar"  \<close>
+\<comment> \<open>"~~/src/HOL/Library/OptionalSugar"\<close>
 begin
 
 text_raw "\\begin{comment} -- just some new notations"
@@ -17,9 +17,9 @@ notation (latex output)
 
 text_raw "\\end{comment}"  
   
-text {* @{thm[mode=Rule] step.intros}
+text \<open>@{thm[mode=Rule] step.intros}
 
 
-*}
+\<close>
 
 end

@@ -2,9 +2,9 @@ theory execution_invariants
   imports repliss_sem
 begin
 
-section {* Execution Invariants *}
+section \<open>Execution Invariants\<close>
 
-text {* This theory includes proof for invariants that hold for all executions. *}
+text \<open>This theory includes proof for invariants that hold for all executions.\<close>
 
 
 definition state_wellFormed :: "('localState, 'any::valueType) state \<Rightarrow> bool" where
@@ -22,8 +22,8 @@ lemma steps_do_not_change_prog:
   then show ?case by simp
 next
   case (steps_step S tr S' a S'')
-  hence [simp]: "prog S' = prog S" by simp
-  from `S' ~~ a \<leadsto> S''`
+  then have [simp]: "prog S' = prog S" by simp
+  from \<open>S' ~~ a \<leadsto> S''\<close>
   show ?case 
     apply (rule step.cases)
             apply auto
@@ -56,7 +56,7 @@ proof -
   with steps
   have "initialState (prog S) ~~ tr1@tr \<leadsto>* S'"
     using steps_append by blast
-  with `prog S' = prog S`
+  with \<open>prog S' = prog S\<close>
   have "initialState (prog S') ~~ tr1@tr \<leadsto>* S'" by simp
   moreover have "(\<forall>i. (i, AFail) \<notin> set (tr1@tr))"
     by (simp add: \<open>\<forall>i. (i, AFail) \<notin> set tr1\<close> noFails)
@@ -97,7 +97,7 @@ proof -
     proof (rule a3)
       show "init ~~ tr \<leadsto>* S'"
         using steps_step.hyps(1) steps_step.prems(2) by auto
-      show "P tr S'" using `P tr S'` .
+      show "P tr S'" using \<open>P tr S'\<close> .
       show "S' ~~ a \<leadsto> S''"
         by (simp add: steps_step.hyps(3)) 
     qed
@@ -140,7 +140,7 @@ lemma wellFormed_induct[consumes 1, case_names initial step]:
     case (step S' tr a S'')
     show ?case 
     proof (rule P_step)
-      show "S' ~~ a \<leadsto> S''" using `S' ~~ a \<leadsto> S''` .
+      show "S' ~~ a \<leadsto> S''" using \<open>S' ~~ a \<leadsto> S''\<close> .
       show "state_wellFormed S'"
         by (metis butlast_snoc in_set_butlastD state_wellFormed_combine state_wellFormed_init step.prems step.steps) 
       show "P S'"
@@ -459,7 +459,7 @@ next
       by (auto simp add: a1)
 
 
-    with `S' ~~ a \<leadsto> S''`
+    with \<open>S' ~~ a \<leadsto> S''\<close>
     have ?case 
       apply (auto simp add: step.simps)
       using step.prems(4) by force
@@ -467,10 +467,10 @@ next
   moreover
   {
     assume "beginPos = length tr"
-    hence "a = (invoc, ABeginAtomic tx txns)"
+    then have "a = (invoc, ABeginAtomic tx txns)"
       using step.prems(1) by auto
 
-    with `S' ~~ a \<leadsto> S''`
+    with \<open>S' ~~ a \<leadsto> S''\<close>
     have ?case 
       by (auto simp add: step.simps)
   }
@@ -547,19 +547,19 @@ lemma no_new_calls_in_committed_transactions:
 next
   case (step S' tr a S'')
   have "state_wellFormed S'"
-    using `S ~~ tr \<leadsto>* S'` and `state_wellFormed S`
-     state_wellFormed_combine `\<forall>i. (i, AFail) \<notin> set (tr @ [a])` by fastforce
+    using \<open>S ~~ tr \<leadsto>* S'\<close> and \<open>state_wellFormed S\<close>
+     state_wellFormed_combine \<open>\<forall>i. (i, AFail) \<notin> set (tr @ [a])\<close> by fastforce
 
   have [simp]: "(i, AFail) \<notin> set tr" for i
     using step.prems(4) by auto
 
 
 
-  from `S' ~~ a \<leadsto> S''` `callOrigin S'' c \<triangleq> tx`
-    `calls S c = None` step.IH `state_wellFormed S`
+  from \<open>S' ~~ a \<leadsto> S''\<close> \<open>callOrigin S'' c \<triangleq> tx\<close>
+    \<open>calls S c = None\<close> step.IH \<open>state_wellFormed S\<close>
   show ?case 
     apply (auto simp add: step.simps split: if_splits)
-    using wellFormed_currentTransactionUncommitted[OF `state_wellFormed S'`]
+    using wellFormed_currentTransactionUncommitted[OF \<open>state_wellFormed S'\<close>]
     using \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step step.steps transactionStatus_mono1 by blast
 
 qed
@@ -604,8 +604,8 @@ next
   have "state_wellFormed S'"
     using \<open>\<And>i. (i, AFail) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
 
-  from step.IH `S ~~ tr \<leadsto>* S'` `S' ~~ a \<leadsto> S''`
-    `callOrigin S c \<triangleq> tx` `state_wellFormed S`  \<open>state_wellFormed S'\<close>
+  from step.IH \<open>S ~~ tr \<leadsto>* S'\<close> \<open>S' ~~ a \<leadsto> S''\<close>
+    \<open>callOrigin S c \<triangleq> tx\<close> \<open>state_wellFormed S\<close>  \<open>state_wellFormed S'\<close>
   show ?case 
     by (auto simp add: step.simps )
 
@@ -710,11 +710,11 @@ next
   have "state_wellFormed S'"
     using \<open>\<And>i. (i, AFail) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
 
-  from `S ~~ tr \<leadsto>* S'` step.IH
-    `S' ~~ a \<leadsto> S''`
-    `invocationRes S i \<triangleq> ops`
-    `state_wellFormed S`
-    `state_wellFormed S'`
+  from \<open>S ~~ tr \<leadsto>* S'\<close> step.IH
+    \<open>S' ~~ a \<leadsto> S''\<close>
+    \<open>invocationRes S i \<triangleq> ops\<close>
+    \<open>state_wellFormed S\<close>
+    \<open>state_wellFormed S'\<close>
   show ?case 
     by (auto simp add: step.simps wf_localState_noReturn)
 
@@ -740,7 +740,7 @@ next
     using \<open>\<And>i. (i, AFail) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
 
 
-  from `S' ~~ a \<leadsto> S''` step.IH `transactionOrigin S t \<triangleq> i` `state_wellFormed S`
+  from \<open>S' ~~ a \<leadsto> S''\<close> step.IH \<open>transactionOrigin S t \<triangleq> i\<close> \<open>state_wellFormed S\<close>
   show ?case 
     apply (auto simp add: step.simps split: if_splits)
     by (metis \<open>state_wellFormed S'\<close> option.simps(3) wf_transactionOrigin_and_status)
@@ -768,11 +768,11 @@ next
 
 
   from step.IH 
-    `S ~~ tr \<leadsto>* S'`
-    `S' ~~ a \<leadsto> S''`
-    `callOrigin S'' c \<triangleq> tx`
-    `transactionStatus S tx \<triangleq> Committed`
-    `state_wellFormed S`
+    \<open>S ~~ tr \<leadsto>* S'\<close>
+    \<open>S' ~~ a \<leadsto> S''\<close>
+    \<open>callOrigin S'' c \<triangleq> tx\<close>
+    \<open>transactionStatus S tx \<triangleq> Committed\<close>
+    \<open>state_wellFormed S\<close>
   show ?case apply (auto simp add: step.simps split: if_splits)
     using \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step transactionStatus_mono1 by blast
 

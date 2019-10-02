@@ -8,7 +8,7 @@ lemma exists_maximal_element:
   assumes "finite S"
     and "S \<noteq> {}"
   shows "\<exists>max. max \<in> S \<and> (\<forall>v\<in>S. \<not>(v>max))"
-  using `finite S` `S \<noteq> {}` proof (induct rule: finite_induct)
+  using \<open>finite S\<close> \<open>S \<noteq> {}\<close> proof (induct rule: finite_induct)
   case empty
   then show ?case by simp
 next
@@ -47,10 +47,10 @@ lemma exists_fixpoint:
 
 proof (rule ccontr)
   assume "\<nexists>i. \<forall>j\<ge>i. s j = s i"
-  hence ex_bigger: "\<exists>j\<ge>i. s j > s i" for i 
+  then have ex_bigger: "\<exists>j\<ge>i. s j > s i" for i 
     using incr_seq by fastforce
 
-  from `finite (range s)`
+  from \<open>finite (range s)\<close>
   obtain maxVal where "maxVal \<in> range s" and "\<forall>v\<in>range s. \<not>(v > maxVal)"
     by (metis exists_maximal_element finite.emptyI image_is_empty infinite_UNIV_nat)
 
@@ -58,7 +58,7 @@ proof (rule ccontr)
   obtain maxVal' where "maxVal' \<in> range s" and "maxVal' > maxVal"
     by (metis \<open>maxVal \<in> range s\<close> image_iff rangeI)
 
-  thus False
+  then show False
     using \<open>\<forall>v\<in>range s. \<not> maxVal < v\<close> by blast
 qed
 
@@ -84,7 +84,7 @@ lemma iterate_to_lfp:
   shows "lfp f x"
   by (metis (mono_tags, lifting) Kleene_iter_lpfp assms(1) assms(2) lfp_greatest rev_predicate1D)
 
-\<comment> \<open>  the function f only depends on finitely many values  \<close>
+\<comment> \<open>the function f only depends on finitely many values\<close>
 definition finite_branching :: "(('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool) \<Rightarrow> bool" where
 "finite_branching f \<equiv> \<forall>f' x. f f' x \<longrightarrow> (\<exists>S. finite S \<and> (\<forall>f''. (\<forall>x\<in>S. f'' x = f' x) \<longrightarrow> f f'' x))"
 
@@ -107,11 +107,11 @@ lemma lfp_to_iterate:
 proof -
 
 
-  from `lfp f x`
+  from \<open>lfp f x\<close>
   have "f (lfp f) x"
     using def_lfp_unfold mono by fastforce
 
-  with `finite_branching f`
+  with \<open>finite_branching f\<close>
   obtain S where "finite S" and "(\<forall>f''. (\<forall>x\<in>S. f'' x = lfp f x) \<longrightarrow> f f'' x)"
     by (metis finite_branching_def)
 
@@ -119,11 +119,11 @@ proof -
   show "\<exists>i. (f ^^ i) bot x"
   proof (induct arbitrary: x rule: finite_induct)
     case empty
-    hence "f bot x"
+    then have "f bot x"
       by simp
-    hence "(f ^^ 1) bot x"
+    then have "(f ^^ 1) bot x"
       by simp
-    thus "\<exists>i. (f ^^ i) bot x"
+    then show "\<exists>i. (f ^^ i) bot x"
       by blast
   next
     case (insert y A)
@@ -279,12 +279,12 @@ proof -
   obtain m where "P m"
     using example by auto
 
-  hence "P (Greatest P)"
+  then have "P (Greatest P)"
   proof (rule GreatestI_nat)
     show "\<forall>y. P y \<longrightarrow> y \<le> bound"
       using bound by simp
   qed
-  thus "Q (Greatest P)"
+  then show "Q (Greatest P)"
     by (simp add: impl)
 qed
 
@@ -336,7 +336,7 @@ proof (cases "\<exists>n. P (check_ok n)")
       by (simp add: \<open>P (check_ok (Greatest P'))\<close> \<open>\<And>y. P y \<Longrightarrow> y \<le> check_ok (Greatest P')\<close> eq_iff)
   qed
 
-  thus "P (Greatest P)"
+  then show "P (Greatest P)"
     using P'_def \<open>P' (Greatest P')\<close> by auto
 next
   case False
@@ -349,7 +349,7 @@ next
     using example apply (case_tac x, auto)
     by (case_tac xa, auto)
 
-  thus ?thesis
+  then show ?thesis
     by (metis GreatestI2_order eq_refl)
 qed
 
@@ -370,7 +370,7 @@ proof -
     show "\<forall>y. P y \<longrightarrow> y \<le> check_ok bound"
       using bound by simp
   qed
-  thus "Q (Greatest P)"
+  then show "Q (Greatest P)"
     by (simp add: impl)
 qed
 
@@ -397,15 +397,15 @@ and example: "a \<in> A"
 shows "\<exists>m. m \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \<le> m)"
 proof (cases "check_ok_infinite \<in> A")
   case True
-  hence "check_ok_infinite \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \<le> check_ok_infinite)"
+  then have "check_ok_infinite \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \<le> check_ok_infinite)"
     by auto
-  thus ?thesis ..
+  then show ?thesis ..
 next
   case False
   show ?thesis
   proof (cases "\<exists>i'. check_ok i' \<in> A")
     case True
-    hence exists_ok: "\<exists>m. check_ok m \<in> A \<and> m \<le> i"
+    then have exists_ok: "\<exists>m. check_ok m \<in> A \<and> m \<le> i"
       using i_greatest not_le_imp_less by blast
 
     show "\<exists>m. m \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \<le> m)"
@@ -502,7 +502,7 @@ end
 
 
 
-\<comment> \<open>  if result is false, result depends on a set S of recursive calls -- result is determined by checking conjunction of all recursive calls  \<close>
+\<comment> \<open>if result is false, result depends on a set S of recursive calls -- result is determined by checking conjunction of all recursive calls\<close>
 definition tailrec :: "(('a \<Rightarrow> bool) \<Rightarrow> ('a \<Rightarrow> bool)) \<Rightarrow> bool" where
 "tailrec F \<equiv> \<forall>g x. \<not>F g x \<longrightarrow> (\<exists>S. \<forall>g'. F g' x \<longleftrightarrow> (\<forall>x'\<in>S. g' x'))"
 
@@ -514,7 +514,7 @@ proof
   show "f x \<le> f y"
     if c0: "x \<le> y"
     for  x y
-    using `tailrec f`
+    using \<open>tailrec f\<close>
     by (smt le_fun_def order_refl tailrec_def that)
 qed
 

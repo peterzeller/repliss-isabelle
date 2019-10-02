@@ -3,9 +3,9 @@ theory repliss_sem_single_invocation
 begin
 
 
-section {* Single invocId semantics *}
+section \<open>Single invocId semantics\<close>
 
-text {* This theory describes the single-invocId semantics used for our proof approach. *}
+text \<open>This theory describes the single-invocId semantics used for our proof approach.\<close>
 
 definition 
 "causallyConsistent hb vis \<equiv>
@@ -55,17 +55,17 @@ definition
 definition state_monotonicGrowth :: "invocId \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth i S S' \<equiv> state_wellFormed S \<and> (\<exists>tr. (S ~~ tr \<leadsto>* S') \<and> (\<forall>(i',a)\<in>set tr. i' \<noteq> i) \<and> (\<forall>i. (i, AFail) \<notin> set tr))"
 
-\<comment> \<open>  TODO add definitions  \<close>
-   \<comment> \<open>  monotonic growth of visible calls \<close>
-   \<comment> \<open>  monotonic growth of callops  \<close>
-   \<comment> \<open>  monotonic growth of happens-before  \<close>
-   \<comment> \<open>   --> no new calls can be added before \<close>
-   \<comment> \<open>  monotonic growth of sameTransaction  \<close>
-   \<comment> \<open>  monotonic growth of origin  \<close>
-   \<comment> \<open>  monotonic growth of invocations  \<close>
-   \<comment> \<open>  monotonic growth of invocId result  \<close>
-   \<comment> \<open>  monotonic growth of invocId happens-before  \<close>
-   \<comment> \<open>   --> no new calls can be added before \<close>
+\<comment> \<open>TODO add definitions\<close>
+   \<comment> \<open>monotonic growth of visible calls\<close>
+   \<comment> \<open>monotonic growth of callops\<close>
+   \<comment> \<open>monotonic growth of happens-before\<close>
+   \<comment> \<open>--> no new calls can be added before\<close>
+   \<comment> \<open>monotonic growth of sameTransaction\<close>
+   \<comment> \<open>monotonic growth of origin\<close>
+   \<comment> \<open>monotonic growth of invocations\<close>
+   \<comment> \<open>monotonic growth of invocId result\<close>
+   \<comment> \<open>monotonic growth of invocId happens-before\<close>
+   \<comment> \<open>--> no new calls can be added before\<close>
 (*
 definition state_monotonicGrowth :: "('localState, 'any::valueType) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth S' S \<equiv> 
@@ -287,8 +287,8 @@ state_monotonicGrowth_no_new_calls_in_committed_transactions
 state_monotonicGrowth_transactionOrigin
 
 
-\<comment> \<open>  TODO remove definition  \<close>
-text {* Invariant holds for state *}
+\<comment> \<open>TODO remove definition\<close>
+text \<open>Invariant holds for state\<close>
 abbreviation invariant_all :: "('localState, 'any) state \<Rightarrow> bool" where
 "invariant_all state \<equiv>  invariant (prog state) (invContext state)"
 
@@ -301,10 +301,10 @@ shows "invariant_all S' = invariant_all S"
 using assms by (auto simp add: )
       
 
-text {*
+text \<open>
 The single invocId semantics only work on a single session.
 All other sessions are simulated by nondeterministic state changes, with respect to the invariant.
-*}
+\<close>
 
 
 definition chooseSnapshot' where 
@@ -480,7 +480,7 @@ next
    where  steps_xs: "S' ~~ (s, xs) \<leadsto>\<^sub>S* S_mid"
    and step_x: "S_mid ~~ (s,x) \<leadsto>\<^sub>S S''"
     apply (atomize_elim)
-    apply (rule steps_s.cases[OF `S' ~~ (s, xs @ [x]) \<leadsto>\<^sub>S* S''`]) 
+    apply (rule steps_s.cases[OF \<open>S' ~~ (s, xs @ [x]) \<leadsto>\<^sub>S* S''\<close>]) 
     by auto
     
   
@@ -491,7 +491,7 @@ next
       using steps_xs
       by (simp add: a1 snoc.hyps) 
   qed
-  thus "S ~~ (s, tra @ xs @ [x]) \<leadsto>\<^sub>S* S''"
+  then show "S ~~ (s, tra @ xs @ [x]) \<leadsto>\<^sub>S* S''"
     by simp
 qed
 
@@ -508,11 +508,11 @@ proof
   next
     case (snoc a trb')
     
-    from `S ~~ (s, tra @ trb' @ [a]) \<leadsto>\<^sub>S* S''`
+    from \<open>S ~~ (s, tra @ trb' @ [a]) \<leadsto>\<^sub>S* S''\<close>
     obtain S1 where "S ~~ (s, tra @ trb') \<leadsto>\<^sub>S* S1" and "S1 ~~ (s, a) \<leadsto>\<^sub>S S''"
       using Pair_inject steps_s.cases by force
     
-    moreover from `S ~~ (s, tra @ trb') \<leadsto>\<^sub>S* S1` 
+    moreover from \<open>S ~~ (s, tra @ trb') \<leadsto>\<^sub>S* S1\<close> 
     obtain S2 where "S ~~ (s, tra) \<leadsto>\<^sub>S* S2" and "S2 ~~ (s, trb') \<leadsto>\<^sub>S* S1"
       using snoc.hyps by blast
     
@@ -558,14 +558,14 @@ proof -
   from steps initial have "P tr S \<and> S_init ~~ (i, tr) \<leadsto>\<^sub>S* S"
   proof (induct tr arbitrary:  S rule: rev_induct)
     case Nil
-    hence "S = S_init"
+    then have "S = S_init"
       using steps_s.cases by fastforce
-    with `P [] S_init` `S_init ~~ (i, []) \<leadsto>\<^sub>S* S`
+    with \<open>P [] S_init\<close> \<open>S_init ~~ (i, []) \<leadsto>\<^sub>S* S\<close>
     show ?case by auto
     
   next
     case (snoc a tr)
-    from `S_init ~~ (i, tr@[a]) \<leadsto>\<^sub>S* S`
+    from \<open>S_init ~~ (i, tr@[a]) \<leadsto>\<^sub>S* S\<close>
     obtain S1 
       where S1a: "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1"
         and S1b: "S1 ~~ (i, a) \<leadsto>\<^sub>S S"
@@ -573,19 +573,19 @@ proof -
       by (meson steps_s_append_simp steps_s_single)   
       
     thm snoc.hyps
-    from `S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1` and `P [] S_init`
+    from \<open>S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1\<close> and \<open>P [] S_init\<close>
     have "P tr S1 \<and> S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1" 
       by (rule snoc.hyps)
     
     with S1b have "P (tr@[a]) S"
       using local.step by blast
       
-    with `S_init ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S`
+    with \<open>S_init ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S\<close>
     show ?case by auto
       
   qed
   
-  thus "P tr S" by simp
+  then show "P tr S" by simp
 qed  
 
 lemma step_s_no_Fail: 

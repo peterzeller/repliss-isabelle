@@ -4,9 +4,9 @@ theory repliss_sem
     "HOL-Library.Option_ord"
 begin
 
-section {* Semantics *}
+section \<open>Semantics\<close>
 
-text {* This theory describes the distributed semantics used by Repliss. *}
+text \<open>This theory describes the distributed semantics used by Repliss.\<close>
 
 
 abbreviation todo ("???") where "??? \<equiv> undefined"
@@ -90,7 +90,7 @@ record ('localState, 'any) prog =
 record ('localState, 'any) distributed_state = "'any invariantContext" +
   prog :: "('localState, 'any) prog"
   transactionStatus :: "txid \<rightharpoonup> transactionStatus"
-  generatedIds :: "'any \<rightharpoonup> invocId" \<comment> \<open>  unique identifiers and which invocId generated them \<close>
+  generatedIds :: "'any \<rightharpoonup> invocId" \<comment> \<open>unique identifiers and which invocId generated them\<close>
 
 record ('localState, 'any) state = "('localState, 'any) distributed_state" + 
   localState :: "invocId \<rightharpoonup> 'localState"
@@ -588,7 +588,7 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \
                  currentTransaction := (currentTransaction S)(i := None),
                  currentProc := (currentProc S)(i := None),
                  visibleCalls := (visibleCalls S)(i := None) \<rparr>)"                  
-| invCheck: \<comment> \<open>  checks a snapshot \<close>
+| invCheck: \<comment> \<open>checks a snapshot\<close>
   "\<lbrakk>invariant (prog S) (invContext S) = res
    \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvcheck res) \<leadsto> S"   
 
@@ -643,7 +643,7 @@ inductive steps :: "('localState, 'any::valueType) state \<Rightarrow> (invocId 
   "\<lbrakk>S ~~ tr \<leadsto>* S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> S ~~ tr@[a] \<leadsto>* S''"
 
 
-\<comment> \<open>  with a given trace, the execution is deterministic  \<close>
+\<comment> \<open>with a given trace, the execution is deterministic\<close>
 lemma stepDeterministic:
   assumes e1: "S ~~ tr \<leadsto> Sa" 
     and e2: "S ~~ tr \<leadsto> Sb"

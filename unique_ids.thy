@@ -99,8 +99,8 @@ lemma program_wellFormed_procedures_cannot_guess_ids_step:
            | Return r => uniqueIds r \<subseteq> uids ls"
 proof -
   obtain p args lsInit where "procedure (prog S) p args \<triangleq> (lsInit, impl)"
-    using exists_implementation[OF `state_wellFormed S` `currentProc S i \<triangleq> impl`] by blast
-  with `program_wellFormed uids (prog S)`
+    using exists_implementation[OF \<open>state_wellFormed S\<close> \<open>currentProc S i \<triangleq> impl\<close>] by blast
+  with \<open>program_wellFormed uids (prog S)\<close>
   show ?thesis
     by (auto simp add: program_wellFormed_def procedures_cannot_guess_ids_def)
 qed
@@ -181,7 +181,7 @@ proof -
     using progr_def program_wellFormed_def by auto
 
 
-  from `procedures_cannot_guess_ids uids (procedure progr)`
+  from \<open>procedures_cannot_guess_ids uids (procedure progr)\<close>
   have cannotGuessLs: 
         "case impl ls of
              LocalStep ls' \<Rightarrow> uids ls' \<subseteq> uids ls
@@ -216,14 +216,14 @@ proof -
           for S :: "('localState, 'any::valueType) state" and i impl ls
   proof -
     obtain p args lsInit where  "procedure progr p args \<triangleq> (lsInit, impl)"
-      using exists_implementation[OF `state_wellFormed S` `currentProc S i \<triangleq> impl` `progr = prog S`]
+      using exists_implementation[OF \<open>state_wellFormed S\<close> \<open>currentProc S i \<triangleq> impl\<close> \<open>progr = prog S\<close>]
       by auto
 
-    thus ?thesis
+    then show ?thesis
       by (rule cannotGuessLs, simp)
   qed
 
-  from `queries_cannot_guess_ids (querySpec progr)`
+  from \<open>queries_cannot_guess_ids (querySpec progr)\<close>
   have cannotGuessQ: "x \<in> uniqueIdsInList args \<or> (\<exists>cId c. calls ctxt cId \<triangleq> c \<and>  x \<in> uniqueIdsInList (call_args c))" 
     if "querySpec progr' opr args ctxt res" 
       and "progr' = progr" 
@@ -244,11 +244,11 @@ proof -
   next
     case (step S1 a S2)
 
-    from  ` S1 ~~ a \<leadsto> S2` `prog S2 = progr`
+    from  \<open> S1 ~~ a \<leadsto> S2\<close> \<open>prog S2 = progr\<close>
     have [simp]: "prog S1 = progr"
       by (auto simp add: step.simps)
 
-    have [simp]: "prog S2 = progr" using `prog S2 = progr` .
+    have [simp]: "prog S2 = progr" using \<open>prog S2 = progr\<close> .
 
     have IH1: "\<And>i ls x. localState S1 i \<triangleq> ls \<Longrightarrow> x \<in> uids ls  \<Longrightarrow> x \<in> dom (generatedIds S1)"
       using \<open>prog S1 = progr\<close> step.hyps(2) by blast
@@ -270,24 +270,24 @@ proof -
       by simp
 
 
-    from `S1 ~~ a \<leadsto> S2`
+    from \<open>S1 ~~ a \<leadsto> S2\<close>
     show ?case
     proof (induct rule: step.cases)
       case (local C s ls f ls')
-      thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2 IH3 `state_wellFormed S1` `prog S1 = progr` by (auto simp add: domExists_simp)
+      then show ?case using step.hyps cannotGuessLs2[OF \<open>currentProc C s \<triangleq> f\<close>, where ls=ls] IH1 IH2 IH3 \<open>state_wellFormed S1\<close> \<open>prog S1 = progr\<close> by (auto simp add: domExists_simp)
 
     next
       case (newId C s ls f ls' uid)
-      thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2  IH3 `state_wellFormed S1` `prog S1 = progr`
+      then show ?case using step.hyps cannotGuessLs2[OF \<open>currentProc C s \<triangleq> f\<close>, where ls=ls] IH1 IH2  IH3 \<open>state_wellFormed S1\<close> \<open>prog S1 = progr\<close>
         apply auto
         by blast+
     next
       case (beginAtomic C s ls f ls' t vis snapshot)
-      thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2 IH3  `state_wellFormed S1` `prog S1 = progr`
+      then show ?case using step.hyps cannotGuessLs2[OF \<open>currentProc C s \<triangleq> f\<close>, where ls=ls] IH1 IH2 IH3  \<open>state_wellFormed S1\<close> \<open>prog S1 = progr\<close>
         by (auto simp add: domExists_simp)
     next
       case (endAtomic C s ls f ls' t)
-      thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2 IH3  `state_wellFormed S1` `prog S1 = progr`
+      then show ?case using step.hyps cannotGuessLs2[OF \<open>currentProc C s \<triangleq> f\<close>, where ls=ls] IH1 IH2 IH3  \<open>state_wellFormed S1\<close> \<open>prog S1 = progr\<close>
         by (auto simp add: domExists_simp)
     next
       case (dbop C s ls f Op args ls' t c res vis)
@@ -303,9 +303,9 @@ proof -
           if c0: "x \<in> uids (ls' res)"
           for  x
         proof -
-          from `x \<in> uids (ls' res)`
+          from \<open>x \<in> uids (ls' res)\<close>
           have "x \<in> uids ls \<or> x \<in> uniqueIds res"
-            using  cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] `state_wellFormed S1` `prog C = progr` `S1 = C` by (auto simp add: `f ls = DbOperation Op args ls'`)
+            using  cannotGuessLs2[OF \<open>currentProc C s \<triangleq> f\<close>, where ls=ls] \<open>state_wellFormed S1\<close> \<open>prog C = progr\<close> \<open>S1 = C\<close> by (auto simp add: \<open>f ls = DbOperation Op args ls'\<close>)
 
           show "\<exists>y. generatedIds C x \<triangleq> y"
           proof (cases "x \<in> uids ls")
@@ -314,28 +314,28 @@ proof -
               using IH1 \<open>x \<in> uids ls\<close> dbop.hyps(1) dbop.hyps(4) by blast
           next
             assume "x \<notin> uids ls"
-            hence "x \<in> uniqueIds res"
+            then have "x \<in> uniqueIds res"
               using \<open>x \<in> uids ls \<or> x \<in> uniqueIds res\<close> by blast
 
             have "x \<notin> uniqueIdsInList args"
-              using  cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls]  `state_wellFormed S1` `prog S1 = progr` `prog C = progr` `S1 = C` by (auto simp add: `f ls = DbOperation Op args ls'` \<open>x \<notin> uids ls\<close> contra_subsetD)
+              using  cannotGuessLs2[OF \<open>currentProc C s \<triangleq> f\<close>, where ls=ls]  \<open>state_wellFormed S1\<close> \<open>prog S1 = progr\<close> \<open>prog C = progr\<close> \<open>S1 = C\<close> by (auto simp add: \<open>f ls = DbOperation Op args ls'\<close> \<open>x \<notin> uids ls\<close> contra_subsetD)
 
             obtain c cId 
               where "calls (getContext C s) cId \<triangleq> c" and "x\<in>uniqueIdsInList (call_args c)"
-              using cannotGuessQ[OF `querySpec (prog C) Op args (getContext C s) res` `prog C = progr` `x \<in> uniqueIds res`]
+              using cannotGuessQ[OF \<open>querySpec (prog C) Op args (getContext C s) res\<close> \<open>prog C = progr\<close> \<open>x \<in> uniqueIds res\<close>]
               apply auto
               using \<open>x \<notin> uniqueIdsInList args\<close> by blast
 
             have "x \<in> dom (generatedIds S1)"
             proof (rule IH2)
               show "calls S1 cId \<triangleq> c"
-                using `calls (getContext C s) cId \<triangleq> c`
+                using \<open>calls (getContext C s) cId \<triangleq> c\<close>
                 by (auto simp add: getContextH_def restrict_map_def dbop.hyps(1) split: option.splits if_splits)
               show "x \<in> uniqueIdsInList (call_args c)"
-                using `x\<in>uniqueIdsInList (call_args c)` .
+                using \<open>x\<in>uniqueIdsInList (call_args c)\<close> .
             qed
 
-            thus "\<exists>y. generatedIds C x \<triangleq> y"
+            then show "\<exists>y. generatedIds C x \<triangleq> y"
               by (auto simp add: dbop.hyps(1))
           qed
         qed
@@ -349,7 +349,7 @@ proof -
           using IH1 c1 c2 dbop.hyps(1) by blast
 
 
-        from ` currentProc C s \<triangleq> f`
+        from \<open> currentProc C s \<triangleq> f\<close>
         obtain p pargs lsInit where "procedure progr p pargs \<triangleq> (lsInit, f)"
           using \<open>prog C = progr\<close> dbop.hyps(1) exists_implementation step.hyps(1) by blast
 
@@ -360,8 +360,8 @@ proof -
           for  x
         proof -
           from \<open>procedures_cannot_guess_ids uids (procedure progr)\<close> 
-            and `f ls = DbOperation Op args ls'` and c0
-            and `procedure progr p pargs \<triangleq> (lsInit, f)`
+            and \<open>f ls = DbOperation Op args ls'\<close> and c0
+            and \<open>procedure progr p pargs \<triangleq> (lsInit, f)\<close>
           have "x \<in> uids ls"
             apply (auto simp add: procedures_cannot_guess_ids_def)
             apply ((drule spec)+, drule(1) mp)
@@ -370,7 +370,7 @@ proof -
             apply auto
             done
 
-          thus "\<exists>y. generatedIds C x \<triangleq> y"
+          then show "\<exists>y. generatedIds C x \<triangleq> y"
             using IH1 dbop.hyps(1) dbop.hyps(4) by blast
         qed
 
@@ -395,27 +395,27 @@ proof -
 
 
       from invocId 
-      show ?case using step.hyps cannotGuessLs[OF `procedure (prog C) procName args \<triangleq> (initialState, impl)`] 
+      show ?case using step.hyps cannotGuessLs[OF \<open>procedure (prog C) procName args \<triangleq> (initialState, impl)\<close>] 
         apply (auto simp add:  step_simps)
         using cannotGuessLs' by blast
 
     next
       case (return C s ls f res)
-      thus ?case using step.hyps cannotGuessLs2[OF `currentProc C s \<triangleq> f`, where ls=ls] IH1 IH2 IH3  \<open>prog S1 = progr\<close>
+      then show ?case using step.hyps cannotGuessLs2[OF \<open>currentProc C s \<triangleq> f\<close>, where ls=ls] IH1 IH2 IH3  \<open>prog S1 = progr\<close>
         by (auto simp add: domExists_simp)
 
     next
       case (fail C s ls)
-      thus ?case using  IH1 IH2 IH3
+      then show ?case using  IH1 IH2 IH3
         by (auto simp add: domExists_simp)
     next
       case (invCheck C res s)
-      thus ?case using IH1 IH2 IH3
+      then show ?case using IH1 IH2 IH3
         by (auto simp add: domExists_simp)
     qed
   qed
 
-  thus ?thesis
+  then show ?thesis
     using progr_def by auto
 qed
 
@@ -444,7 +444,7 @@ lemma steps_private_uniqueIds_h:
      \<and> (\<forall>i' ls. localState S' i' \<triangleq> ls \<longrightarrow> i'\<noteq>i \<longrightarrow> uid \<notin> uids ls)
      \<and> (\<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
 
-  using `S ~~ tr \<leadsto>* S'` nofail no_step_in_i proof (induct rule: steps_induct)
+  using \<open>S ~~ tr \<leadsto>* S'\<close> nofail no_step_in_i proof (induct rule: steps_induct)
   case initial
   then show ?case
     using not_in_db not_in_ls not_known by blast
@@ -457,7 +457,7 @@ next
 
 
   have "state_wellFormed S'"
-    using local.wf state_wellFormed_combine `\<forall>i. (i, AFail) \<notin> set (tr @ [a])` step.steps by fastforce
+    using local.wf state_wellFormed_combine \<open>\<forall>i. (i, AFail) \<notin> set (tr @ [a])\<close> step.steps by fastforce
 
   from step.IH 
   have IH1: "uid \<notin> knownIds S'"
@@ -466,11 +466,11 @@ next
     using step.prems by force+
 
 
-  from `S' ~~ a \<leadsto> S''`
+  from \<open>S' ~~ a \<leadsto> S''\<close>
   show "uid \<notin> knownIds S'' \<and> (\<forall>i' ls. localState S'' i' \<triangleq> ls \<longrightarrow> i' \<noteq> i \<longrightarrow> uid \<notin> uids ls) \<and> (\<forall>c opr args r. calls S'' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
   proof (induct rule: step.cases)
     case (local C s ls f ls')
-    thus ?case 
+    then show ?case 
     proof (intro conjI)
       show "uid \<notin> knownIds S''" using IH1 local by auto
       show "\<forall>c opr args r. calls S'' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
@@ -499,7 +499,7 @@ next
 
       show " \<forall>i' ls. localState S'' i' \<triangleq> ls \<longrightarrow> i' \<noteq> i \<longrightarrow> uid \<notin> uids ls"
         using IH2 newId 
-          program_wellFormed_procedures_cannot_guess_ids_NewId[OF `program_wellFormed uids (prog S')` `currentProc S' s \<triangleq> f` \<open>state_wellFormed S'\<close> ` f ls = NewId ls'` `ls' nuid \<triangleq> ls''`] apply auto
+          program_wellFormed_procedures_cannot_guess_ids_NewId[OF \<open>program_wellFormed uids (prog S')\<close> \<open>currentProc S' s \<triangleq> f\<close> \<open>state_wellFormed S'\<close> \<open> f ls = NewId ls'\<close> \<open>ls' nuid \<triangleq> ls''\<close>] apply auto
         using generatedIds_mono step.steps uid_generated by fastforce
     qed
   next
@@ -612,7 +612,7 @@ next
     by (simp add: step.hyps(3))
 
   have not_generated_S: "generatedIds S uid = None"
-    using generatedIds_mono[OF `S ~~ [a] \<leadsto>* S'`] `generatedIds S' uid = None`
+    using generatedIds_mono[OF \<open>S ~~ [a] \<leadsto>* S'\<close>] \<open>generatedIds S' uid = None\<close>
     by (meson domExists_simp domIff)
 
   have progr_wf_S: "program_wellFormed uids (prog S)"
@@ -626,11 +626,11 @@ next
   have IH3: "\<And>c opr args r. calls S c \<triangleq> Call opr args r \<Longrightarrow> uid \<notin> uniqueIdsInList args"
     using not_generated_S progr_wf_S step.hyps(2) by blast
 
-  from `S ~~ a \<leadsto> S'`
+  from \<open>S ~~ a \<leadsto> S'\<close>
   show "uid \<notin> knownIds S' \<and> (\<forall>i ls. localState S' i \<triangleq> ls \<longrightarrow> uid \<notin> uids ls) \<and> (\<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args)"
   proof (induct rule: step.cases)
     case (local C s ls f ls')
-    thus ?case 
+    then show ?case 
     proof (intro conjI)
       show "uid \<notin> knownIds S'" using IH1 local by auto
       show "\<forall>c opr args r. calls S' c \<triangleq> Call opr args r \<longrightarrow> uid \<notin> uniqueIdsInList args"
@@ -659,8 +659,8 @@ next
         using IH3 newId by auto
 
       show " \<forall>i' ls. localState S' i' \<triangleq> ls \<longrightarrow> uid \<notin> uids ls"
-        using IH2 newId `generatedIds S' uid = None` 
-          program_wellFormed_procedures_cannot_guess_ids_NewId[OF `program_wellFormed uids (prog S)` `currentProc S s \<triangleq> f` \<open>state_wellFormed S\<close> ` f ls = NewId ls'` `ls' nuid \<triangleq> ls''`, where x=uid] by (auto split: if_splits)
+        using IH2 newId \<open>generatedIds S' uid = None\<close> 
+          program_wellFormed_procedures_cannot_guess_ids_NewId[OF \<open>program_wellFormed uids (prog S)\<close> \<open>currentProc S s \<triangleq> f\<close> \<open>state_wellFormed S\<close> \<open> f ls = NewId ls'\<close> \<open>ls' nuid \<triangleq> ls''\<close>, where x=uid] by (auto split: if_splits)
     qed
   next
     case (beginAtomic C s ls f ls' t vis snapshot)

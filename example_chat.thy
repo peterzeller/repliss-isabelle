@@ -5,7 +5,7 @@ begin
 
 
 
-\<comment> \<open>  ^^^^  \<close>
+\<comment> \<open>^^^^\<close>
 
 datatype val =
     String string
@@ -217,7 +217,7 @@ definition crdtSpec_message_author_read :: "val list \<Rightarrow> val operation
      \<and> (\<forall>c2\<in>callsWithOpArgs ctxt message_delete args. (c2,c1)\<in>happensBefore ctxt)))"
 
 definition is_message_updateH  where
-  \<comment> \<open> :: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where  \<close>
+  \<comment> \<open>:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where\<close>
   "is_message_updateH mid c \<equiv> 
   case c of 
      Call upd (mid'#args) _ \<Rightarrow> upd \<in> {message_author_assign, message_content_assign, message_chat_assign} \<and> mid = mid' 
@@ -239,11 +239,11 @@ lemma is_message_updateH_simp4[simp]: "  \<not>is_message_updateH mid (Call upd 
   using that  by (auto simp add: is_message_updateH_def )
 
 definition message_updates :: "(callId \<rightharpoonup> val call) \<Rightarrow> val \<Rightarrow> callId set" where
-  \<comment> \<open> :: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where  \<close>
+  \<comment> \<open>:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where\<close>
   "message_updates ctxt_calls mId \<equiv> {c | c call . ctxt_calls c = Some call \<and> is_message_updateH mId call}"
 
 abbreviation is_message_update :: "(val, 'b) operationContext_scheme \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where
-  \<comment> \<open> :: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where  \<close>
+  \<comment> \<open>:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where\<close>
   "is_message_update ctxt c mId \<equiv> c \<in> message_updates (calls ctxt) mId "
 
 definition crdtSpec_message_exists_h :: "val list \<Rightarrow> val operationContext \<Rightarrow> bool" where
@@ -264,7 +264,7 @@ definition crdtSpec_message_exists :: "val list \<Rightarrow> val operationConte
   "crdtSpec_message_exists args ctxt res \<equiv> 
   res = Bool (crdtSpec_message_exists_h args ctxt)"
 
-\<comment> \<open>  ignores map-deletes as they are not used  \<close>
+\<comment> \<open>ignores map-deletes as they are not used\<close>
 definition crdtSpec_chat_contains_h :: "val list \<Rightarrow> val operationContext \<Rightarrow> bool" where
   "crdtSpec_chat_contains_h args ctxt \<equiv> 
   (callsWithOpArgs ctxt chat_add args \<noteq> {})
@@ -335,7 +335,7 @@ lemmas mkContext_simps = mkContext_happensBefore_contains_simps mkContext_calls_
 *)
 
 
-
+(*
 (* property 1:
 If the chat contains a reference to a message, the message exists
  *)
@@ -365,11 +365,41 @@ definition inv3 :: "val invariantContext \<Rightarrow> bool" where
    \<and> invocationRes ctxt i2 \<triangleq> Pair a2 c2
    \<longrightarrow> a1 = a2
      )"
+*)
+
+
+text " getMessage returns correct authors"
+definition inv1  :: "val invariantContext \<Rightarrow> bool" where
+"inv1 ctxt \<equiv> \<forall>g m author content.
+   invocationOp ctxt g \<triangleq> (getMessage, [MessageId m])
+ \<and> invocationRes ctxt g \<triangleq> Pair author content
+ \<longrightarrow> (\<exists>s content2. invocationOp ctxt s \<triangleq> (sendMessage, [author, content2])) "
+
+text "Additional invariants:"
+
+definition inv1a :: "val invariantContext \<Rightarrow> bool" where
+"inv1a ctxt \<equiv> \<forall>c m u.
+  calls ctxt c \<triangleq> Call message_author_assign [m,u] Undef 
+  \<longrightarrow> (\<exists>i s. invocationOp ctxt i \<triangleq> (sendMessage, [u, s]))"
+
+definition inv1b :: "val invariantContext \<Rightarrow> bool" where
+"inv1b ctxt \<equiv> \<forall>c m u.
+  calls ctxt c \<triangleq> Call message_content_assign [m,u] Undef 
+  \<longrightarrow> (\<exists>c' u. calls ctxt c' \<triangleq> Call message_author_assign [m,u] Undef \<and> (c', c)\<in>happensBefore ctxt)"
+
+definition inv1c :: "val invariantContext \<Rightarrow> bool" where
+"inv1c ctxt \<equiv>
+  \<not>(\<exists>write delete m. 
+      ((\<exists>u. calls ctxt write \<triangleq> Call message_author_assign [m,u] Undef)
+       \<or> (\<exists>u. calls ctxt write \<triangleq> Call message_content_assign [m,u] Undef))
+      \<and> calls ctxt delete \<triangleq> Call message_delete [m] Undef
+      \<and> (delete, write) \<in> happensBefore ctxt
+)"
 
 
 
 definition inv :: "val invariantContext \<Rightarrow> bool" where
-  "inv ctxt \<equiv> inv1 ctxt \<and> inv2 ctxt \<and> inv2_h1 ctxt"
+  "inv ctxt \<equiv> inv1 ctxt \<and> inv1a ctxt \<and> inv1b ctxt \<and> inv1c ctxt"
 
 definition progr :: "(localState, val) prog" where
   "progr \<equiv> \<lparr>
@@ -548,9 +578,9 @@ lemma finite_mapping:
   shows "finite B"
   using assms proof (induct arbitrary: B rule: finite_induct)
   case empty
-  hence "B = {}"
+  then have "B = {}"
     by blast
-  thus ?case by simp
+  then show ?case by simp
 next
   case (insert x F)
 
@@ -578,7 +608,7 @@ lemma finite_mapping3:
   assumes "finite (dom m)"
     and inj: "inj f"
   shows "finite {v. \<exists>x. m x = Some (f v)}"
-  using `finite (dom m)` proof (rule finite_mapping)
+  using \<open>finite (dom m)\<close> proof (rule finite_mapping)
   show "\<And>x. x \<in> {v. \<exists>x. m x \<triangleq> f v} \<Longrightarrow> \<exists>y\<in>dom m. (SOME v. the (m y) = f v) = x"
     apply auto
     apply (rule_tac x=xa in bexI)
@@ -600,7 +630,7 @@ lemma every_query_has_result_message_chat_read:
 
   apply (rule_tac B="{v. \<exists>c. calls ctxt c \<triangleq> Call message_chat_assign (args @ [v]) Undef}" in finite_subset)
    apply (auto simp add: callsWithOpArgsH_def)
-  apply (rule finite_mapping3[OF `finite (dom (calls ctxt))`])
+  apply (rule finite_mapping3[OF \<open>finite (dom (calls ctxt))\<close>])
   by (meson append1_eq_conv call.inject injI)
 
 
@@ -613,7 +643,7 @@ lemma every_query_has_result_message_author_read:
   apply (rule finite_list_exists)
   apply (rule_tac B="{v. \<exists>c. calls ctxt c \<triangleq> Call message_author_assign (args @ [v]) Undef}" in finite_subset)
    apply (auto simp add: callsWithOpArgsH_def)
-  apply (rule finite_mapping3[OF `finite (dom (calls ctxt))`])
+  apply (rule finite_mapping3[OF \<open>finite (dom (calls ctxt))\<close>])
   by (meson append1_eq_conv call.inject injI)
 
 lemma every_query_has_result_chat_contains[simp]:
@@ -878,8 +908,11 @@ lemma exists_eq_simp: "(\<exists>a. \<forall>v. (v=a) \<longleftrightarrow> P a 
 lemma procedure_cases2: "procedures procName args \<triangleq> (initState, impl) \<longleftrightarrow> (
   (\<exists>from content to. procName = sendMessage \<and> args = [UserId from, String content, ChatId to] \<and> initState = lsInit\<lparr>ls_from := UserId from, ls_content := String content, ls_to := ChatId to \<rparr> \<and> impl = sendMessageImpl)
 \<or> (\<exists>i. procName = editMessage \<and> args = [MessageId i] \<and> initState = lsInit\<lparr>ls_id := MessageId i \<rparr> \<and> impl = editMessageImpl)
-\<or> (\<exists>i. procName = deleteMessage \<and> args = [MessageId i] \<and> initState = lsInit\<lparr>ls_id := MessageId i \<rparr> \<and> impl = deleteMessageImpl))"
+\<or> (\<exists>i. procName = deleteMessage \<and> args = [MessageId i] \<and> initState = lsInit\<lparr>ls_id := MessageId i \<rparr> \<and> impl = deleteMessageImpl))
+\<or> (\<exists>i. procName = getMessage \<and> args = [MessageId i] \<and> initState = lsInit\<lparr>ls_id := MessageId i\<rparr> \<and> impl = getMessageImpl)
+"
   by (auto simp add: procedures_def split: list.splits val.splits)
+
 
 lemma forAllSnapshots_dont_care:
 "forAllSnapshots (invContextH2 co to ts hb cs ki io ir) P
@@ -896,16 +929,16 @@ proof (rule show_programCorrect_using_checkCorrect)
     by (auto simp add: initialStates_def)
 
 
-  subsection {* Initial state *}
+  subsection \<open>Initial state\<close>
 
-  text {* Show that the initial state satisfies the invariant *}
+  text \<open>Show that the initial state satisfies the invariant\<close>
   show "invariant_all' (initialState progr)"
     by (auto simp add: forAllSnapshots_def message_updates_def initialState_def  inv_def inv1_def inv2_def inv2_h1_def invContextH_def crdtSpec_message_exists_h_def crdtSpec_chat_contains_h_def mkContext_def is_message_updateH_def callsWithOpArgsH_def)
 
 
-  subsection {* Initial state of procedure invocations *}
+  subsection \<open>Initial state of procedure invocations\<close>
 
-  text {* Show that the initial state of procedure invocations satisfies the invariant.  *}
+  text \<open>Show that the initial state of procedure invocations satisfies the invariant.\<close>
   show "\<And>S i. S \<in> initialStates' progr i \<Longrightarrow> invariant_all' S"
     apply (subst(asm) initialStates'_def)
   proof auto
@@ -923,7 +956,7 @@ proof (rule show_programCorrect_using_checkCorrect)
 
       using i1 proof (subst(asm) procedure_cases2, auto)
 
-      text {* We consider the initial state for each procedure individually: *}
+      text \<open>We consider the initial state for each procedure individually:\<close>
 
 
       show "example_chat.inv (invContextH2 (callOrigin Sa) (transactionOrigin Sa) (transactionStatus Sa) (happensBefore Sa) (calls Sa) (knownIds Sa) (invocationOp Sa(i \<mapsto> (sendMessage, [UserId from, String content, ChatId to]))) (invocationRes Sa))"
@@ -934,7 +967,9 @@ proof (rule show_programCorrect_using_checkCorrect)
           and c4: "initState = lsInit\<lparr>ls_from := UserId from, ls_content := String content, ls_to := ChatId to\<rparr>"
         for "from" content to
         using old_inv
-        by (auto simp add: inv_def inv1_def inv2_def inv2_h1_def forAllSnapshots_dont_care)
+        apply (auto simp add: inv_def inv1_def inv1a_def inv1b_def inv1c_def forAllSnapshots_dont_care)
+        by (metis i5 option.distinct(1))+
+
 
 
       show "example_chat.inv (invContextH2 (callOrigin Sa) (transactionOrigin Sa) (transactionStatus Sa) (happensBefore Sa) (calls Sa) (knownIds Sa) (invocationOp Sa(i \<mapsto> (editMessage, [MessageId ia]))) (invocationRes Sa))"
@@ -945,7 +980,8 @@ proof (rule show_programCorrect_using_checkCorrect)
           and c4: "initState = lsInit\<lparr>ls_id := MessageId ia\<rparr>"
         for  ia
         using old_inv
-        by (auto simp add: inv_def inv1_def inv2_def inv2_h1_def forAllSnapshots_dont_care)
+        apply (auto simp add: inv_def inv1_def inv1a_def inv1b_def inv1c_def forAllSnapshots_dont_care)
+        by (metis i5 option.distinct(1))+
 
 
 
@@ -957,11 +993,157 @@ proof (rule show_programCorrect_using_checkCorrect)
           and c4: "initState = lsInit\<lparr>ls_id := MessageId ia\<rparr>"
         for  ia
         using old_inv
-        by (auto simp add: inv_def inv1_def inv2_def inv2_h1_def forAllSnapshots_dont_care)
+        apply (auto simp add: inv_def inv1_def inv1a_def inv1b_def inv1c_def forAllSnapshots_dont_care)
+        by (metis i5 option.distinct(1))+
+
+      show "example_chat.inv (invContextH2 (callOrigin Sa) (transactionOrigin Sa) (transactionStatus Sa) (happensBefore Sa) (calls Sa) (knownIds Sa) (invocationOp Sa(i \<mapsto> (getMessage, [MessageId ia]))) (invocationRes Sa))"
+        if c0: "procedures getMessage [MessageId ia] \<triangleq> (lsInit\<lparr>ls_id := MessageId ia\<rparr>, getMessageImpl)"
+          and c1: "procName = getMessage"
+          and c2: "args = [MessageId ia]"
+          and c3: "impl = getMessageImpl"
+          and c4: "initState = lsInit\<lparr>ls_id := MessageId ia\<rparr>"
+        for  ia
+        using old_inv
+        apply (auto simp add: inv_def inv1_def inv1a_def inv1b_def inv1c_def forAllSnapshots_dont_care)
+        apply (simp add: i4 i5 wf_result_after_invocation)
+        by (metis i5 option.distinct(1))+
+
 
     qed
   qed
 
+
+  show "\<exists>bound. (checkCorrect2F ^^ bound) bot (progr, {}, S, i)"
+    if c0: "S \<in> initialStates' progr i"
+    for  S i
+
+
+ using c0  apply (subst(asm) initialStates'_def)
+  proof auto
+
+    show "\<exists>bound. (checkCorrect2F ^^ bound) bot (progr, {}, Sa \<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (procName, args))\<rparr>, i)"
+      if S_def: "S = Sa \<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (procName, args))\<rparr>"
+        and prog_Sa: "prog Sa = progr"
+        and procedures: "procedures procName args \<triangleq> (initState, impl)"
+        and uniqueIds_args: "uniqueIdsInList args \<subseteq> knownIds Sa"
+        and inv_Sa: "example_chat.inv (invContext' Sa)"
+        and Sa_wf: "state_wellFormed Sa"
+        and invoc_Sa: "invocationOp Sa i = None"
+        and transactions_Sa: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommitted"
+        and transactionOriginSa: "\<forall>tx. transactionOrigin Sa tx \<noteq> Some i"
+      for  Sa procName args initState impl
+ using procedures proof (subst(asm) procedure_cases2, auto)
+
+
+
+      have [simp]: "currentTransaction Sa i = None"
+        by (simp add: Sa_wf invoc_Sa wellFormed_invoc_notStarted(1))
+
+\<comment> \<open>ony unfold definitions, when needed for evaluation:\<close>
+      have h1[simp]:  "S' ::= S \<Longrightarrow> (currentProc S' i \<triangleq> x) \<longleftrightarrow> (currentProc S i \<triangleq> x)" for S' S i x  by (auto simp add: Def_def)
+      have h2[simp]: "S' ::= S \<Longrightarrow>  ls_pc (the (localState S' i)) = ls_pc (the (localState S i))" for S' S i by (auto simp add: Def_def)
+      have h3[simp]: "S' ::= S \<Longrightarrow>  (currentTransaction S' i = None) \<longleftrightarrow> (currentTransaction S i = None)" for S' S i by (auto simp add: Def_def)
+
+      thm inv1a_def
+
+      have queries_defined_message_author_assign[simp]: 
+        "Ex (querySpec progr message_author_assign [u, n] ctxt)"
+        for u n ctxt
+        by (auto simp add: progr_def crdtSpec_def )
+
+      have queries_defined_message_content_assign[simp]: 
+        "Ex (querySpec progr message_content_assign [u, n] ctxt)"
+        for u n ctxt
+        by (auto simp add: progr_def crdtSpec_def )
+
+      have queries_defined_chat_add[simp]: 
+        "Ex (querySpec progr chat_add [u, n] ctxt)"
+        for u n ctxt
+        by (auto simp add: progr_def crdtSpec_def )
+
+
+
+      have queries_defined_message_content_read[simp]: 
+        "Ex (querySpec progr message_content_read [m] ctxt)"
+        for m ctxt
+        by (auto simp add: progr_def crdtSpec_def )
+
+
+      have h: "\<exists>l. \<forall>v. (v \<in> set l) = P v " if fin: "finite {x. P x}"   for P
+        by (simp add: finite_list_exists that)
+
+      have queries_defined_message_author_read[simp]: 
+        "Ex (querySpec progr message_author_read [m] ctxt)"
+        for m ctxt
+        apply (auto simp add: progr_def crdtSpec_def )
+        apply (rule ccontr)
+        apply (auto simp add: crdtSpec_message_author_read_def)
+        apply (erule contrapos_pp)
+        apply auto
+      proof (rule h)
+        show "finite
+     {x. \<exists>c1\<in>callsWithOpArgs ctxt message_author_assign [m, x].
+            (\<forall>x\<in>callsOfOp ctxt message_author_assign.
+                case x of (c2, args') \<Rightarrow> (\<exists>author. args' = [m, author]) \<longrightarrow> (c1, c2) \<notin> happensBefore ctxt) \<and>
+            (\<forall>c2\<in>callsWithOpArgs ctxt message_delete [m]. (c2, c1) \<in> happensBefore ctxt)}"
+
+        proof (rule finite_subset)
+          show "{x. \<exists>c1\<in>callsWithOpArgs ctxt message_author_assign [m, x].
+            (\<forall>x\<in>callsOfOp ctxt message_author_assign.
+                case x of (c2, args') \<Rightarrow> (\<exists>author. args' = [m, author]) \<longrightarrow> (c1, c2) \<notin> happensBefore ctxt) \<and>
+            (\<forall>c2\<in>callsWithOpArgs ctxt message_delete [m]. (c2, c1) \<in> happensBefore ctxt)}
+\<subseteq> (\<lambda>c. case c of Call _ (m#x#_) _ \<Rightarrow> x | _ \<Rightarrow> undefined) `  Map.ran (calls ctxt)"
+            apply (auto simp add: callsWithOpArgsH_def)
+            by (smt call.case image_iff list.simps(5) ranI)
+          show " finite ((\<lambda>c. case c of Call _ (m#x#_) _ \<Rightarrow> x | _ \<Rightarrow> undefined) ` ran (calls ctxt))"
+          proof
+            have "finite (dom (calls ctxt))"
+              sorry
+            with finite_ran 
+            show "finite (ran (calls ctxt))"
+              by auto
+          qed
+        qed
+      qed
+
+
+
+
+
+      from \<open> example_chat.inv (invContext' Sa)\<close>
+      have inv1_Sa: "inv1 (invContext' Sa)"
+        and inv1a_Sa: "inv1a (invContext' Sa)"
+        and inv1b_Sa: "inv1b (invContext' Sa)"
+        and inv1c_Sa: "inv1c (invContext' Sa)"
+        by (auto simp add: inv_def)
+
+      paragraph \<open>Case get_message\<close>
+
+      show "\<exists>bound. (checkCorrect2F ^^ bound) bot (progr, {}, Sa \<lparr>localState := localState Sa(i \<mapsto> lsInit\<lparr>ls_id := MessageId ia\<rparr>), currentProc := currentProc Sa(i \<mapsto> getMessageImpl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> (getMessage, [MessageId ia]))\<rparr>, i)"
+        if c0: "procedures getMessage [MessageId ia] \<triangleq> (lsInit\<lparr>ls_id := MessageId ia\<rparr>, getMessageImpl)"
+          and c1: "procName = getMessage"
+          and c2: "args = [MessageId ia]"
+          and c3: "impl = getMessageImpl"
+          and c4: "initState = lsInit\<lparr>ls_id := MessageId ia\<rparr>"
+        for  ia
+ text \<open>We start by unrolling the implementation.\<close>
+        apply (rule_tac x="10" in exI)
+  apply (rule checkCorrect2F_step, auto simp add: getMessageImpl_def lsInit_def split: localAction.splits option.splits)
+  apply (rule checkCorrect2F_step, auto simp add: getMessageImpl_def lsInit_def split: localAction.splits option.splits)
+  apply (rule checkCorrect2F_step, auto simp add: getMessageImpl_def lsInit_def split: localAction.splits option.splits)
+  defer
+   apply (rule checkCorrect2F_step, auto simp add: getMessageImpl_def lsInit_def split: localAction.splits option.splits)
+  defer
+  apply (rule checkCorrect2F_step, auto simp add: getMessageImpl_def lsInit_def split: localAction.splits option.splits)
+  apply (rule checkCorrect2F_step, auto simp add: getMessageImpl_def lsInit_def split: localAction.splits option.splits)
+  apply (rule checkCorrect2F_step, auto simp add: getMessageImpl_def lsInit_def split: localAction.splits option.splits)
+
+
+
+        apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
+        apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
+        apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
+        apply (rule checkCorrect2F_step, auto simp add: registerUserImpl_def lsInit_def split: localAction.splits option.splits)
 
 
 

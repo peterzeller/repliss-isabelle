@@ -1,6 +1,6 @@
 # Build
 
-Install [Isabelle 2017](https://isabelle.in.tum.de/), then run:
+Install [Isabelle 2019](https://isabelle.in.tum.de/), then run:
 
 	isabelle build -D .
 
@@ -25,9 +25,9 @@ The following theory files are included:
 
 The lemmas and theorems from the paper can be found under the following names in the theories:
 
-- Lemma 3.1: `show_programCorrect_noTransactionInterleaving` in `commutativity`
-- Lemma 3.2: `convert_to_single_session_trace_invFail` in `approach`
-- Lemma 3.3: `show_correctness_via_single_session` in `approach`
+- Lemma 5.1: `show_programCorrect_noTransactionInterleaving` in `commutativity`
+- Lemma 5.2: `convert_to_single_session_trace_invFail` in `approach`
+- Lemma 5.3: `show_correctness_via_single_session` in `approach`
 
 # Repliss verification tool
 

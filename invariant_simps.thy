@@ -2,11 +2,11 @@ theory invariant_simps
   imports approach single_invocation_correctness
 begin
 
-section {* Invariant simplifications *}
+section \<open>Invariant simplifications\<close>
 
-text {* 
+text \<open>
  This theory includes helpers for working with invariants.
-*}
+\<close>
 
 
 definition 
@@ -41,7 +41,7 @@ lemmas i_callOriginI_h_simps = i_callOriginI_h_simp_update_co i_callOriginI_h_up
 abbreviation 
   "i_callOriginI ctxt \<equiv> i_callOriginI_h (callOrigin ctxt) (transactionOrigin ctxt)"
 
-text {* lifting the happensBefore relation on database-calls to the level of invocations. *}
+text \<open>lifting the happensBefore relation on database-calls to the level of invocations.\<close>
 definition 
   "invocation_happensBeforeH origin hb \<equiv> 
   {(ix,iy). (\<exists>c. origin c \<triangleq> ix) 
@@ -92,39 +92,39 @@ proof (standard; standard; case_tac x; auto)
 
   {
     assume "x = i"
-    hence "tx = t"
+    then have "tx = t"
       using tx
       by (auto simp add: i_fresh split: if_splits )
 
     have "y \<noteq> i"
       using \<open>x = i\<close> \<open>x \<noteq> y\<close> by blast
-    hence "ty \<noteq> t"
+    then have "ty \<noteq> t"
       using \<open>tx = t\<close> \<open>ty \<noteq> tx\<close> by auto
 
-    hence "cy \<notin> set cs"
+    then have "cy \<notin> set cs"
       using co'_t cy by auto
 
-    from a1 `tx = t`
+    from a1 \<open>tx = t\<close>
     have "(cx, cy) \<notin> hb"
-      apply (auto simp add: invocation_happensBeforeH_def `x \<noteq> y`  i_callOriginI_h_def split: if_splits option.splits)
+      apply (auto simp add: invocation_happensBeforeH_def \<open>x \<noteq> y\<close>  i_callOriginI_h_def split: if_splits option.splits)
       apply (metis co'_same co_none cx option.distinct(1) t_fresh wf_hb1)
       apply (metis co'_same co_none cx option.simps(3) t_fresh wf_hb1)
       by (simp add: \<open>x = i\<close> i_fresh)
 
-    with `(cx, cy) \<in> updateHb hb vis' cs`
+    with \<open>(cx, cy) \<in> updateHb hb vis' cs\<close>
     have False
-      using \<open>cy \<notin> set cs\<close>  by (auto simp add:  updateHb_simp_distinct[OF `distinct cs`])
+      using \<open>cy \<notin> set cs\<close>  by (auto simp add:  updateHb_simp_distinct[OF \<open>distinct cs\<close>])
 
   }
   moreover
   {
     assume "y = i"
-    hence "ty = t"
+    then have "ty = t"
       by (metis fun_upd_apply i_fresh ty)
 
     have "x \<noteq> i"
       using \<open>y = i\<close> \<open>x \<noteq> y\<close> by blast
-    hence "tx \<noteq> t"
+    then have "tx \<noteq> t"
       using \<open>ty = t\<close> \<open>ty \<noteq> tx\<close> by auto
 
     have "co cx \<triangleq> tx" 
@@ -147,7 +147,7 @@ proof (standard; standard; case_tac x; auto)
   {
     assume "x\<noteq>i" and "y \<noteq> i" 
 
-    hence "tx \<noteq> t"
+    then have "tx \<noteq> t"
       using tx by auto
 
     have "ty \<noteq> t"
@@ -191,7 +191,7 @@ next
     using a0 a1 a2 i_fresh apply (auto simp add: invocation_happensBeforeH_def i_callOriginI_h_def split: option.splits)
     apply (metis co'_same co_none domI domIff option.sel t_fresh)
      apply (metis all_not_in_conv co'_t cs_nonempty option.inject set_empty)
-    apply (auto simp add:  updateHb_simp_distinct[OF `distinct cs`])
+    apply (auto simp add:  updateHb_simp_distinct[OF \<open>distinct cs\<close>])
     apply (metis co'_same co'_t option.inject)
     using co'_same t_fresh by fastforce
 qed
@@ -236,7 +236,7 @@ proof (auto simp add: invocation_happensBeforeH_def)
     and a1: "i_callOriginI_h (callOrigin S') (transactionOrigin S') c \<triangleq> i"
     and a2: "i_callOriginI_h (callOrigin S') (transactionOrigin S') ca \<triangleq> g"
 
-  from `state_wellFormed S'` `invocationOp S' i = None`
+  from \<open>state_wellFormed S'\<close> \<open>invocationOp S' i = None\<close>
   have "transactionOrigin S' tx \<noteq> Some i" for tx
     by (simp add: wf_no_invocation_no_origin)
 
@@ -257,7 +257,7 @@ proof (auto simp add: invocation_happensBeforeH_def)
     and a2: "i_callOriginI_h (callOrigin S') (transactionOrigin S') ca \<triangleq> i"
 
 
-  from `state_wellFormed S'` `invocationOp S' i = None`
+  from \<open>state_wellFormed S'\<close> \<open>invocationOp S' i = None\<close>
   have "transactionOrigin S' tx \<noteq> Some i" for tx
     by (simp add: wf_no_invocation_no_origin)
 
