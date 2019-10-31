@@ -933,7 +933,7 @@ proof (rule show_programCorrect_using_checkCorrect)
 
   text \<open>Show that the initial state satisfies the invariant\<close>
   show "invariant_all' (initialState progr)"
-    by (auto simp add: forAllSnapshots_def message_updates_def initialState_def  inv_def inv1_def inv2_def inv2_h1_def invContextH_def crdtSpec_message_exists_h_def crdtSpec_chat_contains_h_def mkContext_def is_message_updateH_def callsWithOpArgsH_def)
+    by (auto simp add: forAllSnapshots_def message_updates_def initialState_def  inv_def inv1_def inv1a_def inv1b_def inv1c_def  invContextH_def crdtSpec_message_exists_h_def crdtSpec_chat_contains_h_def mkContext_def is_message_updateH_def callsWithOpArgsH_def)
 
 
   subsection \<open>Initial state of procedure invocations\<close>
