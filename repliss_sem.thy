@@ -127,7 +127,7 @@ assumes stateEqI:
 
 
 
-context repliss_sem begin
+begin
 abbreviation "committedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Committed }"
 
 abbreviation "emptyOperationContext \<equiv> \<lparr> c_calls = Map.empty, c_happensBefore = {}\<rparr>"
@@ -336,14 +336,14 @@ abbreviation
 
 
 lemma invContextSnapshot_eq:
-  assumes "c_calls = committedCallsH (callOrigin state) (transactionStatus state)"
-    and "c_txns = {t. transactionStatus state t \<triangleq> Committed}"
+  assumes "s_calls = committedCallsH (callOrigin state) (transactionStatus state)"
+    and "s_txns = {t. transactionStatus state t \<triangleq> Committed}"
   shows
     "invContext state =  \<lparr>
-        c_calls = calls state |` c_calls , 
-        c_happensBefore = happensBefore state |r c_calls , 
-        c_callOrigin  = callOrigin state |` c_calls,
-        c_transactionOrigin = transactionOrigin state |` c_txns,
+        c_calls = calls state |` s_calls , 
+        c_happensBefore = happensBefore state |r s_calls , 
+        c_callOrigin  = callOrigin state |` s_calls,
+        c_transactionOrigin = transactionOrigin state |` s_txns,
         c_knownIds = knownIds state,
         c_invocationOp = invocationOp state,
         c_invocationRes = invocationRes state\<rparr>"
@@ -352,14 +352,14 @@ lemma invContextSnapshot_eq:
 
 
 lemma invariantContext_eqI: "\<lbrakk>
-calls x = calls y;
-happensBefore x = happensBefore y;
-callOrigin x = callOrigin y;
-transactionOrigin x = transactionOrigin y;
-knownIds x = knownIds y;
-invocationOp x = invocationOp y;
-invocationRes x = invocationRes y
-\<rbrakk> \<Longrightarrow> x = (y::'any invariantContext)"
+c_calls x = c_calls y;
+c_happensBefore x = c_happensBefore y;
+c_callOrigin x = c_callOrigin y;
+c_transactionOrigin x = c_transactionOrigin y;
+c_knownIds x = c_knownIds y;
+c_invocationOp x = c_invocationOp y;
+c_invocationRes x = c_invocationRes y
+\<rbrakk> \<Longrightarrow> x = (y::('any,'operation, 'invocationOp)  invariantContext)"
   by auto
 
 
@@ -430,21 +430,21 @@ apply eval
 done
 *)
 
-datatype 'any action =
+datatype ('any_, 'operation_, 'proc_) action =
   ALocal
-  | ANewId 'any
+  | ANewId 'any_
   | ABeginAtomic txid "callId set"
   | AEndAtomic
-  | ADbOp callId operation "'any list" 'any
-  | AInvoc procedureName "'any list"
-  | AReturn 'any
+  | ADbOp callId 'operation_ 'any_
+  | AInvoc 'proc_
+  | AReturn 'any_
   | AFail  
   | AInvcheck bool
 
 
 definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 
-definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> bool" where
+definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> 'state \<Rightarrow> bool" where
 "chooseSnapshot snapshot vis S \<equiv>
   \<exists>newTxns newCalls.
   \<comment> \<open>  choose a set of committed transactions to add to the snapshot  \<close>
