@@ -124,7 +124,7 @@ assumes stateEqI:
   invocationOp x = invocationOp y;
   invocationRes x = invocationRes y;
   calls x = calls y\<rbrakk> \<Longrightarrow> x = y" 
-                                                           
+
 
 
 context repliss_sem begin
@@ -429,20 +429,18 @@ lemma "{5::int, 9} \<down> {(3,5),(2,3),(4,9)} = {2,3,4,5,9}"
 apply eval
 done
 *)
-end
 
-datatype ('any, 'operation, 'proc) action =
+datatype ('any_, 'operation_, 'proc_) action =
   ALocal
-  | ANewId 'any
+  | ANewId 'any_
   | ABeginAtomic txid "callId set"
   | AEndAtomic
-  | ADbOp callId 'operation 'any
-  | AInvoc 'proc
-  | AReturn 'any
+  | ADbOp callId 'operation_ 'any_
+  | AInvoc 'proc_
+  | AReturn 'any_
   | AFail  
   | AInvcheck bool
 
-context repliss_sem begin
 
 definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 
