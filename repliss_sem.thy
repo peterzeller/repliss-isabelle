@@ -78,10 +78,10 @@ locale repliss_sem =
 \<comment> \<open>State: Invocation History\<close>
     and invocationOp :: "'state \<Rightarrow> invocId \<rightharpoonup> 'invocationOp"
     and invocationRes :: "'state \<Rightarrow> invocId \<rightharpoonup> 'any"
-\<comment> \<open>State Unique Identifiers:\<close>
+\<comment> \<open>State: Unique Identifiers:\<close>
     and generatedIds :: "'state \<Rightarrow> 'any \<rightharpoonup> invocId" \<comment> \<open>unique identifiers and which invocId generated them\<close>
     and knownIds :: "'state \<Rightarrow> 'any set"
-\<comment> \<open>State Local for invocation:\<close>
+\<comment> \<open>State: Local for invocation:\<close>
     and localState :: "'state \<Rightarrow> invocId \<rightharpoonup> 'localState"
     and currentProc :: "'state \<Rightarrow> invocId \<rightharpoonup> ('localState, 'any, 'operation) procedureImpl"
     and visibleCalls :: "'state \<Rightarrow> invocId \<rightharpoonup> callId set"
@@ -124,7 +124,7 @@ assumes stateEqI:
   invocationOp x = invocationOp y;
   invocationRes x = invocationRes y;
   calls x = calls y\<rbrakk> \<Longrightarrow> x = y" 
-
+                                                           
 
 
 context repliss_sem begin
@@ -336,13 +336,13 @@ abbreviation
 
 
 lemma invContextSnapshot_eq:
-  assumes "c_calls = committedCallsH (callOrigin state) (transactionStatus state)"
+  assumes "co_calls = committedCallsH (callOrigin state) (transactionStatus state)"
     and "c_txns = {t. transactionStatus state t \<triangleq> Committed}"
   shows
     "invContext state =  \<lparr>
-        c_calls = calls state |` c_calls , 
-        c_happensBefore = happensBefore state |r c_calls , 
-        c_callOrigin  = callOrigin state |` c_calls,
+        c_calls = calls state |` co_calls , 
+        c_happensBefore = happensBefore state |r co_calls , 
+        c_callOrigin  = callOrigin state |` co_calls,
         c_transactionOrigin = transactionOrigin state |` c_txns,
         c_knownIds = knownIds state,
         c_invocationOp = invocationOp state,
@@ -352,14 +352,14 @@ lemma invContextSnapshot_eq:
 
 
 lemma invariantContext_eqI: "\<lbrakk>
-calls x = calls y;
-happensBefore x = happensBefore y;
-callOrigin x = callOrigin y;
-transactionOrigin x = transactionOrigin y;
-knownIds x = knownIds y;
-invocationOp x = invocationOp y;
-invocationRes x = invocationRes y
-\<rbrakk> \<Longrightarrow> x = (y::'any invariantContext)"
+c_calls x = c_calls y;
+c_happensBefore x = c_happensBefore y;
+c_callOrigin x = c_callOrigin y;
+c_transactionOrigin x = c_transactionOrigin y;
+c_knownIds x = c_knownIds y;
+c_invocationOp x = c_invocationOp y;
+c_invocationRes x = c_invocationRes y
+\<rbrakk> \<Longrightarrow> x = (y::('any,'operation, 'invocationOp)  invariantContext)"
   by auto
 
 
@@ -429,22 +429,24 @@ lemma "{5::int, 9} \<down> {(3,5),(2,3),(4,9)} = {2,3,4,5,9}"
 apply eval
 done
 *)
+end
 
-datatype 'any action =
+datatype ('any, 'operation, 'proc) action =
   ALocal
   | ANewId 'any
   | ABeginAtomic txid "callId set"
   | AEndAtomic
-  | ADbOp callId operation "'any list" 'any
-  | AInvoc procedureName "'any list"
+  | ADbOp callId 'operation 'any
+  | AInvoc 'proc
   | AReturn 'any
   | AFail  
   | AInvcheck bool
 
+context repliss_sem begin
 
 definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 
-definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> bool" where
+definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> 'state \<Rightarrow> bool" where
 "chooseSnapshot snapshot vis S \<equiv>
   \<exists>newTxns newCalls.
   \<comment> \<open>  choose a set of committed transactions to add to the snapshot  \<close>
@@ -455,7 +457,7 @@ definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> 
    \<and> snapshot = vis \<union> newCalls"
 
 
-inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
+inductive step :: "'state \<Rightarrow> (invocId \<times> ('any, 'operation, 'proc) action) \<Rightarrow> 'state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
