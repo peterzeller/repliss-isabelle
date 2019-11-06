@@ -55,14 +55,14 @@ type_synonym ('localState, 'any) procedureImpl = "'localState \<Rightarrow> ('lo
 
 datatype transactionStatus = Uncommitted | Committed 
 
-instantiation transactionStatus :: linorder 
+instantiation transactionStatus :: linorder
 begin
 definition "less_eq_transactionStatus x y \<equiv> x = Uncommitted \<or> y = Committed"
 definition "less_transactionStatus x y \<equiv> x = Uncommitted \<and> y = Committed"
-instance 
+instance
   apply standard
   using transactionStatus.exhaust by (auto simp add: less_eq_transactionStatus_def less_transactionStatus_def )
-end  
+end
 
 lemmas transactionStatus_less_simps[simp] = less_eq_transactionStatus_def less_transactionStatus_def
 
@@ -135,7 +135,7 @@ lemma stateEqI:
 shows "(x::('localState, 'any) state) = y"
   using assms by (auto simp add: state_ext)
 
-lemma state_ext_exI: 
+lemma state_ext_exI:
   fixes P :: "('localState, 'any) state \<Rightarrow> bool"
   assumes "
 \<exists>
@@ -193,9 +193,7 @@ lemma downwardsClosure_subset:
   apply (auto simp add: downwardsClosure_in)
   using image_iff tranclD by fastforce
 
-lemma downwardsClosure_subset2:
-  "x \<in> S \<down> R \<Longrightarrow> x \<in> S \<union> fst ` R"
-  by (meson downwardsClosure_subset subsetCE)
+
 
 
 abbreviation "emptyOperationContext \<equiv> \<lparr> calls = Map.empty, happensBefore = {}\<rparr>"
@@ -421,72 +419,6 @@ invocationRes x = invocationRes y
   by auto
 
 
-(*
-abbreviation isUndef :: "'a option \<Rightarrow> bool" ("_ = \<bottom>" [0]60) where
- "x = \<bottom> \<equiv> x = None"
-*)
-
-
-
-
-(*
-inductive_set downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100) for S R  where 
- downwardsClosure_refl[simp]: 
- "x\<in>S \<Longrightarrow> x \<in> S\<down>R"
-| downwardsClosure_include:
-  "\<lbrakk>y \<in> S\<down>R; (x,y)\<in>R\<rbrakk> \<Longrightarrow> x\<in> S\<down>R"
-
-
-lemma dc_def2: "(S\<down>R) = S \<union> {x | x y. y\<in>S \<and> (x,y) \<in> R\<^sup>+}"
-proof auto
-  show "\<lbrakk>x \<in> S \<down> R; x \<notin> S\<rbrakk> \<Longrightarrow> \<exists>y. y \<in> S \<and> (x, y) \<in> R\<^sup>+" for x
-    proof (induct rule: downwardsClosure.induct)
-      case (downwardsClosure_refl x)
-        from local.downwardsClosure_refl
-        have False by simp 
-        thus ?case ..
-      next case (downwardsClosure_include y x)
-        show "?case"
-        proof (cases "y \<in> S")
-          case True
-            thus "\<exists>y. y \<in> S \<and> (x, y) \<in> R\<^sup>+"
-            using downwardsClosure_include.hyps(3) trancl.r_into_trancl by blast            
-          next case False
-            with local.downwardsClosure_include(2) 
-            obtain z where "z \<in> S" and "(y, z) \<in> R\<^sup>+" by auto
-            thus "\<exists>y. y \<in> S \<and> (x, y) \<in> R\<^sup>+"
-            using downwardsClosure_include.hyps(3) by auto 
-        qed
-    qed
-  next
-  show "\<lbrakk>(x, y) \<in> R\<^sup>+; y \<in> S\<rbrakk> \<Longrightarrow> x \<in> S \<down> R" for x y
-    apply (induct rule: converse_trancl_induct)
-    apply (meson downwardsClosure.simps)
-    by (simp add: downwardsClosure.downwardsClosure_include)
-qed
-
-\<comment> \<open>  we can calculate downwards closure by using the transitive closure and filtering  \<close>
-lemma dc_def3[code]: "(S\<down>R) = S \<union> fst ` Set.filter (\<lambda>(x,y). y\<in>S) (R\<^sup>+)"
-apply (subst dc_def2)
-apply auto
-by (metis case_prodI fst_conv image_iff member_filter)
-
-lemma downwardsClosure_subset:
-"S \<down> R \<subseteq> S \<union> fst ` R"
-apply (auto simp add: dc_def3)
-using image_iff tranclD by fastforce
-
-lemma downwardsClosure_subset2:
-"x \<in> S \<down> R \<Longrightarrow> x \<in> S \<union> fst ` R"
-  by (meson downwardsClosure_subset subsetCE)
-
-
-  
-\<comment> \<open>  example  \<close>  
-lemma "{5::int, 9} \<down> {(3,5),(2,3),(4,9)} = {2,3,4,5,9}"
-apply eval
-done
-*)
 
 datatype 'any action =
   ALocal

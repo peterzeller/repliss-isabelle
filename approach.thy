@@ -1,6 +1,7 @@
 theory approach
   imports Main commutativity
     repliss_sem_single_invocation
+    consistency
 begin
 
 section \<open>Proof approach\<close>
@@ -21,23 +22,6 @@ TODO:
 
 declare length_dropWhile_le[simp]  
 
-(*
-split a trace into maximal chunks of actions in the same session.
-Each chunk can be used in single-invocId semantics.
-
-Remember that a trace is just a (invocId\<times>action) list
-*)
-fun split_trace :: "'any trace \<Rightarrow> (invocId \<times> ('any action list)) list" where
-  "split_trace [] = []"
-| "split_trace ((s,a)#rest) = (
-   let same = map snd (takeWhile (\<lambda>x. fst x = s) rest);
-       rest' = dropWhile (\<lambda>x. fst x = s) rest
-   in (s, a#same) # split_trace rest'
-)"
-
-
-
-
 
 lemma state_wellFormed_ls_visibleCalls:     
   assumes "state_wellFormed S"
@@ -46,7 +30,7 @@ lemma state_wellFormed_ls_visibleCalls:
    apply (simp add: initialState_def)
   apply (erule step.cases)
           apply (auto split: if_splits)
-  done  
+  done
 
 lemma state_wellFormed_ls_to_visibleCalls:     
   assumes "state_wellFormed S"
@@ -634,45 +618,7 @@ next
   qed
 qed
 
-(*
-lemma wf_happensBefore_trans: 
-  assumes  wf: "state_wellFormed S"
-  shows "trans (happensBefore S)"
-  using assms apply (induct rule: wellFormed_induct)
-   apply (simp add: initialState_def)
-  apply (auto simp add: step.simps)
-  apply (subst trans_def)
-  apply (auto dest: transD)
-proof -
 
-show "(x, c) \<in> happensBefore t"
-    if c0: "state_wellFormed t"
-   and c1: "trans (happensBefore t)"
-   and c2: "localState t sa \<triangleq> ls"
-   and c3: "currentProc t sa \<triangleq> f"
-   and c4: "f ls = DbOperation Op args ls'"
-   and c5: "currentTransaction t sa \<triangleq> ta"
-   and c6: "calls t c = None"
-   and c7: "querySpec (prog t) Op args (getContextH (calls t) (happensBefore t) (Some vis)) res"
-   and c8: "visibleCalls t sa \<triangleq> vis"
-   and c9: "(x, y) \<in> happensBefore t"
-   and c10: "y \<in> vis"
-   and c11: "x \<notin> vis"
-   for  t sa ls f Op args ls' ta c res vis x y
-  using wellFormed_visibleCallsSubsetCalls[OF c0 c8] wellFormed_visibleCallsSubsetCalls_h(1)[OF c0]
-that 
-*)
-
-
-lemma chooseSnapshot_causallyConsistent_preserve:
-  assumes a1: "chooseSnapshot snapshot vis S"
-    and a2': "trans (happensBefore S)"
-    and a3: "causallyConsistent (happensBefore S) vis"
-  shows "causallyConsistent (happensBefore S) snapshot"
-  using a1 a3 apply (auto simp add: chooseSnapshot_def downwardsClosure_def causallyConsistent_def)
-   apply (rule_tac x=y in exI)
-  apply auto
-  by (meson a2' transE)
 
 
 lemma chooseSnapshot_transactionConsistent_preserve:
@@ -719,37 +665,6 @@ proof (auto simp add: consistentSnapshotH_def)
 qed
 
 
-lemma wellFormed_state_causality:
-assumes wf: "state_wellFormed S"
-shows "\<And>s vis. visibleCalls S s \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore S) vis"
-  and "trans (happensBefore S)"
-using assms  proof (induct rule: wellFormed_induct)
-  case initial
-  show "visibleCalls (initialState (prog S)) s \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore (initialState (prog S))) vis" for s vis
-    by (auto simp add: initialState_def)
-  show "trans (happensBefore (initialState (prog S)))"
-    by (auto simp add: initialState_def)
-next
-  case (step C a C')
-  
-  have causal: "causallyConsistent (happensBefore C) vis" if "visibleCalls C s \<triangleq> vis" for s vis
-    using step.hyps(2) that by auto
-    
-  
-    
-  show "trans (happensBefore C')"
-    using \<open>trans (happensBefore C)\<close> \<open>C ~~ a \<leadsto> C'\<close> apply (auto simp add: step_simps_all)
-    using causal apply (auto simp add: causallyConsistent_def)
-    by (smt Un_iff domIff empty_iff insert_iff mem_Sigma_iff step.hyps(1) subset_eq trans_def wellFormed_visibleCallsSubsetCalls_h(1))
-    
-  show "visibleCalls C' s \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore C') vis" for s vis
-    using causal \<open>C ~~ a \<leadsto> C'\<close> apply (auto simp add: step_simps_all)
-        apply (auto simp add: causallyConsistent_def split: if_splits)
-    apply (meson causallyConsistent_def chooseSnapshot_causallyConsistent_preserve step.hyps(3))
-    apply (metis (no_types, lifting) SigmaD2 domIff step.hyps(1) subsetCE wellFormed_visibleCallsSubsetCalls_h(1))
-    using step.hyps(1) wellFormed_visibleCallsSubsetCalls2 by blast
-    
-qed
 
 
 lemma show_transactionConsistent[case_names only_committed[in_vis origin_tx] all_from_same[in_vis origin_same]]:
@@ -1266,44 +1181,6 @@ apply (auto dest: transD)
   
 
 
-find_consts name: trans "'a rel \<Rightarrow> bool"
-
-lemma causallyConsistent_downwards_closure:
-assumes wf: "state_wellFormed S"
-shows "causallyConsistent (happensBefore S) (cs \<down> happensBefore S)"
-apply (auto simp add: causallyConsistent_def downwardsClosure_def)
-  by (meson local.wf transD wellFormed_state_causality(2))
-
-
-lemma consistentSnapshot_txns:
-assumes wf: "state_wellFormed S"
-  and comitted: "txns \<subseteq> committedTransactions S"
-shows "consistentSnapshot S (callsInTransaction S txns \<down> happensBefore S)"
-unfolding consistentSnapshotH_def proof (intro conjI)
- 
-  show "callsInTransaction S txns \<down> happensBefore S \<subseteq> dom (calls S)"
-    apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
-    using local.wf wellFormed_callOrigin_dom2 apply fastforce
-    by (simp add: domD happensBefore_in_calls_left local.wf)
-    
-  show "causallyConsistent (happensBefore S) (callsInTransaction S txns \<down> happensBefore S)"
-    apply (auto simp add: callsInTransactionH_def downwardsClosure_def causallyConsistent_def)
-    by (meson happensBefore_transitive local.wf transD)
-    
-  show "transactionConsistent (callOrigin S) (transactionStatus S) (callsInTransaction S txns \<down> happensBefore S)"
-  proof (induct rule: show_transactionConsistent)
-    case (only_committed c tx)
-    then show ?case 
-      apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
-      using comitted apply blast
-      using comitted local.wf wellFormed_state_transaction_consistent(4) by fastforce
-  next
-    case (all_from_same c1 c2)
-    then show ?case 
-      apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
-      by (metis local.wf wellFormed_state_transaction_consistent(3))
-  qed
-qed    
 
 
 
@@ -1346,25 +1223,6 @@ lemma wf_vis_downwards_closed2:
 
 
 
-
-lemma wf_current_tx_not_before_others: 
-  assumes wf: "state_wellFormed S"
-    and "visibleCalls S i \<triangleq> Vis"
-    and "currentTransaction S i \<triangleq> tx"
-    and "callOrigin S x \<triangleq> tx"
-    and "callOrigin S y \<noteq> Some tx"
-  shows "(x,y) \<notin> happensBefore S"
-proof -
-  obtain tt :: "(callId \<Rightarrow> txid option) \<Rightarrow> callId \<Rightarrow> txid" where
-    "\<forall>x0 x1. (\<exists>v2. x0 x1 \<triangleq> v2) = x0 x1 \<triangleq> tt x0 x1"
-    by moura
-  then have "\<forall>c f. c \<notin> dom f \<or> f c \<triangleq> tt f c"
-    by blast
-  then have "(x, y) \<notin> happensBefore S \<or> y \<notin> dom (callOrigin S)"
-    by (metis (no_types) assms(3) assms(4) assms(5) local.wf option.inject transactionStatus.distinct(1) wellFormed_currentTransaction_unique_h(2) wellFormed_state_transaction_consistent(4))
-  then show ?thesis
-    by (meson domIff local.wf wellFormed_callOrigin_dom3 wellFormed_happensBefore_calls_r)
-qed
 
 
 lemma wf_happensBefore_txns_left: 
@@ -1865,7 +1723,6 @@ next
             by (simp add: a8)
 
 
-
           show "consistentSnapshot S' snapshot"
           proof (rule show_consistentSnapshot)
             show "snapshot \<subseteq> dom (calls S')"
@@ -1891,6 +1748,9 @@ next
             qed
           qed
         qed
+
+
+        
 
         moreover have "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
           using ih1 by auto
@@ -2439,18 +2299,14 @@ next
             show " \<And>t. transactionOrigin S2 t \<triangleq> s = transactionOrigin S' t \<triangleq> s"
               using ih3 state_coupling_def by force
 
-
             have wf_S': "state_wellFormed S'"
               using S_wf noFails_tr state_wellFormed_combine steps by auto
 
-
-            find_theorems chooseSnapshot consistentSnapshot
 
             from a9
             show "consistentSnapshot S' snapshot"
             proof (rule chooseSnapshot_consistentSnapshot_preserve)
               show "\<And>x y z tx. \<lbrakk>(x, z) \<in> happensBefore S'; callOrigin S' x \<triangleq> tx; callOrigin S' y \<triangleq> tx; callOrigin S' z \<noteq> Some tx\<rbrakk> \<Longrightarrow> (y, z) \<in> happensBefore S'"
-                sledgehammer
                 by (simp add: wf_S' wf_happensBefore_txns_left)
               show "\<And>c tx. callOrigin S' c \<triangleq> tx \<Longrightarrow> transactionStatus S' tx \<triangleq> Committed"
                 by (metis (full_types) \<open>\<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted\<close> domD domIff transactionStatus.exhaust wf_S' wf_no_transactionStatus_origin_for_nothing)

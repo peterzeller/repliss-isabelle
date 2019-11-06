@@ -955,6 +955,7 @@ next
             by (simp add: newTxns2)
 
           show "consistentSnapshot C' vis'"
+
             using \<open>consistentSnapshot C' vis'\<close> .
 
           show "\<forall>t. transactionOrigin C' t \<triangleq> i = transactionOrigin C t \<triangleq> i"

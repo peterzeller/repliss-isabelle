@@ -176,39 +176,6 @@ lemma wellFormed_callOrigin_dom3:
 lemma range_empty[simp]: "range Map.empty = {None}"
   by auto
 
-lemma chooseSnapshot_subsetOfCalls:
-  assumes  a1: "state_wellFormed S"
-      and a2: "chooseSnapshot snapshot vis S"
-      and a3: "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
-      and a4: "vis \<subseteq> dom (calls S)"
-  shows "snapshot \<subseteq> dom (calls S)"
-  using a2 apply (auto simp add: chooseSnapshot_def)
-  using a4 apply blast
-  by (smt a1 a3 callsInTransactionH_contains domD domIff downwardsClosure_in mem_Sigma_iff option.case(1) subsetCE wellFormed_callOrigin_dom2)
-
-
-
-lemma wellFormed_visibleCallsSubsetCalls_h:
-  assumes a1: "state_wellFormed S"
-  shows "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
-    and "\<And>vis s. visibleCalls S s \<triangleq> vis \<Longrightarrow> state_wellFormed S \<Longrightarrow> vis \<subseteq> dom (calls S)" 
-  using a1 apply (induct rule: wellFormed_induct)
-     apply (simp add: initialState_def)
-    apply (simp add: initialState_def)
-   apply (erule step.cases)
-           apply (auto split: if_splits)
-    apply blast
-   apply blast
-  apply (erule step.cases)
-  using chooseSnapshot_subsetOfCalls by (auto split: if_splits, blast+)
-
-
-
-lemma wellFormed_visibleCallsSubsetCalls:
-  assumes a1: "state_wellFormed A"
-    and a2: "visibleCalls A s \<triangleq> vis"
-  shows "vis \<subseteq> dom (calls A)"
-  using a1 a2 wellFormed_visibleCallsSubsetCalls_h(2) by blast
 
 
 
@@ -792,6 +759,42 @@ next
     apply (auto simp add: step.simps wellFormed_invoc_notStarted  split: if_splits)
     by auto
 qed
+
+
+lemma chooseSnapshot_subsetOfCalls:
+  assumes  a1: "state_wellFormed S"
+      and a2: "chooseSnapshot snapshot vis S"
+      and a3: "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
+      and a4: "vis \<subseteq> dom (calls S)"
+  shows "snapshot \<subseteq> dom (calls S)"
+  using a2 apply (auto simp add: chooseSnapshot_def)
+  using a4 apply blast
+  by (smt a1 a3 callsInTransactionH_contains domD domIff downwardsClosure_in mem_Sigma_iff option.case(1) subsetCE wellFormed_callOrigin_dom2)
+
+
+
+
+
+lemma wellFormed_visibleCallsSubsetCalls_h:
+  assumes a1: "state_wellFormed S"
+  shows "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
+    and "\<And>vis s. visibleCalls S s \<triangleq> vis \<Longrightarrow> state_wellFormed S \<Longrightarrow> vis \<subseteq> dom (calls S)"
+  using a1 apply (induct rule: wellFormed_induct)
+     apply (simp add: initialState_def)
+    apply (simp add: initialState_def)
+   apply (erule step.cases)
+           apply (auto split: if_splits)
+    apply blast
+   apply blast
+  apply (erule step.cases)
+  using chooseSnapshot_subsetOfCalls by (auto split: if_splits, blast+)
+
+lemma wellFormed_visibleCallsSubsetCalls2: "\<lbrakk>
+      state_wellFormed S;
+      visibleCalls S sb \<triangleq> visa;
+      calls S c = None
+    \<rbrakk> \<Longrightarrow> c\<notin>visa"
+  by (meson domIff set_mp wellFormed_visibleCallsSubsetCalls_h(2))
 
 
 end

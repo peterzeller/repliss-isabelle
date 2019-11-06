@@ -1,53 +1,11 @@
 theory repliss_sem_single_invocation
-  imports repliss_sem execution_invariants
+  imports repliss_sem execution_invariants consistency
 begin
 
 
 section \<open>Single invocId semantics\<close>
 
 text \<open>This theory describes the single-invocId semantics used for our proof approach.\<close>
-
-definition 
-"causallyConsistent hb vis \<equiv>
-  (\<forall>c1 c2. c1\<in>vis \<and> (c2,c1)\<in> hb \<longrightarrow> c2\<in>vis)"
-
-definition
-"transactionConsistent origin txStatus vis \<equiv>
-    (\<forall>c tx. c\<in>vis \<and> origin c \<triangleq> tx \<longrightarrow> txStatus tx \<triangleq> Committed)
-  \<and> (\<forall>c1 c2. c1\<in>vis \<and> origin c1 = origin c2 \<longrightarrow> c2\<in>vis)"
-
-lemma transactionConsistent_Committed:
-shows "\<lbrakk>transactionConsistent origin txStatus vis; c\<in>vis; origin c \<triangleq> tx; origin c \<triangleq> tx\<rbrakk> \<Longrightarrow> txStatus tx \<triangleq> Committed"
-by (auto simp add:  transactionConsistent_def) 
-
-lemma transactionConsistent_all_from_same:
-shows "\<lbrakk>transactionConsistent origin txStatus vis; c1\<in>vis; origin c1 = origin c2\<rbrakk> \<Longrightarrow> c2\<in>vis"
-by (auto simp add:  transactionConsistent_def) 
-
-definition consistentSnapshotH where
-"consistentSnapshotH s_calls s_happensBefore s_callOrigin s_transactionStatus vis \<equiv>
-  vis \<subseteq> dom s_calls
- \<comment> \<open>  causally consistent  \<close> 
- \<and> (causallyConsistent s_happensBefore vis)
- \<comment> \<open> transaction consistent  \<close>
- \<and> (transactionConsistent s_callOrigin s_transactionStatus vis)
-"
-
-abbreviation consistentSnapshot where
-"consistentSnapshot state vis \<equiv>
-consistentSnapshotH (calls state) (happensBefore state) (callOrigin state) (transactionStatus state) vis"
-
-abbreviation consistentSnapshotI where
-"consistentSnapshotI state vis \<equiv>
-consistentSnapshotH (calls state) (happensBefore state) (callOrigin state) (\<lambda>t. Some Committed) vis"
-
-
-lemma show_consistentSnapshot:
-  assumes "vis \<subseteq> dom s_calls"
-and "causallyConsistent s_happensBefore vis"
-and "transactionConsistent s_callOrigin s_transactionStatus vis"
-  shows "consistentSnapshotH s_calls s_happensBefore s_callOrigin s_transactionStatus vis"
-  using assms by (auto simp add: consistentSnapshotH_def)
 
 definition 
 "state_monotonicGrowth_txStable callOrigin_S callOrigin_S' transactionStatus_S' \<equiv> (\<forall>c tx. callOrigin_S c \<triangleq> tx \<and> transactionStatus_S' tx \<triangleq> Committed \<longrightarrow> callOrigin_S' c \<triangleq> tx)"

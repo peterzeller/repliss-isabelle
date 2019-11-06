@@ -186,89 +186,7 @@ next
 qed  
 
 
-text \<open>
- We have visible calls iff we have some local state.
-\<close>
-lemma visibleCalls_iff_localState:
-  assumes steps: "initialState program ~~ tr \<leadsto>* S"
-  shows "localState S s = None \<longleftrightarrow> visibleCalls S s = None" 
-  using steps 
-proof (induct rule: steps_induct)
-  case initial
-  then show ?case
-    by (simp add: initialState_def)
-next
-  case (step S' tr a S'')
-  from \<open>S' ~~ a \<leadsto> S''\<close>
-  show ?case 
-    apply (rule step.cases)
-    using step.IH  by (auto simp add: step)
-qed
 
-text \<open>
- There can be no action on a invocId after a fail or return:
- (except for invariant checks)
-\<close>
-lemma nothing_after_fail_or_return:
-  assumes steps: "initialState program ~~ tr \<leadsto>* S"
-    and fail_or_return: "tr!i = (s, AFail) \<or> tr!i = (s, AReturn res)"
-    and i_in_range: "i < length tr"
-  shows "\<nexists>j. j>i \<and> j<length tr \<and> fst(tr!j) = s \<and> \<not>is_AInvcheck (snd (tr!j))" 
-  using steps fail_or_return i_in_range proof (induct rule: steps_induct)
-  case initial
-  then show ?case by auto
-next
-  case (step S' tr a S'')
-  show "\<not> (\<exists>j>i. j < length (tr @ [a]) \<and> fst ((tr @ [a]) ! j) = s \<and> \<not> is_AInvcheck (snd ((tr @ [a]) ! j)))"
-  proof (rule ccontr, auto)
-    fix j
-    assume a1: "j < Suc (length tr)"
-      and a2: "i < j"
-      and a3: "s = fst ((tr @ [a]) ! j)"
-      and a4: "\<not> is_AInvcheck (snd ((tr @ [a]) ! j))"
-
-    have j_def: "j = length tr"
-    proof (rule ccontr)
-      assume "j \<noteq> length tr"
-      then have "j < length tr" using a1 by simp
-      then have "s \<noteq> fst ((tr @ [a]) ! j)"
-        by (metis a2 a4 length_append_singleton less_Suc_eq nth_append order.asym step.IH step.prems(1) step.prems(2))
-      with a3 show False by simp
-    qed
-
-    obtain a_op where a_def: "a = (s, a_op)" using j_def a3
-      by (metis nth_append_length prod.collapse) 
-
-
-
-    from \<open>(tr @ [a]) ! i = (s, AFail) \<or> (tr @ [a]) ! i = (s, AReturn res)\<close>
-    have no_ls: "localState S' s = None" 
-      and op: "invocationOp S' s \<noteq> None"  
-       apply (metis a2 everything_starts_with_an_invocation j_def nth_append step.steps)
-      by (metis a2 everything_starts_with_an_invocation j_def nth_append step.prems(1) step.steps)
-
-    have fst_a: "fst a = s" using a_def by simp  
-
-    from \<open>S' ~~ a \<leadsto> S''\<close> a_def
-    have "S' ~~ (s, a_op) \<leadsto> S''" by simp  
-
-    then show False
-      apply (rule step.cases)
-              apply (auto simp add: no_ls a3 op j_def)
-              apply (auto simp add: fst_a no_ls op)
-      using a4 a_def is_AInvcheck_def j_def by auto 
-  qed
-qed
-
-(*
-text {*
-After a return or a failure no more actions on the same invocId are possible.
-*}
-lemma nothing_after_fail_or_return:
-assumes steps: "initialState program ~~ tr \<leadsto>* S"
- and fail_or_return: "tr!i = (s, AFail) \<or> tr!j = (s, AReturn res)"
-shows "\<nexists>j. j>i \<and> fst(tr!j) = s" 
-*)
 
 lemma trace_simulationProof[consumes 1, case_names initial f_empty_to_empty induct_step[coupling steps1 steps2 step]]:
   assumes steps_tr: "init ~~ tr \<leadsto>* S"
@@ -312,12 +230,6 @@ schematic_goal [simp]: "isAFail (AInvoc pname args) = ?x" by (auto simp add: isA
 schematic_goal [simp]: "isAFail (AReturn res) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AFail) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AInvcheck c) = ?x" by (auto simp add: isAFail_def)                            
-
-lemma exI_eq: 
-  assumes "P y True"
-  shows "\<exists>x. P x (x = y)"
-  using assms by (metis (full_types))
-
 
 lemma chooseSnapshot_unchanged:
   assumes
@@ -829,101 +741,6 @@ qed
 
 
 
-\<comment> \<open>invcontext is not changed by actions in other transactions\<close>
-lemma unchangedInTransaction_getInvContext:
-  assumes differentSessions[simp]: "sa \<noteq> sb"
-    and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
-    and aIsInInvoc: "localState A sa \<triangleq> lsa"
-    and txUncommitted[simp]: "transactionStatus A tx \<triangleq> Uncommitted" 
-    and aIsNotCommit: "a \<noteq> AEndAtomic"
-    and exec: "A ~~ (sa, a) \<leadsto> B"
-    and visibleCalls_inv: "\<And>s vis. visibleCalls A s \<triangleq> vis \<Longrightarrow> vis \<subseteq> dom (calls A)"
-    and origin_inv: "dom (callOrigin A) = dom (calls A)"
-  shows
-    "invContext A = invContext B"
-proof (cases a)
-  case ALocal
-  then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
-next
-  case (ANewId x2)
-  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
-next
-  case (ABeginAtomic x3)
-  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
-next
-  case AEndAtomic
-  then show ?thesis
-    using aIsNotCommit by blast  
-next
-  case (ADbOp callId operation args res)
-  with exec obtain ls f ls' vis
-    where 1: "a = ADbOp callId operation args res"
-      and B_def: "B = A\<lparr>localState := localState A(sa \<mapsto> ls' res), 
-                calls := calls A(callId \<mapsto> Call operation args res), callOrigin := callOrigin A(callId \<mapsto> tx), visibleCalls := visibleCalls A(sa \<mapsto> {callId} \<union> vis),
-                happensBefore := happensBefore A \<union> vis \<times> {callId}\<rparr>"
-      and 3: "localState A sa \<triangleq> ls"
-      and 4: "currentProc A sa \<triangleq> f"
-      and 5: "f ls = DbOperation operation args ls'"
-      and 6: "querySpec (prog A) operation args (getContext A sa) res"
-      and 7: "visibleCalls A sa \<triangleq> vis"
-      and 8: "calls A callId = None"
-    apply atomize_elim
-    using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
-  have committedSame: "committedCalls B = committedCalls A"        
-    apply (auto simp add: committedCallsH_def isCommittedH_def  B_def)
-    using "8" origin_inv by auto
-
-  have committedCallsSame: "\<And>x. x \<in> committedCalls A \<Longrightarrow> calls A x = calls B x"
-    apply (auto simp add: B_def)
-    using "8" committedCallsH_def isCommittedH_def origin_inv
-    by (smt domI domIff mem_Collect_eq) 
-
-  have [simp]: "callId \<notin> committedCalls A"
-    by (smt "8" domIff committedCallsH_def isCommittedH_def domI mem_Collect_eq origin_inv) 
-
-
-  show ?thesis 
-  proof (rule invariantContext_eqI)
-    show "calls (invContext A) = calls (invContext B)"
-      apply (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def)
-      done
-    show "happensBefore (invContext A) = happensBefore (invContext B)"
-      apply (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def)
-       apply (auto simp add: restrict_relation_def B_def)
-      done
-
-    show "callOrigin (invContext A) = callOrigin (invContext B)"
-      apply (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def)
-      apply (auto simp add: B_def)
-      done
-    show "knownIds (invContext A ) = knownIds (invContext B )"
-      by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
-    show "invocationOp (invContext A ) = invocationOp (invContext B )"
-      by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
-    show "invocationRes (invContext A ) = invocationRes (invContext B )"
-      by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
-    show "transactionOrigin (invContext A ) = transactionOrigin (invContext B )"
-      by (auto simp add: invContextH_def committedSame committedCallsSame restrict_map_def B_def)
-  qed
-
-
-next
-  case (AInvoc x71 x72)
-  then show ?thesis  using exec 
-    by (auto simp add: aIsInTransaction aIsInInvoc differentSessions[symmetric] elim!: step_elims split: option.splits)
-
-next
-  case (AReturn x8)
-  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
-next
-  case AFail
-  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
-next
-  case (AInvcheck x10)
-  then show ?thesis  using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
-qed
-
-
 lemma generatedIds_mono:
   "\<lbrakk>A ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> generatedIds A \<subseteq>\<^sub>m generatedIds B"
   apply (erule step.cases, auto simp add: map_le_def)
@@ -1371,12 +1188,7 @@ lemma getContextH_callsUpdate[simp]:
      = getContextH cs hb (Some vis)"
   using assms by (auto simp add: getContextH_def split: option.splits)
 
-lemma wellFormed_visibleCallsSubsetCalls2: "\<lbrakk> 
-      state_wellFormed S;
-      visibleCalls S sb \<triangleq> visa; 
-      calls S c = None
-    \<rbrakk> \<Longrightarrow> c\<notin>visa"
-  by (meson domIff set_mp wellFormed_visibleCallsSubsetCalls_h(2))
+
 
 lemma callsInTransactionH_originUpdate_unchanged[simp]:
   assumes a1: "currentTransaction S sa \<triangleq> t"
@@ -1664,16 +1476,6 @@ proof -
 qed
 
 
-lemma move_outside_transaction:
-  assumes b_is_a_different_session[simp]: "sa \<noteq> sb"
-    and wf[simp]: "state_wellFormed S"
-    and no_end_atomic: "b \<noteq> AEndAtomic" 
-  shows "(S ~~ [(sa,ABeginAtomic t newTxns),(sb,b)] \<leadsto>* T) 
-   \<longleftrightarrow> (S ~~ [(sb,b),(sa,ABeginAtomic t newTxns)] \<leadsto>* T)"
-proof (rule useCommutativeS)
-  show "commutativeS S (sa, ABeginAtomic t newTxns) (sb, b)"
-    using assms by (rule commutative_beginAtomic_other)
-qed
 
 
 
@@ -1801,7 +1603,7 @@ lemma one_compaction_step:
     by (auto simp add: steps_appendFront)
   moreover have "... = (\<exists>S'. (s_init ~~ [x, (s, ABeginAtomic tx ntxns)] \<leadsto>* S') \<and> (S' ~~ rest \<leadsto>* C))"
     using useCommutativeS[OF commutative_beginAtomic_other[OF \<open>fst x \<noteq> s\<close>[symmetric] wf \<open>snd x \<noteq> AEndAtomic\<close>]]
-    by simp 
+    by simp
   moreover have "... = ( s_init ~~ x # (s, ABeginAtomic tx ntxns) # [] @ rest \<leadsto>* C)"
     by (auto simp add: steps_appendFront)
 
@@ -2315,10 +2117,6 @@ definition inTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocId 
 definition sessionsInTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocId set"  where 
   "sessionsInTransaction tr i \<equiv> {s. inTransaction tr i s}"
 
-\<comment> \<open>counts how many concurrent transactions are active\<close>
-definition transactionsArePackedMeasure :: "'any trace \<Rightarrow> nat" where
-  "transactionsArePackedMeasure tr \<equiv> 
-\<Sum>i\<in>{..<length tr}. card (sessionsInTransaction tr i - {fst (tr!i)})  "
 
 
 lemma inTransactionEmpty[simp]: "\<not>inTransaction [] i s"
@@ -2438,18 +2236,6 @@ lemma sessionsInTransaction_finite[simp]:
 lemma subset_h1: "X \<subseteq> Y \<Longrightarrow> \<forall>x. x\<in>X \<longrightarrow> x\<in>Y"
   by blast
 
-lemma transactionsArePackedMeasure_iff:
-  "transactionsArePacked tr \<longleftrightarrow> transactionsArePackedMeasure tr = 0"
-  apply (auto simp add: transactionsArePacked_def transactionsArePackedMeasure_def )
-   apply (auto simp add: sessionsInTransaction_def inTransaction_def)
-   apply (smt dual_order.order_iff_strict fst_conv less_le_trans)
-  apply (drule_tac x=k in bspec)
-   apply auto
-  apply (drule subset_h1, clarsimp)
-  apply (drule_tac x=s in spec)
-  apply auto
-  by (metis antisym_conv2 less_imp_le_nat prod.collapse prod.inject)
-    \<comment> \<open>TODO nicer proof\<close>
 
 lemma not_packed_example:
   assumes notPacked: "\<not>transactionsArePacked tr"
@@ -2463,41 +2249,6 @@ lemma not_packed_example:
   using assms apply (auto simp add: transactionsArePacked_def)
   by (metis prod.collapse)
 
-lemma sumExists:
-  fixes f :: "'a \<Rightarrow> nat"
-  shows "0 < (\<Sum>x\<leftarrow>xs. f x) \<Longrightarrow> \<exists>i<length xs. f (xs!i) > 0"
-  by (induct xs, auto, auto)
-
-lemma sumExists2:
-  fixes f :: "'a \<Rightarrow> nat"
-  assumes "finite S"
-  shows "0 < sum f S \<Longrightarrow> \<exists>x\<in>S. f x > 0"
-  using assms
-  by (meson not_less sum_nonpos) 
-
-lemma not_packed_example2:
-  assumes notPacked: "transactionsArePackedMeasure tr > 0"
-  shows "\<exists>i s a.
-    i<length tr
-  \<and> tr!i = (s,a)
-  \<and> sessionsInTransaction tr i - {s} \<noteq> {}" (is ?goal)
-proof -
-  from notPacked
-  have "0 < (\<Sum>i<length tr. card (sessionsInTransaction tr i - {fst (tr ! i)}))"
-    by (auto simp add: transactionsArePackedMeasure_def)
-  from this 
-  obtain i 
-    where a: "i < length tr" 
-      and b: "card (sessionsInTransaction tr i - {fst (tr ! i)}) > 0"
-    by (meson lessThan_iff not_less sum_nonpos)
-
-  from b 
-  have "sessionsInTransaction tr i - {fst (tr!i)} \<noteq> {}"
-    by fastforce
-
-  then show ?thesis
-    by (metis a prod.collapse)
-qed  
 
 
 lemma LeastI2:
@@ -2519,294 +2270,7 @@ lemma hd_drop_conv_nth2:  "\<lbrakk>i<length xs; a = hd (drop i xs)\<rbrakk> \<L
 lemma eq_tl: "\<lbrakk>xs \<noteq> []; \<And>a as. xs = a#as \<Longrightarrow> drop i ys = as\<rbrakk> \<Longrightarrow> drop i ys = tl xs"
   by (case_tac xs, auto)
 
-lemma split_trace_min_i:
-  assumes min_i_def: "min_i = (LEAST i. i < length tr \<and> sessionsInTransaction tr i - {fst (tr ! i)} \<noteq> {})"
-    and i1: "i < length tr"
-    and i2: "sessionsInTransaction tr i - {fst (tr ! i)} \<noteq> {}"
-  shows "\<exists>trStart s tx txns txa rest.
-       tr = trStart @ (s, ABeginAtomic tx txns) # txa @ tr!min_i # rest 
-     \<and> length (trStart @ (s, ABeginAtomic tx txns) # txa) = min_i
-     \<and> (\<forall>a \<in> set txa. fst a = s \<and> snd a \<noteq> AEndAtomic)
-     \<and> (s \<noteq> fst (tr!min_i))"
-proof -
-  from min_i_def
-  have "min_i < length tr \<and> sessionsInTransaction tr min_i - {fst (tr ! min_i)} \<noteq> {}"
-    apply (rule LeastI2)
-    using i1 i2 by auto
-  then have min_i1: "min_i < length tr" 
-    and min_i2: "sessionsInTransaction tr min_i - {fst (tr ! min_i)} \<noteq> {}" by auto
 
-  from min_i2 
-  obtain j s tx txns
-    where j1: "min_i < length tr"
-      and j2: "j \<le> min_i"
-      and noEndAtomic: "\<forall>k. j < k \<and> k < length tr \<and> k \<le> min_i \<longrightarrow> tr ! k \<noteq> (s, AEndAtomic)"
-      and tr_j: "tr ! j = (s, ABeginAtomic tx txns)"
-      and otherS: "s \<noteq> fst (tr ! min_i)"
-    by (auto simp add: sessionsInTransaction_def inTransaction_def)
-
-  obtain trStart where trStart_def: 
-    "trStart = take j tr" by simp
-
-  obtain txa where txa_def:
-    "txa = take (min_i - j - 1) (drop (Suc j) tr)" by simp
-
-  obtain rest where rest_def:
-    "rest = drop (Suc min_i) tr" by simp
-
-  have min_simp1[simp]: "(min (length tr - Suc j) (min_i - Suc j)) = min_i - Suc j"
-    using min_i1 by linarith
-
-  have min_simp2[simp]: "min (length tr) j = j"
-    using j2 min_i1 by auto
-
-  have arith_simp[simp]: "i < min_i - Suc j \<Longrightarrow> Suc j + i \<le> length tr" for i
-    using min_simp1 by linarith
-
-  have arith_simp2[simp]: "i < min_i - Suc j \<Longrightarrow> Suc (j + i) \<le> length tr" for i
-    using arith_simp by auto
-
-  have j_len[simp]: "j < length tr"
-    using j2 min_i1 by auto
-
-
-
-
-  have "tr = trStart @ (s, ABeginAtomic tx txns) # txa @ (tr!min_i) # rest"
-    \<comment> \<open>this proof should be easier ...\<close>
-    apply (auto simp add: trStart_def txa_def rest_def append_eq_conv_conj2 cons_eq_conv_conj)
-    using j_len apply auto[1]
-     apply (simp add: hd_drop_conv_nth j1 less_imp_le_nat min.absorb2 tr_j)
-    apply (auto simp add: append_eq_conv_conj)
-     apply (simp add: drop_Suc j_len less_or_eq_imp_le min_absorb2 min_diff min_i1 tl_drop)
-    apply (rule sym)
-    apply (auto simp add: cons_eq_conv_conj)
-      apply (metis Suc_leI j_len j2 le_diff_iff min_i1 not_less order.not_eq_order_implies_strict otherS prod.collapse prod.inject tr_j)
-     apply (smt Suc_diff_Suc add_diff_cancel_left' drop_Suc fst_conv hd_drop_conv_nth j_len j2 leD le_Suc_ex le_diff_iff length_drop less_imp_le_nat min_i1 nth_drop order.not_eq_order_implies_strict otherS tr_j)
-    apply (subst tl_drop)
-    apply (case_tac j)
-     apply auto
-     apply (metis Suc_diff_Suc diff_zero drop_Suc fst_conv j2 le_less otherS tr_j)
-    apply (case_tac nat)
-     apply auto
-     apply (metis (mono_tags, lifting) One_nat_def Suc_diff_Suc diff_zero drop_0 drop_Suc dual_order.order_iff_strict fst_conv j2 less_le_trans less_numeral_extra(1) otherS tr_j)
-    by (smt Suc_diff_Suc add.commute add_diff_cancel_left' drop_Suc drop_drop dual_order.order_iff_strict fst_conv j2 le_Suc_ex otherS tl_drop tr_j)
-
-
-  then have "tr = trStart @ (s, ABeginAtomic tx txns) # txa @ (tr!min_i) # rest
-       \<and> length (trStart @ (s, ABeginAtomic tx txns) # txa) = min_i"
-    apply auto
-    by (metis One_nat_def Suc_diff_Suc \<open>min (length tr - Suc j) (min_i - Suc j) = min_i - Suc j\<close> \<open>min (length tr) j = j\<close> add.right_neutral add_Suc_right add_diff_cancel_left' diff_diff_left dual_order.order_iff_strict fst_conv j2 le_Suc_ex length_drop length_take otherS trStart_def tr_j txa_def)
-
-
-
-  moreover have isFirst: "\<forall>a \<in> set txa. fst a = s \<and> snd a \<noteq> AEndAtomic"
-  proof (rule ccontr)
-    assume "\<not> (\<forall>a\<in>set txa. fst a = s \<and> snd a \<noteq> AEndAtomic)"
-    from this obtain otherI 
-      where otherI1: "otherI < length txa"
-        and otherI2: "fst (txa ! otherI) \<noteq> s \<or> snd (txa ! otherI) = AEndAtomic"
-      by (metis in_set_conv_nth)
-
-    have [simp]: "otherI < min_i - Suc j"
-      using otherI1 txa_def by auto
-
-
-
-    { \<comment> \<open>First consider the case where we have an earlier AEndAtomic for s\<close>
-      assume "(txa ! otherI) = (s, AEndAtomic)"
-      with noEndAtomic
-      have "False"
-        apply (auto simp add: txa_def )
-        using \<open>otherI < min_i - Suc j\<close> less_imp_le_nat min_i1 by auto
-    }
-    note case_endAtomic = this
-
-    { \<comment> \<open>Next, we consider the case where txa contains an action from a different invocId\<close>
-      assume differentSession: "fst (txa ! otherI) \<noteq> s"
-
-      define s' where s'_def: "s' = fst (txa ! otherI)"
-      then have differentSession2: "s' \<noteq> s"
-        by (simp add: differentSession) 
-
-      define min_i' where min_i'_def: "min_i' = otherI + length trStart + 1"
-
-      have [simp]: "fst (tr ! min_i') = s'"
-        using min_i'_def s'_def trStart_def txa_def
-        by (auto simp add: Suc_leI add.commute)
-
-      have other_least_1: "min_i' < length tr"
-        using min_i'_def \<open>otherI < min_i - Suc j\<close> less_diff_conv min_i1 trStart_def by auto
-
-      have "s \<in> sessionsInTransaction tr min_i'"
-        apply (auto simp add: sessionsInTransaction_def inTransaction_def)
-        apply (rule_tac x="length (trStart)" in exI)
-        apply auto
-           apply (simp add: j1 trStart_def)
-           apply (simp add: \<open>min_i' \<equiv> otherI + length trStart + 1\<close>)
-           apply (simp add: trStart_def tr_j)
-          apply (simp add: other_least_1)
-         apply (simp add: trStart_def tr_j)
-        by (metis One_nat_def \<open>otherI < min_i - Suc j\<close> add.right_neutral add_Suc_right dual_order.trans length_take less_diff_conv less_or_eq_imp_le min_i'_def min_simp2 noEndAtomic trStart_def)
-
-      then have "s \<in> (sessionsInTransaction tr min_i' - {fst (tr ! min_i')})"
-        using differentSession2  by auto
-
-      then have other_least_2: "sessionsInTransaction tr min_i' - {fst (tr ! min_i')} \<noteq> {}"
-        by auto 
-
-      have other_least_3: "min_i' < min_i"
-        using \<open>min_i' \<equiv> otherI + length trStart + 1\<close> \<open>otherI < min_i - Suc j\<close> less_diff_conv trStart_def by auto
-
-
-      from other_least_1 other_least_2 other_least_3 min_i_def
-      have False
-        using not_less_Least by blast
-    }
-    with case_endAtomic
-    show False
-      by (metis otherI2 surjective_pairing)
-  qed    
-  moreover have "s \<noteq> fst (tr!min_i)"
-    by (simp add: otherS)
-
-  ultimately
-  show ?thesis
-    by blast
-qed    
-
-
-
-lemma split_trace_min_i2:
-  assumes min_i_def: "min_i = (LEAST i. indexInOtherTransaction tr tx i)"
-    and i1: "min_i < length tr"
-    and i2: "indexInOtherTransaction tr tx min_i"
-  shows "\<exists>trStart s txns txa rest.
-       tr = trStart @ (s, ABeginAtomic tx txns) # txa @ tr!min_i # rest 
-     \<and> length (trStart @ (s, ABeginAtomic tx txns) # txa) = min_i
-     \<and> (\<forall>a \<in> set txa. fst a = s \<and> snd a \<noteq> AEndAtomic)
-     \<and> (s \<noteq> fst (tr!min_i))"
-proof -
-
-  from i2
-  obtain j s txns
-    where j1: "j < length tr"
-      and j2: "j \<le> min_i"
-      and noEndAtomic: "\<forall>k. j < k \<and> k < length tr \<and> k \<le> min_i \<longrightarrow> tr ! k \<noteq> (s, AEndAtomic)"
-      and tr_j: "tr ! j = (s, ABeginAtomic tx txns)"
-      and otherS: "s \<noteq> fst (tr ! min_i)"
-    apply (atomize_elim)
-    apply (auto simp add: indexInOtherTransaction_def)
-    by (smt antisym_conv2 less_imp_le_nat less_trans prod.collapse prod.inject)
-
-
-  obtain trStart where trStart_def: 
-    "trStart = take j tr" by simp
-
-  obtain txa where txa_def:
-    "txa = take (min_i - j - 1) (drop (Suc j) tr)" by simp
-
-  obtain rest where rest_def:
-    "rest = drop (Suc min_i) tr" by simp
-
-  have min_simp1[simp]: "(min (length tr - Suc j) (min_i - Suc j)) = min_i - Suc j"
-    using i1 by linarith
-
-  have min_simp2[simp]: "min (length tr) j = j"
-    using j1 by linarith 
-
-  have arith_simp[simp]: "i < min_i - Suc j \<Longrightarrow> Suc j + i \<le> length tr" for i
-    using min_simp1 by linarith
-
-  have arith_simp2[simp]: "i < min_i - Suc j \<Longrightarrow> Suc (j + i) \<le> length tr" for i
-    using arith_simp by auto
-
-
-  have "tr = trStart @ (s, ABeginAtomic tx txns) # txa @ (tr!min_i) # rest"
-    \<comment> \<open>this proof should be easier ...\<close>
-    apply (auto simp add: trStart_def txa_def rest_def append_eq_conv_conj2 cons_eq_conv_conj)
-    using j1 apply auto[1]
-     apply (simp add: hd_drop_conv_nth j1 less_imp_le_nat min.absorb2 tr_j)
-    apply (auto simp add: append_eq_conv_conj)
-     apply (simp add: drop_Suc tl_drop)
-    apply (rule sym)
-    apply (auto simp add: cons_eq_conv_conj)
-      apply (metis fst_conv i1 j1 j2 le_diff_iff le_less_Suc_eq not_le not_less_eq_eq otherS tr_j)
-     apply (smt Suc_leI drop_Suc fst_conv hd_drop_conv_nth i1 j1 j2 le_add_diff_inverse length_drop length_take less_imp_le_nat min_simp1 nat_neq_iff not_le nth_drop otherS take_all tl_drop tr_j)
-    apply (subst tl_drop)
-    apply (case_tac j)
-     apply auto
-     apply (metis Suc_diff_Suc diff_zero drop_Suc fst_conv j2 le_less otherS tr_j)
-    apply (case_tac nat)
-     apply auto
-     apply (metis (mono_tags, lifting) One_nat_def Suc_diff_Suc diff_zero drop_0 drop_Suc dual_order.order_iff_strict fst_conv j2 less_le_trans less_numeral_extra(1) otherS tr_j)
-    by (smt Suc_diff_Suc add.commute add_diff_cancel_left' drop_Suc drop_drop dual_order.order_iff_strict fst_conv j2 le_Suc_ex otherS tl_drop tr_j)
-
-
-  then have "tr = trStart @ (s, ABeginAtomic tx txns) # txa @ (tr!min_i) # rest
-       \<and> length (trStart @ (s, ABeginAtomic tx txns) # txa) = min_i"
-    apply auto
-    by (metis One_nat_def Suc_diff_Suc \<open>min (length tr - Suc j) (min_i - Suc j) = min_i - Suc j\<close> \<open>min (length tr) j = j\<close> add.right_neutral add_Suc_right add_diff_cancel_left' diff_diff_left dual_order.order_iff_strict fst_conv j2 le_Suc_ex length_drop length_take otherS trStart_def tr_j txa_def)
-
-
-
-  moreover have isFirst: "\<forall>a \<in> set txa. fst a = s \<and> snd a \<noteq> AEndAtomic"
-  proof (rule ccontr)
-    assume "\<not> (\<forall>a\<in>set txa. fst a = s \<and> snd a \<noteq> AEndAtomic)"
-    from this obtain otherI 
-      where otherI1: "otherI < length txa"
-        and otherI2: "fst (txa ! otherI) \<noteq> s \<or> snd (txa ! otherI) = AEndAtomic"
-      by (metis in_set_conv_nth)
-
-    have [simp]: "otherI < min_i - Suc j"
-      using otherI1 txa_def by auto
-
-
-
-    { \<comment> \<open>First consider the case where we have an earlier AEndAtomic for s\<close>
-      assume "(txa ! otherI) = (s, AEndAtomic)"
-      with noEndAtomic
-      have "False"
-        apply (auto simp add: txa_def )
-        using \<open>otherI < min_i - Suc j\<close> less_imp_le_nat i1 by auto
-    }
-    note case_endAtomic = this
-
-    { \<comment> \<open>Next, we consider the case where txa contains an action from a different invocId\<close>
-      assume differentSession: "fst (txa ! otherI) \<noteq> s"
-
-      define s' where s'_def: "s' = fst (txa ! otherI)"
-      then have differentSession2: "s' \<noteq> s"
-        by (simp add: differentSession) 
-
-      define min_i' where min_i'_def: "min_i' = otherI + length trStart + 1"
-
-      have [simp]: "fst (tr ! min_i') = s'"
-        using min_i'_def s'_def trStart_def txa_def
-        by (auto simp add: Suc_leI add.commute  j1)
-
-      have other_least_1: "min_i' < length tr"
-        using min_i'_def \<open>otherI < min_i - Suc j\<close> less_diff_conv i1 trStart_def by auto
-
-      have "indexInOtherTransaction tr tx min_i'"
-        apply (auto simp add: indexInOtherTransaction_def)
-         apply (simp add: other_least_1)
-        by (metis Suc_eq_plus1 \<open>otherI < min_i - Suc j\<close> add.assoc differentSession2 le_add2 le_less length_take less_Suc_eq_le less_diff_conv less_trans min_i'_def min_simp2 noEndAtomic other_least_1 trStart_def tr_j)
-
-      then have False
-        by (metis Suc_eq_plus1 \<open>otherI < min_i - Suc j\<close> add.assoc length_take less_diff_conv min_i'_def min_i_def min_simp2 not_less_Least trStart_def)
-    }
-    with case_endAtomic
-    show False
-      by (metis otherI2 surjective_pairing)
-  qed    
-  moreover have "s \<noteq> fst (tr!min_i)"
-    by (simp add: otherS)
-
-  ultimately
-  show ?thesis
-    by blast
-qed    
 
 lemma show_traceCorrect_same:
   assumes sameTraceContent: "set tr = set tr'"
@@ -2819,25 +2283,6 @@ lemma sumSplit:
   shows "(\<Sum>i<x+y . f i) = (\<Sum>i<x . f i) + (\<Sum>i<y . f (x+i))"
   by (induct y, auto)
 
-lemma transactionsArePackedMeasure_append:
-  "transactionsArePackedMeasure (xs@ys) = 
-   (\<Sum>i<length xs. card (sessionsInTransaction xs i - {fst (xs ! i)})) 
- + (\<Sum>i<length ys. card (sessionsInTransaction (xs@ys) (length xs + i) - {fst (ys ! i)}))"
-proof -
-  have "transactionsArePackedMeasure (xs@ys)
-    = (\<Sum>i<length xs + length ys. card (sessionsInTransaction (xs @ ys) i - {fst ((xs @ ys) ! i)}))" 
-    by (auto simp add: transactionsArePackedMeasure_def)
-  moreover have "... =  
-          (\<Sum>i<length xs. card (sessionsInTransaction (xs @ ys) i - {fst ((xs @ ys) ! i)}))
-        + (\<Sum>i<length ys. card (sessionsInTransaction (xs @ ys) (length xs + i) - {fst ((xs @ ys) ! (length xs + i))}))"
-    using sumSplit by auto
-  moreover have "... = 
-          (\<Sum>i<length xs. card (sessionsInTransaction xs i - {fst (xs ! i)}))
-        + (\<Sum>i<length ys. card (sessionsInTransaction (xs @ ys) (length xs + i) - {fst (ys ! i)}))"
-    apply auto
-    by (metis (no_types, lifting) lessThan_iff nth_append sum.cong)
-  ultimately show ?thesis by simp
-qed  
 
 
 
@@ -4139,10 +3584,6 @@ lemma wf_transaction_status_iff_origin:
   using wf apply (induct  rule: wellFormed_induct)
   by (auto simp add: initialState_def step.simps split: if_splits)
 
-lemma wf_transaction_status_iff_origin_dom:
-  assumes wf: "state_wellFormed S"
-  shows "dom (transactionOrigin S) = dom (transactionStatus S)"
-  by (smt Collect_cong dom_def local.wf wf_transaction_status_iff_origin)
 
 
 lemma remove_beginAtomic_step: 
@@ -4734,13 +4175,6 @@ lemma use_no_invariant_checks_in_transaction:
   shows "\<exists>j. ib<j \<and> j<i \<and> tr!j = (s, AEndAtomic)"
   using assms by (auto simp add: no_invariant_checks_in_transaction_def, blast)
 
-lemma set_nth_transfer:
-  assumes "xs!i = x"
-and "i< length xs"
-and "set xs \<subseteq> set xs'"
-shows "\<exists>i'. i' < length xs' \<and> xs'!i' = x"
-  using assms apply auto
-  by (meson in_set_conv_nth subset_h1)
 
 lemma nth_drop_if: 
 "drop n xs ! i = (if n \<le> length xs then xs ! (n + i) else [] ! i)"
@@ -6095,11 +5529,31 @@ proof
       and "S1 ~~ tr!j \<leadsto> S2"
     using steps_append steps_appendFront by blast 
 
+  have h: "\<forall>z ps za n i t C. 
+            \<not> (z ~~ ps \<leadsto>* za) 
+          \<or> \<not> n < length ps 
+          \<or> ps ! n \<noteq> (i, ABeginAtomic t C) 
+          \<or> (\<exists>na. (n < na \<and> na < length ps) \<and> ps ! na = (i, AFail)) 
+          \<or> (\<exists>na. (n < na \<and> na < length ps) \<and> ps ! na = (i, AEndAtomic)) 
+          \<or> currentTransaction za i \<triangleq> t"
+    by (meson currentTransaction2)
+
+
   have "fst (tr!j) = invoc"
     using i_less_j k_less_k sameInvoc by blast
 
   moreover have "currentTransaction S1 invoc \<triangleq> tx"
-    by (smt \<open>S ~~ take j tr \<leadsto>* S1\<close> currentTransaction dual_order.trans i_less_j in_set_takeD k_length k_less_k length_take less_imp_le less_trans local.beginAtomic min.absorb2 noEndAtomic noFail nth_mem nth_take snd_conv)
+    using `S ~~ take j tr \<leadsto>* S1`
+  proof (rule currentTransaction2)
+    show "i < length (take j tr)"
+      using i_less_j k_length k_less_k by auto
+    show "take j tr ! i = (invoc, ABeginAtomic tx txns)"
+      by (simp add: i_less_j local.beginAtomic)
+    show "\<And>ja. \<lbrakk>i < ja; ja < length (take j tr)\<rbrakk> \<Longrightarrow> take j tr ! ja \<noteq> (invoc, AFail)"
+      using noFail nth_mem by fastforce
+    show " \<And>ja. \<lbrakk>i < ja; ja < length (take j tr)\<rbrakk> \<Longrightarrow> take j tr ! ja \<noteq> (invoc, AEndAtomic)"
+      using k_less_k noEndAtomic by auto
+  qed
 
   moreover have "localState S1 invoc \<noteq> None"
     using \<open>S ~~ take j tr \<leadsto>* S1\<close> \<open>currentTransaction S1 invoc \<triangleq> tx\<close> inTransaction_localState local.wf state_wellFormed_combine
