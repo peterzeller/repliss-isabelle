@@ -6,7 +6,7 @@ image:
 compile-pdfs:
   stage: build
   script:
-    - isabelle build -D . -j 10 -v
+    - /home/isabelle/Isabelle/bin/isabelle build -D . -j 10 -v
   artifacts:
     paths:
       - output/*.pdf
