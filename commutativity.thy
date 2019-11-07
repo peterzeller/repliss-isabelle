@@ -466,7 +466,7 @@ lemma commutativeS_switchArgs:
 lemma existsAndH: "P x \<Longrightarrow> Q x \<Longrightarrow>   \<exists>x. P x \<and> Q x"
   by auto
 
-lemma preconditionI[simp]: "\<lbrakk>s ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> precondition a s"
+lemma preconditionI: "\<lbrakk>s ~~ a \<leadsto> B\<rbrakk> \<Longrightarrow> precondition a s"
   by (auto simp add: precondition_def)
 
 lemma show_commutativeS[case_names preAB preBA commute ]: 
@@ -489,12 +489,12 @@ lemma show_commutativeS_pres[case_names preBfront preAfront preAback preBback co
    apply (rule usePrecondition2)
   using a1 precondition_def apply blast 
    apply (frule a2)
-    apply simp
+    apply (simp add: preconditionI)
   using a4 usePrecondition apply blast
   apply (rule usePrecondition2)
   using a1' precondition_def apply blast 
   apply (frule a2')
-   apply simp
+   apply (simp add: preconditionI)
   using a4 usePrecondition apply blast 
   done  
 
@@ -505,15 +505,15 @@ definition differentIds :: "(invocId \<times> 'any action) \<Rightarrow> (invocI
  | ((s1, ADbOp u1 o1 a1 r1), (s2, ADbOp u2 o2 a2 r2)) \<Rightarrow> (u1 \<noteq> u2)
  | _ \<Rightarrow> True"
 
-lemma differentIds_newId[simp]:
+lemma differentIds_newId:
   "differentIds (s1, ANewId u1) (s2, ANewId u2) \<longleftrightarrow> (u1 \<noteq> u2)"
   by (simp add: differentIds_def)
 
-lemma differentIds_beginAtomic[simp]:
+lemma differentIds_beginAtomic:
   "differentIds (s1, ABeginAtomic u1 nt1) (s2, ABeginAtomic u2 nt2) \<longleftrightarrow> (u1 \<noteq> u2)"
   by (simp add: differentIds_def)
 
-lemma differentIds_dbop[simp]:
+lemma differentIds_dbop:
   "differentIds (s1, ADbOp u1 o1 a1 r1) (s2, ADbOp u2 o2 a2 r2) \<longleftrightarrow> (u1 \<noteq> u2)"
   by (simp add: differentIds_def)
 
@@ -1070,7 +1070,7 @@ happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
 
 *)
 
-lemma invContext_unchanged_happensBefore[simp]:
+lemma invContext_unchanged_happensBefore:
   assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommitted"
   shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir 
     = invContextH co to ts hbOld cs ki io ir "
@@ -1078,7 +1078,7 @@ lemma invContext_unchanged_happensBefore[simp]:
   using assms apply (auto simp add: restrict_relation_def committedCallsH_def isCommittedH_def)
   done  
 
-lemma invContext_unchanged_happensBefore2[simp]:
+lemma invContext_unchanged_happensBefore2:
   assumes "co c = None"
   shows "invContextH co to ts (hbOld \<union> vis \<times> {c}) cs ki io ir  
     = invContextH co to ts hbOld cs ki io ir  "
@@ -1097,33 +1097,21 @@ find_consts "'a \<Rightarrow> 'a option \<Rightarrow> 'a"
 
 
 
-lemma wellFormed_committedCallsExist:
-  assumes a1: "calls S c = None"
-    and a2: "state_wellFormed S"
-  shows "c \<notin> committedCalls S"
-  using a1 a2
-  by (smt committedCallsH_def isCommittedH_def domIff mem_Collect_eq option.simps(3) wellFormed_callOrigin_dom) 
-
-lemma noOrigin_notCommitted:
-  "callOrigin S c = None \<Longrightarrow> c \<notin> committedCalls S"  
-  by (auto simp add: committedCallsH_def isCommittedH_def)
 
 
-
-
-lemma commutative_ALocal_other[simp]:
+lemma commutative_ALocal_other:
   assumes a1: "sa \<noteq> sb"
   shows "commutativeS S (sa, ALocal) (sb, a)"
   apply (case_tac a)
   by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist elim!: chooseSnapshot_unchanged_precise)
 
 
-lemma commutative_other_ALocal[simp]:
+lemma commutative_other_ALocal:
   assumes a1: "sa \<noteq> sb"
   shows "commutativeS S (sa, a) (sb, ALocal)"
-  using assms commutativeS_switchArgs by force
+  using assms commutativeS_switchArgs  by (metis commutative_ALocal_other)
 
-lemma committedCallsH_notin[simp]:
+lemma committedCallsH_notin:
   assumes "co c = None"
   shows "c \<notin> committedCallsH co ts"
   by (simp add: assms committedCallsH_def isCommittedH_def)
@@ -1136,7 +1124,8 @@ lemma invContextH_update_callOrigin:
   assumes "co c = None" and "ts t \<triangleq> Uncommitted"
   shows "invContextH (co(c \<mapsto> t)) to ts hb cs ki io ir   =
        invContextH co to ts hb cs ki io ir  "
-  using assms by (auto simp add: invContextH_def)
+  using assms by (auto simp add: invContextH_def committedCallsH_notin)
+
 
 lemma invContextH_update_calls:
   assumes "co c \<triangleq> t" and "ts t \<triangleq> Uncommitted"
@@ -1146,7 +1135,7 @@ lemma invContextH_update_calls:
 
 
 
-lemma committedCallsH_update_uncommitted[simp]:
+lemma committedCallsH_update_uncommitted:
   assumes "ts t = None"
   shows "committedCallsH co (ts(t \<mapsto> Uncommitted))
      = committedCallsH co ts"
@@ -1158,7 +1147,7 @@ lemma invContextH_update_txstatus:
   assumes "ts t = None" 
   shows "invContextH co to (ts(t\<mapsto>Uncommitted)) hb cs ki io ir  =
        invContextH co to ts hb cs ki io ir "
-  using assms by (auto simp add: invContextH_def restrict_map_def)
+  using assms by (auto simp add: invContextH_def restrict_map_def committedCallsH_update_uncommitted)
 
 lemmas invContextH_simps = invContextH_update_calls invContextH_update_callOrigin invContextH_update_txstatus
 
@@ -1174,15 +1163,16 @@ lemma test:
                 happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
            
   = invContext S "
-  using assms by auto
+  using assms by (auto simp add:  committedCallsH_notin  invContext_unchanged_happensBefore)
 
-lemma getContextH_visUpdate[simp]:
+
+lemma getContextH_visUpdate:
   assumes "c \<notin> vis"
   shows "getContextH cs (hb \<union> v \<times> {c}) (Some vis)
      = getContextH cs hb (Some vis)"
   using assms by (auto simp add: getContextH_def restrict_relation_def split: option.splits)
 
-lemma getContextH_callsUpdate[simp]:
+lemma getContextH_callsUpdate:
   assumes "c \<notin> vis"
   shows "getContextH (cs(c\<mapsto>newCall)) hb (Some vis)
      = getContextH cs hb (Some vis)"
@@ -1190,7 +1180,7 @@ lemma getContextH_callsUpdate[simp]:
 
 
 
-lemma callsInTransactionH_originUpdate_unchanged[simp]:
+lemma  callsInTransactionH_originUpdate_unchanged:
   assumes a1: "currentTransaction S sa \<triangleq> t"
     and a2: "state_wellFormed S"
     and a3: "calls S c = None"
@@ -1202,20 +1192,20 @@ lemma callsInTransactionH_originUpdate_unchanged[simp]:
   by (simp add: a2 a3)
 
 
-lemma callsInTransaction_down_hb_unchanged[simp]:"
+lemma callsInTransaction_down_hb_unchanged:"
 \<lbrakk> calls S c = None;
  state_wellFormed S\<rbrakk>
  \<Longrightarrow> callsInTransaction S txns \<down> (happensBefore S \<union> visa \<times> {c})
    = callsInTransaction S txns \<down> (happensBefore S)"
   by (auto simp add: downwardsClosure_def callsInTransactionH_def)
 
-lemma commutative_Dbop_other[simp]:
+lemma commutative_Dbop_other:
   assumes a1[simp]: "sa \<noteq> sb"
     and a2: "state_wellFormed S"
   shows "commutativeS S (sa, ADbOp c operation args res) (sb, a)"
 proof (cases a)
   case ALocal
-  then show ?thesis by simp
+  then show ?thesis  by (simp add: commutative_other_ALocal)
 next
   case (ANewId x2)
   then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
@@ -1263,14 +1253,15 @@ next
   with a2 show ?thesis 
     apply simp
     apply (rule show_commutativeS_pres)
-    by (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist subset_eq invContextH_simps)
+    by (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist subset_eq invContextH_simps          invContext_unchanged_happensBefore2 )
 next
   case (ADbOp c' operation' args' res')
   with a2 show ?thesis 
     apply simp
     apply (rule show_commutativeS_pres2)
         apply (auto simp add: precondition_dbop)
-    by (auto simp add: a1[symmetric] step_simps wellFormed_visibleCallsSubsetCalls2  split: if_splits, auto simp add: state_ext)
+    by (auto simp add: a1[symmetric] step_simps wellFormed_visibleCallsSubsetCalls2 split: if_splits, 
+                  auto simp add: state_ext differentIds_dbop getContextH_visUpdate getContextH_callsUpdate wellFormed_visibleCallsSubsetCalls2)
 next
 next
   case (ABeginAtomic tx txns)
@@ -1308,13 +1299,13 @@ next
   qed
 qed
 
-lemma commutative_newId_other[simp]:
+lemma commutative_newId_other:
   assumes a1[simp]: "sa \<noteq> sb"
     and a2: "state_wellFormed S"
   shows "commutativeS S (sa, ANewId uid) (sb, a)"
 proof (cases a)
   case ALocal
-  then show ?thesis by simp
+  then show ?thesis by (simp add: commutative_other_ALocal)
 next
   case (ANewId x2)
   then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
@@ -1342,7 +1333,7 @@ next
   then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 qed
 
-lemma commutative_fail_other[simp]:
+lemma commutative_fail_other:
   assumes a1[simp]: "sa \<noteq> sb"
     and a2: "state_wellFormed S"
   shows "commutativeS S (sa, AFail) (sb, a)"
@@ -1362,10 +1353,12 @@ proof (rule useCommutativeS)
   show "commutativeS S (sa, a) (sb, b)"
   proof (cases a)
     case ALocal
-    then show ?thesis by simp
+    then show ?thesis 
+      by (simp add: commutative_ALocal_other)
   next
     case (ANewId x2)
-    then show ?thesis by simp 
+    then show ?thesis
+      by (simp add: commutative_newId_other) 
   next
     case (ABeginAtomic x3)
     then show ?thesis  
@@ -1376,7 +1369,8 @@ proof (rule useCommutativeS)
     then show ?thesis using not_endAtomic by simp
   next
     case (ADbOp x51 x52 x53 x54)
-    then show ?thesis  by simp
+    then show ?thesis
+      by (simp add: commutative_Dbop_other)  
   next
     case (AInvoc x71 x72)
     then show ?thesis 
@@ -1392,7 +1386,8 @@ proof (rule useCommutativeS)
 
   next
     case AFail
-    then show ?thesis  by simp
+    then show ?thesis
+      by (simp add: commutative_fail_other)  
   next
     case (AInvcheck res)
     then show ?thesis
@@ -1419,7 +1414,7 @@ proof -
     by blast 
 qed   
 
-lemma commutative_beginAtomic_other[simp]:
+lemma commutative_beginAtomic_other:
   assumes a1[simp]: "sa \<noteq> sb"
     and a2: "state_wellFormed S"
     and no_end_atomic: "a \<noteq> AEndAtomic" 
@@ -1430,7 +1425,7 @@ proof -
   proof (cases a)
     case ALocal
     then show ?thesis
-      by simp 
+      by (simp add: commutative_other_ALocal)
   next
     case (ANewId x2)
     then show ?thesis
@@ -1725,12 +1720,13 @@ definition transactionIsPackedMeasure :: "'any trace \<Rightarrow> txid \<Righta
   "transactionIsPackedMeasure tr tx \<equiv>
   card {k . indexInOtherTransaction tr tx k}"  
 
-lemma indexInOtherTransaction_finite[simp]: "finite {k. indexInOtherTransaction tr tx k}"
+lemma indexInOtherTransaction_finite: "finite {k. indexInOtherTransaction tr tx k}"
   by (auto simp add: indexInOtherTransaction_def)
 
 lemma transactionIsPackedMeasure_zero_iff: 
   "transactionIsPackedMeasure tr tx = 0 \<longleftrightarrow>  transactionIsPacked tr tx" 
-  by (auto simp add: transactionIsPackedMeasure_def transactionIsPacked_def)
+  by (auto simp add: transactionIsPackedMeasure_def transactionIsPacked_def indexInOtherTransaction_finite)
+
 
 \<comment> \<open>this is an alternative definition, which might be easier to work with in some cases\<close>
 definition transactionIsPackedAlt :: "'any trace \<Rightarrow> txid \<Rightarrow> bool" where
@@ -1865,7 +1861,7 @@ next
 
     from \<open>S' ~~ a \<leadsto> S''\<close>  
     have "precondition (s, ABeginAtomic txj ntxnsj) S'"
-      by (simp add: \<open>a = (s, ABeginAtomic txj ntxnsj)\<close>)
+      by (simp add: \<open>a = (s, ABeginAtomic txj ntxnsj)\<close> preconditionI)
 
 
 
@@ -2119,12 +2115,12 @@ definition sessionsInTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> 
 
 
 
-lemma inTransactionEmpty[simp]: "\<not>inTransaction [] i s"
+lemma inTransactionEmpty: "\<not>inTransaction [] i s"
   by (auto simp add: inTransaction_def)
 
-lemma sessionsInTransactionEmpty[simp]: 
+lemma sessionsInTransactionEmpty: 
   "sessionsInTransaction [] i = {}"
-  by (simp add: sessionsInTransaction_def)
+  by (simp add: inTransactionEmpty sessionsInTransaction_def)
 
 
 lemma " sessionsInTransaction [(s\<^sub>1, ABeginAtomic t\<^sub>1 txns), (s\<^sub>1, AEndAtomic)] 3 = {}" 
@@ -2158,7 +2154,7 @@ apply auto[1]
 *)
 
 
-lemma sessionsInTransaction_append[simp]:
+lemma sessionsInTransaction_append:
   "i<length xs \<Longrightarrow> sessionsInTransaction (xs@ys) i = sessionsInTransaction xs i"
   by (auto simp add: nth_append sessionsInTransaction_def inTransaction_def)
 
@@ -2183,7 +2179,7 @@ else if i > length tr then
   {}
 else
   sessionsInTransaction tr i)"
-proof (intro if_cases2; clarsimp)
+proof (intro if_cases2; clarsimp?)
   fix t ts
   assume a0: "i = length tr"
     and a1: "snd a = ABeginAtomic t ts"
@@ -2224,12 +2220,19 @@ next
 next 
   show "length tr < i \<Longrightarrow> sessionsInTransaction (tr @ [a]) i = {}"
     by (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)
+
+
+  show "sessionsInTransaction (tr @ [a]) i = sessionsInTransaction tr i"
+    if c0: "i \<noteq> length tr"
+      and c1: "\<not> length tr < i"
+    using that by (simp add: less_linear sessionsInTransaction_append)
+
 qed
 
-lemma sessionsInTransaction_finite[simp]:
+lemma sessionsInTransaction_finite:
   "finite (sessionsInTransaction tr i)"
   apply (induct tr arbitrary: i rule: rev_induct)
-   apply (auto simp add: sessionsInTransactionEmptySnoc)
+   apply (auto simp add: sessionsInTransactionEmptySnoc sessionsInTransactionEmpty)
   done
 
 
@@ -2341,7 +2344,7 @@ definition allowed_context_switch where
   | AInvcheck "txid set" bool
 *)
 
-lemma allowed_context_switch_simps[simp]:
+lemma allowed_context_switch_simps:
   shows "\<not>allowed_context_switch ALocal" 
     and "\<not>allowed_context_switch (ANewId uid)"
     and "allowed_context_switch (ABeginAtomic t ats)"
@@ -2411,7 +2414,7 @@ qed
 definition max_natset :: "nat set \<Rightarrow> nat" where
   "max_natset S \<equiv> if S = {} then 0 else Suc (Max S)"
 
-lemma max_natset_empty[simp]: "max_natset S = 0 \<longleftrightarrow> S = {}"
+lemma max_natset_empty: "max_natset S = 0 \<longleftrightarrow> S = {}"
   by (simp add: max_natset_def)
 
 lemma max_natset_Suc: 
@@ -2516,7 +2519,7 @@ lemma canSwap_when_allowed:
 proof (cases b)
   case ALocal
   then show ?thesis
-    by (simp add: commutativeS_canSwap) 
+    by (simp add: commutativeS_canSwap commutative_other_ALocal)
 next
   case (ANewId bid)
   then have [simp]: "b = ANewId bid" .
@@ -2537,7 +2540,7 @@ next
   proof (cases a; prove_canSwap?)
     case ALocal
     then show ?thesis
-      by (simp add: commutativeS_canSwap) 
+      by (simp add: commutativeS_canSwap commutative_ALocal_other)
   next
     case (ANewId x2)
     then show ?thesis by prove_canSwap''
@@ -2878,7 +2881,7 @@ proof (induct "max_natset {length tr - i  | i.
   proof (cases "max_natset {length tr - i  | i. 0<i \<and> i<length tr \<and> fst (tr!(i-1)) \<noteq> s \<and> fst (tr!i) = s \<and> \<not>(allowed_context_switch (snd(tr!i)))}")
     case 0
     then have "{i. 0<i \<and> i<length tr \<and> fst (tr!(i-1)) \<noteq> s \<and> fst (tr!i) = s \<and> \<not>(allowed_context_switch (snd(tr!i)))} = {}"
-      by simp
+      by (simp add: max_natset_empty)
     then have already_packed: "packed_trace_s tr s"
       by (auto simp add: packed_trace_s_def)
 
@@ -3344,7 +3347,7 @@ definition openTransactions :: "'any trace \<Rightarrow> (invocId \<times> txid)
 "openTransactions tr \<equiv> {(i, tx) | i j tx txns. j<length tr \<and> tr!j = (i, ABeginAtomic tx txns) \<and> (\<forall>k. k>j \<and> k<length tr \<longrightarrow> tr!k \<noteq> (i, AEndAtomic))}"
 
 
-lemma open_transactions_empty[simp]:
+lemma open_transactions_empty:
   shows "openTransactions [] = {}"
   by (auto simp add: openTransactions_def)
 
@@ -4589,7 +4592,9 @@ lemma move_invariant_checks_out_of_transactions:
 
         have no_ctxt_switch: "\<not>allowed_context_switch (snd (trace!(length trace -2)))"
           using \<open>S1 ~~ trace ! (length trace - 2) \<leadsto> S2\<close>
-          using action_def currentTx ls_none by (auto simp add: step.simps)
+          using action_def currentTx ls_none by (auto simp add: step.simps allowed_context_switch_simps)
+
+
 
         show "packed_trace (take (length trace - 2) trace @ [(s, AInvcheck False)])"
           apply (auto simp add: packed_trace_def nth_append min_def not_less)
@@ -4634,12 +4639,12 @@ lemma move_invariant_checks_out_of_transactions:
         using action_def ib1 by auto
       with  \<open>S1 ~~ (s, action) \<leadsto> S2\<close>
       have "invContext S1 = invContext S2"
-        using invariant_fail_S2 by (auto simp add: step_simps invContextH_def restrict_map_def)
+        using invariant_fail_S2 by (auto simp add: step_simps invContextH_def restrict_map_def committedCallsH_update_uncommitted )
+
       with \<open>S1 ~~ (s, action) \<leadsto> S2\<close> and \<open>action = ABeginAtomic tx ib_txns\<close>
       have "S1 ~~ (s', AInvcheck False) \<leadsto> S1" for s'
         apply (auto simp add: step_simps )
-        using invariant_fail_S2 apply auto
-        done
+        using invariant_fail_S2 by auto
 
       define new_s where "new_s = fst(trace ! (length trace - 3))" 
 
@@ -5613,9 +5618,20 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
 
 
   \<comment> \<open>we are still in a transaction:\<close>
-  obtain tx 
-    where currentTx: "currentTransaction S_j_min_pre invoc \<triangleq> tx"
-    by (smt \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> a0 a1 a3 a4_min a5_min append_take_drop_id currentTransaction length_take less_imp_le less_le_trans min.absorb2 noFail nth_append_first nth_mem)
+  have currentTx: "currentTransaction S_j_min_pre invoc \<triangleq> tx"
+    using \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close>
+      
+  proof (rule currentTransaction[THEN iffD1])
+    show "i < length (take j_min tr)"
+      using a0 a4_min a5_min by auto
+
+    show "take j_min tr ! i = (invoc, ABeginAtomic tx txns)"
+      using \<open>i < length (take j_min tr)\<close> a1 by auto
+
+    show " \<forall>j. i < j \<and> j < length (take j_min tr) \<longrightarrow>
+        take j_min tr ! j \<noteq> (invoc, AEndAtomic) \<and> take j_min tr ! j \<noteq> (invoc, AFail)"
+      using a3 a5_min noFail nth_mem by fastforce
+  qed
 
   then have ls: "localState S_j_min_pre invoc \<noteq> None"
     using \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> inTransaction_localState local.wf state_wellFormed_combine
@@ -5625,7 +5641,8 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
   with \<open>S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min\<close> 
     and \<open>allowed_context_switch (snd(tr!j_min))\<close>
   have "fst (tr!j_min) \<noteq> invoc"
-    by (auto simp add: step.simps currentTx)
+    by (auto simp add: step.simps currentTx allowed_context_switch_simps)
+
 
 
   \<comment> \<open>there must be an endAtomic for the beginAtomic\<close>
@@ -5741,7 +5758,8 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
     and \<open>currentTransaction S_back_min_pre invoc \<triangleq> tx\<close>
     and \<open>localState S_back_min_pre invoc \<noteq> None\<close>
   show "False"
-    by (auto simp add:step.simps )
+    by (auto simp add:step.simps allowed_context_switch_simps)
+
 qed
 
 

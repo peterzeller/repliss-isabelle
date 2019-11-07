@@ -411,8 +411,7 @@ lemma at_most_one_active_tx:
   using steps  packed noFails noCtxtSwitchInTx proof (induct rule: steps_induct)
   case initial
   then show ?case 
-    using wellFormed_currentTransaction_unique_h(2) noUncommitted S_wellformed  apply auto
-    by (meson not_None_eq wellFormed_currentTransaction_unique_h(2))
+    using wellFormed_currentTransaction_unique_h(2) noUncommitted S_wellformed open_transactions_empty by (auto simp add:  allowed_context_switch_simps)
 
 next
   case (step S' tr a S'')
@@ -464,7 +463,7 @@ next
       qed
 
       then show "False"
-        by (simp add: \<open>a = (s, ABeginAtomic t snapshot)\<close>)
+        by (simp add: \<open>a = (s, ABeginAtomic t snapshot)\<close>  allowed_context_switch_simps)
     qed
 
     from beginAtomic
@@ -574,7 +573,8 @@ next
         show "(tr @ [a]) ! ib = (i, ABeginAtomic tx txns)"
           using ib by (simp add: ib_len nth_append) 
         show "\<forall>j. ib < j \<and> j < Suc (length tr) \<longrightarrow> (tr @ [a]) ! j \<noteq> (i, AEndAtomic)"
-          using that by (auto simp add: ib_no_end nth_append)
+          using that by (auto simp add: ib_no_end nth_append allowed_context_switch_simps)
+
         show "ib < Suc (length tr)"
           by (simp add: ib_len less_Suc_eq)
           apply_end (auto simp add: ib_len)
@@ -588,32 +588,32 @@ next
     show ?thesis
     proof (cases rule: step.cases)
       case (local s ls f ls')
-      then show ?thesis using IH last_same by auto
+      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
     next
       case (newId s ls f ls' uid)
-      then show ?thesis using IH last_same by auto
+      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
     next
       case (beginAtomic s ls f ls' t vis snapshot)
-      then show ?thesis using IH no_tx_if_context_switch by auto
+      then show ?thesis using IH no_tx_if_context_switch by (auto simp add: allowed_context_switch_simps)
     next
       case (endAtomic s ls f ls' t)
-      then show ?thesis using IH last_same by auto
+      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
     next
       case (dbop s ls f Op args ls' t c res vis)
       then show ?thesis using IH by auto
     next
       case (invocId s procName args initialState impl)
-      then show ?thesis using IH no_tx_if_context_switch by auto
+      then show ?thesis using IH no_tx_if_context_switch by (auto simp add: allowed_context_switch_simps)
     next
       case (return s ls f res)
-      then show ?thesis using IH last_same by auto
+      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
     next
       case (fail s ls)
       then show ?thesis using IH
         using step.prems(3) by auto
     next
       case (invCheck res s)
-      then show ?thesis using IH last_same by auto
+      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
     qed
   qed
 qed
@@ -2532,7 +2532,8 @@ next
   have "invariant_all S' = invariant_all S"
   proof (rule show_invariant_all_changes)
     show "invContext S' = invContext S " 
-      using beginAtomic by (auto simp add: invContextH_def restrict_map_def)
+      using beginAtomic by (auto simp add: invContextH_def restrict_map_def   committedCallsH_update_uncommitted )
+
     show "prog S' = prog S"
       using local.step prog_inv by auto
   qed

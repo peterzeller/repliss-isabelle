@@ -1811,7 +1811,8 @@ next
             using S''_def c6a by blast
 
           have "invContext S'' = invContext S'"
-            by (auto simp add: S''_def c13 c2 c0 invContextH_def restrict_map_def)
+            by (auto simp add: S''_def c13 c2 c0 invContextH_def restrict_map_def committedCallsH_update_uncommitted)
+
 
           with \<open>invariant_all' S'\<close>
           show "invariant_all S''"
@@ -1981,7 +1982,7 @@ next
 
           have "(invContextH (callOrigin S(c \<mapsto> tx)) (transactionOrigin S) (transactionStatus S) (updateHb (happensBefore S) txCalls [c]) (calls S(c \<mapsto> Call m a res)) (knownIds S) (invocationOp S) (invocationRes S)) 
                = invContext S"
-            using Suc.prems(2) c0 tx by (auto simp add: invContextH_def updateHb.simps(2) restrict_relation_def)
+            using Suc.prems(2) c0 tx by (auto simp add: invContextH_def updateHb.simps(2) restrict_relation_def   committedCallsH_notin  )
 
 
           with \<open>invariant_all S\<close>

@@ -797,4 +797,18 @@ lemma wellFormed_visibleCallsSubsetCalls2: "\<lbrakk>
   by (meson domIff set_mp wellFormed_visibleCallsSubsetCalls_h(2))
 
 
+lemma wellFormed_committedCallsExist:
+  assumes a1: "calls S c = None"
+    and a2: "state_wellFormed S"
+  shows "c \<notin> committedCalls S"
+  using a1 a2
+  by (smt committedCallsH_def isCommittedH_def domIff mem_Collect_eq option.simps(3) wellFormed_callOrigin_dom) 
+
+lemma noOrigin_notCommitted:
+  "callOrigin S c = None \<Longrightarrow> c \<notin> committedCalls S"  
+  by (auto simp add: committedCallsH_def isCommittedH_def)
+
+
+
+
 end
