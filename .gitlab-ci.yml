@@ -1,12 +1,11 @@
 image:
-  name: makarius/isabelle:Isabelle2019
-  entrypoint: [""]
+  name: peterzel/isabelle:latest
 
 
 compile:
   stage: build
   script:
-    - /home/isabelle/Isabelle/bin/isabelle build -D . -j 10 -v
+    - isabelle build -D . -j 10 -v
   artifacts:
     paths:
       - output/*.pdf
