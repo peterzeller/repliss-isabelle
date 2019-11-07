@@ -471,7 +471,7 @@ lemma invocation_happensBeforeH_update:
 
   apply (rename_tac i1 i2 c1 c2)
 *)
-theorem "programCorrect progr"
+theorem userbase_correct: "programCorrect progr"
 proof (rule show_programCorrect_using_checkCorrect)
   have [simp]: "invariant progr = inv" by (simp add: progr_def)
 

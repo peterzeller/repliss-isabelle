@@ -3286,19 +3286,6 @@ next
   qed 
 qed
     
-lemma programCorrect_s_inv_initial:
-assumes "programCorrect_s program"
-shows "invariant_all (initialState program)"
-proof (rule ccontr)
-  assume "\<not> invariant_all (initialState program)"
-  
-  text \<open>from invariant failure, start some procedure, directly get false in there ???\<close>
-  
-  from assms
-  show False
-    apply (auto simp add: programCorrect_s_def)
-    oops
-
 
 text \<open>
 When a program is correct in the single invocId semantics, 

@@ -201,23 +201,6 @@ lemma i_invocationOp_simps:
    state_calls state_knownIds state_invocationOp state_invocationRes ) r \<triangleq> Op) \<longleftrightarrow> (state_invocationOp r \<triangleq> Op)"
   by (auto simp add: invContextH_def)
 
-lemma invocation_happensBefore_simps:
-  "((x,y) \<in> invocation_happensBefore (invContextH state_callOrigin state_transactionOrigin ts state_happensBefore cs ki io ir )) 
-\<longleftrightarrow> ((\<exists>c t. state_callOrigin c \<triangleq> t \<and> state_transactionOrigin t \<triangleq> x) 
-        \<and> (\<exists>c t.  state_callOrigin c \<triangleq> t \<and> state_transactionOrigin t \<triangleq> y) 
-        \<and> (\<forall>cx tx cy ty. state_callOrigin cx \<triangleq> tx \<and> state_transactionOrigin tx \<triangleq> x
-                 \<and> state_callOrigin cy \<triangleq> ty \<and> state_transactionOrigin ty \<triangleq> y
-                 \<longrightarrow> (cx,cy)\<in>state_happensBefore))"
-  apply auto                 
-     apply (auto simp add: invContextH_def invocation_happensBeforeH_def 
-      i_callOriginI_h_def restrict_map_def committedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
-    apply (auto simp add: invContextH_def invocation_happensBeforeH_def 
-      i_callOriginI_h_def restrict_map_def committedCallsH_def restrict_relation_def split: option.splits if_splits)[1]
-   apply (auto simp add: invContextH_def invocation_happensBeforeH_def 
-      i_callOriginI_h_def restrict_map_def committedCallsH_def restrict_relation_def split: option.splits if_splits)[1]   
-    apply (drule_tac x=cx in spec)
-    apply auto[1]
-  oops
 
 
 lemmas invariant_simps = 

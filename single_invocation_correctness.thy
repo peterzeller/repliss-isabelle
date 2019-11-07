@@ -624,23 +624,6 @@ lemma committedCalls_allCommitted:
   apply (metis local.wf option.distinct(1) wellFormed_callOrigin_dom3)
   by (metis (full_types) domD domIff local.wf noUncommitted transactionStatus.exhaust wellFormed_state_callOrigin_transactionStatus)
 
-lemma invContextH_same_allCommitted':
-  assumes  wf1: "\<And>c. (state_calls c = None) \<longleftrightarrow> (state_callOrigin c = None)"
-    and wf2: "\<And>c tx. state_callOrigin c \<triangleq> tx \<Longrightarrow> state_transactionStatus tx \<noteq> None"
-    and wf3: "\<And>a b. (a, b) \<in> state_happensBefore \<Longrightarrow> state_calls a \<noteq> None"
-    and wf4: "\<And>a b. (a, b) \<in> state_happensBefore \<Longrightarrow> state_calls b \<noteq> None"
-    and wf5: "\<And>c. (state_transactionOrigin c = None) \<longleftrightarrow> (state_transactionStatus c = None)"
-    and noUncommitted: "\<And>t c. \<lbrakk>state_transactionStatus t \<triangleq> Uncommitted\<rbrakk> \<Longrightarrow> state_callOrigin c \<noteq> Some t"
-  shows "invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore state_calls state_knownIds state_invocationOp state_invocationRes
-       = invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore state_calls state_knownIds state_invocationOp state_invocationRes"
-  apply (auto simp add: invContextH_def invContextH2_def intro!: ext)
-      apply (auto simp add: committedCallsH_def isCommittedH_def restrict_map_def restrict_relation_def)
-      apply (metis (full_types) noUncommitted not_None_eq transactionStatus.exhaust wf1 wf2)
-     apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf3)
-    apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf4)
-   apply (metis (full_types) noUncommitted option.exhaust_sel transactionStatus.exhaust wf2)
-\<comment> \<open>does not work, because now I have transaction origin leaked\<close>
-  oops
 
 
 lemma invContextH_same_allCommitted:
@@ -1578,73 +1561,6 @@ lemma checkCorrect2_unfold:
   done
 
 
-
-lemma checkCorrect2_simps:
-assumes "(
-           case currentProc S i of None \<Rightarrow> True
-           | Some impl \<Rightarrow>
-               (case impl (the (localState S i)) of LocalStep ls \<Rightarrow> (checkCorrect2 progr txCalls (S\<lparr>localState := localState S(i \<mapsto> ls)\<rparr>) i)
-               | BeginAtomic ls \<Rightarrow>
-                   currentTransaction S i = None \<and>
-                   (\<forall>t S' vis' newTxns.
-                       transactionStatus S t = None \<and>
-                       invariant_all' S' \<and>
-                       state_wellFormed S' \<and>
-                       state_monotonicGrowth i S S' \<and>
-                       localState S' i \<triangleq> ls \<and>
-                       currentProc S' i \<triangleq> impl \<and>
-                       currentTransaction S' i \<triangleq> t \<and>
-                       transactionStatus S' t \<triangleq> Uncommitted \<and>
-                       transactionOrigin S' t \<triangleq> i \<and>
-                       (\<forall>c. callOrigin S' c \<noteq> Some t) \<and>
-                       visibleCalls S i \<triangleq> txCalls \<and>
-                       vis' = txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S' \<and>
-                       visibleCalls S' i \<triangleq> vis' \<and>
-                       newTxns \<subseteq> dom (transactionStatus S') \<and>
-                       consistentSnapshot S' vis' \<and> (\<forall>x. x \<noteq> t \<longrightarrow> transactionStatus S' x \<noteq> Some Uncommitted) \<and> invariant progr (invContext' S') \<and> (invariant progr (invContext S') \<longrightarrow>
-                       (checkCorrect2 progr vis' S' i)))
-               | EndAtomic ls \<Rightarrow>
-                   (case currentTransaction S i of None \<Rightarrow> False
-                   | Some t \<Rightarrow> let S' = S\<lparr>localState := localState S(i \<mapsto> ls), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(t \<mapsto> Committed)\<rparr>
-                               in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) \<longrightarrow>
-                                  invariant progr (invContext' S') \<and> (invariant progr (invContext' S') \<longrightarrow> (checkCorrect2 progr txCalls S' i)))
-               | NewId ls \<Rightarrow> \<forall>uid ls'. 
-                            generatedIds S uid = None
-                           \<and> ls uid \<triangleq> ls'
-                           \<and> uniqueIds uid = {uid}
-                            \<longrightarrow> (checkCorrect2 progr txCalls (S\<lparr>localState := localState S(i \<mapsto> ls'), generatedIds := (generatedIds S)(uid \<mapsto> i)\<rparr>) i)
-               | DbOperation Op args ls \<Rightarrow>
-                   (case currentTransaction S i of None \<Rightarrow> False
-                   | Some t \<Rightarrow> Ex (querySpec progr Op args (getContext S i)) \<and>
-                               (\<forall>c res. calls S c = None \<and> querySpec progr Op args (getContext S i) res \<and> visibleCalls S i \<triangleq> txCalls \<longrightarrow>
-                                        (checkCorrect2
-                                         progr (insert c txCalls) (S
-                                          \<lparr>localState := localState S(i \<mapsto> ls res), calls := calls S(c \<mapsto> Call Op args res), callOrigin := callOrigin S(c \<mapsto> t),
-                                             visibleCalls := visibleCalls S(i \<mapsto> insert c txCalls), happensBefore := updateHb (happensBefore S) txCalls [c]\<rparr>)
-                                          i)))
-               | Return res \<Rightarrow>
-                   currentTransaction S i = None \<and>
-                   (let S' = S\<lparr>localState := (localState S)(i := None), currentProc := (currentProc S)(i := None), visibleCalls := (visibleCalls S)(i := None),
-                                 invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>
-                    in (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) \<longrightarrow> invariant progr (invContext' S'))))"
-shows "checkCorrect2 progr txCalls S i"
-  apply (insert assms)
-  apply (subst checkCorrect2_unfold)
-  apply (subst checkCorrect2F_def)
-  apply (auto simp add: Def_def split: option.splits localAction.splits)
-  using checkCorrect2_def apply blast
-  oops
-
-
-(*
-schematic_goal checkCorrect2_simps:
-  "checkCorrect2 progr txCalls S i = ?F"
-  apply (subst checkCorrect2_unfold)
-  apply (subst checkCorrect2F_def)
-  apply (fold checkCorrect2_def)
-  apply (rule refl)
-  done
-*)
 
 
 lemma consistentSnapshot_empty: "consistentSnapshot S {}"

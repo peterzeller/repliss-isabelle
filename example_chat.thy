@@ -921,7 +921,7 @@ lemma forAllSnapshots_dont_care:
 
 
 
-theorem "programCorrect progr"
+theorem chatapp_correct: "programCorrect progr"
 proof (rule show_programCorrect_using_checkCorrect)
   have [simp]: "invariant progr = inv" by simp
 

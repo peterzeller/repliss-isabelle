@@ -98,42 +98,6 @@ shows "f ((f ^^ i) bot) x"
 
 
 
-lemma lfp_to_iterate:
-  fixes f :: "('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool"
-  assumes mono: "mono f"
-    and finite_branching: "finite_branching f"
-    and lfp_x: "lfp f x"
-  shows "\<exists>i. (f ^^ i) bot x"
-proof -
-
-
-  from \<open>lfp f x\<close>
-  have "f (lfp f) x"
-    using def_lfp_unfold mono by fastforce
-
-  with \<open>finite_branching f\<close>
-  obtain S where "finite S" and "(\<forall>f''. (\<forall>x\<in>S. f'' x = lfp f x) \<longrightarrow> f f'' x)"
-    by (metis finite_branching_def)
-
-  from this
-  show "\<exists>i. (f ^^ i) bot x"
-  proof (induct arbitrary: x rule: finite_induct)
-    case empty
-    then have "f bot x"
-      by simp
-    then have "(f ^^ 1) bot x"
-      by simp
-    then show "\<exists>i. (f ^^ i) bot x"
-      by blast
-  next
-    case (insert y A)
-    then show ?case 
-
-
-
-
-
-      oops
 
 
 datatype check_result = check_fail | check_ok nat | check_ok_infinite
@@ -539,16 +503,6 @@ lemma "lfp even 10"
 
 
 
-lemma lfp_to_iterate:
-  fixes f :: "('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool"
-  assumes tailrec: "tailrec f"
-    and lfp_x: "lfp f x"
-  shows "\<exists>i. (f ^^ i) bot x"
-proof -
-
-  have mono: "mono f"
-    by (simp add: tailrec tailrec_is_mono)
-  oops
 
 
 
@@ -561,99 +515,6 @@ lemma lfp2_leq_lfp:
   shows "lfp2 f \<le> lfp f"
   by (meson iterate_to_lfp lfp2_def mono predicate1I)
 
-(*
-lemma lfp2_fixpoint:
-assumes mono: "mono f"
-shows "f (lfp2 f) = lfp2 f"
-  apply (auto simp add: lfp2_def)
-  apply (rule ext)
-  apply auto
-  oops
-
-lemma lfp2_eq_lfp:
-  assumes mono: "mono f"
-  shows "lfp2 f = lfp f"
-  by (simp add: dual_order.antisym lfp2_fixpoint lfp2_leq_lfp lfp_lowerbound mono)
-
-lemma lfp2_to_iterate:
-  fixes f :: "('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool"
-  assumes lfp_x: "lfp2 f x"
-    and mono: "mono f"
-  shows "\<exists>i. (f ^^ i) bot x"
-  by (meson lfp2_def lfp_x)
-*)
-
-
-(*
-definition lfp2 :: "(('a \<Rightarrow> bool) \<Rightarrow> ('a \<Rightarrow> bool)) \<Rightarrow> ('a \<Rightarrow> bool)" where
-"lfp2 f \<equiv> SUP i. (f ^^ i) bot"
-
-
-lemma lfp2_fixpoint:
-  assumes mono: "mono f"
-  shows "f (lfp2 f) = lfp2 f"
-  apply (auto simp add: lfp2_def)
-proof (rule antisym)
-  show "(SUP i. (f ^^ i) bot) \<le> f (SUP i. (f ^^ i) bot)"
-    using [[smt_solver=cvc4]]
-    by (smt SUP_least Sup_le_iff assms bot_least funpow_swap1 monoD mono_def mono_pow order_refl order_trans range_eqI)
-
-  show "f (SUP i. (f ^^ i) bot) \<le> (SUP i. (f ^^ i) bot)"
-
-
-
-lemma lfp2_to_iterate:
-  fixes f :: "('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool"
-  assumes lfp_x: "lfp2 f x"
-    and mono: "mono f"
-  shows "\<exists>i. (f ^^ i) bot x"
-  oops
-*)
-
-(*
-definition lfp2 :: "(('a \<Rightarrow> bool) \<Rightarrow> ('a \<Rightarrow> bool)) \<Rightarrow> ('a \<Rightarrow> bool)" where
-"lfp2 f \<equiv> \<lambda>x. \<exists>i. (f ^^ i) bot x"
-
-lemma lfp2_to_iterate:
-  fixes f :: "('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> bool"
-  assumes lfp_x: "lfp2 f x"
-  shows "\<exists>i. (f ^^ i) bot x"
-  by (meson lfp2_def lfp_x)
-
-
-
-
-thm lfp_fixpoint
-
-lemma lfp2_fixpoint:
-  assumes "mono f"
-  shows "f (lfp2 f) = lfp2 f"
-  unfolding lfp2_def
-proof (auto intro!: ext)
-
-
-  show "\<exists>i. (f ^^ i) bot x"
-    if c0: "f (\<lambda>x. \<exists>i. (f ^^ i) bot x) x"
-    for  x
-
-    oops
-
-  show "f (\<lambda>x. \<exists>i. (f ^^ i) bot x) x"
-    if c0: "(f ^^ i) bot x"
-    for  x i
-    oops
-qed
-
-
-
-
-
-lemma lfp2_unfold:
-  assumes "mono f"
-  shows "lfp2 f = f (lfp2 f)"
-  by (simp add: assms lfp2_fixpoint)
-
-*)
 
 
 end
