@@ -61,8 +61,7 @@ begin
 definition "less_eq_transactionStatus x y \<equiv> x = Uncommitted \<or> y = Committed"
 definition "less_transactionStatus x y \<equiv> x = Uncommitted \<and> y = Committed"
 instance
-  apply standard
-  using transactionStatus.exhaust by (auto simp add: less_eq_transactionStatus_def less_transactionStatus_def )
+   by (standard; insert transactionStatus.exhaust;  auto simp add: less_eq_transactionStatus_def less_transactionStatus_def)
 end
 
 lemmas transactionStatus_less_simps = less_eq_transactionStatus_def less_transactionStatus_def
@@ -191,8 +190,7 @@ lemma downwardsClosure_in:
 
 lemma downwardsClosure_subset:
   "S \<down> R \<subseteq> S \<union> fst ` R"
-  apply (auto simp add: downwardsClosure_in)
-  using image_iff tranclD by fastforce
+  by (auto simp add: downwardsClosure_in Domain.DomainI fst_eq_Domain)
 
 
 
@@ -601,9 +599,8 @@ lemma stepDeterministic:
   assumes e1: "S ~~ tr \<leadsto> Sa" 
     and e2: "S ~~ tr \<leadsto> Sb"
   shows "Sa = Sb"
-  using e1 e2 apply (induct rule: step.induct)
-          apply (erule step.cases; force)+
-  done
+  using e1 e2 proof (induct rule: step.induct)
+  qed (erule step.cases; force)+
 
 
 lemma traceDeterministic:
@@ -679,16 +676,16 @@ fun splitTrace :: "invocId \<Rightarrow> 'any trace \<Rightarrow> ('any trace \<
 
 lemma splitTrace_complete: 
   "splitTrace s tr = (h,c,t) \<Longrightarrow> mset tr= mset h + mset c + mset t"
-  apply (induct arbitrary: h c t rule: splitTrace.induct)
-  by (auto split: if_splits prod.splits)
+  proof (induct arbitrary: h c t rule: splitTrace.induct)
+  qed (auto split: if_splits prod.splits)
 
 lemma splitTrace_len: 
   assumes a: "splitTrace s tr = (h,c,t)"
   shows "length h \<le> length tr"
     and "length c \<le> length tr"
     and "length t \<le> length tr"
-  using a apply (induct arbitrary: h c t rule: splitTrace.induct)
-  by (auto simp add: le_SucI split: if_splits prod.splits)
+  using a proof (induct arbitrary: h c t rule: splitTrace.induct)
+qed (auto simp add: le_SucI split: if_splits prod.splits)
 
 lemma splitTrace_len2: 
   assumes a: "(h,c,t) = splitTrace s tr"
@@ -717,27 +714,24 @@ termination
 
 lemma compactTrace_complete: 
   "mset (compactTrace s tr) = mset tr"
-  apply (induct rule: compactTrace.induct)
-   apply (auto simp add: splitTrace_complete split: prod.splits)
-  done
+proof (induct rule: compactTrace.induct)
+qed (auto simp add: splitTrace_complete split: prod.splits)
 
 declare compactTrace_step[simp del]
 
 
 lemma steps_appendBack:
   "(A ~~ tr @ [a] \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ tr \<leadsto>* B) \<and> (B ~~ a \<leadsto> C))"
-  apply auto
-   apply (metis snoc_eq_iff_butlast steps.cases)
-  using steps_step by blast
+  by (auto simp add: steps_step, (metis snoc_eq_iff_butlast steps.cases))
+
 
 
 lemma steps_append: 
   "(A ~~ tra@trb \<leadsto>* C) \<longleftrightarrow> (\<exists>B. (A ~~ tra \<leadsto>* B) \<and> (B ~~ trb \<leadsto>* C))"
 proof (induct trb arbitrary: C rule: rev_induct)
   case Nil
-  then show ?case 
-    apply simp
-    by (metis snoc_eq_iff_butlast steps.cases steps_refl)
+  then show ?case
+    by (metis append_Nil2 snoc_eq_iff_butlast steps.cases steps_refl) 
 next
   case (snoc a trb)
   show ?case

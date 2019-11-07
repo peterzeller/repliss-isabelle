@@ -26,9 +26,7 @@ next
   then have [simp]: "prog S' = prog S" by simp
   from \<open>S' ~~ a \<leadsto> S''\<close>
   show ?case 
-    apply (rule step.cases)
-            apply auto
-    done
+    by (rule step.cases, auto)
 qed
 
 lemma state_wellFormed_combine_step:
@@ -36,10 +34,21 @@ lemma state_wellFormed_combine_step:
     and step: "S ~~ a \<leadsto> S'"
     and noFails: "snd a \<noteq> AFail"
   shows "state_wellFormed S'"
-  using wf step noFails  apply (auto simp add: state_wellFormed_def)
-  apply (rule_tac x="tr@[a]" in exI)
-  apply auto
-  by (metis steps_do_not_change_prog steps_step)
+  using wf step noFails  proof (auto simp add: state_wellFormed_def)
+
+  show "\<exists>tr. (\<forall>i. (i, AFail) \<notin> set tr) \<and> initialState (prog S') ~~ tr \<leadsto>* S'"
+    if c0: "S ~~ a \<leadsto> S'"
+      and c1: "snd a \<noteq> AFail"
+      and c2: "\<forall>i. (i, AFail) \<notin> set tr"
+      and c3: "initialState (prog S) ~~ tr \<leadsto>* S"
+    for  tr
+  proof (rule_tac x="tr@[a]" in exI, auto)
+    show "\<And>i. a = (i, AFail) \<Longrightarrow> False" using noFails by auto
+    show "\<And>i. (i, AFail) \<in> set tr \<Longrightarrow> False" using c2 by auto 
+    show "initialState (prog S') ~~ tr @ [a] \<leadsto>* S'"
+      by (metis c3 local.step steps_do_not_change_prog steps_step)
+  qed
+qed
 
 
 lemma state_wellFormed_combine:
@@ -67,11 +76,7 @@ qed
 
 lemma step_prog_invariant:
   "S ~~ tr \<leadsto>* S' \<Longrightarrow> prog S' = prog S"
-  apply (induct rule: steps.induct)
-   apply auto
-  apply (erule step.cases)
-          apply auto
-  done
+  by (induct rule: steps.induct, auto, erule step.cases, auto)
 
 thm full_nat_induct
 
@@ -90,10 +95,12 @@ proof -
   next
     case (steps_step S tr S' a S'')
     have "P tr S'"
-      apply (rule steps_step(2))
-      using initialState_def step_prog_invariant steps_step.hyps(1) steps_step.prems(1) steps_step.prems(2) apply auto[1]
-      using initialState_def step_prog_invariant steps_step.hyps(1) steps_step.prems(2) apply auto[1]
-      by (simp add: steps_step.prems(3))
+    proof (rule steps_step(2))
+      show " P [] init"
+        using initialState_def step_prog_invariant steps_step.hyps(1) steps_step.prems(1) steps_step.prems(2) by auto[1]
+      show "S = init"
+        using initialState_def step_prog_invariant steps_step.hyps(1) steps_step.prems(2) by auto[1]
+    qed (simp add: steps_step.prems(3))
     show ?case
     proof (rule a3)
       show "init ~~ tr \<leadsto>* S'"
@@ -157,12 +164,15 @@ qed
 lemma wellFormed_callOrigin_dom:
   assumes a1: "state_wellFormed S"
   shows "dom (callOrigin S) = dom (calls S)"
-  using a1 apply (induct rule: wellFormed_induct)
-   apply (simp add: initialState_def)
-  apply (erule step.cases)
-          apply (auto split: if_splits)
-   apply blast
-  by blast
+  using a1 proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step t a s)
+  from `t ~~ a \<leadsto> s`
+  show ?case
+    by (rule step.cases; insert step.hyps; auto split: if_splits; blast)
+qed
 
 lemma wellFormed_callOrigin_dom2:
   "\<lbrakk>calls S c = None; state_wellFormed S\<rbrakk> \<Longrightarrow>  callOrigin S c = None"
@@ -185,14 +195,7 @@ lemma wellFormed_currentTransaction_unique_h:
   assumes a1: "state_wellFormed S"
   shows "\<forall>sa sb t. currentTransaction S sa \<triangleq> t \<longrightarrow> currentTransaction S sb \<triangleq> t \<longrightarrow>  sa = sb"
     and "\<forall>sa t. currentTransaction S sa \<triangleq> t \<longrightarrow> transactionStatus S t \<triangleq> Uncommitted"
-  using a1 apply (induct  rule: wellFormed_induct)
-     apply (simp add: initialState_def)
-    apply (simp add: initialState_def)
-   apply (erule step.cases)
-           apply (auto split: if_splits)
-  apply (erule step.cases)
-          apply (auto split: if_splits)
-  done   
+  using a1 by (induct  rule: wellFormed_induct, auto simp add: initialState_def elim!: step.cases split: if_splits)
 
 
 
@@ -266,9 +269,7 @@ lemma wellFormed_currentTransaction_back2:
   assumes steps: "steps  (initialState progr) tr S"
     and noFail: "\<And>s. (s, AFail) \<notin> set tr"
   shows "transactionStatus S t \<triangleq> Uncommitted \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
-  using steps noFail  apply (rule wellFormed_currentTransaction_back)
-   apply (simp add: initialState_def)
-  by (simp add: state_wellFormed_init)
+  using steps noFail  by (rule wellFormed_currentTransaction_back, simp add: initialState_def, simp add: state_wellFormed_init)
 
 lemma wellFormed_currentTransaction_back3:
   assumes wf: "state_wellFormed S"
