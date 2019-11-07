@@ -3,7 +3,7 @@ image:
   entrypoint: [""]
 
 
-compile-pdfs:
+compile:
   stage: build
   script:
     - /home/isabelle/Isabelle/bin/isabelle build -D . -j 10 -v
