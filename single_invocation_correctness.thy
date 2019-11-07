@@ -215,7 +215,7 @@ definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('loc
 
 
 
-lemma checkCorrectF_mono[simp]:
+lemma checkCorrectF_mono:
 "mono checkCorrectF"
 proof (rule monoI)
   show "checkCorrectF x \<le> checkCorrectF y" if c0: "x \<le> y"  for  x :: "(('localState, 'any::valueType) prog \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool)" and y
@@ -233,7 +233,7 @@ schematic_goal checkCorrect_simps:
   "checkCorrect progr S i = ?F"
   apply (subst checkCorrect_def)
   apply (subst lfp_unfold)
-   apply simp
+  apply (simp add: checkCorrectF_mono)
   apply (subst checkCorrectF_def)
   apply (fold checkCorrect_def)
   apply (rule refl)
@@ -243,7 +243,8 @@ schematic_goal checkCorrect_simps:
 lemma checkCorrect_noProc:
   assumes "currentProc S i = None"
   shows "checkCorrect progr S i"
-  using assms  by (auto simp add: checkCorrect_simps)
+  using assms by (auto simp add: checkCorrect_simps)
+
 
 
 lemma prog_invariant:
@@ -556,7 +557,7 @@ shows "state_wellFormed S'"
   using \<open>state_wellFormed S\<close> proof (rule state_wellFormed_combine)
   from \<open>S ~~ (i, a) \<leadsto> S'\<close>
   show "S ~~ [(i,a)] \<leadsto>* S'"
-    by simp
+    by (simp add: steps_single)
   show "\<And>ia. (ia, AFail) \<notin> set [(i, a)]"
     using \<open>a\<noteq>AFail\<close> by simp
 qed
@@ -1235,7 +1236,7 @@ exists_narrowR2
 exists_narrowR3
 exists_narrowR4
 
-lemma prog_initial[simp]: "prog (initialState program) = program"
+lemma prog_initial: "prog (initialState program) = program"
   by (auto simp add: initialState_def)
 
 lemma show_program_correct_single_invocation:
@@ -1285,7 +1286,7 @@ proof (auto simp add: programCorrect_s_def)
     proof (rule initialCorrect[where i=i])
       show "S_init \<in> initialStates program i"
         using step1 and a_def apply (auto simp add: step_s.simps initialStates_def )
-         apply (auto simp add: state_ext)
+         apply (auto simp add: state_ext prog_initial)
         by blast+
 
 (*
@@ -1296,7 +1297,7 @@ proof (auto simp add: programCorrect_s_def)
 
     with step1 and a_def
     have "invInitial"
-    proof (auto simp add: step_s.simps )
+    proof (auto simp add: step_s.simps state_wellFormed_init prog_initial)
       fix initState impl C'
       assume a0: "a = (AInvoc p args, False)"
         and a1: "invariant (prog C')          (invContextH2 (callOrigin C') (transactionOrigin C') (transactionStatus C') (happensBefore C') (calls C') (knownIds C') (invocationOp C'(i \<mapsto> (p, args)))            (invocationRes C'))"
@@ -1525,7 +1526,7 @@ definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> call
 
 
 
-lemma checkCorrect2F_mono[simp]:
+lemma checkCorrect2F_mono:
 "mono checkCorrect2F"
 proof (rule monoI)
   show "checkCorrect2F x \<le> checkCorrect2F y" if c0: "x \<le> y"  for  x :: "(('localState, 'any::valueType) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool)" and y
@@ -1898,7 +1899,9 @@ next
 
           have "(invContextH (callOrigin S(c \<mapsto> tx)) (transactionOrigin S) (transactionStatus S) (updateHb (happensBefore S) txCalls [c]) (calls S(c \<mapsto> Call m a res)) (knownIds S) (invocationOp S) (invocationRes S)) 
                = invContext S"
-            using Suc.prems(2) c0 tx by (auto simp add: invContextH_def updateHb.simps(2) restrict_relation_def   committedCallsH_notin  )
+            using Suc.prems(2) c0 tx 
+            by (auto simp add: invContextH_def updateHb.simps(2) restrict_relation_def   committedCallsH_notin  committedCalls_unchanged_callOrigin wellFormed_committedCallsExist wellFormed_currentTransaction_unique_h(2) wf_callOrigin_and_calls)
+
 
 
           with \<open>invariant_all S\<close>
@@ -2008,6 +2011,10 @@ proof -
 qed
 *)
 
+lemma transactionStatus_initial: "transactionStatus (initialState progr) t = None"
+  by (simp add: initialState_def)
+
+
 lemma show_programCorrect_using_checkCorrect1:
   assumes initalStatesCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> invariant_all' S"
     and invInitial: "invariant_all' (initialState progr)"
@@ -2015,8 +2022,9 @@ lemma show_programCorrect_using_checkCorrect1:
  shows "programCorrect progr"
 proof (rule show_correctness_via_single_session)
   show "invariant_all (initialState progr)"
-    using invInitial apply (subst invContext_same_allCommitted)
-    by (auto, simp add: initialState_def)
+    using invInitial 
+    by (auto simp add: invContext_same_allCommitted state_wellFormed_init transactionStatus_initial)
+
 
 
   show "programCorrect_s progr"

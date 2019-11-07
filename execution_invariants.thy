@@ -10,9 +10,10 @@ text \<open>This theory includes proof for invariants that hold for all executio
 definition state_wellFormed :: "('localState, 'any::valueType) state \<Rightarrow> bool" where
   "state_wellFormed state \<equiv> \<exists>tr. (\<forall>i. (i, AFail) \<notin> set tr) \<and>  initialState (prog state) ~~ tr \<leadsto>* state"
 
-lemma state_wellFormed_init[simp]:
+lemma state_wellFormed_init:
   "state_wellFormed (initialState program)"
-  unfolding state_wellFormed_def by (rule exI[where x="[]"], auto simp add: initialState_def)
+  unfolding state_wellFormed_def by (rule exI[where x="[]"], auto simp add: initialState_def  steps_empty)
+  
 
 lemma steps_do_not_change_prog: 
   assumes "S ~~ tr \<leadsto>* S'"
@@ -163,7 +164,7 @@ lemma wellFormed_callOrigin_dom:
    apply blast
   by blast
 
-lemma wellFormed_callOrigin_dom2[simp]: 
+lemma wellFormed_callOrigin_dom2:
   "\<lbrakk>calls S c = None; state_wellFormed S\<rbrakk> \<Longrightarrow>  callOrigin S c = None"
   using wellFormed_callOrigin_dom by force
 
@@ -173,7 +174,7 @@ lemma wellFormed_callOrigin_dom3:
   shows "(calls S c = None) \<longleftrightarrow> (callOrigin S c = None)"
   using assms wellFormed_callOrigin_dom by force
 
-lemma range_empty[simp]: "range Map.empty = {None}"
+lemma range_empty: "range Map.empty = {None}"
   by auto
 
 
@@ -196,7 +197,7 @@ lemma wellFormed_currentTransaction_unique_h:
 
 
 lemmas wellFormed_currentTransaction_unique = wellFormed_currentTransaction_unique_h(1)[rule_format]
-lemmas wellFormed_currentTransactionUncommitted[simp] = wellFormed_currentTransaction_unique_h(2)[rule_format]
+lemmas wellFormed_currentTransactionUncommitted = wellFormed_currentTransaction_unique_h(2)[rule_format]
 
 
 
@@ -234,13 +235,11 @@ next
       then show ?thesis using a1 a3 by (auto split: if_splits)
     next
       case (beginAtomic ls f ls' t vis snapshot)
-      then show ?thesis using a0 a1 a3 \<open>state_wellFormed S'\<close> apply (auto split: if_splits )
-        by (metis option.simps(3))
+      then show ?thesis using a0 a1 a3 \<open>state_wellFormed S'\<close> by (auto simp add: wellFormed_currentTransactionUncommitted split: if_splits, force)
 
     next
       case (endAtomic ls f ls' t)
-      then show ?thesis using a1 a3 a0 apply (auto split: if_splits)
-        by force
+      then show ?thesis using a1 a3 a0 by (auto split: if_splits, force)
 
     next
       case (dbop ls f Op args ls' t c res vis)
@@ -269,8 +268,7 @@ lemma wellFormed_currentTransaction_back2:
   shows "transactionStatus S t \<triangleq> Uncommitted \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
   using steps noFail  apply (rule wellFormed_currentTransaction_back)
    apply (simp add: initialState_def)
-  apply simp
-done
+  by (simp add: state_wellFormed_init)
 
 lemma wellFormed_currentTransaction_back3:
   assumes wf: "state_wellFormed S"
@@ -285,7 +283,7 @@ lemma wellFormed_currentTransaction_back4:
   using local.wf state_wellFormed_def uncommitted wellFormed_currentTransaction_back2 by blast
 
 
-lemma committedCalls_unchanged_callOrigin[simp]:
+lemma committedCalls_unchanged_callOrigin:
   assumes a1: "ts t \<triangleq> Uncommitted"
     and a2: "co c = None"
   shows "committedCallsH (co(c \<mapsto> t)) ts = committedCallsH co ts"
@@ -297,7 +295,8 @@ lemma callOrigin_same_committed:
     and committed: "transactionStatus A tx \<triangleq> Committed "
   shows "callOrigin A c \<triangleq> tx \<longleftrightarrow> callOrigin B c \<triangleq> tx"     
   using exec apply (rule step.cases)
-  using wellFormed committed by auto  
+  using wellFormed committed by (auto simp add: wellFormed_callOrigin_dom2 wellFormed_currentTransaction_unique_h)
+
 
 
 lemma wf_localState_to_invocationOp:
@@ -356,7 +355,7 @@ lemma wf_no_transactionStatus_origin_for_nothing:
   then show ?case by (auto simp add: initialState_def)
 next
   case (step t a s)
-  then show ?case by (auto simp add: step.simps split: if_splits)
+  then show ?case by (auto simp add: step.simps wellFormed_currentTransaction_unique_h split: if_splits)
 qed
 
 lemma wf_callOrigin_implies_transactionStatus_defined:
@@ -368,7 +367,8 @@ lemma wf_callOrigin_implies_transactionStatus_defined:
   then show ?case by (auto simp add: initialState_def)
 next
   case (step t a s)
-  then show ?case by (auto simp add: step.simps split: if_splits)
+  then show ?case by (auto simp add: step.simps wellFormed_currentTransaction_unique_h split: if_splits)
+
 qed
 
 lemma finite_dom_spit:
@@ -510,7 +510,8 @@ lemma no_new_calls_in_committed_transactions:
   using assms proof (induct rule: steps_induct)
   case initial
   then show ?case 
-    by auto
+    by (auto simp add: wellFormed_callOrigin_dom2)
+
 next
   case (step S' tr a S'')
   have "state_wellFormed S'"
@@ -539,7 +540,8 @@ lemma wf_transactionOrigin_and_status:
   then show ?case by (auto simp add: initialState_def)
 next
   case (step t a s)
-  then show ?case by (auto simp add: step.simps  split: if_splits)
+  then show ?case by (auto simp add: step.simps wellFormed_currentTransactionUncommitted split: if_splits)
+
 qed
 
 lemma wf_callOrigin_and_calls:
@@ -574,7 +576,8 @@ next
   from step.IH \<open>S ~~ tr \<leadsto>* S'\<close> \<open>S' ~~ a \<leadsto> S''\<close>
     \<open>callOrigin S c \<triangleq> tx\<close> \<open>state_wellFormed S\<close>  \<open>state_wellFormed S'\<close>
   show ?case 
-    by (auto simp add: step.simps )
+    by (auto simp add: step.simps wellFormed_callOrigin_dom2)
+
 
 qed
 

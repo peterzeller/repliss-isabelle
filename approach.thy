@@ -311,7 +311,8 @@ next
     proof (cases "t=tx")
       case True
       then have "s = i"
-        using local.beginAtomic(1) local.beginAtomic(7) local.wf state_wellFormed_combine step.prems step.step step.steps unchangedInTransaction(3) by fastforce
+        using local.beginAtomic(1) local.beginAtomic(7) local.wf state_wellFormed_combine step.prems step.step step.steps unchangedInTransaction(3)
+        by (metis Un_insert_right append_Nil2 insert_iff list.simps(15) not_None_eq set_append wellFormed_currentTransaction_unique_h(2))
 
       show ?thesis 
         apply (rule_tac x="length tr" in exI)
@@ -535,7 +536,7 @@ next
     case Nil
     then have "currentTransaction S' i = None" for i
       using noUncommitted \<open>S ~~ tr \<leadsto>* S'\<close>
-      apply auto
+      apply (auto simp add: steps_empty)
       by (metis local.wf option.exhaust wellFormed_currentTransaction_unique_h(2))
 
     with \<open>S' ~~ a \<leadsto> S''\<close>
@@ -678,7 +679,8 @@ assumes wf: "state_wellFormed C"
     and "callOrigin C c \<triangleq> tx"
 shows "transactionStatus C tx \<noteq> None"   
 using assms apply (induct  rule: wellFormed_induct)
-by (auto simp add: initialState_def step_simps_all split: if_splits)
+  by (auto simp add: initialState_def step_simps_all wellFormed_currentTransaction_unique_h split: if_splits)
+
 
 lemma wellFormed_state_calls_from_current_transaction_in_vis:
 assumes wf: "state_wellFormed C"
@@ -967,7 +969,7 @@ next
       case False
 
       have not_committed_h: "transactionStatus C t \<noteq> Some Committed" if "c1 \<in> vis"
-          using that local.dbop(6) step.hyps(1) by auto
+        using local.dbop(6) not_uncommitted_cases step.hyps(1) wellFormed_currentTransactionUncommitted by blast
       
       show ?thesis 
       using False g1 g2 g3 apply (auto simp add: dbop split: if_splits)
@@ -1067,7 +1069,7 @@ next
         using wellFormed_visibleCallsSubsetCalls_h(1)[OF \<open>state_wellFormed C\<close>] by auto
         
       have [simp]: "callOrigin C c = None"
-        by (simp add: local.dbop(7) step.hyps(1))
+        by (simp add: local.dbop(7) step.hyps(1) wf_callOrigin_and_calls)
         
       have t_uncomited[simp]:  "transactionStatus C t \<triangleq> Uncommitted"
           using local.dbop(6) step.hyps(1) wellFormed_currentTransactionUncommitted by blast
@@ -1100,7 +1102,7 @@ next
         show "\<lbrakk>y1 = c; Some t = callOrigin C y2; y2 \<noteq> c; callOrigin C x2 \<noteq> callOrigin C y2; x2 \<noteq> c; x1 \<noteq> c; callOrigin C x1 = callOrigin C x2; x1 \<in> vis\<rbrakk> \<Longrightarrow> (x2, y2) \<in> happensBefore C"
           by (metis IH2 local.dbop(6) local.dbop(9) step.hyps(1) wellFormed_happensBefore_vis)
         show "\<lbrakk>y1 = c; Some t = callOrigin C y2; y2 \<noteq> c; callOrigin C x2 \<noteq> callOrigin C y2; x2 \<noteq> c; x1 \<noteq> c; callOrigin C x1 = callOrigin C x2; (x2, y2) \<in> happensBefore C\<rbrakk> \<Longrightarrow> x1 \<in> vis"
-          by (metis IH3_to causallyConsistent_def local.dbop(6) local.dbop(9) step.hyps(1) wellFormed_state_calls_from_current_transaction_in_vis wellFormed_state_causality(1))
+          by (metis IH2 causallyConsistent_def local.dbop(6) local.dbop(9) step.hyps(1) wellFormed_state_calls_from_current_transaction_in_vis wellFormed_state_causality(1))
         show "\<lbrakk>y1 \<noteq> c; callOrigin C y1 = callOrigin C y2; y2 \<noteq> c; callOrigin C x2 \<noteq> callOrigin C y2; x2 \<noteq> c; x1 = c; Some t = callOrigin C x2; (c, y1) \<in> happensBefore C\<rbrakk> \<Longrightarrow> (x2, y2) \<in> happensBefore C"
           using local.dbop(7) step.hyps(1) wellFormed_happensBefore_calls_l by blast
         show "\<lbrakk>y1 \<noteq> c; callOrigin C y1 = callOrigin C y2; y2 \<noteq> c; callOrigin C x2 \<noteq> callOrigin C y2; x2 \<noteq> c; x1 = c; Some t = callOrigin C x2; (x2, y2) \<in> happensBefore C\<rbrakk> \<Longrightarrow> (c, y1) \<in> happensBefore C"
@@ -1331,7 +1333,7 @@ next
          \<and> (state_coupling S' S2 s (tr = [] \<or> fst (last tr) = s))"
   proof (rule IH)
     have "isPrefix tr (tr@[a])"
-      by simp
+      by (simp add: isPrefix_appendI)
     then show "packed_trace tr"
       using packed prefixes_are_packed by blast 
     show "\<And>tr' S'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
@@ -1578,7 +1580,8 @@ next
         have inv': "invariant_all S'" 
         proof (rule prefix_invariant)
           show "S ~~ tr \<leadsto>* S'" using steps .
-          show "isPrefix tr (tr @ [a])" by simp
+          show "isPrefix tr (tr @ [a])"
+            by (simp add: isPrefix_appendI) 
         qed
 
 
@@ -1693,7 +1696,7 @@ next
               assume "tr = []"
               with \<open>S ~~ tr \<leadsto>* S'\<close>
               have "S' = S"
-                by auto
+                by (simp add: steps_empty)
               then have False
                 using a \<open>\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted\<close>  by blast
             }
@@ -1907,7 +1910,7 @@ next
 
 
         have inv_S': "invariant_all S'"
-          using step_prog_invariant steps steps_step.prems(3) by force  
+          using inv' by blast
 
         have vis_None: "visibleCalls S' s = None"
           using  S_wf a2 state_wellFormed_combine steps state_wellFormed_ls_visibleCalls tr_noFail by blast 
@@ -2844,7 +2847,8 @@ shows "\<exists>tr' S2 s. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2)
 proof -
   
   have not_inv_ex: "\<exists>tr_pre S_fail. isPrefix tr_pre tr \<and> (S ~~ tr_pre \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail"
-    by (rule exI[where x="tr"], rule exI[where x="S'"], auto  simp add: not_inv steps)
+    by (rule exI[where x="tr"], rule exI[where x="S'"], auto  simp add: not_inv steps isPrefix_refl)
+
     
 
   text \<open>There must be a place where the invariant fails for the first time:\<close>
@@ -2859,7 +2863,7 @@ proof -
     using steps inv not_inv_ex proof (induct rule: steps_induct)
       case initial
       then show ?case
-        by simp 
+        by (simp add: isPrefix_empty steps_empty)
     next
       case (step S' tr a S'')
       then show ?case 
@@ -3171,7 +3175,7 @@ next
     show ?thesis
     proof (intro exI conjI)
       show "isPrefix (tr @ [a]) (tr @ [a])"
-        by simp
+        by (simp add: isPrefix_refl)
       show "S ~~ tr @ [a] \<leadsto>* S''"
         using step.step step.steps steps_step by fastforce   
       
@@ -3209,7 +3213,7 @@ proof -
   using assms proof (induct rule: rev_induct)
     case Nil
     then show ?case
-      by simp 
+      by (simp add: isPrefix_empty)
   next
     case (snoc x ys)
     find_theorems name: local.snoc
@@ -3239,7 +3243,7 @@ proof -
     qed
   qed
   then show "P xs"
-    by simp
+    using isPrefix_refl by blast
 qed  
 
 lemma smallestPrefix_exists:
@@ -3250,7 +3254,7 @@ shows "\<exists>tr x. P tr x \<and> (\<forall>tr' x'. P tr' x' \<and> tr' \<note
 using example proof (induct tr arbitrary: x rule: prefix_induct)
   case Nil
   show ?case
-  proof (rule exI[where x="[]"], rule exI[where x="x"], auto)
+  proof (rule exI[where x="[]"], rule exI[where x="x"], auto simp add: isPrefix_empty)
     show "P [] x" using Nil .
   qed
 next
@@ -3349,7 +3353,8 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
     proof (atomize_elim)
       have "\<exists>tr'_s S_fail_s s'. (initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s) \<and> (\<exists>a. (a, False) \<in> set tr'_s)"
       proof (rule convert_to_single_session_trace_invFail[OF \<open>initialState program ~~ tr' \<leadsto>* S_fail\<close>])
-        show "state_wellFormed (initialState program)" by simp
+        show "state_wellFormed (initialState program)"
+          by (simp add: state_wellFormed_init)
         show "packed_trace tr'"
           using \<open>isPrefix tr' trace\<close> packed prefixes_are_packed by blast
         show "\<And>s'. (s', AFail) \<notin> set tr'"

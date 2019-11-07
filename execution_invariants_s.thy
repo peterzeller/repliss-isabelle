@@ -110,7 +110,7 @@ lemma state_wellFormed_s_to_wf:
 proof (induct rule: state_wellFormed_s_induct)
   case (initial progr)
   then show ?case
-    by simp 
+    by (simp add: state_wellFormed_init)
 next
   case (step tr S a S' progr)
   from \<open>S ~~ (i, a) \<leadsto>\<^sub>S S'\<close>
@@ -166,7 +166,8 @@ lemma wf_s_localState_to_invocationOp:
   "\<lbrakk>state_wellFormed_s S i; localState S i \<noteq> None\<rbrakk> \<Longrightarrow> invocationOp S i \<noteq> None"
 proof (induct rule: state_wellFormed_s_induct)
   case (initial progr)
-  then show ?case by (auto simp add: initialStates_def wf_localState_to_invocationOp)
+  then show ?case by (auto simp add: initialStates_def wf_localState_to_invocationOp state_wellFormed_init )
+
 next
   case (step tr S a S' progr)
   then show ?case 
@@ -235,7 +236,7 @@ qed
 lemma state_wellFormed_s_currentTransactions_iff_uncommitted:
   assumes wf: "state_wellFormed_s S i" 
   shows "currentTransaction S i \<triangleq> tx \<longleftrightarrow> (transactionStatus S tx \<triangleq> Uncommitted)"
-  using local.wf option.distinct(1) state_wellFormed_s_currentTransactionsOnlyInCurrent state_wellFormed_s_to_wf wellFormed_currentTransaction_back3 by fastforce
+  using local.wf state_wellFormed_s_currentTransactionsOnlyInCurrent state_wellFormed_s_to_wf wellFormed_currentTransactionUncommitted wellFormed_currentTransaction_back3 by fastforce
 
 
 

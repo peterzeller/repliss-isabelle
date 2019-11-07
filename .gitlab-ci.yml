@@ -1,0 +1,13 @@
+image: makarius/isabelle:Isabelle2019
+
+
+compile-pdfs:
+  stage: build
+  script:
+    - isabelle build -D . -j 10 -v
+  artifacts:
+    paths:
+      - output/*.pdf
+      - output/*.log
+    when: always
+    expire_in: 2 weeks

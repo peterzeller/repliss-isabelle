@@ -2,6 +2,7 @@ theory repliss_sem
   imports Main
     "HOL-Library.Multiset"
     "HOL-Library.Option_ord"
+ "~~/src/HOL/Eisbach/Eisbach"
 begin
 
 section \<open>Semantics\<close>
@@ -64,7 +65,7 @@ instance
   using transactionStatus.exhaust by (auto simp add: less_eq_transactionStatus_def less_transactionStatus_def )
 end
 
-lemmas transactionStatus_less_simps[simp] = less_eq_transactionStatus_def less_transactionStatus_def
+lemmas transactionStatus_less_simps = less_eq_transactionStatus_def less_transactionStatus_def
 
 lemma onlyCommittedGreater: "a \<triangleq> Committed" if "a\<ge>Some Committed" for a
   by (smt dual_order.antisym dual_order.trans less_eq_option_None_is_None less_eq_option_Some less_eq_transactionStatus_def order_refl split_option_ex that)
@@ -248,46 +249,46 @@ definition invContextH  where
       \<rparr>"
 
 
-lemma invContextH_calls[simp]:
+lemma invContextH_calls:
 "calls (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_calls |` committedCallsH state_callOrigin state_transactionStatus"
   by (auto simp add: invContextH_def)
 
 
-lemma invContextH_happensBefore[simp]:
+lemma invContextH_happensBefore:
 "happensBefore (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes) 
 = state_happensBefore |r committedCallsH state_callOrigin state_transactionStatus "
   by (auto simp add: invContextH_def)
 
 
-lemma invContextH_i_callOrigin[simp]:
+lemma invContextH_i_callOrigin:
 "callOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_callOrigin |` committedCallsH state_callOrigin state_transactionStatus"
 by (auto simp add: invContextH_def)
 
-lemma invContextH_i_transactionOrigin[simp]:
+lemma invContextH_i_transactionOrigin:
 "transactionOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Committed}"
   by (auto simp add: invContextH_def)
 
-lemma invContextH_i_knownIds[simp]:
+lemma invContextH_i_knownIds:
 "knownIds (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_knownIds"
   by (auto simp add: invContextH_def)
 
-lemma invContextH_i_invocationOp[simp]:
+lemma invContextH_i_invocationOp:
 "invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_invocationOp"
 by (auto simp add: invContextH_def)
 
 
-lemma invContextH_i_invocationRes[simp]:
+lemma invContextH_i_invocationRes:
 "invocationRes (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_invocationRes"
@@ -320,50 +321,67 @@ definition invContextH2  where
       \<rparr>"
 
 
-lemma invContextH2_calls[simp]:
+lemma invContextH2_calls:
 "calls (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_calls"
   by (auto simp add: invContextH2_def)
 
 
-lemma invContextH2_happensBefore[simp]:
+lemma invContextH2_happensBefore:
 "happensBefore (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes) 
 = state_happensBefore"
   by (auto simp add: invContextH2_def)
 
 
-lemma invContextH2_i_callOrigin[simp]:
+lemma invContextH2_i_callOrigin:
 "callOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_callOrigin "
 by (auto simp add: invContextH2_def)
 
-lemma invContextH2_i_transactionOrigin[simp]:
+lemma invContextH2_i_transactionOrigin:
 "transactionOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_transactionOrigin "
   by (auto simp add: invContextH2_def)
 
-lemma invContextH2_i_knownIds[simp]:
+lemma invContextH2_i_knownIds:
 "knownIds (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_knownIds"
   by (auto simp add: invContextH2_def)
 
-lemma invContextH2_i_invocationOp[simp]:
+lemma invContextH2_i_invocationOp:
 "invocationOp (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 = state_invocationOp"
 by (auto simp add: invContextH2_def)
 
 
-lemma invContextH2_i_invocationRes[simp]:
+lemma invContextH2_i_invocationRes:
 "invocationRes (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
       state_calls state_knownIds state_invocationOp state_invocationRes ) 
 =  state_invocationRes"
 by (auto simp add: invContextH2_def)
+
+
+lemmas invContextH2_simps =
+invContextH_calls
+invContextH_happensBefore
+invContextH_i_callOrigin
+invContextH_i_transactionOrigin
+invContextH_i_knownIds
+invContextH_i_invocationOp
+invContextH_i_invocationRes
+invContextH2_calls
+invContextH2_happensBefore
+invContextH2_i_callOrigin
+invContextH2_i_transactionOrigin
+invContextH2_i_knownIds
+invContextH2_i_invocationOp
+invContextH2_i_invocationRes
 
 abbreviation invContext' where
   "invContext' state \<equiv>
@@ -575,6 +593,9 @@ inductive steps :: "('localState, 'any::valueType) state \<Rightarrow> (invocId 
   "\<lbrakk>S ~~ tr \<leadsto>* S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> S ~~ tr@[a] \<leadsto>* S''"
 
 
+
+
+
 \<comment> \<open>with a given trace, the execution is deterministic\<close>
 lemma stepDeterministic:
   assumes e1: "S ~~ tr \<leadsto> Sa" 
@@ -661,7 +682,7 @@ lemma splitTrace_complete:
   apply (induct arbitrary: h c t rule: splitTrace.induct)
   by (auto split: if_splits prod.splits)
 
-lemma splitTrace_len[simp]: 
+lemma splitTrace_len: 
   assumes a: "splitTrace s tr = (h,c,t)"
   shows "length h \<le> length tr"
     and "length c \<le> length tr"
@@ -669,7 +690,7 @@ lemma splitTrace_len[simp]:
   using a apply (induct arbitrary: h c t rule: splitTrace.induct)
   by (auto simp add: le_SucI split: if_splits prod.splits)
 
-lemma splitTrace_len2[simp]: 
+lemma splitTrace_len2: 
   assumes a: "(h,c,t) = splitTrace s tr"
   shows "length h \<le> length tr"
     and "length c \<le> length tr"
@@ -678,8 +699,8 @@ lemma splitTrace_len2[simp]:
 
 declare splitTrace.simps[simp del]
 
-
-fun compactTrace :: "invocId \<Rightarrow> 'any trace \<Rightarrow> 'any trace" where
+  
+function (sequential) compactTrace :: "invocId \<Rightarrow> 'any trace \<Rightarrow> 'any trace" where
   compactTrace_empty:
   "compactTrace s [] = []"
 | compactTrace_step:
@@ -690,7 +711,9 @@ fun compactTrace :: "invocId \<Rightarrow> 'any trace \<Rightarrow> 'any trace" 
     else
       (sa, a) # compactTrace s tr
   )"
-
+by pat_completeness auto
+termination
+  by (lexicographic_order simp add: splitTrace_len2 )
 
 lemma compactTrace_complete: 
   "mset (compactTrace s tr) = mset tr"
@@ -727,10 +750,10 @@ lemma steps_append2:
   using assms steps_append traceDeterministic by blast
 
 
-lemma steps_single[simp]: "(A ~~ [a] \<leadsto>* B) \<longleftrightarrow> (A ~~ a \<leadsto> B)"
+lemma steps_single: "(A ~~ [a] \<leadsto>* B) \<longleftrightarrow> (A ~~ a \<leadsto> B)"
   by (metis append_Nil steps_appendBack steps_refl traceDeterministic)
 
-lemma steps_empty[simp]: "(A ~~ [] \<leadsto>* B) \<longleftrightarrow> (A = B)"
+lemma steps_empty: "(A ~~ [] \<leadsto>* B) \<longleftrightarrow> (A = B)"
   using steps_refl traceDeterministic by blast
 
 
@@ -742,8 +765,55 @@ proof -
   moreover have "... = (\<exists>B. (A ~~ [a] \<leadsto>* B) \<and> (B ~~ tr \<leadsto>* C))" by (rule steps_append)
   moreover have "... = (\<exists>B. (A ~~ a \<leadsto> B) \<and> (B ~~ tr \<leadsto>* C))" by (simp add: steps_single)
   ultimately show ?thesis by simp
-qed  
+qed 
 
+lemma move_exists_outside_and: "((\<exists>x. P x) \<and> Q) \<longleftrightarrow> (\<exists>x. P x \<and> Q) "
+  by auto
+
+lemma exists_eq_rewrite:
+  shows "(\<exists>x. x = y \<and> Q x y) \<longleftrightarrow> Q y y"
+  by (metis )
+
+lemma exists_reorder1: "(\<exists>x a. P x a) \<longleftrightarrow> (\<exists>a x. P x a)"  by metis
+lemma exists_reorder2: "(\<exists>x a b. P x a b) \<longleftrightarrow> (\<exists>a b x. P x a b)"  by metis
+lemma exists_reorder3: "(\<exists>x a b c. P x a b c) \<longleftrightarrow> (\<exists>a b c x. P x a b c)"  by metis
+lemma exists_reorder4: "(\<exists>x a b c d. P x a b c d) \<longleftrightarrow> (\<exists>a b c d x. P x a b c d)"  by metis
+lemma exists_reorder5: "(\<exists>x a b c d e. P x a b c d e) \<longleftrightarrow> (\<exists>a b c d e x. P x a b c d e)"  by metis
+lemma exists_reorder6: "(\<exists>x a b c d e f. P x a a b c d e f) \<longleftrightarrow> (\<exists>a a b c d e f x. P x a a b c d e f)"  by metis
+
+method create_step_simp_rule =
+  (subst steps_appendFront,
+  subst step_simps,
+   (subst move_exists_outside_and conj_assoc)+,
+  ((subst exists_reorder6 
+      | subst exists_reorder5
+      | subst exists_reorder4
+      | subst exists_reorder3
+      | subst exists_reorder2
+      | subst exists_reorder1)?
+    , subst exists_eq_rewrite),
+  simp)
+
+schematic_goal steps_simp_ALocal: "(A ~~ (i, ALocal)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_ANewId: "(A ~~ (i, ANewId n)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_ABeginAtomic: "(A ~~ (i, ABeginAtomic t newTxns)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_AEndAtomic: "(A ~~ (i, AEndAtomic)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_ADbOp: "(A ~~ (i, ADbOp c oper args res)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_AInvoc: "(A ~~ (i, AInvoc procname args)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_AReturn: "(A ~~ (i, AReturn res)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_AFail: "(A ~~ (i, AFail)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_AInvcheck: "(A ~~ (i, AInvcheck invi)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+
+lemmas steps_simps =
+  steps_simp_ALocal
+  steps_simp_ANewId
+  steps_simp_ABeginAtomic
+  steps_simp_AEndAtomic
+  steps_simp_ADbOp
+  steps_simp_AInvoc
+  steps_simp_AReturn
+  steps_simp_AFail
+  steps_simp_AInvcheck
 
 
 end

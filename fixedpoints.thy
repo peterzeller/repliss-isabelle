@@ -13,7 +13,7 @@ lemma exists_maximal_element:
   then show ?case by simp
 next
   case (insert x F)
-  show ?case 
+  show ?case
   proof (cases "F = {}")
     case True
     then show ?thesis by simp
@@ -128,7 +128,7 @@ lemma check_ok0_less: "x < check_ok 0 \<longleftrightarrow> x = check_fail"
   by (auto simp add: less_check_result_def split: check_result.splits)
 
 
-instance check_result :: wellorder 
+instance check_result :: wellorder
 proof
 
 
@@ -220,7 +220,7 @@ lemma least_check_result_not_less_eq: "P a \<Longrightarrow> (\<not> (z \<le> (L
   
 
 
-lemma check_ok_infinite_max[simp]: "z \<le> check_ok_infinite"
+lemma check_ok_infinite_max: "z \<le> check_ok_infinite"
   by (simp add: leI less_check_result_def)
 
 
@@ -254,19 +254,19 @@ qed
 
 thm GreatestI_nat
 
-lemma check_fail_least[simp]: "check_fail \<le> x"
+lemma check_fail_least: "check_fail \<le> x"
   by (simp add: less_eq_check_result_def)
 
-lemma check_fail_least2[simp]: "x \<le> check_fail \<longleftrightarrow> x = check_fail"
+lemma check_fail_least2: "x \<le> check_fail \<longleftrightarrow> x = check_fail"
   by (case_tac x, auto simp add: less_eq_check_result_def)
 
-lemma check_inf_greatest[simp]: "x \<le> check_ok_infinite"
+lemma check_inf_greatest: "x \<le> check_ok_infinite"
   by (case_tac x, auto simp add: less_eq_check_result_def)
 
-lemma check_inf_greatest2[simp]: "check_ok_infinite \<le> x \<longleftrightarrow> x = check_ok_infinite"
+lemma check_inf_greatest2: "check_ok_infinite \<le> x \<longleftrightarrow> x = check_ok_infinite"
   by (case_tac x, auto simp add: less_eq_check_result_def)
 
-lemma check_ok_compare[simp]: "check_ok x \<le> check_ok y \<longleftrightarrow> x \<le> y"
+lemma check_ok_compare: "check_ok x \<le> check_ok y \<longleftrightarrow> x \<le> y"
   by (case_tac x, auto simp add: less_eq_check_result_def)
 
 lemma GreatestI_check_result:
@@ -293,9 +293,9 @@ proof (cases "\<exists>n. P (check_ok n)")
     show " P (check_ok (Greatest P'))"
       using P'_def \<open>P' (Greatest P')\<close> by auto
     show "\<And>y. P y \<Longrightarrow> y \<le> check_ok (Greatest P')"
-      apply (case_tac y, auto)
+      apply (case_tac y, auto simp add: check_fail_least check_inf_greatest2 check_inf_greatest2 check_ok_compare)
        apply (rule Greatest_le_nat[where b=bound])
-      using bound by (auto simp add: P'_def )
+      using bound by (auto simp add: P'_def check_inf_greatest2 check_ok_compare)
     show "\<And>x. \<lbrakk>P x; \<forall>y. P y \<longrightarrow> y \<le> x\<rbrakk> \<Longrightarrow> x = check_ok (Greatest P')"
       by (simp add: \<open>P (check_ok (Greatest P'))\<close> \<open>\<And>y. P y \<Longrightarrow> y \<le> check_ok (Greatest P')\<close> eq_iff)
   qed
@@ -348,11 +348,11 @@ lemma Greatest_leq:
   using antisym example apply blast
   using Px by auto
 
-lemma check_fail_smaller[simp]: "check_fail \<le> x"
+lemma check_fail_smaller: "check_fail \<le> x"
   by (simp add: less_eq_check_result_def)
 
-lemma check_ok_infinite_max'[simp]: "check_ok_infinite \<le> z \<longleftrightarrow> z = check_ok_infinite"
-  by (simp add: dual_order.antisym)
+lemma check_ok_infinite_max': "check_ok_infinite \<le> z \<longleftrightarrow> z = check_ok_infinite"
+  by (simp add: dual_order.antisym check_inf_greatest2)
 
 
 lemma exists_greatest_check_result:
@@ -362,7 +362,7 @@ shows "\<exists>m. m \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \
 proof (cases "check_ok_infinite \<in> A")
   case True
   then have "check_ok_infinite \<in> A \<and> (\<forall>x. x \<in> A \<longrightarrow> x \<le> check_ok_infinite)"
-    by auto
+    by (simp add: check_inf_greatest)
   then show ?thesis ..
 next
   case False
@@ -392,7 +392,7 @@ next
         apply auto
         apply (drule_tac x="check_ok i_max" in spec) 
         apply auto
-        apply (case_tac x, auto)
+        apply (case_tac x, auto simp add: check_ok_compare check_fail_smaller)
         using i_greatest not_le_imp_less apply blast
         using False by blast
     qed
@@ -438,10 +438,10 @@ proof
     using Inf_check_result'_def Inf_check_result_def Least_le by fastforce
 
   show "(\<And>x. x \<in> A \<Longrightarrow> z \<le> x) \<Longrightarrow> z \<le> Inf A" for A
-    by (auto simp add: Inf_check_result_def least_check_result_not_less_eq leD)
+    by (auto simp add: Inf_check_result_def least_check_result_not_less_eq leD check_inf_greatest)
 
   show "x \<in> A \<Longrightarrow> x \<le> Sup A" for A
-    apply (auto simp add: Sup_check_result_def )
+    apply (auto simp add: Sup_check_result_def check_inf_greatest        )
     apply (erule_tac P="x \<le> (GREATEST x. x \<in> A)" in notE)
     apply (rule Greatest_leq)
     by (auto simp add: exists_greatest_check_result)
@@ -449,16 +449,18 @@ proof
 
 
   show "(\<And>x. x \<in> A \<Longrightarrow> x \<le> z) \<Longrightarrow> Sup A \<le> z" for A
-    apply (auto simp add: Sup_check_result_def )
+    apply (auto simp add: Sup_check_result_def 
+       check_ok_infinite_max'
+    )
     using check_ok_infinite_max' apply blast
      apply (case_tac z)
-       apply auto
+       apply (auto simp add: check_fail_least2 check_fail_smaller)
     using check_ok_compare leD apply blast
     apply (erule_tac P=" (GREATEST x. x \<in> A) \<le> z" in notE)
     apply (case_tac z)
-      apply auto
+      apply (auto simp add: check_inf_greatest)
      apply (metis GreatestI_check_result check_fail_least2 le_cases)
-    by (metis (full_types) GreatestI_check_result) 
+    by (metis (full_types) GreatestI_check_result)
 
 qed (auto simp add: Inf_check_result_def top_check_result_def  Sup_check_result_def  bot_check_result_def)
 end

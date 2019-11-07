@@ -609,7 +609,8 @@ next
   case (step S a S')
 
   have " S ~~ [a] \<leadsto>* S'"
-    by (simp add: step.hyps(3))
+    by (simp add: step.hyps(3) steps_single)
+
 
   have not_generated_S: "generatedIds S uid = None"
     using generatedIds_mono[OF \<open>S ~~ [a] \<leadsto>* S'\<close>] \<open>generatedIds S' uid = None\<close>

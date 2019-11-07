@@ -56,8 +56,9 @@ definition state_monotonicGrowth :: "('localState, 'any::valueType) state \<Righ
       \<and> prog S = prog S'"
 *)
 
-lemma state_monotonicGrowth_refl[simp]: "state_wellFormed S \<Longrightarrow> state_monotonicGrowth i S S"
-  by (auto simp add: state_monotonicGrowth_def exI[where x="[]"])
+lemma state_monotonicGrowth_refl: "state_wellFormed S \<Longrightarrow> state_monotonicGrowth i S S"
+  by (auto simp add: state_monotonicGrowth_def exI[where x="[]"] steps_empty)
+
 
 lemma state_monotonicGrowth_step: 
   assumes "state_wellFormed S"

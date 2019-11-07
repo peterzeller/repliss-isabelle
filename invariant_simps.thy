@@ -13,11 +13,11 @@ definition
   "i_callOriginI_h callOrig transactionOrig \<equiv> \<lambda>c.
   case callOrig c of Some t \<Rightarrow> transactionOrig t | None \<Rightarrow> None"
 
-lemma i_callOriginI_h_simp[simp]: "co c \<triangleq> t \<Longrightarrow> i_callOriginI_h co to c = to t"
+lemma i_callOriginI_h_simp: "co c \<triangleq> t \<Longrightarrow> i_callOriginI_h co to c = to t"
   by (auto simp add: i_callOriginI_h_def)
 
 lemma i_callOriginI_h_simp2: "i_callOriginI_h (callOrigin S'(c \<mapsto> t)) (transactionOrigin S'(t \<mapsto> i)) c \<triangleq> i"
-  by auto
+  by (simp add: i_callOriginI_h_simp)
 
 
 lemma i_callOriginI_h_simp_update_co:

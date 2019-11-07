@@ -13,13 +13,13 @@ lemma isPrefix_append:
   "isPrefix xs ys \<Longrightarrow> isPrefix xs (ys@zs)"
   using take_all by (fastforce simp add: isPrefix_def)
 
-lemma isPrefix_refl[simp]: "isPrefix xs xs"
+lemma isPrefix_refl: "isPrefix xs xs"
   by (simp add: isPrefix_def)
 
-lemma isPrefix_empty[simp]: "isPrefix xs [] \<longleftrightarrow> xs = []"
+lemma isPrefix_empty: "isPrefix xs [] \<longleftrightarrow> xs = []"
   by (simp add: isPrefix_def)
 
-lemma isPrefix_appendI[simp]:
+lemma isPrefix_appendI:
   "isPrefix xs (xs@ys)"
   by (simp add: isPrefix_def)
 

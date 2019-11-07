@@ -28,12 +28,10 @@ next
   case (step S' tr a S'')
 
   show "(invocationOp S'' s = None) = (\<forall>proc args. (s, AInvoc proc args) \<notin> set (tr @ [a]))"
-    using \<open>S' ~~ a \<leadsto> S''\<close> apply (induct rule: step.cases)
-    using step.IH(1) by auto
+    using \<open>S' ~~ a \<leadsto> S''\<close> by (induct rule: step.cases, auto simp add: step.IH(1))
 
   show "\<forall>proc args. invocationOp S'' s \<triangleq> (proc, args) = ((s, AInvoc proc args) \<in> set (tr @ [a]))"
-    using \<open>S' ~~ a \<leadsto> S''\<close> apply (induct rule: step.cases)
-    using step.IH(2) by auto
+    using \<open>S' ~~ a \<leadsto> S''\<close> using step.IH(2) by (induct rule: step.cases, auto)
 qed
 
 lemma invocation_ops_if_localstate_nonempty:
@@ -198,7 +196,8 @@ lemma trace_simulationProof[consumes 1, case_names initial f_empty_to_empty indu
   using steps_tr proof (induct rule: steps_induct)
   case initial
   show ?case
-    by (simp add: f_empty_to_empty P_initial) 
+    using P_initial steps_refl by (auto simp add: f_empty_to_empty  )
+
 next
   case (step S' tr a S'')
   from this
@@ -342,7 +341,7 @@ proof (rule iffI2; clarsimp)
           apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls')\<rparr>"])
           using induct_step.coupling no_fail local
           apply (intro conjI)
-          by (auto simp add: step_simps state_ext local induct_step)
+          by (auto simp add: step_simps state_ext local induct_step steps_single)
       next
         case (newId s ls f ls' uid ls'')
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
@@ -352,7 +351,7 @@ proof (rule iffI2; clarsimp)
         show ?thesis 
           apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls''), generatedIds := (generatedIds S2)(uid \<mapsto> s )\<rparr>"])
           using induct_step.coupling no_fail newId
-          by (auto simp add: step_simps state_ext  induct_step)
+          by (auto simp add: step_simps state_ext  induct_step steps_single)
 
       next
         case (beginAtomic s ls f ls' t vis snapshot)
@@ -369,7 +368,7 @@ proof (rule iffI2; clarsimp)
                 transactionOrigin := transactionOrigin S2(t \<mapsto> s),
                 visibleCalls := visibleCalls S2(s \<mapsto> snapshot)\<rparr>"])
           using induct_step.coupling no_fail beginAtomic
-          apply (auto simp add: step_simps state_ext  induct_step)
+          apply (auto simp add: step_simps state_ext  induct_step steps_single)
           using \<open>chooseSnapshot snapshot vis S1\<close> chooseSnapshot_unchanged induct_step.coupling by blast 
 
       next
@@ -381,7 +380,7 @@ proof (rule iffI2; clarsimp)
         show ?thesis 
           apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S1(t \<mapsto> Committed)\<rparr>"])
           using induct_step.coupling no_fail endAtomic
-          by (auto simp add: step_simps state_ext  induct_step)
+          by (auto simp add: step_simps state_ext  induct_step steps_single)
       next
         case (dbop s ls f Op args ls' t c res vis)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
@@ -391,7 +390,7 @@ proof (rule iffI2; clarsimp)
         show ?thesis 
           apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls' res), calls := calls S2(c \<mapsto> Call Op args res), callOrigin := callOrigin S1(c \<mapsto> t), visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> {c}), happensBefore := happensBefore S1 \<union> vis \<times> {c}\<rparr>"])
           using induct_step.coupling no_fail dbop
-          by (auto simp add: step_simps state_ext  induct_step)
+          by (auto simp add: step_simps state_ext  induct_step steps_single)
 
       next
         case (invocId s procName args initialLocalState impl)
@@ -402,7 +401,7 @@ proof (rule iffI2; clarsimp)
         show ?thesis 
           apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> initialLocalState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"])
           using induct_step.coupling no_fail invocId
-          by (auto simp add: step_simps state_ext  induct_step)
+          by (auto simp add: step_simps state_ext  induct_step steps_single)
       next
         case (return s ls f res)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
@@ -412,7 +411,7 @@ proof (rule iffI2; clarsimp)
         show ?thesis 
           apply (rule exI[where x="S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S1(s \<mapsto> res), knownIds := knownIds S1 \<union> uniqueIds res\<rparr>"])
           using induct_step.coupling no_fail return
-          by (auto simp add: step_simps state_ext  induct_step)
+          by (auto simp add: step_simps state_ext  induct_step steps_single)
       next
         case (fail s ls)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
@@ -428,7 +427,7 @@ proof (rule iffI2; clarsimp)
         show ?thesis 
           apply (rule exI[where x="S2"])
           using induct_step.coupling  invCheck
-          by (auto simp add: step_simps state_ext  induct_step)
+          by (auto simp add: step_simps state_ext  induct_step steps_single)
       qed
     qed
 
@@ -539,7 +538,7 @@ lemma show_commutativeS_pres2[case_names preBfront preAfront preAback preBback c
     and a2': "\<And>s1. \<lbrakk>s ~~ a \<leadsto> s1; precondition b s; differentIds a b\<rbrakk> \<Longrightarrow> precondition b s1"
     and a4:  "\<And>s1 s2 s1' s2'. \<lbrakk>s ~~ a \<leadsto> s1; s1 ~~ b \<leadsto> s2; s ~~ b \<leadsto> s1'; s1' ~~ a \<leadsto> s2'\<rbrakk> \<Longrightarrow> s2 = s2'"
   shows "commutativeS s a b"
-proof (auto simp add: commutativeS_def precondition_def steps_appendFront)
+proof (auto simp add: commutativeS_def precondition_def steps_appendFront steps_empty)
   fix t B
   assume step1: "s ~~ a \<leadsto> B" and step2: "B ~~ b \<leadsto> t"
 
@@ -800,7 +799,8 @@ lemma happensBefore_same_committed2:
     and orig_y: "callOrigin A y \<triangleq> tx"
   shows "(x,y) \<in> happensBefore A  \<longleftrightarrow> (x,y) \<in> happensBefore B" 
   using exec apply (rule step.cases)
-  using wellFormed committed orig_y by auto      
+  using wellFormed committed orig_y by (auto simp add: wellFormed_callOrigin_dom2)     
+
 
 lemma invContextSame_h: 
   assumes exec: "A ~~ (sa, a) \<leadsto> B"
@@ -836,10 +836,7 @@ lemma invContextSnapshot_same:
   shows "(invContext A) = (invContext B)"
 proof (auto simp add: invContextH_def invContextSame_h[OF exec wellFormed 1 aIsNotCommit])
   have committed_same: "committedCalls B = committedCalls A"
-    using exec apply (rule step.cases)
-            apply (auto simp add: committedCallsH_def  isCommittedH_def aIsNotCommit wellFormed)
-    apply force
-    done
+    using exec by (rule step.cases, auto simp add:  aIsInTransaction txIsUncommitted committedCallsH_def  isCommittedH_def aIsNotCommit wellFormed wellFormed_callOrigin_dom2)
 
   have committed_subset: "committedCalls A \<subseteq> dom (calls A)"
     apply (auto simp add: committedCallsH_def isCommittedH_def aIsNotCommit wellFormed)
@@ -862,7 +859,8 @@ proof (auto simp add: invContextH_def invContextSame_h[OF exec wellFormed 1 aIsN
   show "\<And>a b. (a, b) \<in> happensBefore B |r committedCalls B \<Longrightarrow> (a, b) \<in> happensBefore A |r committedCalls A"
     apply (simp add: committed_same)
     using exec apply (rule step.cases)
-    by (auto simp add: restrict_relation_def committedCallsH_def isCommittedH_def wellFormed)
+    by (auto simp add: wellFormed_callOrigin_dom2 restrict_relation_def committedCallsH_def isCommittedH_def wellFormed)
+
 
   show "callOrigin A |` committedCalls A = callOrigin B |` committedCalls B"
     apply (simp add: committed_same)
@@ -977,7 +975,8 @@ proof -
     have tx_none: "transactionStatus A tx = None" using transactionStatus_mono 5 exec by blast 
     show ?thesis 
       using exec differentSessions differentSessions[symmetric] 1 2 3 4 5 6 7 tx_none txIsUncommitted wellFormed 
-      by (auto simp add: aIsInTransaction aIsNotCommit step.simps \<open>b = ABeginAtomic tx snapshot\<close> precondition_beginAtomic elim!: chooseSnapshot_unchanged_precise split: if_splits)
+      by (auto simp add: wellFormed_callOrigin_dom2 aIsInTransaction aIsNotCommit step.simps \<open>b = ABeginAtomic tx snapshot\<close> precondition_beginAtomic elim!: chooseSnapshot_unchanged_precise split: if_splits)
+
   next
     case AEndAtomic
     then show ?thesis
@@ -1041,7 +1040,7 @@ proof -
   qed
 qed
 
-(*
+(* 
 \<And>ls f ls' t vis visa.
        a = AInvcheck True \<Longrightarrow>
        currentTransaction S sb = None \<Longrightarrow>
@@ -1099,8 +1098,7 @@ find_consts "'a \<Rightarrow> 'a option \<Rightarrow> 'a"
 lemma commutative_ALocal_other:
   assumes a1: "sa \<noteq> sb"
   shows "commutativeS S (sa, ALocal) (sb, a)"
-  apply (case_tac a)
-  by (auto simp add: commutativeS_def steps_appendFront a1 a1[symmetric]  step_simps fun_upd_twist elim!: chooseSnapshot_unchanged_precise)
+  by (case_tac a, auto simp add: commutativeS_def steps_simps steps_empty a1 a1[symmetric] fun_upd_twist elim!: chooseSnapshot_unchanged_precise)
 
 
 lemma commutative_other_ALocal:
@@ -1121,7 +1119,8 @@ lemma invContextH_update_callOrigin:
   assumes "co c = None" and "ts t \<triangleq> Uncommitted"
   shows "invContextH (co(c \<mapsto> t)) to ts hb cs ki io ir   =
        invContextH co to ts hb cs ki io ir  "
-  using assms by (auto simp add: invContextH_def committedCallsH_notin)
+  using assms by (auto simp add: invContextH_def committedCallsH_notin committedCalls_unchanged_callOrigin)
+
 
 
 lemma invContextH_update_calls:
@@ -1148,6 +1147,7 @@ lemma invContextH_update_txstatus:
 
 lemmas invContextH_simps = invContextH_update_calls invContextH_update_callOrigin invContextH_update_txstatus
 
+
 lemma test:
   fixes S:: "('localState, 'any::valueType) state"
   assumes a7: "currentTransaction S sa \<triangleq> t"
@@ -1160,7 +1160,12 @@ lemma test:
                 happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>)
            
   = invContext S "
-  using assms by (auto simp add:  committedCallsH_notin  invContext_unchanged_happensBefore)
+  using assms
+  thm invariantContext_eqI
+  by (auto simp add:  committedCallsH_notin  invContext_unchanged_happensBefore
+   invContextH_simps committedCalls_unchanged_callOrigin  wellFormed_currentTransaction_unique_h(2) wf_callOrigin_and_calls)
+
+
 
 
 lemma getContextH_visUpdate:
@@ -1185,8 +1190,8 @@ lemma  callsInTransactionH_originUpdate_unchanged:
   shows "callsInTransactionH (callOrigin S(c \<mapsto> t)) txns
            = callsInTransactionH (callOrigin S) txns"
   apply (auto simp add: callsInTransactionH_def)
-  using a1 a2 a4 apply auto[1]
-  by (simp add: a2 a3)
+  using a1 a2 a4 wellFormed_currentTransaction_unique_h(2) apply fastforce
+  by (simp add: a2 a3 wellFormed_callOrigin_dom2)
 
 
 lemma callsInTransaction_down_hb_unchanged:"
@@ -1194,7 +1199,8 @@ lemma callsInTransaction_down_hb_unchanged:"
  state_wellFormed S\<rbrakk>
  \<Longrightarrow> callsInTransaction S txns \<down> (happensBefore S \<union> visa \<times> {c})
    = callsInTransaction S txns \<down> (happensBefore S)"
-  by (auto simp add: downwardsClosure_def callsInTransactionH_def)
+  by (auto simp add: downwardsClosure_def callsInTransactionH_def wellFormed_callOrigin_dom2)
+
 
 lemma commutative_Dbop_other:
   assumes a1[simp]: "sa \<noteq> sb"
@@ -1205,14 +1211,15 @@ proof (cases a)
   then show ?thesis  by (simp add: commutative_other_ALocal)
 next
   case (ANewId x2)
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
+  then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
+
 
 next
   case AEndAtomic
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
+  then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist)
 next
   case AFail
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront  a1[symmetric]  step_simps fun_upd_twist)
+  then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront  a1[symmetric]  step_simps fun_upd_twist)
 next
   case (AInvoc p a)
   show ?thesis 
@@ -1250,7 +1257,10 @@ next
   with a2 show ?thesis 
     apply simp
     apply (rule show_commutativeS_pres)
-    by (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist subset_eq invContextH_simps          invContext_unchanged_happensBefore2 )
+    by (auto simp add: precondition_def commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist subset_eq invContextH_simps  wellFormed_currentTransactionUncommitted   invContext_unchanged_happensBefore     invContext_unchanged_happensBefore2 
+ wellFormed_callOrigin_dom3 wellFormed_currentTransaction_unique_h(2))
+
+
 next
   case (ADbOp c' operation' args' res')
   with a2 show ?thesis 
@@ -1268,7 +1278,7 @@ next
   proof (induct rule: show_commutativeS_pres2)
     case (preBfront s1)
     then show "precondition (sb, a) S" 
-      using a2 by (auto simp add: precondition_dbop precondition_beginAtomic step_simps split: if_splits elim!: chooseSnapshot_unchanged_precise)
+      using a2 by (auto simp add: wellFormed_callOrigin_dom2 wellFormed_currentTransactionUncommitted precondition_dbop precondition_beginAtomic step_simps split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
   next
     case (preAfront s1)
@@ -1281,7 +1291,9 @@ next
   next
     case (preBback s1)
     then show "precondition (sb, a) s1" 
-      using a2 by (auto simp add: precondition_dbop precondition_beginAtomic step_simps split: if_splits elim!: chooseSnapshot_unchanged_precise)
+      using a2 by (auto simp add: wellFormed_currentTransaction_unique_h(2) wellFormed_callOrigin_dom2 precondition_dbop precondition_beginAtomic step_simps split: if_splits elim!: chooseSnapshot_unchanged_precise)
+      
+
   next
     case (commute s1 s2 s1' s2')
     then have step1: "S ~~ (sa, ADbOp c operation args res) \<leadsto> s1"
@@ -1308,26 +1320,27 @@ next
   then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 next
   case (ABeginAtomic x3)
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute elim!: chooseSnapshot_unchanged_precise)
+  then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute elim!: chooseSnapshot_unchanged_precise)
+
 next
   case AEndAtomic
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
+  then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 next
   case (ADbOp x51 x52 x53 x54)
   then show ?thesis
     using a1 a2 commutativeS_switchArgs commutative_Dbop_other by metis
 next
   case (AInvoc x71 x72)
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
+  then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 next
   case (AReturn x8)
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
+  then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 next
   case AFail
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
+  then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 next
   case (AInvcheck x10)
-  then show ?thesis by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
+  then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 qed
 
 lemma commutative_fail_other:
@@ -1335,7 +1348,7 @@ lemma commutative_fail_other:
     and a2: "state_wellFormed S"
   shows "commutativeS S (sa, AFail) (sb, a)"
   apply (case_tac a)
-  by (auto simp add: commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute elim!: chooseSnapshot_unchanged_precise)
+  by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute elim!: chooseSnapshot_unchanged_precise)
 
 
 lemma move_transaction:
@@ -1402,11 +1415,11 @@ lemma move_transaction2:
    \<longleftrightarrow> (S ~~ b#a#xs \<leadsto>* T)"
 proof -
   have "(S ~~ a#b#xs \<leadsto>* T) \<longleftrightarrow> (\<exists>S'. (S ~~ [a,b] \<leadsto>* S') \<and> (S' ~~ xs \<leadsto>* T))"
-    by (auto simp add: steps_appendFront)
+    by (auto simp add: steps_appendFront steps_empty)
   moreover have "... \<longleftrightarrow> (\<exists>S'. (S ~~ [b,a] \<leadsto>* S') \<and> (S' ~~ xs \<leadsto>* T))"
     by (metis a_is_in_transaction b_is_a_different_session local.wf move_transaction not_endAtomic prod.collapse not_invCheck)
   moreover have "... \<longleftrightarrow> (S ~~ b#a#xs \<leadsto>* T)" 
-    by (auto simp add: steps_appendFront)
+    by (auto simp add: steps_appendFront steps_empty)
   ultimately show ?thesis
     by blast 
 qed   
@@ -1435,7 +1448,7 @@ proof -
       using ABeginAtomic apply (auto simp add: step_simps contra_subsetD split: if_splits elim!: chooseSnapshot_unchanged_precise)[1]
       using ABeginAtomic   apply (auto simp add: step_simps contra_subsetD split: if_splits elim!: chooseSnapshot_unchanged_precise)[1]
       apply (subst state_ext)
-      using ABeginAtomic by (auto simp add: step_simps split: if_splits elim!: chooseSnapshot_unchanged_precise)
+      using ABeginAtomic by (auto simp add: step_simps steps_empty split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
   next
     case AEndAtomic \<comment> \<open>this is not commutative, since the transaction committed could be included in ht next snapshot\<close>
@@ -1452,10 +1465,10 @@ proof -
     auto, smt mem_Collect_eq option.inject subsetCE transactionStatus.distinct(1))*)
   next
     case (AInvoc x71 x72)
-    then show ?thesis by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits elim!: chooseSnapshot_unchanged_precise)
+    then show ?thesis by (auto simp add: steps_empty a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits elim!: chooseSnapshot_unchanged_precise)
   next
     case (AReturn x8)
-    then show ?thesis by (auto simp add: a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits elim!: chooseSnapshot_unchanged_precise)
+    then show ?thesis by (auto simp add: steps_empty a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits elim!: chooseSnapshot_unchanged_precise)
   next
     case AFail
     then show ?thesis
@@ -1592,12 +1605,12 @@ lemma one_compaction_step:
       = (s_init ~~ (s, ABeginAtomic tx ntxns) # x # rest \<leadsto>* C)" 
     using Nil by simp
   moreover have "... = (\<exists>S'. (s_init ~~ [(s, ABeginAtomic tx ntxns), x] \<leadsto>* S') \<and> (S' ~~ rest \<leadsto>* C))"
-    by (auto simp add: steps_appendFront)
+    by (auto simp add: steps_appendFront steps_empty)
   moreover have "... = (\<exists>S'. (s_init ~~ [x, (s, ABeginAtomic tx ntxns)] \<leadsto>* S') \<and> (S' ~~ rest \<leadsto>* C))"
     using useCommutativeS[OF commutative_beginAtomic_other[OF \<open>fst x \<noteq> s\<close>[symmetric] wf \<open>snd x \<noteq> AEndAtomic\<close>]]
     by simp
   moreover have "... = ( s_init ~~ x # (s, ABeginAtomic tx ntxns) # [] @ rest \<leadsto>* C)"
-    by (auto simp add: steps_appendFront)
+    by (auto simp add: steps_appendFront steps_empty)
 
   ultimately show ?case by auto
 next
@@ -2372,7 +2385,7 @@ proof (auto simp add: canSwap_def)
 
 
   show "C1 ~~ [(s2, b), (s1, a)] \<leadsto>* C3"
-  proof (subst steps.simps, clarsimp, rule assms)
+  proof (subst steps.simps, clarsimp simp add: steps_empty steps_single, rule assms)
     show "s1 \<noteq> s2" using a0.
     show "C1 ~~ (s1, a) \<leadsto> C2" using a1'.
     show "C2 ~~ (s2,b) \<leadsto> C3" using a1''.
@@ -2388,7 +2401,7 @@ lemma show_canSwap':
 
 method prove_canSwap = (rule show_canSwap, auto simp add: step_simps elim!: chooseSnapshot_unchanged_precise, subst state_ext, auto)  
 method prove_canSwap' = (rule show_canSwap', auto simp add: step_simps elim!: chooseSnapshot_unchanged_precise, subst state_ext, auto)
-method prove_canSwap'' = (rule show_canSwap', auto del: ext  simp add: step_simps intro!: stateEqI ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
+method prove_canSwap'' = (rule show_canSwap', auto del: ext  simp add: wellFormed_callOrigin_dom2 step_simps wellFormed_currentTransactionUncommitted intro!: stateEqI ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
 lemma commutativeS_canSwap:
   assumes comm: "\<And>(C::('ls,'any::valueType) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
@@ -2924,7 +2937,7 @@ proof (induct "max_natset {length tr - i  | i.
       qed  
 
       show "state_wellFormed (initialState program)"
-        by auto
+        by (simp add: state_wellFormed_init)
 
       from noFail
       show "\<And>i. (i, AFail) \<notin> set (take prev tr @ [tr ! prev])"
@@ -3124,7 +3137,8 @@ proof -
   have tr''_steps:  "initialState program ~~ tr'' \<leadsto>* C'"
     apply (auto simp add: tr''_def)
     apply (induct rule: steps_induct)
-    by (auto simp add: is_AInvcheck_def step_simps steps_step)
+    by (auto simp add: is_AInvcheck_def step_simps steps_step steps_empty)
+
 
   from tr''_steps
   have "\<exists>tr'''. packed_trace tr''' \<and> (initialState program ~~ tr''' \<leadsto>* C') \<and> (\<forall>s. (s, AFail) \<notin> set tr''') \<and> (\<forall>s a. (s, a) \<in> set tr''' \<longrightarrow> \<not> is_AInvcheck a)"
@@ -3325,7 +3339,8 @@ lemma show_state_transfer:
   using steps step_simulate step_preserves prop_initial proof (induct rule: steps_induct)
   case initial
   show "(T S_start ~~ [] \<leadsto>* T S_start) \<and> P S_start"
-    using \<open>P S_start\<close> by auto 
+    using \<open>P S_start\<close> 
+    by (auto simp add: steps_empty)
 next
   case (step S' tr a S'')
   show "(T S_start ~~ tr @ [a] \<leadsto>* T S'') \<and> P S''" 
@@ -3484,7 +3499,8 @@ lemma wf_transaction_status_iff_origin:
   assumes wf: "state_wellFormed S"
   shows "(transactionStatus S t = None) \<longleftrightarrow> (transactionOrigin S t = None)"
   using wf apply (induct  rule: wellFormed_induct)
-  by (auto simp add: initialState_def step.simps split: if_splits)
+  by (auto simp add: initialState_def step.simps wellFormed_currentTransaction_unique_h(2)  split: if_splits)
+
 
 
 
@@ -3717,7 +3733,7 @@ proof -
 
   from calls_S_start_cId
   have callOrigin_S_start_cId: "callOrigin S_start cId = None"
-    by (simp add: local.wf)
+    using local.wf wellFormed_callOrigin_dom3 by blast
 
 
 
@@ -3764,6 +3780,7 @@ proof -
     show "P S_mid"
       using \<open>currentTransaction S_start i \<triangleq> start_txn\<close> local.wf wellFormed_currentTransactionUncommitted apply (auto simp add: p_def step_simps a_def )
       using wellFormed_currentTransaction_unique apply blast
+      using wellFormed_currentTransaction_unique_h(1) apply blast
       using hb2 apply blast
       using wellFormed_visibleCallsSubsetCalls2 apply blast
       using wellFormed_visibleCallsSubsetCalls2 by blast
@@ -4146,11 +4163,12 @@ lemma removeInvChecks_same:
 shows "S ~~ removeInvChecks trace \<leadsto>* S'"
 using assms proof (induct rule: steps_induct)
   case initial
-  then show ?case  by (auto simp add: removeInvChecks_def )
+  then show ?case  by (auto simp add: removeInvChecks_def steps_empty)
 next
   case (step S' tr a S'')
   then show ?case 
-    by (auto simp add: removeInvChecks_def isNoInvCheck_def steps_append step_simps split: action.splits)
+    by (auto simp add: removeInvChecks_def isNoInvCheck_def steps_append step_simps steps_empty steps_single split: action.splits)
+
 qed
 
 (*
@@ -4217,7 +4235,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
         apply (auto simp add: trace'_def)
       proof (induct rule: steps_induct)
         case initial
-        then show ?case  by (auto simp add:  )
+        then show ?case   by (auto simp add: steps_empty )
       next
         case (step S' tr a S'')
         show ?case 
@@ -4440,13 +4458,13 @@ lemma move_invariant_checks_out_of_transactions:
           apply (auto simp add:  step_simps)
           done
         then have uncommitted: "transactionStatus S1 tx \<triangleq> Uncommitted"
-          using local.wf by auto
+          using local.wf wellFormed_currentTransaction_unique_h(2) by blast
 
         have "calls S1 cId = None"
           using \<open>S1 ~~ (s, action) \<leadsto> S2\<close> ADbOp
           by (auto simp add:  step_simps)
         then have "callOrigin S1 cId = None"
-          by (simp add: local.wf)
+          using local.wf wellFormed_callOrigin_dom2 by blast
 
 
         have "committedCalls S2 = committedCalls S1" 
