@@ -1,4 +1,6 @@
-image: makarius/isabelle:Isabelle2019
+image:
+  name: makarius/isabelle:Isabelle2019
+  entrypoint: [""]
 
 
 compile-pdfs:
