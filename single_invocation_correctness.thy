@@ -771,7 +771,7 @@ next
         using initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre that tx1 by fastforce
 
       from S_pre_correct tr_correct step_final  
-      have "a_inv = True" \<comment> \<open>and "checkCorrect program S_fin i (bound - length trace)"\<close>
+      have "a_inv = True" 
         apply (subst(asm) checkCorrect_simps)
         using \<open>state_wellFormed S_fin\<close> invContext_same_allCommitted[OF \<open>state_wellFormed S_fin\<close>]
         by (auto simp add: tx1 step_s.simps Let_def hasInvocation onlyOneTx split: option.splits if_splits)
@@ -810,7 +810,7 @@ next
 
 
       from S_pre_correct tr_correct step_final  
-      have "a_inv = True" \<comment> \<open>and "checkCorrect program S_fin i (bound - length trace)"\<close>
+      have "a_inv = True" 
         apply (subst(asm) checkCorrect_simps)
         using \<open>state_wellFormed S_fin\<close> invContextSimp apply (auto simp add: onlyOneTx step_s.simps Let_def hasInvocation invContextSimp None split: option.splits if_splits)
         apply (subst(asm) invContextH_same_allCommitted)

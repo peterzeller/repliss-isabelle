@@ -5,8 +5,6 @@ begin
 
 
 
-\<comment> \<open>^^^^\<close>
-
 datatype val =
   String string
   | UserId int
@@ -787,7 +785,7 @@ show "example_userbase.inv (invContext' S'e)"
         have happensBefore_update:
           "happensBefore S'd = updateHb (happensBefore S'a) vis' [c, ca]"
           apply (subst S'd_def S'c_def S'b_def S''_def hb'a_def hb'_def, simp?)+
-          by (auto simp add: updateHb_chain) \<comment> \<open>TODO add updateHb_chain lemma above\<close>
+          by (auto simp add: updateHb_chain) \<comment> \<open>TODO add updateHb-chain lemma above\<close>
 
 
         then have happensBefore_update2:

@@ -71,10 +71,6 @@ definition state_coupling :: "('ls,'any::valueType) state \<Rightarrow> ('ls,'an
    if sameSession then
       \<comment> \<open>  did a step in the same invocId  \<close>
       S' = S
-\<comment> \<open>
-      if currentTransaction S i = None 
-      then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S i orElse {} \<and> S' = S\<lparr>visibleCalls := (visibleCalls S)(i := vis') \<rparr> \<comment> \<open>  TODO maybe can get equality here \<close>
-      else S' = S \<close>
    else 
       \<comment> \<open>  did step in a different invocId  \<close>
         state_monotonicGrowth i S' S
@@ -143,8 +139,6 @@ lemma only_one_commmitted_transaction_h:
     and packed: "packed_trace tr"
     and status: "transactionStatus S' tx \<triangleq> Uncommitted"
     and noFails: "\<And>s. (s, AFail) \<notin> set tr"
-    \<comment> \<open>and tr_len: "length tr > 0"\<close>
-    \<comment> \<open>and allEnd: "allTransactionsEnd tr"\<close>
     and noSwitch: "noContextSwitchesInTransaction tr"
     and initial: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
   shows "(currentTransaction S' (fst (last tr)) \<triangleq> tx) 
@@ -2490,10 +2484,9 @@ assumes step: "S ~~ (s,a) \<leadsto> S'"
     \<comment> \<open>invariant no longer holds\<close>
     and not_inv: "\<not>invariant_all S'"
     and coupling: "state_coupling S S2 s sameSession"
-    and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" \<comment> \<open>(\<exists>tx txns. a = ABeginAtomic tx txns) \<or> (\<exists>p ar. a = AInvoc p ar)\<close>
+    and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" 
     and noUncommitted:  "a \<noteq> AEndAtomic \<Longrightarrow>  \<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
     \<comment> \<open>we assume that we are not in a transaction (inside a transaction it is not necessary for invariants to hold)\<close>
-    \<comment> \<open>and not_in_transaction: "currentTransaction S s = None "\<close>
 shows "\<exists>tr' S2'. (S2 ~~ (s, tr') \<leadsto>\<^sub>S* S2') 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
 using step proof (cases rule: step.cases)
@@ -3358,7 +3351,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
         show "packed_trace tr'"
           using \<open>isPrefix tr' trace\<close> packed prefixes_are_packed by blast
         show "\<And>s'. (s', AFail) \<notin> set tr'"
-          using \<open>isPrefix tr' trace\<close> noFail apply (auto simp add: isPrefix_def) \<comment> \<open>IMPROVE extract lemma for isPrefix with \<in> or \<subseteq>\<close>
+          using \<open>isPrefix tr' trace\<close> noFail apply (auto simp add: isPrefix_def) (* IMPROVE extract lemma for isPrefix with \<in> or \<subseteq> *)
           by (metis in_set_takeD)
         show "invariant_all (initialState program)"
           using inv_init .

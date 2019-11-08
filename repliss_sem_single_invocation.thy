@@ -399,7 +399,7 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
    f ls = Return res;
-   currentTransaction S i = None; \<comment> \<open>  TODO maybe we can assume invariant_all for C?  \<close>
+   currentTransaction S i = None; \<comment> \<open>  TODO maybe we can assume invariant-all for C?  \<close>
    S' = (S\<lparr>localState := (localState S)(i := None),
                  currentProc := (currentProc S)(i := None),
                  visibleCalls := (visibleCalls S)(i := None),

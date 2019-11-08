@@ -2067,7 +2067,6 @@ lemma transactionIsPacked_show:
     and endAtomic2: "tr!endAtomic = (s, AEndAtomic)"
     and a1: "\<forall>i. beginAtomic \<le> i \<and> i \<le> endAtomic \<longrightarrow> fst (tr ! i) = s"
   shows "transactionIsPacked tr tx"
-    \<comment> \<open>by (smt a1 beginAtomic1 beginAtomic2 endAtomic1 endAtomic2 fst_conv indexInOtherTransaction_def leI less_imp_le_nat less_trans steps transactionIdsUnique transactionIsPacked_def)\<close>
 proof (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
   fix k i s' ntxns
   assume b0: "k < length tr"
@@ -2310,7 +2309,6 @@ lemma context_switches_in_packed:
     and split_tr: "tr = tr1@[(s,a),(s',a')]@tr2"
     and differentSession: "s \<noteq> s'"
   shows "allowed_context_switch a'"
-    \<comment> \<open>"(\<exists>tx txns. a' = ABeginAtomic tx txns) \<or> (\<exists>p ar. a' = AInvoc p ar)"\<close>
 proof -
   have "a' = snd(tr!(1+length tr1))"
     using split_tr by (auto simp add: nth_append)
@@ -3666,13 +3664,6 @@ lemma remove_DBOp_step:
                 callOrigin := (callOrigin S_end)(cId := None),
                 visibleCalls := (visibleCalls S_end)(i := visibleCalls S_start i),
                 happensBefore := happensBefore S_end - {cId} \<times> UNIV - UNIV \<times> {cId}
-\<comment> \<open>
-                localState := (localState S_end)(i := localState S_start i), 
-                currentTransaction := (currentTransaction S_end)(i := None),
-                transactionStatus := (transactionStatus S_end)(t := None),
-                transactionOrigin := (transactionOrigin S_end)(t := None),
-                visibleCalls := (visibleCalls S_end)(i := visibleCalls S_start i)
-\<close>
       \<rparr>"
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
@@ -4724,7 +4715,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 
       have IH: " \<lbrakk>Greatest (induct_measure trace) < Greatest (induct_measure trace'); \<exists>S. initialState program ~~ trace \<leadsto>* S; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk>
      \<Longrightarrow> traceCorrect trace" for trace
-        using less.hyps   by auto \<comment> \<open>TODO prove no_invariant_checks_in_transaction trace'\<close>
+        using less.hyps   by auto 
 
 
       have "traceCorrect newTrace"
@@ -4948,6 +4939,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
                 using AInvoc Pair_inject j_leq_pos le_eq_less_or_eq local.beginAtomic by auto
 
               have "currentTransaction S_pos (fst (trace' ! pos)) \<noteq> None"
+                using [[smt_timeout=60]]
                 by (smt S_pos_steps \<open>min (length trace') pos = pos\<close> f4 f5 inTransaction_trace in_set_takeD length_take less.prems(3) less_trans noEndAtomic_trace' nth_take pos_less)
               then show ?thesis
                 by (metis S_pos_wf invoc_def wellFormed_invoc_notStarted(1))

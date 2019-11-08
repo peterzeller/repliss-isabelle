@@ -160,7 +160,7 @@ next
   qed
 qed
 
-\<comment> \<open>TODO could use lemma state_wellFormed_s_to_wf above to simplify lemmas below\<close>
+(*TODO could use lemma state_wellFormed_s_to_wf above to simplify lemmas below*)
 
 lemma wf_s_localState_to_invocationOp:
   "\<lbrakk>state_wellFormed_s S i; localState S i \<noteq> None\<rbrakk> \<Longrightarrow> invocationOp S i \<noteq> None"
