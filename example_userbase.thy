@@ -834,7 +834,6 @@ show "example_userbase.inv (invContext' S'e)"
           "invocation_happensBeforeH (i_callOriginI_h (callOrigin S'd) (transactionOrigin S'd)) (happensBefore S'd)
             = invocation_happensBeforeH (i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a)) (happensBefore S'a)
              \<union> {i'. (\<forall>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i') }  \<times> {i}"
-          \<comment> \<open>{i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i}\<close>
           apply (subst happensBefore_update)
           apply (rule invocation_happensBeforeH_update)
                 apply (auto simp add: i_callOriginI_h_update split: option.splits)
@@ -1099,7 +1098,7 @@ show "example_userbase.inv (invContext' S'e)"
         have happensBefore_update:
           "happensBefore S'e = updateHb (happensBefore S'a) vis' [c, ca]"
           apply (subst S'e_def S'd_def S'c_def S'b_def S''_def hb'a_def hb'_def, simp?)+
-          by (auto simp add: updateHb_chain) \<comment> \<open>TODO add updateHb_chain lemma above\<close>
+          by (auto simp add: updateHb_chain) \<comment> \<open>TODO add updateHb-chain lemma above\<close>
 
 
         then have happensBefore_update2:
