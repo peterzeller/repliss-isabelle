@@ -4139,14 +4139,14 @@ proof (rule show_programCorrect_noTransactionInterleaving)
         proof auto
           assume  "isNotTrueInvcheck a"
           then show "initialState program ~~ filter isNotTrueInvcheck tr @ [a] \<leadsto>* S''"
-            using step.IH step.step steps_step by blast
+            using step.IH step.step steps_step step.steps by blast 
         next 
           assume "\<not> isNotTrueInvcheck a"
           then have "S' = S''"
             using \<open>S' ~~ a \<leadsto> S''\<close>
             by (auto simp add: isNotTrueInvcheck_def step.simps split: bool.splits)
           then show "initialState program ~~ filter isNotTrueInvcheck tr  \<leadsto>* S''"
-            using step.IH by blast
+            using step.IH step.steps  by blast
         qed
       qed
 
@@ -4175,21 +4175,47 @@ proof (rule show_programCorrect_noTransactionInterleaving)
           then show ?thesis 
           proof (auto simp add: packed_trace_def nth_append)
 
-show "fst (last xs) = fst x"
-    if c0: "fst (last (filter isNotTrueInvcheck xs)) = fst (last xs)"
-   and c1: "\<not> isNotTrueInvcheck x"
-   and c2: "filter isNotTrueInvcheck xs \<noteq> []"
-  using that           apply (auto simp add: isNotTrueInvcheck_simps)
-            by (metis (no_types, lifting) One_nat_def allowed_context_switch_simps(9) butlast_snoc diff_Suc_less filter.simps(1) fst_conv last_conv_nth length_append_singleton length_greater_0_conv lessI nth_append_length nth_butlast snd_conv snoc.prems use_packed_trace)
+            show "fst (last xs) = fst x"
+              if c0: "fst (last (filter isNotTrueInvcheck xs)) = fst (last xs)"
+                and c1: "\<not> isNotTrueInvcheck x"
+                and c2: "filter isNotTrueInvcheck xs \<noteq> []"
+              using that by (auto simp add: isNotTrueInvcheck_simps,
+                  metis (no_types, lifting) One_nat_def allowed_context_switch_simps(9) butlast_snoc diff_Suc_less filter.simps(1) fst_conv last_conv_nth length_append_singleton length_greater_0_conv lessI nth_append_length nth_butlast snd_conv snoc.prems use_packed_trace)
+          next
+            fix i
+            assume a0: "fst (last (filter isNotTrueInvcheck xs)) = fst (last xs)"
+              and a1: "isNotTrueInvcheck x"
+              and a2: "i - Suc 0 < length (filter isNotTrueInvcheck xs)"
+              
+            show "allowed_context_switch (snd (filter isNotTrueInvcheck xs ! i))"
+              if a3: "i < length (filter isNotTrueInvcheck xs)"
+              and a4: "0 < i"
+              and a5: "fst (filter isNotTrueInvcheck xs ! (i - Suc 0)) \<noteq> fst (filter isNotTrueInvcheck xs ! i)"
+              by (simp add: IH1 a3 a4 a5 use_packed_trace)
 
-(*
-            apply (auto simp add:  packed_trace_def nth_append )
-            apply (simp add: IH1 use_packed_trace)
-            apply (metis (no_types, lifting) False One_nat_def butlast_snoc diff_Suc_less filter.simps(1) last_conv_nth length_append_singleton length_greater_0_conv lessI less_SucE nth_append_length nth_butlast snoc.prems use_packed_trace)
-             apply (simp add: IH1 use_packed_trace)
-            apply (auto simp add: isNotTrueInvcheck_simps)
-            by (metis (no_types, lifting) One_nat_def allowed_context_switch_simps(9) butlast_snoc diff_Suc_less filter.simps(1) fst_conv last_conv_nth length_append_singleton length_greater_0_conv lessI nth_append_length nth_butlast snd_conv snoc.prems use_packed_trace)
-*)
+              
+
+            show "allowed_context_switch (snd x)"
+              if a3: "\<not> i < length (filter isNotTrueInvcheck xs)"
+              and a4: "i < Suc (length (filter isNotTrueInvcheck xs))"
+              and a5: "fst (filter isNotTrueInvcheck xs ! (i - Suc 0)) \<noteq> fst x"
+              using IH1 use_packed_trace[OF IH1]
+              by (metis (no_types, lifting) False One_nat_def a0 a3 a4 a5 butlast_snoc diff_less filter.simps(1) last_conv_nth length_append_singleton length_greater_0_conv lessI less_antisym nth_append_length nth_butlast snoc.prems use_packed_trace)
+
+          next
+            fix i
+            assume a0: "fst (last (filter isNotTrueInvcheck xs)) = fst (last xs)"
+              and a1: "\<not> isNotTrueInvcheck x"
+              and a2: "i - Suc 0 < length (filter isNotTrueInvcheck xs)"
+              and a3: "0 < i"
+              and a4: "i < length (filter isNotTrueInvcheck xs)"
+              and a5: "fst (filter isNotTrueInvcheck xs ! (i - Suc 0)) \<noteq> fst (filter isNotTrueInvcheck xs ! i)"
+
+            show "allowed_context_switch (snd (filter isNotTrueInvcheck xs ! i))"
+              by (simp add: IH1 a3 a4 a5 use_packed_trace)
+
+
+          qed
         qed
       qed
 
