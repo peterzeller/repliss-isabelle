@@ -4001,25 +4001,50 @@ proof (rule show_no_invariant_checks_in_transaction)
   obtain j where "j>ib'" and "j < i'" and  "tr ! j = (s, AEndAtomic)"
     by auto
 
+  have h1: "ib < j"  by (metis Suc_lessD \<open>ib' < j\<close> ib'_def)
+  have h2: "j < i" if "j < pos"
+    using \<open>j < i'\<close> i'_def less_antisym that by fastforce
+
   then show  "\<exists>j>ib. j < i \<and> (take pos tr @ drop (Suc pos) tr) ! j = (s, AEndAtomic)"
   proof (cases "j < pos")
     case True
     show ?thesis 
-      apply (rule exI[where x=j])
-      apply auto
-      apply (metis Suc_lessD \<open>ib' < j\<close> ib'_def)
-      apply (metis True \<open>j < i'\<close> i'_def less_SucE)
-      by (simp add: True \<open>tr ! j = (s, AEndAtomic)\<close> assms(3) less_imp_le min.absorb2 nth_append_first)
+      by (rule exI[where x=j], auto simp add: True \<open>tr ! j = (s, AEndAtomic)\<close> assms(3) h1 h2 less_imp_le min.absorb2 nth_append_first)
   next
     case False
     show ?thesis 
-      apply (rule exI[where x="j - 1"])
-      using \<open>j>ib'\<close> \<open>j < i'\<close> False apply (auto simp add: ib'_def i'_def split: if_splits)
-        apply (auto simp add: nth_append)
-           apply (metis Suc_pred \<open>ib' < j\<close> \<open>tr ! j = (s, AEndAtomic)\<close> assms(2) ib'_def less_Suc_eq_0_disj linorder_neqE_nat not_less_eq snd_conv)
-          apply (metis Suc_pred \<open>tr ! j = (s, AEndAtomic)\<close> assms(2) linorder_neqE_nat not_less_eq snd_conv zero_less_Suc)
-      using \<open>j < i'\<close> a4' less_imp_diff_less less_trans apply blast
-      using Suc_leI assms(3)  by (auto simp add: \<open>tr ! j = (s, AEndAtomic)\<close> min.absorb2)
+    proof (rule exI[where x="j - 1"], auto)
+      from  \<open>j>ib'\<close> \<open>j < i'\<close> False
+      have  
+         "j \<le> i" and cases:"(ib < pos \<and> j \<ge> pos) \<or> ( ib \<ge> pos \<and> Suc ib < j )"
+        by (auto simp add: ib'_def i'_def split: if_splits)
+        
+      have h3: "Suc ib < j"
+        if c0: "ib < pos"
+          and c1: "pos \<le> j"
+          and c2: "j > 0"
+        using Suc_lessI \<open>tr ! j = (s, AEndAtomic)\<close> assms(2) local.cases by fastforce
+        
+
+(*
+        by (metis \<open>tr ! j = (s, AEndAtomic)\<close> assms(2) c0 c1 c2 h1 le_SucE less_antisym not_less snd_conv)
+*)
+
+
+      show "ib < j - Suc 0"
+        using cases h3 by auto
+      show "j - Suc 0 < i"
+        using \<open>ib < j - Suc 0\<close> \<open>j \<le> i\<close> by linarith
+
+      have "pos \<noteq> j"
+        using \<open>tr ! j = (s, AEndAtomic)\<close> assms(2) by auto
+
+
+
+      show " (take pos tr @ drop (Suc pos) tr) ! (j - Suc 0) = (s, AEndAtomic)"
+        using \<open>tr ! j = (s, AEndAtomic)\<close>  False \<open>pos \<noteq> j\<close> \<open>j < i'\<close> a4' less_imp_diff_less less_trans
+        by (auto simp add: nth_append nth_drop_if Suc_lessI min.absorb2)
+    qed
   qed
 qed
 
@@ -4105,8 +4130,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
     proof (rule packedTracesCorrect)
       from steps
       show "initialState program ~~ trace' \<leadsto>* S"
-        apply (auto simp add: trace'_def)
-      proof (induct rule: steps_induct)
+      proof (auto simp add: trace'_def, induct rule: steps_induct)
         case initial
         then show ?case   by (auto simp add: steps_empty )
       next
@@ -4149,12 +4173,23 @@ proof (rule show_programCorrect_noTransactionInterleaving)
           then have "fst (last (filter isNotTrueInvcheck xs)) = fst (last xs)"
             using IH2 by blast
           then show ?thesis 
+          proof (auto simp add: packed_trace_def nth_append)
+
+show "fst (last xs) = fst x"
+    if c0: "fst (last (filter isNotTrueInvcheck xs)) = fst (last xs)"
+   and c1: "\<not> isNotTrueInvcheck x"
+   and c2: "filter isNotTrueInvcheck xs \<noteq> []"
+  using that           apply (auto simp add: isNotTrueInvcheck_simps)
+            by (metis (no_types, lifting) One_nat_def allowed_context_switch_simps(9) butlast_snoc diff_Suc_less filter.simps(1) fst_conv last_conv_nth length_append_singleton length_greater_0_conv lessI nth_append_length nth_butlast snd_conv snoc.prems use_packed_trace)
+
+(*
             apply (auto simp add:  packed_trace_def nth_append )
             apply (simp add: IH1 use_packed_trace)
             apply (metis (no_types, lifting) False One_nat_def butlast_snoc diff_Suc_less filter.simps(1) last_conv_nth length_append_singleton length_greater_0_conv lessI less_SucE nth_append_length nth_butlast snoc.prems use_packed_trace)
              apply (simp add: IH1 use_packed_trace)
             apply (auto simp add: isNotTrueInvcheck_simps)
             by (metis (no_types, lifting) One_nat_def allowed_context_switch_simps(9) butlast_snoc diff_Suc_less filter.simps(1) fst_conv last_conv_nth length_append_singleton length_greater_0_conv lessI nth_append_length nth_butlast snd_conv snoc.prems use_packed_trace)
+*)
         qed
       qed
 
@@ -5324,8 +5359,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
     qed
 
     thus "\<exists>i_end. tr ! i_end = (invoc, AEndAtomic) \<and> k \<le> i_end \<and> i_end < length tr"
-      apply auto
-      using a3 less_imp_le not_le by blast
+      using a3 less_imp_le not_le by (auto, blast)
   qed
 
 
