@@ -5,7 +5,6 @@ begin
 
 
 
-\<comment> \<open>^^^^\<close>
 
 datatype val =
     String string
@@ -217,7 +216,6 @@ definition crdtSpec_message_author_read :: "val list \<Rightarrow> val operation
      \<and> (\<forall>c2\<in>callsWithOpArgs ctxt message_delete args. (c2,c1)\<in>happensBefore ctxt)))"
 
 definition is_message_updateH  where
-  \<comment> \<open>:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where\<close>
   "is_message_updateH mid c \<equiv> 
   case c of 
      Call upd (mid'#args) _ \<Rightarrow> upd \<in> {message_author_assign, message_content_assign, message_chat_assign} \<and> mid = mid' 
@@ -239,11 +237,9 @@ lemma is_message_updateH_simp4[simp]: "  \<not>is_message_updateH mid (Call upd 
   using that  by (auto simp add: is_message_updateH_def )
 
 definition message_updates :: "(callId \<rightharpoonup> val call) \<Rightarrow> val \<Rightarrow> callId set" where
-  \<comment> \<open>:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where\<close>
   "message_updates ctxt_calls mId \<equiv> {c | c call . ctxt_calls c = Some call \<and> is_message_updateH mId call}"
 
 abbreviation is_message_update :: "(val, 'b) operationContext_scheme \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where
-  \<comment> \<open>:: "val operationContext \<Rightarrow> callId \<Rightarrow> val \<Rightarrow> bool" where\<close>
   "is_message_update ctxt c mId \<equiv> c \<in> message_updates (calls ctxt) mId "
 
 definition crdtSpec_message_exists_h :: "val list \<Rightarrow> val operationContext \<Rightarrow> bool" where

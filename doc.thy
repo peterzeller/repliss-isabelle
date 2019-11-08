@@ -1,7 +1,6 @@
 theory doc
 imports "replissSem1"
   "~~/src/HOL/Library/LaTeXsugar"
-\<comment> \<open>"~~/src/HOL/Library/OptionalSugar"\<close>
 begin
 
 text_raw "\\begin{comment} -- just some new notations"

@@ -126,8 +126,9 @@ next
 
     show ?thesis 
       using \<open>S' ~~ a \<leadsto> S''\<close> 
-      apply (induct rule: step.cases)
-      using True \<open>tr ! i = (s, AFail) \<or> tr ! i = (s, AReturn res)\<close> step.IH by auto
+      by (induct rule: step.cases;
+          insert True \<open>tr ! i = (s, AFail) \<or> tr ! i = (s, AReturn res)\<close> step.IH,
+          auto)
   next
     case False
     show ?thesis 
@@ -338,10 +339,10 @@ proof (rule iffI2; clarsimp)
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls')\<rparr>"])
-          using induct_step.coupling no_fail local
-          apply (intro conjI)
-          by (auto simp add: step_simps state_ext local induct_step steps_single)
+          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls')\<rparr>"],
+              intro conjI,
+              insert induct_step.coupling no_fail local,
+              auto simp add: step_simps state_ext local induct_step steps_single)
       next
         case (newId s ls f ls' uid ls'')
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
@@ -349,9 +350,9 @@ proof (rule iffI2; clarsimp)
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls''), generatedIds := (generatedIds S2)(uid \<mapsto> s )\<rparr>"])
-          using induct_step.coupling no_fail newId
-          by (auto simp add: step_simps state_ext  induct_step steps_single)
+          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls''), generatedIds := (generatedIds S2)(uid \<mapsto> s )\<rparr>"],
+              insert induct_step.coupling no_fail newId,
+              auto simp add: step_simps state_ext  induct_step steps_single)
 
       next
         case (beginAtomic s ls f ls' t vis snapshot)
@@ -361,15 +362,16 @@ proof (rule iffI2; clarsimp)
 
 
         show ?thesis 
-          apply (rule exI[where x="S2\<lparr>
-                localState := localState S2(s \<mapsto> ls'), 
-                currentTransaction := currentTransaction S2(s \<mapsto> t), 
-                transactionStatus := transactionStatus S1(t \<mapsto> Uncommitted),
-                transactionOrigin := transactionOrigin S2(t \<mapsto> s),
-                visibleCalls := visibleCalls S2(s \<mapsto> snapshot)\<rparr>"])
-          using induct_step.coupling no_fail beginAtomic
-          apply (auto simp add: step_simps state_ext  induct_step steps_single)
-          using \<open>chooseSnapshot snapshot vis S1\<close> chooseSnapshot_unchanged induct_step.coupling by blast 
+          by (rule exI[where x="S2\<lparr>
+                  localState := localState S2(s \<mapsto> ls'), 
+                  currentTransaction := currentTransaction S2(s \<mapsto> t), 
+                  transactionStatus := transactionStatus S1(t \<mapsto> Uncommitted),
+                  transactionOrigin := transactionOrigin S2(t \<mapsto> s),
+                  visibleCalls := visibleCalls S2(s \<mapsto> snapshot)\<rparr>"],
+              insert induct_step.coupling no_fail beginAtomic,
+              auto simp add: step_simps state_ext  induct_step steps_single,
+              insert \<open>chooseSnapshot snapshot vis S1\<close> chooseSnapshot_unchanged induct_step.coupling,
+              blast)
 
       next
         case (endAtomic s ls f ls' t)
@@ -378,9 +380,9 @@ proof (rule iffI2; clarsimp)
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S1(t \<mapsto> Committed)\<rparr>"])
-          using induct_step.coupling no_fail endAtomic
-          by (auto simp add: step_simps state_ext  induct_step steps_single)
+          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S1(t \<mapsto> Committed)\<rparr>"],
+              insert induct_step.coupling no_fail endAtomic,
+              auto simp add: step_simps state_ext  induct_step steps_single)
       next
         case (dbop s ls f Op args ls' t c res vis)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
@@ -388,9 +390,9 @@ proof (rule iffI2; clarsimp)
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls' res), calls := calls S2(c \<mapsto> Call Op args res), callOrigin := callOrigin S1(c \<mapsto> t), visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> {c}), happensBefore := happensBefore S1 \<union> vis \<times> {c}\<rparr>"])
-          using induct_step.coupling no_fail dbop
-          by (auto simp add: step_simps state_ext  induct_step steps_single)
+          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls' res), calls := calls S2(c \<mapsto> Call Op args res), callOrigin := callOrigin S1(c \<mapsto> t), visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> {c}), happensBefore := happensBefore S1 \<union> vis \<times> {c}\<rparr>"],
+              insert induct_step.coupling no_fail dbop,
+              auto simp add: step_simps state_ext  induct_step steps_single)
 
       next
         case (invocId s procName args initialLocalState impl)
@@ -399,9 +401,9 @@ proof (rule iffI2; clarsimp)
           by (meson everything_starts_with_an_invocation in_set_conv_nth)
 
         show ?thesis 
-          apply (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> initialLocalState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"])
-          using induct_step.coupling no_fail invocId
-          by (auto simp add: step_simps state_ext  induct_step steps_single)
+          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> initialLocalState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"],
+              insert induct_step.coupling no_fail invocId,
+              auto simp add: step_simps state_ext  induct_step steps_single)
       next
         case (return s ls f res)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
@@ -409,25 +411,25 @@ proof (rule iffI2; clarsimp)
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          apply (rule exI[where x="S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S1(s \<mapsto> res), knownIds := knownIds S1 \<union> uniqueIds res\<rparr>"])
-          using induct_step.coupling no_fail return
-          by (auto simp add: step_simps state_ext  induct_step steps_single)
+          by (rule exI[where x="S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S1(s \<mapsto> res), knownIds := knownIds S1 \<union> uniqueIds res\<rparr>"],
+              insert induct_step.coupling no_fail return,
+              auto simp add: step_simps state_ext  induct_step steps_single)
       next
         case (fail s ls)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
         have no_fail: "(s, AFail) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
         show ?thesis 
-          apply (rule exI[where x="S2"])
-          by (auto simp add: step_simps state_ext  induct_step  fail)
+          by (rule exI[where x="S2"],
+              auto simp add: step_simps state_ext  induct_step  fail)
 
       next
         case (invCheck res s)
 
         show ?thesis 
-          apply (rule exI[where x="S2"])
-          using induct_step.coupling  invCheck
-          by (auto simp add: step_simps state_ext  induct_step steps_single)
+          by (rule exI[where x="S2"],
+              insert  induct_step.coupling  invCheck,
+              auto simp add: step_simps state_ext  induct_step steps_single)
       qed
     qed
 
@@ -451,8 +453,7 @@ lemma useCommutativeS:
 definition "precondition a C \<equiv> \<exists>C'. C ~~ a \<leadsto> C'"
 
 lemma usePrecondition: "precondition a C \<Longrightarrow> \<exists>C'. C ~~ a \<leadsto> C'"
-  apply (simp add: precondition_def)
-  done
+  by (simp add: precondition_def)
 
 lemma usePrecondition2: "precondition a C \<Longrightarrow> (\<And>C'. C ~~ a \<leadsto> C' \<Longrightarrow> P C') \<Longrightarrow> \<exists>C'. (C ~~ a \<leadsto> C') \<and> P C'"
   using usePrecondition by blast
@@ -470,9 +471,9 @@ lemma show_commutativeS[case_names preAB preBA commute ]:
     and a2:  "\<And>s1 s2. \<lbrakk>s ~~ b \<leadsto> s1; s1 ~~ a \<leadsto> s2\<rbrakk> \<Longrightarrow> \<exists>s1. (s ~~ a \<leadsto> s1) \<and> (\<exists>s2. s1 ~~ b \<leadsto> s2)" 
     and a4:  "\<And>s1 s2 s1' s2'. \<lbrakk>s ~~ a \<leadsto> s1; s1 ~~ b \<leadsto> s2; s ~~ b \<leadsto> s1'; s1' ~~ a \<leadsto> s2'\<rbrakk> \<Longrightarrow> s2 = s2'"
   shows "commutativeS s a b"
-  apply (auto simp add: commutativeS_def  steps_appendFront)
-  using a1 a4 apply blast
-  using a2 a4 by blast
+  by (auto simp add: commutativeS_def  steps_appendFront,
+      insert a1 a4, blast,
+      insert a2 a4, blast)
 
 lemma show_commutativeS_pres[case_names preBfront preAfront preAback preBback commute ]: 
   assumes a1:  "\<And>s1. \<lbrakk>s ~~ a \<leadsto> s1; precondition b s1\<rbrakk> \<Longrightarrow> precondition b s"
@@ -481,18 +482,34 @@ lemma show_commutativeS_pres[case_names preBfront preAfront preAback preBback co
     and a2': "\<And>s1. \<lbrakk>s ~~ a \<leadsto> s1; precondition b s\<rbrakk> \<Longrightarrow> precondition b s1"
     and a4:  "\<And>s1 s2 s1' s2'. \<lbrakk>s ~~ a \<leadsto> s1; s1 ~~ b \<leadsto> s2; s ~~ b \<leadsto> s1'; s1' ~~ a \<leadsto> s2'\<rbrakk> \<Longrightarrow> s2 = s2'"
   shows "commutativeS s a b"
-  apply (auto simp add: commutativeS_def precondition_def steps_appendFront)
-   apply (rule usePrecondition2)
-  using a1 precondition_def apply blast 
-   apply (frule a2)
-    apply (simp add: preconditionI)
-  using a4 usePrecondition apply blast
-  apply (rule usePrecondition2)
-  using a1' precondition_def apply blast 
-  apply (frule a2')
-   apply (simp add: preconditionI)
-  using a4 usePrecondition apply blast 
-  done  
+proof (auto simp add: commutativeS_def precondition_def steps_appendFront steps_empty; rule usePrecondition2)
+  show "precondition b s"
+    if c0: "s ~~ a \<leadsto> B"
+      and c1: "B ~~ b \<leadsto> t"
+    for  t B
+    using a1 c0 c1 preconditionI by blast
+
+  show "Ba ~~ a \<leadsto> t"
+    if c0: "s ~~ a \<leadsto> B"
+      and c1: "B ~~ b \<leadsto> t"
+      and c2: "s ~~ b \<leadsto> Ba"
+    for  t B Ba
+    by (metis a2 a4 c0 c1 c2 preconditionI usePrecondition)
+
+  show "precondition a s"
+    if c0: "s ~~ b \<leadsto> B"
+      and c1: "B ~~ a \<leadsto> t"
+    for  t B
+    using a1' c0 c1 preconditionI by blast
+
+  show "Ba ~~ b \<leadsto> t"
+    if c0: "s ~~ b \<leadsto> B"
+      and c1: "B ~~ a \<leadsto> t"
+      and c2: "s ~~ a \<leadsto> Ba"
+    for  t B Ba
+    by (metis a2' a4 c0 c1 c2 preconditionI usePrecondition)
+qed
+
 
 definition differentIds :: "(invocId \<times> 'any action) \<Rightarrow> (invocId \<times> 'any action) \<Rightarrow> bool" where
   "differentIds a b \<equiv> case (a,b) of
@@ -4641,7 +4658,7 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
 
 
     show "False"
-    proof (cases "\<exists>ib \<comment> \<open> s \<close> tx txns. trace!ib = (s, ABeginAtomic tx txns) \<and> ib < i \<and> (\<forall>j. ib<j \<and> j<i \<longrightarrow> trace!j \<noteq> (s, AEndAtomic))")
+    proof (cases "\<exists>ib tx txns. trace!ib = (s, ABeginAtomic tx txns) \<and> ib < i \<and> (\<forall>j. ib<j \<and> j<i \<longrightarrow> trace!j \<noteq> (s, AEndAtomic))")
       case False
         \<comment> \<open>if it is not in a transaction: remove all others and use packedTracesCorrect\<close>
 
