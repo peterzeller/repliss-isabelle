@@ -295,8 +295,7 @@ lemma callOrigin_same_committed:
     and wellFormed: "state_wellFormed A"
     and committed: "transactionStatus A tx \<triangleq> Committed "
   shows "callOrigin A c \<triangleq> tx \<longleftrightarrow> callOrigin B c \<triangleq> tx"     
-  using exec apply (rule step.cases)
-  using wellFormed committed by (auto simp add: wellFormed_callOrigin_dom2 wellFormed_currentTransaction_unique_h)
+  using exec by (rule step.cases; insert  wellFormed committed, auto simp add: wellFormed_callOrigin_dom2 wellFormed_currentTransaction_unique_h)
 
 
 
@@ -316,23 +315,34 @@ lemma wellFormed_invoc_notStarted:
     and "invocationOp S s = None"
   shows "currentTransaction S s = None"  
     and "localState S s = None"
-  using assms apply (induct rule: wellFormed_induct)
-     apply (auto simp add: initialState_def)
-   apply (erule step.cases)
-           apply (auto split: if_splits)
-  apply (erule step.cases)
-          apply (auto split: if_splits)
-  done
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  show "currentTransaction (initialState (prog S)) s = None" 
+    and "localState (initialState (prog S)) s = None"
+    by (auto simp add: initialState_def)
+
+next
+  case (step S a S')
+
+  show "localState S' s = None"  if "invocationOp S' s = None"
+    by (rule step.cases[OF `S ~~ a \<leadsto> S'`]; insert step that, auto split: if_splits)
+
+  show "currentTransaction S' s = None" if "invocationOp S' s = None"
+     by (rule step.cases[OF `S ~~ a \<leadsto> S'`]; insert step that, auto split: if_splits)
+ qed
 
 lemma wf_no_invocation_no_origin:
   assumes "state_wellFormed S"
     and "invocationOp S i = None"
   shows "transactionOrigin S tx \<noteq> Some i"
-  using assms apply (induct rule: wellFormed_induct)
-     apply (auto simp add: initialState_def)
-   apply (erule step.cases)
-          apply (auto split: if_splits )
-  by (simp add: wf_localState_to_invocationOp)
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (auto simp add: initialState_def)
+next
+  case (step S a S')
+  show ?case 
+    by (rule step.cases[OF `S ~~ a \<leadsto> S'`], insert step, (auto simp add: wf_localState_to_invocationOp split: if_splits ))
+qed
 
 
 lemma steps_do_not_change_invocationOp:
@@ -375,9 +385,12 @@ qed
 lemma finite_dom_spit:
   assumes "finite (dom A \<inter> {x. P x})" and "finite (dom B \<inter> {x. \<not>P x})"
   shows "finite (dom (\<lambda>x. if P x then A x else B x))"
-  apply (rule_tac B="(dom A \<inter> {x. P x}) \<union> (dom B \<inter> {x. \<not>P x})" in finite_subset)
-  using assms by (auto split: if_splits)
-
+proof (rule_tac B="(dom A \<inter> {x. P x}) \<union> (dom B \<inter> {x. \<not>P x})" in finite_subset)
+  show " dom (\<lambda>x. if P x then A x else B x) \<subseteq> dom A \<inter> {x. P x} \<union> dom B \<inter> {x. \<not> P x}"
+    using assms by (auto split: if_splits)
+  show "finite (dom A \<inter> {x. P x} \<union> dom B \<inter> {x. \<not> P x})"
+    using assms by auto
+qed
 
 lemma wf_finite_calls:
   assumes wf: "state_wellFormed S"
@@ -429,8 +442,7 @@ next
 
     with \<open>S' ~~ a \<leadsto> S''\<close>
     have ?case 
-      apply (auto simp add: step.simps)
-      using step.prems(4) by force
+      using step.prems(4) by (auto simp add: step.simps)
   }
   moreover
   {
@@ -477,9 +489,9 @@ lemma transactionStatus_mono:
 next
   case (step S' tr a S'')
   then show ?case 
-    apply (auto simp add: step.simps less_eq_option_None_is_None split: if_splits)
-    using less_eq_option_None_is_None apply force
-    by (metis linear onlyCommittedGreater)
+    using less_eq_option_None_is_None by (auto simp add: step.simps  split: if_splits, 
+    force,
+    smt linear onlyCommittedGreater)
 qed
 
 lemma transactionStatus_mono1: 
@@ -527,9 +539,9 @@ next
   from \<open>S' ~~ a \<leadsto> S''\<close> \<open>callOrigin S'' c \<triangleq> tx\<close>
     \<open>calls S c = None\<close> step.IH \<open>state_wellFormed S\<close>
   show ?case 
-    apply (auto simp add: step.simps split: if_splits)
-    using wellFormed_currentTransactionUncommitted[OF \<open>state_wellFormed S'\<close>]
-    using \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step step.steps transactionStatus_mono1 by blast
+    by (auto simp add: step.simps split: if_splits,
+          insert \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step step.steps transactionStatus_mono1, 
+         blast)
 
 qed
 
@@ -659,8 +671,8 @@ lemma wf_localState_noReturn:
   then show ?case by (auto simp add: initialState_def)
 next
   case (step t a s)
-  then show ?case apply (auto simp add: step.simps  split: if_splits)
-    using wf_result_after_invocation by blast
+  then show ?case by (auto simp add: step.simps  split: if_splits,
+        insert wf_result_after_invocation, blast)
 qed
 
 lemma invocationRes_mono: 
@@ -713,8 +725,8 @@ next
 
   from \<open>S' ~~ a \<leadsto> S''\<close> step.IH \<open>transactionOrigin S t \<triangleq> i\<close> \<open>state_wellFormed S\<close>
   show ?case 
-    apply (auto simp add: step.simps split: if_splits)
-    by (metis \<open>state_wellFormed S'\<close> option.simps(3) wf_transactionOrigin_and_status)
+    by (auto simp add: step.simps split: if_splits,
+        metis \<open>state_wellFormed S'\<close> option.simps(3) wf_transactionOrigin_and_status)
 
 qed
 
@@ -744,8 +756,9 @@ next
     \<open>callOrigin S'' c \<triangleq> tx\<close>
     \<open>transactionStatus S tx \<triangleq> Committed\<close>
     \<open>state_wellFormed S\<close>
-  show ?case apply (auto simp add: step.simps split: if_splits)
-    using \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step transactionStatus_mono1 by blast
+  show ?case by (auto simp add: step.simps split: if_splits,
+         insert \<open>state_wellFormed S'\<close> callOrigin_same_committed step.prems(1) step.step transactionStatus_mono1, 
+         blast)
 
 qed
 
@@ -760,8 +773,7 @@ lemma exists_implementation:
 next
   case (step t a s)
   then show ?case
-    apply (auto simp add: step.simps wellFormed_invoc_notStarted  split: if_splits)
-    by auto
+    by (auto simp add: step.simps wellFormed_invoc_notStarted  split: if_splits, auto)
 qed
 
 
@@ -771,9 +783,29 @@ lemma chooseSnapshot_subsetOfCalls:
       and a3: "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
       and a4: "vis \<subseteq> dom (calls S)"
   shows "snapshot \<subseteq> dom (calls S)"
-  using a2 apply (auto simp add: chooseSnapshot_def)
-  using a4 apply blast
-  by (smt a1 a3 callsInTransactionH_contains domD domIff downwardsClosure_in mem_Sigma_iff option.case(1) subsetCE wellFormed_callOrigin_dom2)
+  using a2 proof (auto simp add: chooseSnapshot_def)
+    fix x newTxns
+    assume b1: "newTxns \<subseteq> committedTransactions S"
+       and b2: "snapshot = vis \<union> callsInTransaction S newTxns \<down> happensBefore S"
+    
+    show "\<exists>y. calls S x \<triangleq> y" if b3: "x \<in> vis"
+      using a4 that by blast
+
+    show "\<exists>y. calls S x \<triangleq> y" if " x \<in> callsInTransaction S newTxns \<down> happensBefore S"
+      using that proof (auto simp add: downwardsClosure_in)
+
+      show "\<exists>y. calls S x \<triangleq> y"
+        if c0: "x \<in> callsInTransaction S newTxns"
+        using a1 callsInTransactionH_contains that wellFormed_callOrigin_dom2 by fastforce
+
+
+      show "\<exists>y. calls S x \<triangleq> y"
+        if c0: "y \<in> callsInTransaction S newTxns"
+          and c1: "(x, y) \<in> happensBefore S"
+        for  y
+        using a3 c1 by blast
+    qed
+  qed
 
 
 
@@ -782,16 +814,43 @@ lemma chooseSnapshot_subsetOfCalls:
 lemma wellFormed_visibleCallsSubsetCalls_h:
   assumes a1: "state_wellFormed S"
   shows "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
-    and "\<And>vis s. visibleCalls S s \<triangleq> vis \<Longrightarrow> state_wellFormed S \<Longrightarrow> vis \<subseteq> dom (calls S)"
-  using a1 apply (induct rule: wellFormed_induct)
-     apply (simp add: initialState_def)
-    apply (simp add: initialState_def)
-   apply (erule step.cases)
-           apply (auto split: if_splits)
-    apply blast
-   apply blast
-  apply (erule step.cases)
-  using chooseSnapshot_subsetOfCalls by (auto split: if_splits, blast+)
+    and "\<And>vis s. visibleCalls S s \<triangleq> vis \<Longrightarrow>  vis \<subseteq> dom (calls S)"
+  using a1 proof (induct rule: wellFormed_induct)
+  case initial
+  show " happensBefore (initialState (prog S))
+    \<subseteq> dom (calls (initialState (prog S))) \<times> dom (calls (initialState (prog S)))"
+    by  (simp add: initialState_def)
+
+  show "vis \<subseteq> dom (calls (initialState (prog S)))"
+    if c0: "visibleCalls (initialState (prog S)) s \<triangleq> vis"
+    for  vis s
+    using that  by  (simp add: initialState_def)
+
+next
+  case (step S a S')
+
+  show "happensBefore S' \<subseteq> dom (calls S') \<times> dom (calls S')"
+    by (rule step.cases[OF `S ~~ a \<leadsto> S'`],
+      insert step,
+      auto split: if_splits, 
+      blast+)
+
+  from step
+  have IH: "\<exists>y. calls S c \<triangleq> y"
+    if "visibleCalls S i \<triangleq> vis"
+      and "c\<in>vis"
+    for i vis c
+    using that by blast
+
+
+  show "vis \<subseteq> dom (calls S')"
+      if c0: "visibleCalls S' i \<triangleq> vis"
+   for vis i
+    by (rule step.cases[OF `S ~~ a \<leadsto> S'`];
+      insert that IH step.hyps(2),
+      auto split: if_splits dest: chooseSnapshot_subsetOfCalls[OF `state_wellFormed S`])
+qed
+
 
 lemma wellFormed_visibleCallsSubsetCalls2: "\<lbrakk>
       state_wellFormed S;

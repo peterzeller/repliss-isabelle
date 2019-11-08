@@ -1146,7 +1146,6 @@ show "example_userbase.inv (invContext' S'e)"
           "invocation_happensBeforeH (i_callOriginI_h (callOrigin S'e) (transactionOrigin S'e)) (happensBefore S'e)
             = invocation_happensBeforeH (i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a)) (happensBefore S'a)
              \<union> {i'. (\<forall>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. i_callOriginI_h (callOrigin S'a) (transactionOrigin S'a) c \<triangleq> i') }  \<times> {i}"
-          \<comment> \<open>{i'. (\<forall>c. ?Orig c \<triangleq> i' \<longrightarrow> c \<in> vis') \<and> (\<exists>c. ?Orig c \<triangleq> i')} \<times> {?i}\<close>
           apply (subst happensBefore_update)
           apply (rule invocation_happensBeforeH_update)
                 apply (auto simp add: i_callOriginI_h_update split: option.splits)
