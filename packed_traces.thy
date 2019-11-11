@@ -603,9 +603,16 @@ lemma show_canSwap':
   shows "canSwap (t::'ls itself) x b"
   by (simp add: assms show_canSwap)
 
-method prove_canSwap = (rule show_canSwap, auto simp add: step_simps elim!: chooseSnapshot_unchanged_precise, subst state_ext, auto)  
-method prove_canSwap' = (rule show_canSwap', auto simp add: step_simps elim!: chooseSnapshot_unchanged_precise, subst state_ext, auto)
-method prove_canSwap'' = (rule show_canSwap', auto del: ext  simp add: wellFormed_callOrigin_dom2 step_simps wellFormed_currentTransactionUncommitted intro!: stateEqI ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
+method prove_canSwap = (
+    rule show_canSwap, 
+    auto simp add: step_simps state_updates_normalize fun_upd_twist intro!: show_state_calls_eq elim!: chooseSnapshot_unchanged_precise)
+
+method prove_canSwap' = (
+    rule show_canSwap', 
+    auto simp add: step_simps state_updates_normalize fun_upd_twist intro!: show_state_calls_eq elim!: chooseSnapshot_unchanged_precise)
+method prove_canSwap'' = (
+    rule show_canSwap', 
+    auto del: ext  simp add: wellFormed_callOrigin_dom2 step_simps wellFormed_currentTransactionUncommitted state_updates_normalize fun_upd_twist intro!: show_state_calls_eq ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
 lemma commutativeS_canSwap:
   assumes comm: "\<And>(C::('ls,'any::valueType) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
@@ -639,12 +646,13 @@ proof (cases b)
 next
   case (ANewId bid)
   then have [simp]: "b = ANewId bid" .
-  show ?thesis 
-  proof (cases a; prove_canSwap?)
+
+  show ?thesis
+  proof (cases a)
     case (AInvcheck r)
     then show ?thesis
       using is_AInvcheck_def no_invcheck_a by blast 
-  qed
+  qed (simp, prove_canSwap+)
 next
   case (ABeginAtomic x31 x32)
   then show ?thesis

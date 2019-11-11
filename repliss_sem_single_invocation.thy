@@ -278,10 +278,13 @@ definition chooseSnapshot' where
 lemma chooseSnapshot_same_if_everything_committed:
   assumes "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
   shows "chooseSnapshot' snapshot vis S \<longleftrightarrow> chooseSnapshot snapshot vis S"
-  apply (auto simp add: chooseSnapshot'_def chooseSnapshot_def )
-  apply (rule_tac x=newTxns in exI)
-  using assms by (auto simp add: not_uncommitted_cases dest!: in_dom)
-
+  unfolding chooseSnapshot'_def chooseSnapshot_def proof (intro iff_exI, auto)
+  show "\<And>newTxns x.
+       \<lbrakk>newTxns \<subseteq> dom (transactionStatus S);
+        snapshot = vis \<union> callsInTransaction S newTxns \<down> happensBefore S; x \<in> newTxns\<rbrakk>
+       \<Longrightarrow> transactionStatus S x \<triangleq> Committed"
+    using assms not_uncommitted_cases by auto
+qed
   
 inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action \<times> bool) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
   local: 

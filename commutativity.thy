@@ -447,9 +447,11 @@ next
       and step4: "s1' ~~ (sa, ADbOp c operation args res) \<leadsto> s2'"
       by auto
     show "s2 = s2'" 
-      by (subst state_ext,
-      insert a2 step1 step2 step3 step4,
-      auto simp add: a1[symmetric] step_simps wellFormed_visibleCallsSubsetCalls2  split: if_splits) \<comment> \<open>takes long\<close>
+      by (insert step1, auto simp add: step_simps,
+          insert step3, auto simp add: step_simps,
+          insert step2, auto simp add: step_simps,
+          insert step4, auto simp add: step_simps,
+          auto simp add: step_simps a1[symmetric] state_updates_normalize  intro!: show_state_calls_eq)
   qed
 qed
 

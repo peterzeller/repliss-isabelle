@@ -61,10 +61,10 @@ lemma chooseSnapshot_causallyConsistent_preserve:
 
 
 lemma wellFormed_state_causality:
-assumes wf: "state_wellFormed S"
-shows "\<And>s vis. visibleCalls S s \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore S) vis"
-  and "trans (happensBefore S)"
-using assms  proof (induct rule: wellFormed_induct)
+  assumes wf: "state_wellFormed S"
+  shows "\<And>s vis. visibleCalls S s \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore S) vis"
+    and "trans (happensBefore S)"
+  using assms  proof (induct rule: wellFormed_induct)
   case initial
   show "visibleCalls (initialState (prog S)) s \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore (initialState (prog S))) vis" for s vis
     by (auto simp add: initialState_def)
@@ -75,21 +75,42 @@ next
 
   have causal: "causallyConsistent (happensBefore C) vis" if "visibleCalls C s \<triangleq> vis" for s vis
     using step.hyps(2) that by auto
-    
-  
-    
+
+  have "trans (happensBefore C)"
+    by (simp add: step.hyps(3))
+
   show "trans (happensBefore C')"
-    using \<open>trans (happensBefore C)\<close> \<open>C ~~ a \<leadsto> C'\<close> apply (auto simp add: step_simps_all)
-    using causal apply (auto simp add: causallyConsistent_def)
-    by (smt Un_iff domIff empty_iff insert_iff mem_Sigma_iff step.hyps(1) subset_eq trans_def wellFormed_visibleCallsSubsetCalls_h(1))
-    
+  proof
+    show "\<And>x y z. \<lbrakk>(x, y) \<in> happensBefore C'; (y, z) \<in> happensBefore C'\<rbrakk> \<Longrightarrow> (x, z) \<in> happensBefore C'"
+      using \<open>trans (happensBefore C)\<close> \<open>C ~~ a \<leadsto> C'\<close> causal by (auto simp add: causallyConsistent_def step_simps_all elim: transE dest: wellFormed_happensBefore_calls_l[OF `state_wellFormed C`])
+  qed
+
   show "visibleCalls C' s \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore C') vis" for s vis
-    using causal \<open>C ~~ a \<leadsto> C'\<close> apply (auto simp add: step_simps_all)
-        apply (auto simp add: causallyConsistent_def split: if_splits)
-    apply (meson causallyConsistent_def chooseSnapshot_causallyConsistent_preserve step.hyps(3))
-    apply (metis (no_types, lifting) SigmaD2 domIff step.hyps(1) subsetCE wellFormed_visibleCallsSubsetCalls_h(1))
-    using step.hyps(1) wellFormed_visibleCallsSubsetCalls2 by blast
-    
+    using \<open>C ~~ a \<leadsto> C'\<close> causal 
+  proof (induct rule: step.cases)
+    case (beginAtomic S i ls f ls' t vis snapshot)
+
+    have h1: "trans (happensBefore S)"
+      using beginAtomic.hyps(1) step.hyps(3) by blast
+
+    have h2: "causallyConsistent (happensBefore S) vis"
+      using beginAtomic.hyps(1) beginAtomic.hyps(9) step.hyps(2) by blast
+
+
+    from beginAtomic show ?case 
+      using chooseSnapshot_causallyConsistent_preserve[OF `chooseSnapshot snapshot vis S` h1 h2]
+      by (auto simp add: step_simps_all causallyConsistent_def split: if_splits)
+
+  next
+    case (dbop S i ls f Op args ls' t c res vis)
+    have "state_wellFormed S"
+      using dbop.hyps(1) step.hyps(1) by blast
+
+    from dbop show ?case 
+      using wellFormed_visibleCallsSubsetCalls2[OF \<open>state_wellFormed S\<close>]
+      by (auto simp add: step_simps_all causallyConsistent_def dest: wellFormed_happensBefore_calls_r[OF `state_wellFormed S`] split: if_splits)
+  qed (auto simp add: step_simps_all causallyConsistent_def split: if_splits)
+
 qed
 
 

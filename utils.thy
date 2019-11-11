@@ -2,6 +2,7 @@ theory utils
   imports Main
 begin
 
+
 abbreviation todo ("???") where "??? \<equiv> undefined"
 
 abbreviation eqsome :: "'a option \<Rightarrow> 'a \<Rightarrow> bool" (infixr "\<triangleq>" 69) where
@@ -199,5 +200,6 @@ lemma in_dom:
   assumes "S \<subseteq> dom T" and "x \<in> S" 
   shows "\<exists>y. T x \<triangleq> y"
   using assms by blast
+
 
 end
