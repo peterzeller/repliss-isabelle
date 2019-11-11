@@ -135,7 +135,7 @@ lemma state_monotonicGrowth_callOrigin2:
 lemma state_monotonicGrowth_generatedIds:
   assumes "state_monotonicGrowth i S' S"
   shows "generatedIds S' uid \<triangleq> i \<Longrightarrow> generatedIds S uid \<triangleq> i"
-  using assms by (auto simp add: state_monotonicGrowth_def generatedIds_mono)
+  using assms generatedIds_mono1 state_monotonicGrowth_def by blast
 
 
 lemma state_monotonicGrowth_knownIds:
@@ -273,14 +273,6 @@ definition chooseSnapshot' where
    \<and> newCalls = callsInTransaction S newTxns \<down> happensBefore S
    \<and> snapshot = vis \<union> newCalls"
 
-lemma in_dom:
-  assumes "S \<subseteq> dom T" and "x \<in> S" 
-  shows "\<exists>y. T x \<triangleq> y"
-  using assms by blast
-
-lemma not_uncommitted_cases:
-  shows "(x \<noteq> Some Uncommitted) \<longleftrightarrow> (\<forall>y. x = Some y \<longrightarrow> x = Some Committed)"
-  using transactionStatus.exhaust by auto
 
 
 lemma chooseSnapshot_same_if_everything_committed:

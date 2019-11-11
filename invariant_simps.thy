@@ -1,5 +1,5 @@
 theory invariant_simps
-  imports approach single_invocation_correctness
+  imports single_invocation_correctness
 begin
 
 section \<open>Invariant simplifications\<close>

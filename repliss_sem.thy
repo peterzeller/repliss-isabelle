@@ -2,21 +2,14 @@ theory repliss_sem
   imports Main
     "HOL-Library.Multiset"
     "HOL-Library.Option_ord"
- "~~/src/HOL/Eisbach/Eisbach"
+    "~~/src/HOL/Eisbach/Eisbach"
+    utils
 begin
 
 section \<open>Semantics\<close>
 
 text \<open>This theory describes the distributed semantics used by Repliss.\<close>
 
-
-abbreviation todo ("???") where "??? \<equiv> undefined"
-
-abbreviation eqsome :: "'a option \<Rightarrow> 'a \<Rightarrow> bool" (infixr "\<triangleq>" 69) where
-  "x \<triangleq> y \<equiv> x = Some y"
-
-abbreviation orElse :: "'a option \<Rightarrow> 'a \<Rightarrow> 'a" (infixr "orElse" 70) where
-  "x orElse y \<equiv> case x of Some a \<Rightarrow> a | None \<Rightarrow> y"
 
 typedecl invocId
 
@@ -450,6 +443,21 @@ datatype 'any action =
 
 definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 
+
+definition 
+  "isAFail a \<equiv> case a of AFail \<Rightarrow> True | _ \<Rightarrow> False"
+
+schematic_goal [simp]: "isAFail (ALocal) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (ANewId u) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (ABeginAtomic t newTxns) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AEndAtomic) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (ADbOp c oper args res) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AInvoc pname args) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AReturn res) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AFail) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AInvcheck c) = ?x" by (auto simp add: isAFail_def) 
+
+
 definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> bool" where
 "chooseSnapshot snapshot vis S \<equiv>
   \<exists>newTxns newCalls.
@@ -650,6 +658,12 @@ definition programCorrect where
 definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rightarrow> True | _ \<Rightarrow> False)"
 
 definition "isAInvoc action = (case action of AInvoc _ _  \<Rightarrow> True | _ \<Rightarrow> False)"
+
+
+lemma show_programCorrect:
+  assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s \<rbrakk> \<Longrightarrow> traceCorrect trace"
+  shows "programCorrect program"
+  by (auto simp add: assms programCorrect_def traces_def)
 
 (*
  splits a trace into three parts

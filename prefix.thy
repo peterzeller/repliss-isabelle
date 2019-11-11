@@ -23,4 +23,16 @@ lemma isPrefix_appendI:
   "isPrefix xs (xs@ys)"
   by (simp add: isPrefix_def)
 
+lemma isPrefix_len:
+  "isPrefix tr tr' \<Longrightarrow> length tr \<le> length tr'"
+  by (metis isPrefix_def nat_le_linear take_all)
+
+
+lemma isPrefix_same: 
+  assumes "isPrefix tr tr'"
+    and "i<length tr"
+  shows "tr!i = tr'!i"
+  using assms by (auto simp add: isPrefix_def, metis nth_take)
+
+
 end
