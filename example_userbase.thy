@@ -1,6 +1,6 @@
 theory example_userbase
-  imports invariant_simps unique_ids
-    single_invocation_correctness2
+  imports 
+    program_verification_tactics
 begin
 
 
@@ -470,7 +470,36 @@ lemma invocation_happensBeforeH_update:
 
   apply (rename_tac i1 i2 c1 c2)
 *)
+method M_show_programCorrect_using_checkCorrect = 
+  ((rule Initial_Label, rule DC_show_programCorrect_using_checkCorrect;rule DC_final), casify)
+
 theorem userbase_correct: "programCorrect progr"
+proof M_show_programCorrect_using_checkCorrect
+  case invariant_initial_state
+  show "invariant_all' (initialState progr)"
+    by (simp add: example_userbase.inv_def initialState_def inv1_def inv2_def inv3_def invContextH2_happensBefore invContextH2_i_invocationOp progr_def)
+
+  case (at_procedure_begin)
+
+  show "invariant_all' S__"
+
+  then show ?thesis sorry
+next
+  case check_procedure
+  then show ?thesis sorry
+qed
+
+
+
+
+
+(*old proof *)
+
+
+
+
+
+
 proof (rule show_programCorrect_using_checkCorrect)
   have [simp]: "invariant progr = inv" by (simp add: progr_def)
 
@@ -2048,10 +2077,7 @@ show "example_userbase.inv (invContext' S'e)"
                   show "example_userbase.inv (invContext' S'f)"
                   proof 
                     show "inv1 (invContext' S'f)"
-                      using inv1_S' apply (auto simp add: inv1_def S'f_def S'e_def hb'e_def S'd_def hb'd_def hb'_def S'b_def S'a_def updateHb_chain invContextH2_simps)
-                      apply (subst(asm) updateHb_chain, force, simp)
-                      apply (subst(asm) ihb_simps)
-                      by auto
+                      using inv1_S' by (auto simp add: inv1_def S'f_def S'e_def hb'e_def S'd_def hb'd_def hb'_def S'b_def S'a_def updateHb_chain insert_commute invContextH2_simps ihb_simps)
 
 
                     show "inv2 (invContext' S'f)"
