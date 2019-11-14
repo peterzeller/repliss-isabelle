@@ -1,5 +1,5 @@
 theory execution_invariants_unused
-  imports repliss_sem execution_invariants consistency commutativity
+  imports repliss_sem execution_invariants consistency commutativity  invariant_simps
 begin
 
 text "These are currently unused execution invariants"
@@ -187,6 +187,12 @@ next
     apply (rule step.cases)
     using step.IH  by (auto simp add: step)
 qed
+
+lemma
+  assumes "state_wellFormed S_pre" 
+    and "invocationOp S_pre i = None" 
+  shows "i_callOriginI S_pre c \<noteq> Some i"
+  by (simp add: assms(1) assms(2) i_callOriginI_h_def option.case_eq_if wf_no_invocation_no_origin)
 
 
 end

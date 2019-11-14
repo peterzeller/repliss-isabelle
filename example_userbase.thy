@@ -315,6 +315,19 @@ lemma procedure_cases2: "procedures procName args \<triangleq> (initState, impl)
 \<or> (\<exists>u. procName = getUser \<and> args = [UserId u] \<and> initState = lsInit\<lparr>ls_u := UserId u \<rparr> \<and> impl = getUserImpl))" (is "?Left \<longleftrightarrow> ?Right")
   by (auto simp add: procedures_def split: list.splits val.splits)
 
+lemma procedure_cases3[cases set,case_names 
+    case_registerUser[procname args initiState impl] 
+    case_updateMail[procname args initiState impl]  
+    case_removeUser[procname args initiState impl]  
+    case_get_User[procname args initiState impl] ]: 
+  assumes impl: "procedures procName args \<triangleq> (initState, impl)"
+and "\<And>name mail. \<lbrakk>procName = registerUser; args = [String name, String mail]; initState = lsInit\<lparr>ls_name := name, ls_mail := mail \<rparr>; impl = registerUserImpl\<rbrakk> \<Longrightarrow> P" 
+and "\<And>u mail. \<lbrakk>procName = updateMail; args = [UserId u, String mail]; initState = lsInit\<lparr>ls_u := UserId u, ls_mail := mail \<rparr>; impl = updateMailImpl\<rbrakk> \<Longrightarrow> P"
+and "\<And>u.  \<lbrakk>procName = removeUser; args = [UserId u]; initState = lsInit\<lparr>ls_u := UserId u \<rparr>; impl = removeUserImpl\<rbrakk> \<Longrightarrow> P"
+and "\<And>u.  \<lbrakk>procName = getUser; args = [UserId u]; initState = lsInit\<lparr>ls_u := UserId u \<rparr>; impl = getUserImpl\<rbrakk> \<Longrightarrow> P"
+shows P
+  using impl  by (auto simp add: procedures_def split: list.splits val.splits if_splits elim: assms(2-))
+
 
 lemma StateDef_simps: 
   "S' ::= S ==> calls S' = calls S"
@@ -471,24 +484,82 @@ lemma invocation_happensBeforeH_update:
   apply (rename_tac i1 i2 c1 c2)
 *)
 method M_show_programCorrect_using_checkCorrect = 
-  ((rule Initial_Label, rule DC_show_programCorrect_using_checkCorrect;rule DC_final), casify)
+  ((rule Initial_Label, rule DC_show_programCorrect_using_checkCorrect;
+   (rule DC_final2 | rule DC_final)), 
+   casify)
+
+lemma invariant_progr[simp]: "invariant progr = example_userbase.inv"
+      by (auto simp add: progr_def)
 
 theorem userbase_correct: "programCorrect progr"
 proof M_show_programCorrect_using_checkCorrect
+  print_nested_cases
+
   case invariant_initial_state
   show "invariant_all' (initialState progr)"
     by (simp add: example_userbase.inv_def initialState_def inv1_def inv2_def inv3_def invContextH2_happensBefore invContextH2_i_invocationOp progr_def)
 
-  case (at_procedure_begin)
+  case (at_procedure_begin S i)
 
-  show "invariant_all' S__"
+  show " invariant_all' S"
+  proof (rule Initial_Label, rule show_initial_state_prop[OF at_procedure_begin], rule DC_final2, casify)
+    case (show_P S_pre procName args initState impl)
 
-  then show ?thesis sorry
-next
-  case check_procedure
-  then show ?thesis sorry
-qed
+    from  show_P.progr_def
+    have [simp]: "prog S = progr"
+      by (auto simp add: show_P.Si_def)
 
+
+
+    show ?case
+      using show_P.proc_impl[simplified procedure_progr]
+    proof (cases rule: procedure_cases3)
+      case (case_registerUser name mail)
+      then show ?thesis 
+        using show_P.invariant_pre
+        by (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
+    next
+      case (case_updateMail u mail)
+      then show ?thesis 
+        using show_P.invariant_pre
+        by (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
+    next
+      case (case_removeUser u)
+      then show ?thesis 
+        using show_P.invariant_pre
+        apply (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
+        apply (simp add: new_invocation_cannot_happen_before show_P.i_fresh show_P.wf_pre)
+
+      proof casify
+        case unnamed
+
+        find_theorems name: "Si_def"
+        from `invocationOp S_pre i = None` `state_wellFormed S_pre`
+        have "i_callOriginI S_pre c \<noteq> Some i"
+          apply (auto simp add: i_callOriginI_h_def split: option.splits)
+          using wf_no_invocation_no_origin by blast
+
+
+
+          apply (auto simp add: show_P.Si_def)
+
+        show ?case
+        proof (rule unnamed.prems[rule_format])
+          show "i_callOriginI S_pre c \<triangleq> i"
+            by (simp add: unnamed.prems)
+
+          show "invocationOp S_pre i \<triangleq> (removeUser, [UserId u])"
+
+            sorry
+
+        sorry
+    next
+      case (case_get_User u)
+      then show ?thesis 
+        using show_P.invariant_pre
+        by (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
+        sorry
+    qed
 
 
 
@@ -496,10 +567,10 @@ qed
 (*old proof *)
 
 
+    oops
 
 
-
-
+theorem userbase_correct: "programCorrect progr"
 proof (rule show_programCorrect_using_checkCorrect)
   have [simp]: "invariant progr = inv" by (simp add: progr_def)
 

@@ -5,6 +5,9 @@ theory program_verification_tactics
     single_invocation_correctness2
     "Case_Labeling.Case_Labeling"
     "HOL-Eisbach.Eisbach"
+    execution_invariants2
+    execution_invariants_s
+    execution_invariants_unused
 begin
 
 context begin
@@ -19,10 +22,10 @@ lemma increase_bound:
 lemma DC_show_programCorrect_using_checkCorrect:
   fixes ct defines "ct' \<equiv> \<lambda>pos name. (name, pos,[]) # ct"
   assumes invInitial: "C\<langle>Suc n1, ct' n1 ''invariant_initial_state'', n2: invariant_all' (initialState progr)\<rangle>"
-    and initialStatesCorrect: "\<And>S i. \<lbrakk>H\<langle>ct' n2 ''in_initial_state'': S\<in>initialStates' progr i\<rangle>\<rbrakk> 
-          \<Longrightarrow> C\<langle>Suc n2, ct' n2 ''at_procedure_begin'', n3: invariant_all' S\<rangle>"
-    and stepsCorrect: "\<And>S i. \<lbrakk>H\<langle>ct' n3 ''in_initial_state'': S\<in>initialStates' progr i\<rangle>\<rbrakk> \<Longrightarrow> 
-        C\<langle>Suc n3, ct' n3 ''check_procedure'', n4:  (\<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i))\<rangle>"
+    and initialStatesCorrect: "\<And>S i. \<lbrakk>B\<langle>''in_initial_state'', n2: S\<in>initialStates' progr i\<rangle>\<rbrakk> 
+          \<Longrightarrow> C\<langle>Suc n2, (''at_procedure_begin'', n2, [VAR S, VAR i])#ct, n3: invariant_all' S\<rangle>"
+    and stepsCorrect: "\<And>S i. \<lbrakk>B\<langle>''in_initial_state'', n3: S\<in>initialStates' progr i\<rangle>\<rbrakk> \<Longrightarrow> 
+        C\<langle>Suc n3, (''check_procedure'', n3, [VAR S, VAR i])#ct, n4:  (\<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i))\<rangle>"
   shows "C\<langle>n1,ct,n4: programCorrect progr\<rangle>"
   using assms
   unfolding LABEL_simps using show_programCorrect_using_checkCorrect by blast
@@ -31,6 +34,53 @@ lemma DC_final:
   assumes "V\<langle>(''g'',inp,[]), ct: a\<rangle>"
   shows "C\<langle>inp,ct,Suc inp: a\<rangle>"
   using assms unfolding LABEL_simps by auto
+
+
+  lemma DC_final2:
+    assumes "V\<langle>(n,i,v), ct: a\<rangle>"
+    shows "C\<langle>inp,(n,i,v)#ct,Suc inp: a\<rangle>"
+    using assms unfolding LABEL_simps by auto
+
+lemma show_initial_state_prop:
+  assumes a1: "Si\<in>initialStates' progr i"
+and a2: "\<And>S_pre procName args initState impl.
+       \<lbrakk>
+        B\<langle>''Si_def'', n1 : Si = S_pre
+        \<lparr>localState := localState S_pre(i \<mapsto> initState), 
+         currentProc := currentProc S_pre(i \<mapsto> impl), 
+         visibleCalls := visibleCalls S_pre(i \<mapsto> {}),
+         invocationOp := invocationOp S_pre(i \<mapsto> (procName, args))\<rparr>\<rangle>;
+        B\<langle>''progr_def'', n1 : prog S_pre = progr\<rangle>; 
+        B\<langle>''proc_impl'', n1 : procedure progr procName args \<triangleq> (initState, impl)\<rangle>; 
+        B\<langle>''ids_in_args_are_knownIds'', n1 : uniqueIdsInList args \<subseteq> knownIds S_pre\<rangle>; 
+        B\<langle>''invariant_pre'', n1 : invariant_all' S_pre\<rangle>;
+        B\<langle>''wf_pre'', n1 : state_wellFormed S_pre\<rangle>; 
+        B\<langle>''i_fresh'', n1 : invocationOp S_pre i = None\<rangle>; 
+        B\<langle>''no_uncommitted_txns'', n1 : \<forall>tx. transactionStatus S_pre tx \<noteq> Some Uncommitted\<rangle>;
+        B\<langle>''no_txns_in_i'', n1 : \<forall>tx. transactionOrigin S_pre tx \<noteq> Some i\<rangle>
+        \<rbrakk> \<Longrightarrow> C\<langle>Suc n1, (''show_P'', n1, [VAR S_pre, VAR procName, VAR  args, VAR  initState, VAR  impl])#ct, n2 :   P Si i\<rangle>"
+  shows "C\<langle>n1, ct, n : P Si i\<rangle>"
+  unfolding LABEL_simps 
+proof -
+  from a1[unfolded initialStates'_def]
+  obtain S procName args initState impl 
+    where "prog S = progr"
+      and "procedure progr procName args \<triangleq> (initState, impl)"
+      and "uniqueIdsInList args \<subseteq> knownIds S"
+      and "invariant_all' S"
+      and "state_wellFormed S"
+      and "invocationOp S i = None"
+      and "\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+      and "\<forall>tx. transactionOrigin S tx \<noteq> Some i"
+      and "Si = S\<lparr>localState := localState S(i \<mapsto> initState), currentProc := currentProc S(i \<mapsto> impl), visibleCalls := visibleCalls S(i \<mapsto> {}),
+             invocationOp := invocationOp S(i \<mapsto> (procName, args))\<rparr>"
+    by auto
+  note facts = this 
+
+  show "P Si i"
+    apply (rule a2[unfolded LABEL_simps])
+    using facts by auto
+qed
 
 end
 
