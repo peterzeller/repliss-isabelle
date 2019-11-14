@@ -18,17 +18,26 @@ lemma increase_bound:
   shows "\<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
   using assms by blast
 
+definition "procedureCorrect" where
+"procedureCorrect progr S i \<equiv> invariant_all' S \<and> (\<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i))"
 
-lemma DC_show_programCorrect_using_checkCorrect:
+lemma DC_show_programCorrect:
   fixes ct defines "ct' \<equiv> \<lambda>pos name. (name, pos,[]) # ct"
   assumes invInitial: "C\<langle>Suc n1, ct' n1 ''invariant_initial_state'', n2: invariant_all' (initialState progr)\<rangle>"
-    and initialStatesCorrect: "\<And>S i. \<lbrakk>B\<langle>''in_initial_state'', n2: S\<in>initialStates' progr i\<rangle>\<rbrakk> 
-          \<Longrightarrow> C\<langle>Suc n2, (''at_procedure_begin'', n2, [VAR S, VAR i])#ct, n3: invariant_all' S\<rangle>"
-    and stepsCorrect: "\<And>S i. \<lbrakk>B\<langle>''in_initial_state'', n3: S\<in>initialStates' progr i\<rangle>\<rbrakk> \<Longrightarrow> 
-        C\<langle>Suc n3, (''check_procedure'', n3, [VAR S, VAR i])#ct, n4:  (\<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i))\<rangle>"
-  shows "C\<langle>n1,ct,n4: programCorrect progr\<rangle>"
+    and procedureCorrect: "\<And>S i. \<lbrakk>B\<langle>''in_initial_state'', n2: S\<in>initialStates' progr i\<rangle>\<rbrakk> 
+          \<Longrightarrow> C\<langle>Suc n2, (''procedure_correct'', n2, [VAR S, VAR i])#ct, n3: procedureCorrect progr S i\<rangle>"
+  shows "C\<langle>n1,ct,n3: programCorrect progr\<rangle>"
   using assms
-  unfolding LABEL_simps using show_programCorrect_using_checkCorrect by blast
+  unfolding LABEL_simps using show_programCorrect_using_checkCorrect procedureCorrect_def by blast
+
+
+lemma DC_show_procedureCorrect:
+  fixes ct defines "ct' \<equiv> \<lambda>pos name. (name, pos,[]) # ct"
+  assumes "C\<langle>Suc n1, ct' n1 ''after_invocation'', n2: invariant_all' S\<rangle>"
+    and  "C\<langle>Suc n2, (''execution'', n2, [])#ct, n3: \<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)\<rangle>"
+  shows "C\<langle>n1,ct,n3: procedureCorrect progr S i\<rangle>"
+  using assms
+  unfolding LABEL_simps using procedureCorrect_def by blast
 
 lemma DC_final:
   assumes "V\<langle>(''g'',inp,[]), ct: a\<rangle>"
@@ -84,6 +93,37 @@ qed
 
 end
 
+method M_show_programCorrect = 
+  ((rule Initial_Label, 
+    rule DC_show_programCorrect;
+   (rule DC_final2 | rule DC_final)), 
+   casify)
+
+method M_show_procedureCorrect = 
+  ((rule Initial_Label, 
+    rule DC_show_procedureCorrect;
+   (rule DC_final2 | rule DC_final)), 
+   casify)
+
+lemma test:
+  shows "programCorrect progr"
+proof M_show_programCorrect
+  case invariant_initial_state
+  then show ?case sorry
+next
+  case procedure_correct
+  show "procedureCorrect progr S i"
+  proof M_show_procedureCorrect
+
+  oops
+
+
+\<comment> \<open>ony unfold definitions, when needed for evaluation:\<close>
+lemma state_def[simp]:  "S' ::= S \<Longrightarrow> (currentProc S' i \<triangleq> x) \<longleftrightarrow> (currentProc S i \<triangleq> x)"  by (auto simp add: Def_def)
+lemma state_def_h1[simp]: "S' ::= S \<Longrightarrow>  ls_pc (the (localState S' i)) = ls_pc (the (localState S i))" by (auto simp add: Def_def)
+lemma state_def_h2[simp]: "S' ::= S \<Longrightarrow>  (currentTransaction S' i = None) \<longleftrightarrow> (currentTransaction S i = None)"  by (auto simp add: Def_def)
+lemma state_def_currentProc[simp]: "S' ::= S \<Longrightarrow>  currentProc S' i = currentProc S i" by (auto simp add: Def_def)
+lemma state_def_currentTransaction[simp]: "S' ::= S \<Longrightarrow> currentTransaction S' i = currentTransaction S i"  by (auto simp add: Def_def)
 
 
 end

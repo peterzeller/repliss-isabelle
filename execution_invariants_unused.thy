@@ -188,11 +188,16 @@ next
     using step.IH  by (auto simp add: step)
 qed
 
-lemma
+lemma i_callOriginI_notI1:
   assumes "state_wellFormed S_pre" 
     and "invocationOp S_pre i = None" 
   shows "i_callOriginI S_pre c \<noteq> Some i"
   by (simp add: assms(1) assms(2) i_callOriginI_h_def option.case_eq_if wf_no_invocation_no_origin)
 
+lemma i_callOriginI_notI2:
+  assumes "state_wellFormed S_pre" 
+    and "i_callOriginI S_pre c = Some i" 
+  shows "invocationOp S_pre i \<noteq> None"
+  using assms(1) assms(2) i_callOriginI_notI1 by blast
 
 end

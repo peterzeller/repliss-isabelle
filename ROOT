@@ -7,6 +7,7 @@ session "repliss" = "HOL" +
   options [document = pdf, document_output = "output"]
   sessions 
     "HOL-Library"
+    "Case_Labeling"
  (* theories [document = false]
     "~~/src/HOL/Library/FSet"
     "~~/src/HOL/Eisbach/Eisbach"

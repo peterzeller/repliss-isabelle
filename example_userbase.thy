@@ -483,91 +483,134 @@ lemma invocation_happensBeforeH_update:
 
   apply (rename_tac i1 i2 c1 c2)
 *)
-method M_show_programCorrect_using_checkCorrect = 
-  ((rule Initial_Label, rule DC_show_programCorrect_using_checkCorrect;
-   (rule DC_final2 | rule DC_final)), 
-   casify)
+
+
+lemma queries_defined_users_name_assign[simp]: 
+  "Ex (querySpec progr users_name_assign [u, n] ctxt)"
+  for u n ctxt
+  by (auto simp add: progr_def crdtSpec_def )
+
+lemma queries_defined_users_mail_assign[simp]: 
+  "Ex (querySpec progr users_mail_assign [u, n] ctxt)"
+  for u n ctxt
+  by (auto simp add: progr_def crdtSpec_def )
+
+
 
 lemma invariant_progr[simp]: "invariant progr = example_userbase.inv"
       by (auto simp add: progr_def)
 
 theorem userbase_correct: "programCorrect progr"
-proof M_show_programCorrect_using_checkCorrect
+proof M_show_programCorrect
   print_nested_cases
 
   case invariant_initial_state
   show "invariant_all' (initialState progr)"
     by (simp add: example_userbase.inv_def initialState_def inv1_def inv2_def inv3_def invContextH2_happensBefore invContextH2_i_invocationOp progr_def)
 
-  case (at_procedure_begin S i)
+  case (procedure_correct S i)
 
-  show " invariant_all' S"
-  proof (rule Initial_Label, rule show_initial_state_prop[OF at_procedure_begin], rule DC_final2, casify)
-    case (show_P S_pre procName args initState impl)
+  show "procedureCorrect progr S i"
+  proof (rule Initial_Label, rule show_initial_state_prop[OF procedure_correct], rule DC_final2, casify)
+    case show_P
 
-    from  show_P.progr_def
-    have [simp]: "prog S = progr"
-      by (auto simp add: show_P.Si_def)
+    note show_P[simp]
 
-
-
-    show ?case
+    show "procedureCorrect progr S i"
       using show_P.proc_impl[simplified procedure_progr]
     proof (cases rule: procedure_cases3)
       case (case_registerUser name mail)
-      then show ?thesis 
-        using show_P.invariant_pre
-        by (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
-    next
-      case (case_updateMail u mail)
-      then show ?thesis 
-        using show_P.invariant_pre
-        by (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
-    next
-      case (case_removeUser u)
-      then show ?thesis 
-        using show_P.invariant_pre
-        apply (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
-        apply (simp add: new_invocation_cannot_happen_before show_P.i_fresh show_P.wf_pre)
 
-      proof casify
-        case unnamed
+      show " procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
 
-        find_theorems name: "Si_def"
-        from `invocationOp S_pre i = None` `state_wellFormed S_pre`
-        have "i_callOriginI S_pre c \<noteq> Some i"
-          apply (auto simp add: i_callOriginI_h_def split: option.splits)
-          using wf_no_invocation_no_origin by blast
+        show ?case 
+          using show_P.invariant_pre case_registerUser
+          by (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
+      next
+        case execution
 
+        have todo1[simp]: "currentTransaction S_pre i = None"
+          by (simp add: show_P.i_fresh show_P.wf_pre wellFormed_invoc_notStarted(1))
 
-
-          apply (auto simp add: show_P.Si_def)
 
         show ?case
-        proof (rule unnamed.prems[rule_format])
-          show "i_callOriginI S_pre c \<triangleq> i"
-            by (simp add: unnamed.prems)
+          apply (rule exI)
+          apply (subst funpow.simps(2))
+          apply (subst checkCorrect2F_def)
+          apply (auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def)
+          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
+          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
+          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
+           apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
+          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
+          defer
+           apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
 
-          show "invocationOp S_pre i \<triangleq> (removeUser, [UserId u])"
+          find_theorems "S"
+          
+          sorry
+      qed
 
-            sorry
 
-        sorry
+    next
+      case (case_updateMail u mail)
+
+      show " procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
+        then show ?case 
+          using show_P.invariant_pre case_updateMail
+          by (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
+
+      next
+        case execution
+        then show ?case sorry
+      qed
+
+        
+
+    next
+      case (case_removeUser u)
+       show " procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
+        then show ?case 
+          using show_P.invariant_pre case_removeUser
+        apply (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
+        apply (simp add: new_invocation_cannot_happen_before show_P.i_fresh show_P.wf_pre)
+        using i_callOriginI_notI2 show_P.i_fresh show_P.wf_pre by blast
+
+
+      next
+        case execution
+        then show ?case sorry
+      qed
+
     next
       case (case_get_User u)
-      then show ?thesis 
-        using show_P.invariant_pre
-        by (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
-        sorry
+       show " procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
+        then show ?case 
+        using show_P.invariant_pre case_get_User
+        apply (auto simp add: show_P.progr_def inv_def inv1_def inv2_def inv3_def invContextH2_simps show_P.Si_def)
+        using new_invocation_cannot_happen_after show_P.i_fresh show_P.wf_pre by blast
+
+      next
+        case execution
+        then show ?case sorry
+      qed
+
     qed
-
-
+  qed
+qed
 
 
 (*old proof *)
 
 
-    oops
 
 
 theorem userbase_correct: "programCorrect progr"
@@ -720,16 +763,6 @@ proof (rule show_programCorrect_using_checkCorrect)
       have h1[simp]:  "S' ::= S \<Longrightarrow> (currentProc S' i \<triangleq> x) \<longleftrightarrow> (currentProc S i \<triangleq> x)" for S' S i x  by (auto simp add: Def_def)
       have h2[simp]: "S' ::= S \<Longrightarrow>  ls_pc (the (localState S' i)) = ls_pc (the (localState S i))" for S' S i by (auto simp add: Def_def)
       have h3[simp]: "S' ::= S \<Longrightarrow>  (currentTransaction S' i = None) \<longleftrightarrow> (currentTransaction S i = None)" for S' S i by (auto simp add: Def_def)
-
-      have queries_defined_users_name_assign[simp]: 
-        "Ex (querySpec progr users_name_assign [u, n] ctxt)"
-        for u n ctxt
-        by (auto simp add: progr_def crdtSpec_def )
-
-      have queries_defined_users_name_assign[simp]: 
-        "Ex (querySpec progr users_mail_assign [u, n] ctxt)"
-        for u n ctxt
-        by (auto simp add: progr_def crdtSpec_def )
 
 
 
