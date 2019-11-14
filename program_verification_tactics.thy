@@ -4,7 +4,6 @@ theory program_verification_tactics
     unique_ids
     single_invocation_correctness2
     "Case_Labeling.Case_Labeling"
-    "HOL-Eisbach.Eisbach"
     execution_invariants2
     execution_invariants_s
     execution_invariants_unused
