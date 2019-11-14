@@ -264,6 +264,13 @@ schematic_goal checkCorrect2F_step:
   done
 
 
+
+
+lemma updateHb_cases: 
+  "(cx, cy) \<in> updateHb Hb vis cs \<longleftrightarrow> ((cx,cy)\<in>Hb \<or> cx\<in>vis \<and> cy\<in>set cs \<or> in_sequence cs cx cy)"
+  by (induct cs arbitrary: Hb vis, auto simp add: updateHb_cons in_sequence_cons)
+
+
 (*
 
   i_visibleCalls :: "callId set"

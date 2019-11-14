@@ -1,6 +1,7 @@
 theory example_userbase
   imports 
     program_verification_tactics
+  impl_language
 begin
 
 
@@ -30,21 +31,7 @@ fun stringval where
   "stringval (String s) = s"
 | "stringval _ = ''''"
 
-record localState = 
-  ls_pc :: nat
-  ls_u :: val
-  ls_name :: string
-  ls_mail :: string
-  ls_exists :: bool
-
-definition lsInit :: "localState" where
-  "lsInit = \<lparr>
-  ls_pc = 0,
-  ls_u = Undef,
-  ls_name = '''',
-  ls_mail = '''',
-  ls_exists = False
-\<rparr>"
+type_synonym localState = "(val,val) io"
 
 (*
   querySpec :: "operation \<Rightarrow> 'any list \<Rightarrow> 'any operationContext \<Rightarrow> 'any \<Rightarrow> bool"
@@ -143,78 +130,75 @@ lemma names_distinct3[simp]:
 
 lemmas names_distinct4[simp] = names_distinct3[symmetric]
 
-fun pickLine where 
-  "pickLine ls list =
-  (case list of 
-    [] \<Rightarrow> LocalStep ls
-  | (x#xs) \<Rightarrow>
-    (case ls_pc ls of
-        0 \<Rightarrow> x
-      | Suc n \<Rightarrow>  pickLine (ls\<lparr>ls_pc := n\<rparr>) xs))"
-
-find_consts "val \<Rightarrow> bool"
-
-definition registerUserImpl :: "(localState, val) procedureImpl" where
-  "registerUserImpl ls \<equiv> pickLine ls [
-   \<comment> \<open>  0  \<close> NewId (\<lambda>x. if isUserId x then Some (ls\<lparr>ls_u := x, ls_pc := 1\<rparr> :: localState) else None),
-   \<comment> \<open>  1  \<close> BeginAtomic (ls\<lparr>ls_pc := 2\<rparr>),
-   \<comment> \<open>  2  \<close> DbOperation users_name_assign [ls_u ls, String (ls_name ls)] (\<lambda>r. ls\<lparr>ls_pc := 3\<rparr>),
-   \<comment> \<open>  3  \<close> DbOperation users_mail_assign [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
-   \<comment> \<open>  4  \<close> EndAtomic (ls\<lparr>ls_pc := 5\<rparr>),
-   \<comment> \<open>  5  \<close> Return (ls_u ls)
-   ]"
-
-definition updateMailImpl :: "(localState, val) procedureImpl" where
-  "updateMailImpl ls \<equiv> pickLine ls [
-   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
-   \<comment> \<open>  1  \<close> DbOperation users_contains_key [ls_u ls] (\<lambda>r. ls\<lparr>ls_exists := (r = Bool True), ls_pc := 2 \<rparr>),
-   \<comment> \<open>  2  \<close> LocalStep (if ls_exists ls then ls\<lparr>ls_pc := 3\<rparr> else ls\<lparr>ls_pc := 4\<rparr> ),
-   \<comment> \<open>  3  \<close> DbOperation users_mail_assign [ls_u ls, String (ls_mail ls)] (\<lambda>r. ls\<lparr>ls_pc := 4\<rparr>),
-   \<comment> \<open>  4  \<close> EndAtomic  (ls\<lparr>ls_pc := 5\<rparr>),
-   \<comment> \<open>  5  \<close> Return Undef
-   ]"   
-
-definition removeUserImpl :: "(localState, val) procedureImpl" where
-  "removeUserImpl ls \<equiv> pickLine ls [
-   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
-   \<comment> \<open>  1  \<close> DbOperation users_remove [ls_u ls] (\<lambda>r. ls\<lparr>ls_pc := 2 \<rparr>),
-   \<comment> \<open>  2  \<close> EndAtomic  (ls\<lparr>ls_pc := 3\<rparr>),
-   \<comment> \<open>  3  \<close> Return Undef
-   ]"
-
-definition getUserImpl :: "(localState, val) procedureImpl" where
-  "getUserImpl ls \<equiv> pickLine ls [
-   \<comment> \<open>  0  \<close> BeginAtomic (ls\<lparr>ls_pc := 1\<rparr>),
-   \<comment> \<open>  1  \<close> DbOperation users_contains_key [ls_u ls] (\<lambda>r. ls\<lparr>ls_exists := (r = Bool True), ls_pc := 2 \<rparr>),
-   \<comment> \<open>  2  \<close> LocalStep (if ls_exists ls then ls\<lparr>ls_pc := 3\<rparr> else ls\<lparr>ls_pc := 5\<rparr> ),
-   \<comment> \<open>  3  \<close> DbOperation users_name_get [ls_u ls] (\<lambda>r. ls\<lparr>ls_name := stringval r, ls_pc := 4 \<rparr>),
-   \<comment> \<open>  4  \<close> DbOperation users_mail_get [ls_u ls] (\<lambda>r. ls\<lparr>ls_mail := stringval r, ls_pc := 5 \<rparr>),
-   \<comment> \<open>  5  \<close> EndAtomic  (ls\<lparr>ls_pc := 6\<rparr>),
-   \<comment> \<open>  6  \<close> Return (if ls_exists ls then Found (ls_name ls) (ls_mail ls) else NotFound )
-   ]"      
 
 
-definition procedures where
+
+definition registerUser_impl :: "val \<Rightarrow> val \<Rightarrow> (val,val) io" where
+ "registerUser_impl name mail \<equiv>  do {
+  u \<leftarrow> newId isUserId;
+  beginAtomic;
+  call users_name_assign [u, name];
+  call users_mail_assign [u, mail];
+  endAtomic;
+  return u
+}"
+
+
+definition updateMail_impl :: "val \<Rightarrow> val \<Rightarrow> (val,val) io" where
+ "updateMail_impl u mail \<equiv>  do {
+  beginAtomic;
+  exists \<leftarrow> call users_contains_key [u];  
+  (if exists = Bool True then do {
+    call users_mail_assign [u, mail]
+  } else skip);
+  endAtomic;
+  return u
+}"
+
+
+definition removeUser_impl :: "val \<Rightarrow> (val,val) io" where
+ "removeUser_impl u \<equiv>  do {
+  beginAtomic;
+  exists \<leftarrow> call users_contains_key [u];  
+  (if exists = Bool True then do {
+    call users_remove [u]
+  } else skip);
+  endAtomic;
+  return u
+}"
+
+definition getUser_impl :: "val \<Rightarrow> (val,val) io" where
+ "getUser_impl u \<equiv>  do {
+  beginAtomic;
+  exists \<leftarrow> call users_contains_key [u];  
+  (if exists = Bool True then do {
+    name \<leftarrow> call users_name_get [u];
+    mail \<leftarrow> call users_mail_get [u];
+    return (Found (stringval name) (stringval mail))
+  } else return NotFound)
+}"
+
+term "toImpl (registerUser_impl (String name) (String mail))"
+
+abbreviation "toImpl2 x \<equiv> (x, toImpl)" 
+
+definition procedures :: "char list \<Rightarrow> val list \<Rightarrow> ((val, val) io \<times> ((val, val) io, val) procedureImpl) option" where
   "procedures proc args \<equiv> 
   if proc = registerUser then
     case args of 
-      [String name, String mail] \<Rightarrow> 
-        Some (lsInit\<lparr>ls_name := name, ls_mail := mail \<rparr> , registerUserImpl)
+      [String name, String mail] \<Rightarrow> Some (toImpl2 (registerUser_impl (String name) (String mail)))
       | _ \<Rightarrow> None
   else if proc = updateMail then 
     case args of 
-      [UserId u, String mail] \<Rightarrow> 
-        Some (lsInit\<lparr>ls_u := UserId u, ls_mail := mail \<rparr> , updateMailImpl)
+      [UserId u, String mail] \<Rightarrow> Some (toImpl2 (updateMail_impl (UserId u) (String mail)))
       | _ \<Rightarrow> None
   else if proc = removeUser then 
     case args of 
-      [UserId u] \<Rightarrow> 
-        Some (lsInit\<lparr>ls_u := UserId u \<rparr> , removeUserImpl)
+      [UserId u] \<Rightarrow> Some (toImpl2 (removeUser_impl (UserId u)))
       | _ \<Rightarrow> None
   else if proc = getUser then 
     case args of 
-      [UserId u] \<Rightarrow> 
-        Some (lsInit\<lparr>ls_u := UserId u \<rparr> , getUserImpl)
+      [UserId u] \<Rightarrow> Some (toImpl2 (getUser_impl (UserId u)))
       | _ \<Rightarrow> None  
   else 
     None"
@@ -307,13 +291,14 @@ lemma procedure_cases': "\<lbrakk>procedures procName args \<triangleq> x; procN
 lemma procedure_case_split: "\<lbrakk>procedures procName args \<triangleq> x; procName = registerUser \<Longrightarrow> P; procName = updateMail \<Longrightarrow> P; procName = removeUser \<Longrightarrow> P; procName = getUser \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P"
   using procedure_cases' by blast
 
-
+(*
 lemma procedure_cases2: "procedures procName args \<triangleq> (initState, impl) \<longleftrightarrow> (
   (\<exists>name mail. procName = registerUser \<and> args = [String name, String mail] \<and> initState = lsInit\<lparr>ls_name := name, ls_mail := mail \<rparr> \<and> impl = registerUserImpl)
 \<or> (\<exists>u mail. procName = updateMail \<and> args = [UserId u, String mail] \<and> initState = lsInit\<lparr>ls_u := UserId u, ls_mail := mail \<rparr> \<and> impl = updateMailImpl)
 \<or> (\<exists>u. procName = removeUser \<and> args = [UserId u] \<and> initState = lsInit\<lparr>ls_u := UserId u \<rparr> \<and> impl = removeUserImpl)
 \<or> (\<exists>u. procName = getUser \<and> args = [UserId u] \<and> initState = lsInit\<lparr>ls_u := UserId u \<rparr> \<and> impl = getUserImpl))" (is "?Left \<longleftrightarrow> ?Right")
   by (auto simp add: procedures_def split: list.splits val.splits)
+*)
 
 lemma procedure_cases3[cases set,case_names 
     case_registerUser[procname args initiState impl] 
@@ -321,10 +306,10 @@ lemma procedure_cases3[cases set,case_names
     case_removeUser[procname args initiState impl]  
     case_get_User[procname args initiState impl] ]: 
   assumes impl: "procedures procName args \<triangleq> (initState, impl)"
-and "\<And>name mail. \<lbrakk>procName = registerUser; args = [String name, String mail]; initState = lsInit\<lparr>ls_name := name, ls_mail := mail \<rparr>; impl = registerUserImpl\<rbrakk> \<Longrightarrow> P" 
-and "\<And>u mail. \<lbrakk>procName = updateMail; args = [UserId u, String mail]; initState = lsInit\<lparr>ls_u := UserId u, ls_mail := mail \<rparr>; impl = updateMailImpl\<rbrakk> \<Longrightarrow> P"
-and "\<And>u.  \<lbrakk>procName = removeUser; args = [UserId u]; initState = lsInit\<lparr>ls_u := UserId u \<rparr>; impl = removeUserImpl\<rbrakk> \<Longrightarrow> P"
-and "\<And>u.  \<lbrakk>procName = getUser; args = [UserId u]; initState = lsInit\<lparr>ls_u := UserId u \<rparr>; impl = getUserImpl\<rbrakk> \<Longrightarrow> P"
+and "\<And>name mail. \<lbrakk>procName = registerUser; args = [String name, String mail]; initState = registerUser_impl (String name) (String mail); impl = toImpl\<rbrakk> \<Longrightarrow> P" 
+and "\<And>u mail. \<lbrakk>procName = updateMail; args = [UserId u, String mail]; initState = updateMail_impl (UserId u) (String mail); impl = toImpl\<rbrakk> \<Longrightarrow> P"
+and "\<And>u.  \<lbrakk>procName = removeUser; args = [UserId u]; initState = removeUser_impl (UserId u); impl = toImpl\<rbrakk> \<Longrightarrow> P"
+and "\<And>u.  \<lbrakk>procName = getUser; args = [UserId u]; initState = getUser_impl (UserId u); impl = toImpl\<rbrakk> \<Longrightarrow> P"
 shows P
   using impl  by (auto simp add: procedures_def split: list.splits val.splits if_splits elim: assms(2-))
 
@@ -356,40 +341,6 @@ lemma IStateDef_simps:
   "S' ::= S ==> i_invocationRes S' = i_invocationRes S"
   by (auto simp add: Def_def)
 
-lemma in_img_simp: "y\<in>f`S \<longleftrightarrow> (\<exists>x\<in>S. f x = y)"
-  by auto
-
-definition "in_sequence xs x y \<equiv> \<exists>i j. i<j \<and> j<length xs \<and> xs!i = x \<and> xs!j=y "
-
-
-lemma in_sequence_nil[simp]: "in_sequence [] = (\<lambda>x y. False)"
-  apply (rule ext)+
-  by (auto simp add: in_sequence_def)
-
-
-lemma in_sequence_cons:
-  "in_sequence (x # xs) a b \<longleftrightarrow> (x=a \<and> b\<in>set xs \<or> in_sequence xs a b)"
-  apply (auto simp add: in_sequence_def)
-    apply (metis (no_types, lifting) Suc_diff_eq_diff_pred Suc_less_eq Suc_pred gr_implies_not_zero not_gr_zero nth_Cons' zero_less_diff)
-   apply (metis Suc_mono in_set_conv_nth nth_Cons_0 nth_Cons_Suc zero_less_Suc)
-  by (meson Suc_mono nth_Cons_Suc)
-
-
-
-lemma in_sequence_in1: "in_sequence xs x y \<Longrightarrow> x\<in>set xs"
-  by (metis in_sequence_def in_set_conv_nth less_imp_le less_le_trans)
-
-
-lemma in_sequence_in2: "in_sequence xs x y \<Longrightarrow> y\<in>set xs"
-  by (metis in_sequence_def nth_mem)
-
-
-
-
-lemma updateHb_cases: 
-  "(cx, cy) \<in> updateHb Hb vis cs \<longleftrightarrow> ((cx,cy)\<in>Hb \<or> cx\<in>vis \<and> cy\<in>set cs \<or> in_sequence cs cx cy)"
-  by (induct cs arbitrary: Hb vis, auto simp add: updateHb_cons in_sequence_cons)
-
 
 
 lemma uniqueIds_simp[simp]:
@@ -405,6 +356,9 @@ lemma uniqueId_no_nested: "x \<in> uniqueIds uid \<Longrightarrow> x = (uid :: v
 
 lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exists>u. x = UserId u \<and> uid = UserId u)"
   by (auto simp add: uniqueIds_val_def split: val.splits)
+
+(*
+TODO can this still be defined? maybe using noninterference? 
 
 definition "progr_uids  ls \<equiv> uniqueIds (ls_u ls)"
 
@@ -423,36 +377,10 @@ proof (auto simp add: program_wellFormed_def)
 
 
 qed
+*)
 
 
 
-text \<open>
-Updating the invocId happens-before in the first transaction of an invocId.
-
-TODO Problem: second transaction could remove HB. Maybe just consider HB with finished invocations on the left (and on the right?)
-\<close>
-lemma invocation_happensBeforeH_update:
-  assumes  Orig'_def: "\<And>c. Orig' c = (case Orig c of Some i \<Rightarrow> Some i | None \<Rightarrow> if c\<in>set cs then Some i else None)"
-    and cs_no_orig: "\<And>c. c \<in> set cs \<Longrightarrow> Orig c = None"
-    and cs_notin_vis: "\<And>c. c \<in> set cs \<Longrightarrow> c \<notin> vis"
-    and cs_notin_hb1: "\<And>c x. c \<in> set cs \<Longrightarrow> (x,c) \<notin> Hb"
-    and cs_notin_hb2: "\<And>c x. c \<in> set cs \<Longrightarrow> (c,x) \<notin> Hb"
-    and invoc_fresh: "\<And>c. Orig c \<noteq> Some i"
-    and cs_nonempty: "cs \<noteq> []"
-  shows
-    "invocation_happensBeforeH Orig' (updateHb Hb vis cs)
-   = invocation_happensBeforeH Orig Hb \<union> {i'. (\<forall>c. Orig c \<triangleq> i' \<longrightarrow> c \<in> vis) \<and> (\<exists>c. Orig c \<triangleq> i') }  \<times>  {i} "
-  using invoc_fresh  apply (auto simp add: invocation_happensBeforeH_def  in_img_simp updateHb_cases)
-                apply (auto simp add: Orig'_def cs_notin_hb1  cs_notin_hb2 cs_notin_vis cs_no_orig  split: option.splits if_splits)
-  using cs_no_orig in_sequence_in2 apply fastforce
-  using cs_no_orig in_sequence_in1 apply fastforce
-        apply (metis cs_no_orig in_sequence_in2 option.simps(3))
-       apply (metis cs_no_orig in_sequence_in2 option.distinct(1))
-  using cs_no_orig in_sequence_in2 apply fastforce
-     apply (metis cs_no_orig option.distinct(1) option.sel)
-    apply (metis cs_no_orig option.distinct(1) option.sel)
-  using cs_notin_vis option.simps(3) apply fastforce
-  using cs_nonempty last_in_set by blast
 
 
 (*
@@ -537,18 +465,14 @@ proof M_show_programCorrect
 
         show ?case
           apply (rule exI)
-          apply (subst funpow.simps(2))
-          apply (subst checkCorrect2F_def)
-          apply (auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def)
-          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
-          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
-          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
-           apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
-          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
+          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUser_impl_def  )
+          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUser_impl_def  )
+          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUser_impl_def  )
+           apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUser_impl_def  )
+          apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUser_impl_def  )
           defer
-           apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUserImpl_def lsInit_def )
+           apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUser_impl_def  )
 
-          find_theorems "S"
           
           sorry
       qed
@@ -610,7 +534,7 @@ qed
 
 (*old proof *)
 
-
+(*
 
 
 theorem userbase_correct: "programCorrect progr"
@@ -2403,5 +2327,7 @@ show "example_userbase.inv (invContext' S'e)"
     qed
   qed
 qed
+
+*)
 
 end

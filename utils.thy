@@ -202,4 +202,34 @@ lemma in_dom:
   using assms by blast
 
 
+
+lemma in_img_simp: "y\<in>f`S \<longleftrightarrow> (\<exists>x\<in>S. f x = y)"
+  by auto
+
+definition "in_sequence xs x y \<equiv> \<exists>i j. i<j \<and> j<length xs \<and> xs!i = x \<and> xs!j=y "
+
+
+lemma in_sequence_nil[simp]: "in_sequence [] = (\<lambda>x y. False)"
+  apply (rule ext)+
+  by (auto simp add: in_sequence_def)
+
+
+lemma in_sequence_cons:
+  "in_sequence (x # xs) a b \<longleftrightarrow> (x=a \<and> b\<in>set xs \<or> in_sequence xs a b)"
+  apply (auto simp add: in_sequence_def)
+    apply (metis (no_types, lifting) Suc_diff_eq_diff_pred Suc_less_eq Suc_pred gr_implies_not_zero not_gr_zero nth_Cons' zero_less_diff)
+   apply (metis Suc_mono in_set_conv_nth nth_Cons_0 nth_Cons_Suc zero_less_Suc)
+  by (meson Suc_mono nth_Cons_Suc)
+
+
+
+lemma in_sequence_in1: "in_sequence xs x y \<Longrightarrow> x\<in>set xs"
+  by (metis in_sequence_def in_set_conv_nth less_imp_le less_le_trans)
+
+
+lemma in_sequence_in2: "in_sequence xs x y \<Longrightarrow> y\<in>set xs"
+  by (metis in_sequence_def nth_mem)
+
+
+
 end

@@ -8,168 +8,102 @@ begin
 context begin
 
 (*
-datatype iostate =
-    WaitInput
-    | WaitOutput int
-    | Idle
+datatype ('localState, 'any) localAction =
+  LocalStep 'localState
+  | BeginAtomic 'localState
+  | EndAtomic 'localState
+  | NewId "'any \<rightharpoonup> 'localState"
+  | DbOperation operation "'any list" "'any \<Rightarrow> 'localState"
+  | Return 'any
 *)
 
-(* let's build an io monad as an example*)
-datatype 'a io = 
-    WaitInput (onInput: "int \<Rightarrow> 'a io") 
-  | WaitOutput int (onOutput: "'a io") 
-  | Done 'a
 
-definition io_write :: "int \<Rightarrow> unit io" where
-"io_write i = WaitOutput i (Done ()) "
+datatype ('a,'any) io =
+    WaitLocalStep "('a,'any) io"
+  | WaitBeginAtomic "('a,'any) io"
+  | WaitEndAtomic "('a,'any) io"
+  | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'any) io"
+  | WaitDbOperation operation "'any list" "'any \<Rightarrow> ('a,'any) io"
+  | WaitReturn "'a" 
+  | Fail string
 
-definition io_read :: "int io" where
-"io_read = WaitInput (\<lambda>i. (Done i))"
 
-function (domintros) bind :: "'a io \<Rightarrow> ('a \<Rightarrow> 'b io) \<Rightarrow> 'b io"  where
-"bind (WaitInput oi) f = (WaitInput (\<lambda>i. bind (oi i) f)) "
-| "bind (WaitOutput i n) f = (WaitOutput i (bind n f)) "
-| "bind (Done v) f = (f v)"
+function (domintros) bind :: "('a,'any) io \<Rightarrow> ('a \<Rightarrow> ('b,'any) io) \<Rightarrow> ('b,'any) io"  where
+  "bind (WaitLocalStep n) f = (WaitLocalStep (bind n f))"
+| "bind (WaitBeginAtomic n) f = (WaitBeginAtomic (bind n f))"
+| "bind (WaitEndAtomic n) f = (WaitEndAtomic (bind n f))"
+| "bind (WaitNewId P n) f = (WaitNewId P (\<lambda>i.  bind (n i) f))"
+| "bind (WaitDbOperation op args n) f = (WaitDbOperation op args (\<lambda>i.  bind (n i) f))"
+| "bind (WaitReturn s) f = (f s)"
+| "bind (Fail s) f = (Fail s)"
 
   by (pat_completeness, auto)
 termination
+  using [[show_sorts]]
 proof auto
-  fix io :: "'a io" and f :: "'a \<Rightarrow> 'b io"
-  show "bind_dom (io, f)"
-  proof (induct io)
-    case (WaitInput x)
-    then show ?case
-      by (simp add: bind.domintros(1)) 
-  next
-    case (WaitOutput x1a io)
-    then show ?case
-      using bind.domintros(2) by blast 
-  next
-    case (Done x)
-    then show ?case
-      by (simp add: bind.domintros(3))
-  qed
+  fix a :: "('a,'any) io"  and b :: "'a \<Rightarrow> ('c, 'any) io"
+  show "bind_dom (a, b)"
+    by (induct a, auto simp add: bind.domintros)
 qed
 
 adhoc_overloading Monad_Syntax.bind bind
 
-definition proc :: "int io" where
- "proc \<equiv>  do {
-  x \<leftarrow> io_read;
-  y \<leftarrow> io_read;
-  io_write (x+y);
-  Done (x*y)
-}"
+definition pause :: "(unit,'any) io" where
+"pause \<equiv> WaitLocalStep (WaitReturn ())"
 
-datatype action = In int | Out int
+definition beginAtomic :: "(unit,'any) io" where
+"beginAtomic \<equiv> WaitBeginAtomic (WaitReturn ())"
 
-inductive step :: "'a io \<Rightarrow> action list \<Rightarrow> 'a \<Rightarrow> bool" where
-step_done: "step (Done x) [] x"
-| step_in: "step (f x) tr y \<Longrightarrow>  step (WaitInput f) (In x#tr) y"
-| step_out: "step n tr y \<Longrightarrow>  step (WaitOutput x n) (Out x#tr) y"
+definition endAtomic :: "(unit,'any) io" where
+"endAtomic \<equiv> WaitEndAtomic (WaitReturn ())"
 
-lemma "step proc [In 3, In 4, Out 7] 12"
-  find_theorems name: "impl_language.bind"
-  by (auto simp add: proc_def  io_read_def io_write_def intro!: step_in step_out step_done)
+definition newId :: "('any \<Rightarrow> bool) \<Rightarrow> ('any,'any) io" where
+"newId P \<equiv> WaitNewId P (\<lambda>i. WaitReturn i)"
 
-fun single_step:: "'a io \<Rightarrow> (bool \<times> 'a io) option" where
-"single_step (WaitInput f) = Some (True, f 0)"
-| "single_step (WaitOutput i n) = Some (False, n)"
-| "single_step (Done i) = None"
+definition call :: "operation \<Rightarrow> 'any list  \<Rightarrow> ('any,'any) io" where
+"call op args \<equiv> WaitDbOperation op args (\<lambda>i. WaitReturn i)"
 
-lemma "single_step proc = Some (True, WaitInput (\<lambda>i. WaitOutput i (Done 0)))"
-  by (auto simp add: proc_def  io_read_def io_write_def bind.psimps bind.domintros)
+definition return :: "'a  \<Rightarrow> ('a,'any) io" where
+"return x \<equiv> WaitReturn x"
 
 
+definition 
+"skip \<equiv> return undefined"
 
-definition proc2 :: "int list io" where
- "proc2 \<equiv>  do {
-  x \<leftarrow> io_read;
-  y \<leftarrow> io_read;
-  io_write (x+y);
-  Done [x,y]
-}"
-
-
-(* example *)
-
-
-(*type_synonym ('localState, 'any) procedureImpl = "'localState \<Rightarrow> ('localState, 'any) localAction"*)
+fun toImpl :: "(('val, 'val) io, 'val) procedureImpl" where
+"toImpl (WaitLocalStep n) = LocalStep n"
+| "toImpl (WaitBeginAtomic n) = BeginAtomic n"
+| "toImpl (WaitEndAtomic n) = EndAtomic n"
+| "toImpl (WaitNewId P n) = NewId (\<lambda>i. if P i then Some (n i) else None)"
+| "toImpl (WaitDbOperation op args n) = DbOperation op args n"
+| "toImpl (WaitReturn v) = Return v"
+| "toImpl (Fail s) = ???"
 
 
-(* lets *)
+lemma return_bind[simp]: "return x \<bind> f = f x"
+  by (auto simp add: return_def)
 
-typ "('a,'b) localAction"
+
+lemma toImpl_simps[simp]:
+"toImpl (newId P) = NewId (\<lambda>i. if P i then Some (return i) else None)"
+"toImpl (pause) = LocalStep (return ())"
+"toImpl (beginAtomic) = BeginAtomic (return ())"
+"toImpl (endAtomic) = EndAtomic (return ())"
+"toImpl (call op args) = DbOperation op args (\<lambda>r. return r)"
+"toImpl (return x) = Return x"
+  by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
 
 
 
-
-(* symbolic values *)
-datatype sval = SVal nat 
-
-datatype sym_localAction =
-    SymLocalStep
-  | SymBeginAtomic
-  | SymEndAtomic
-  | SymNewId 
-  | SymDbOperation operation "sval list"
-  | SymReturn sval
-
-type_synonym ('a,'s) step = "'s \<Rightarrow> (sym_localAction \<times> 'a \<times> 's)"
-
-fun bind :: "('a,'s) step \<Rightarrow> ('a \<Rightarrow> ('b,'s) step) \<Rightarrow> ('b,'s) step"  where
-"bind s f = (\<lambda>x. let (a,r,s') = s x in f r s')"
-
-definition "s_newid" :: "('a, 's) step" where
-"s_newid \<equiv> "
-
-(* symbolic state *)
-datatype 'a sym_state = 
-  SymState 'a "nat" "sym_localAction list"
+lemma toImpl_bind_simps[simp]:
+"\<And>P x. toImpl (newId P \<bind> x) = NewId (\<lambda>i. if P i then Some (x i) else None)"
+"\<And> x. toImpl (pause \<bind> x) = LocalStep (x ())"
+"\<And> x. toImpl (beginAtomic \<bind> x) = BeginAtomic (x ())"
+"\<And> x. toImpl (endAtomic \<bind> x) = EndAtomic (x ())"
+"\<And> x. toImpl (call op args \<bind> x) = DbOperation op args (\<lambda>r. x r)"
+  by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
 
 
-fun bind :: "'a sym_state \<Rightarrow> ('a \<Rightarrow> 'b sym_state) \<Rightarrow> 'b sym_state"  where
-"bind (x i as) = "
-
-datatype cmd = 
-    Call "int"
-  | Seq "cmd" "cmd"
-  | Return int
-  | Skip
-
-datatype 'any lstate = LState (ls_val:"'any") (ls_cmd:"cmd")
-
-
-definition bind :: "'a lstate \<Rightarrow> ('a \<Rightarrow> 'b lstate) \<Rightarrow> 'b lstate"  where
-"bind s f \<equiv> let s' = f (ls_val s) in LState (ls_val s') (Seq (ls_cmd s) (ls_cmd s'))"
-
-adhoc_overloading Monad_Syntax.bind bind
-
-definition call :: "int \<Rightarrow> int lstate" where
- "call c \<equiv> LState (2*c) (Call c)"
-
-definition "return x \<equiv> LState x Skip"
-
-definition "test1 \<equiv> bind (call 2) (return)"
-
-definition proc :: "int lstate" where
- "proc \<equiv>  do {
-  x \<leftarrow> call 1;
-  y \<leftarrow> call (x+1);
-  return y
-}"
-
-lemma "proc = ???"
-  thm proc_def
-  apply (auto simp add: proc_def)
-  apply (auto simp add: bind_def Let_def call_def return_def)
-
-lemma "run test 0 = ???"
-  apply (auto simp add: test_def run_def op_a_def op_b_def bind_def return_def split: ) 
-  oops
-
-definition run :: "'any blub \<Rightarrow>  ('localState, 'any) procedureImpl"
-  where "run \<equiv> ???"
 
 end
 

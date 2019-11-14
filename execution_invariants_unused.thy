@@ -200,4 +200,32 @@ lemma i_callOriginI_notI2:
   shows "invocationOp S_pre i \<noteq> None"
   using assms(1) assms(2) i_callOriginI_notI1 by blast
 
+text \<open>
+Updating the invocId happens-before in the first transaction of an invocId.
+
+TODO Problem: second transaction could remove HB. Maybe just consider HB with finished invocations on the left (and on the right?)
+\<close>
+lemma invocation_happensBeforeH_update:
+  assumes  Orig'_def: "\<And>c. Orig' c = (case Orig c of Some i \<Rightarrow> Some i | None \<Rightarrow> if c\<in>set cs then Some i else None)"
+    and cs_no_orig: "\<And>c. c \<in> set cs \<Longrightarrow> Orig c = None"
+    and cs_notin_vis: "\<And>c. c \<in> set cs \<Longrightarrow> c \<notin> vis"
+    and cs_notin_hb1: "\<And>c x. c \<in> set cs \<Longrightarrow> (x,c) \<notin> Hb"
+    and cs_notin_hb2: "\<And>c x. c \<in> set cs \<Longrightarrow> (c,x) \<notin> Hb"
+    and invoc_fresh: "\<And>c. Orig c \<noteq> Some i"
+    and cs_nonempty: "cs \<noteq> []"
+  shows
+    "invocation_happensBeforeH Orig' (updateHb Hb vis cs)
+   = invocation_happensBeforeH Orig Hb \<union> {i'. (\<forall>c. Orig c \<triangleq> i' \<longrightarrow> c \<in> vis) \<and> (\<exists>c. Orig c \<triangleq> i') }  \<times>  {i} "
+  using invoc_fresh  apply (auto simp add: invocation_happensBeforeH_def  in_img_simp updateHb_cases)
+                apply (auto simp add: Orig'_def cs_notin_hb1  cs_notin_hb2 cs_notin_vis cs_no_orig  split: option.splits if_splits)
+  using cs_no_orig in_sequence_in2 apply fastforce
+  using cs_no_orig in_sequence_in1 apply fastforce
+        apply (metis cs_no_orig in_sequence_in2 option.simps(3))
+       apply (metis cs_no_orig in_sequence_in2 option.distinct(1))
+  using cs_no_orig in_sequence_in2 apply fastforce
+     apply (metis cs_no_orig option.distinct(1) option.sel)
+    apply (metis cs_no_orig option.distinct(1) option.sel)
+  using cs_notin_vis option.simps(3) apply fastforce
+  using cs_nonempty last_in_set by blast
+
 end

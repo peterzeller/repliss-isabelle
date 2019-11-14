@@ -5,7 +5,7 @@ image:
 compile:
   stage: build
   script:
-    - /home/isabelle/Isabelle/bin/isabelle build -D . -j 20 -v
+    - /home/isabelle/Isabelle/bin/isabelle build -D . -j 20 -v -o quick_and_dirty
   artifacts:
     paths:
       - output/*.pdf
