@@ -57,6 +57,7 @@ definition beginAtomic :: "(unit,'any) io" where
 definition endAtomic :: "(unit,'any) io" where
 "endAtomic \<equiv> WaitEndAtomic (WaitReturn ())"
 
+
 definition newId :: "('any \<Rightarrow> bool) \<Rightarrow> ('any,'any) io" where
 "newId P \<equiv> WaitNewId P (\<lambda>i. WaitReturn i)"
 
@@ -65,6 +66,15 @@ definition call :: "operation \<Rightarrow> 'any list  \<Rightarrow> ('any,'any)
 
 definition return :: "'a  \<Rightarrow> ('a,'any) io" where
 "return x \<equiv> WaitReturn x"
+
+
+definition atomic ::"('a, 'any) io \<Rightarrow> ('a, 'any) io"  where
+"atomic f \<equiv> do {
+  beginAtomic;
+  r \<leftarrow> f;
+  endAtomic;
+  return r
+}"
 
 
 definition 
@@ -94,7 +104,6 @@ lemma toImpl_simps[simp]:
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
 
 
-
 lemma toImpl_bind_simps[simp]:
 "\<And>P x. toImpl (newId P \<bind> x) = NewId (\<lambda>i. if P i then Some (x i) else None)"
 "\<And> x. toImpl (pause \<bind> x) = LocalStep (x ())"
@@ -103,6 +112,22 @@ lemma toImpl_bind_simps[simp]:
 "\<And> x. toImpl (call op args \<bind> x) = DbOperation op args (\<lambda>r. x r)"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
 
+find_theorems name: "impl_language.bind"
+
+lemma bind_assoc[simp]: 
+  fixes x :: "('a, 'any) io"
+    and y :: "'a \<Rightarrow> ('b, 'any) io"
+    and z :: "'b \<Rightarrow> ('c, 'any) io"
+  shows "((x \<bind> y) \<bind> z) = (x \<bind> (\<lambda>a. y a \<bind> z))"
+  by (induct x, auto)
+
+lemma atomic_simp1[simp]: 
+"toImpl (atomic f) = BeginAtomic (f \<bind> (\<lambda>r. endAtomic \<bind> (\<lambda>_. return r)))"
+  by (auto simp add: atomic_def bind_assoc)
+
+lemma atomic_simp2[simp]: 
+"toImpl (atomic f \<bind> x) = BeginAtomic (f \<bind> (\<lambda>a. endAtomic \<bind> (\<lambda>b. x a)))"
+by (auto simp add: atomic_def bind_assoc)
 
 
 end

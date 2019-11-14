@@ -136,46 +136,47 @@ lemmas names_distinct4[simp] = names_distinct3[symmetric]
 definition registerUser_impl :: "val \<Rightarrow> val \<Rightarrow> (val,val) io" where
  "registerUser_impl name mail \<equiv>  do {
   u \<leftarrow> newId isUserId;
-  beginAtomic;
-  call users_name_assign [u, name];
-  call users_mail_assign [u, mail];
-  endAtomic;
+  atomic (do {
+    call users_name_assign [u, name];
+    call users_mail_assign [u, mail]
+  });
   return u
 }"
 
 
 definition updateMail_impl :: "val \<Rightarrow> val \<Rightarrow> (val,val) io" where
  "updateMail_impl u mail \<equiv>  do {
-  beginAtomic;
+  atomic (do {
   exists \<leftarrow> call users_contains_key [u];  
-  (if exists = Bool True then do {
-    call users_mail_assign [u, mail]
-  } else skip);
-  endAtomic;
-  return u
+    (if exists = Bool True then do {
+      call users_mail_assign [u, mail]
+    } else skip)
+  });
+  return Undef
 }"
 
 
 definition removeUser_impl :: "val \<Rightarrow> (val,val) io" where
  "removeUser_impl u \<equiv>  do {
-  beginAtomic;
-  exists \<leftarrow> call users_contains_key [u];  
-  (if exists = Bool True then do {
-    call users_remove [u]
-  } else skip);
-  endAtomic;
-  return u
+  atomic (do {
+    exists \<leftarrow> call users_contains_key [u];  
+    (if exists = Bool True then do {
+      call users_remove [u]
+    } else skip)
+  });
+  return Undef
 }"
 
 definition getUser_impl :: "val \<Rightarrow> (val,val) io" where
  "getUser_impl u \<equiv>  do {
-  beginAtomic;
-  exists \<leftarrow> call users_contains_key [u];  
-  (if exists = Bool True then do {
-    name \<leftarrow> call users_name_get [u];
-    mail \<leftarrow> call users_mail_get [u];
-    return (Found (stringval name) (stringval mail))
-  } else return NotFound)
+  atomic (do {
+    exists \<leftarrow> call users_contains_key [u];  
+    (if exists = Bool True then do {
+      name \<leftarrow> call users_name_get [u];
+      mail \<leftarrow> call users_mail_get [u];
+      return (Found (stringval name) (stringval mail))
+    } else return NotFound)
+  })
 }"
 
 term "toImpl (registerUser_impl (String name) (String mail))"
@@ -473,7 +474,8 @@ proof M_show_programCorrect
           defer
            apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUser_impl_def  )
 
-          
+(* TODO should be possible to do some nice syntax directed rules now *)
+
           sorry
       qed
 
