@@ -26,9 +26,8 @@ lemma DC_show_programCorrect:
           \<Longrightarrow> C\<langle>Suc n2, (''procedure_correct'', n2, [VAR S, VAR i])#ct, n3: procedureCorrect progr S i\<rangle>"
   shows "C\<langle>n1,ct,n3: programCorrect progr\<rangle>"
   using assms
-  unfolding LABEL_simps  
-proof -
-  oops
+  unfolding LABEL_simps
+  by (metis initialStates'_same procedureCorrect_def show_programCorrect_using_checkCorrect1)  
 
 
 lemma DC_show_procedureCorrect:
@@ -52,43 +51,44 @@ lemma DC_final:
 
 lemma show_initial_state_prop:
   assumes a1: "Si\<in>initialStates' progr i"
-and a2: "\<And>S_pre procName args initState impl.
+and a2: "\<And>S_pre proc initState impl.
        \<lbrakk>
         B\<langle>''Si_def'', n1 : Si = S_pre
         \<lparr>localState := localState S_pre(i \<mapsto> initState), 
          currentProc := currentProc S_pre(i \<mapsto> impl), 
          visibleCalls := visibleCalls S_pre(i \<mapsto> {}),
-         invocationOp := invocationOp S_pre(i \<mapsto> (procName, args))\<rparr>\<rangle>;
+         invocationOp := invocationOp S_pre(i \<mapsto> (proc))\<rparr>\<rangle>;
         B\<langle>''progr_def'', n1 : prog S_pre = progr\<rangle>; 
-        B\<langle>''proc_impl'', n1 : procedure progr procName args \<triangleq> (initState, impl)\<rangle>; 
-        B\<langle>''ids_in_args_are_knownIds'', n1 : uniqueIdsInList args \<subseteq> knownIds S_pre\<rangle>; 
+        B\<langle>''proc_impl'', n1 : procedure progr proc \<triangleq> (initState, impl)\<rangle>; 
+        B\<langle>''ids_in_args_are_knownIds'', n1 : uniqueIds proc \<subseteq> knownIds S_pre\<rangle>; 
         B\<langle>''invariant_pre'', n1 : invariant_all' S_pre\<rangle>;
         B\<langle>''wf_pre'', n1 : state_wellFormed S_pre\<rangle>; 
         B\<langle>''i_fresh'', n1 : invocationOp S_pre i = None\<rangle>; 
         B\<langle>''no_uncommitted_txns'', n1 : \<forall>tx. transactionStatus S_pre tx \<noteq> Some Uncommitted\<rangle>;
         B\<langle>''no_txns_in_i'', n1 : \<forall>tx. transactionOrigin S_pre tx \<noteq> Some i\<rangle>
-        \<rbrakk> \<Longrightarrow> C\<langle>Suc n1, (''show_P'', n1, [VAR S_pre, VAR procName, VAR  args, VAR  initState, VAR  impl])#ct, n2 :   P Si i\<rangle>"
+        \<rbrakk> \<Longrightarrow> C\<langle>Suc n1, (''show_P'', n1, [VAR S_pre, VAR proc, VAR  initState, VAR  impl])#ct, n2 :   P Si i\<rangle>"
   shows "C\<langle>n1, ct, n : P Si i\<rangle>"
   unfolding LABEL_simps 
 proof -
   from a1[unfolded initialStates'_def]
-  obtain S procName args initState impl 
+  obtain S proc initState impl 
     where "prog S = progr"
-      and "procedure progr procName args \<triangleq> (initState, impl)"
-      and "uniqueIdsInList args \<subseteq> knownIds S"
+      and "procedure progr proc \<triangleq> (initState, impl)"
+      and "uniqueIds proc \<subseteq> knownIds S"
       and "invariant_all' S"
       and "state_wellFormed S"
       and "invocationOp S i = None"
       and "\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
       and "\<forall>tx. transactionOrigin S tx \<noteq> Some i"
       and "Si = S\<lparr>localState := localState S(i \<mapsto> initState), currentProc := currentProc S(i \<mapsto> impl), visibleCalls := visibleCalls S(i \<mapsto> {}),
-             invocationOp := invocationOp S(i \<mapsto> (procName, args))\<rparr>"
+             invocationOp := invocationOp S(i \<mapsto> proc)\<rparr>"
     by auto
   note facts = this 
 
   show "P Si i"
     apply (rule a2[unfolded LABEL_simps])
     using facts by auto
+
 qed
 
 end
