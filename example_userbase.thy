@@ -34,9 +34,9 @@ fun stringval where
 type_synonym localState = "(val,val) io"
 
 (*
-  querySpec :: "operation \<Rightarrow> 'any list \<Rightarrow> 'any operationContext \<Rightarrow> 'any \<Rightarrow> bool"
-  procedure :: "procedureName \<Rightarrow> 'any list \<rightharpoonup> ('localState \<times> ('localState, 'any) procedureImpl)"
-  invariant :: "'any invariantContext \<Rightarrow> bool"
+  querySpec :: "operation \<Rightarrow> 'any list \<Rightarrow> ('operation, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool"
+  procedure :: "procedureName \<Rightarrow> 'any list \<rightharpoonup> ('ls \<times> ('ls, 'operation, 'any) procedureImpl)"
+  invariant :: "('proc, 'operation, 'any) invariantContext \<Rightarrow> bool"
 *)
 
 \<comment> \<open>define used names, to avoid typos and to help Isabelle\<close>
@@ -465,6 +465,8 @@ proof M_show_programCorrect
 
 
         show ?case
+          apply (simp add: case_registerUser show_P registerUser_impl_def ) 
+
           apply (rule exI)
           apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUser_impl_def  )
           apply (subst funpow.simps(2), subst checkCorrect2F_def, auto simp add: case_registerUser show_P registerUser_impl_def  )

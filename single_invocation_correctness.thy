@@ -116,14 +116,14 @@ qed
 
 
 \<comment> \<open>TODO remove?\<close>
-abbreviation invariant_all' :: "('localState, 'any) state \<Rightarrow> bool" where
+abbreviation invariant_all' :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
 "invariant_all' state \<equiv>  invariant (prog state) (invContext' state)"
 
 
-
+(*
 \<comment> \<open>check program (with a given start-state, bound by a number of steps)\<close>
-definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool) 
-                           \<Rightarrow> ('localState, 'any) prog \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool" where
+definition checkCorrectF :: "(('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) prog \<times> ('proc, 'ls, 'operation, 'any) state \<times> invocId \<Rightarrow> bool) 
+                           \<Rightarrow> ('proc, 'ls, 'operation, 'any) prog \<times> ('proc, 'ls, 'operation, 'any) state \<times> invocId \<Rightarrow> bool" where
 "checkCorrectF \<equiv> (\<lambda>checkCorrect' (progr, S, i).
 (case currentProc S i of
     None \<Rightarrow> True
@@ -218,13 +218,13 @@ definition checkCorrectF :: "(('localState, 'any::valueType) prog \<times> ('loc
 lemma checkCorrectF_mono:
 "mono checkCorrectF"
 proof (rule monoI)
-  show "checkCorrectF x \<le> checkCorrectF y" if c0: "x \<le> y"  for  x :: "(('localState, 'any::valueType) prog \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool)" and y
+  show "checkCorrectF x \<le> checkCorrectF y" if c0: "x \<le> y"  for  x :: "(('ls, 'any::valueType) prog \<times> ('proc, 'ls, 'operation, 'any) state \<times> invocId \<Rightarrow> bool)" and y
     by (auto simp add: checkCorrectF_def Let_def intro: predicate1D[OF \<open>x \<le> y\<close>] split: option.splits localAction.splits)
 
 qed
 
 
-definition checkCorrect :: "('localState, 'any::valueType) prog \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocId \<Rightarrow> bool" where
+definition checkCorrect :: "('ls, 'any::valueType) prog \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> invocId \<Rightarrow> bool" where
  "checkCorrect progr S i \<equiv> lfp checkCorrectF (progr, S, i)"
 
 
@@ -258,7 +258,7 @@ next
   then show ?case 
     by (auto simp add: step_s.simps)
 qed
-
+*)
 (*
 
 lemma checkCorrect_traceCorrect:
@@ -348,7 +348,7 @@ next
     then show ?thesis 
       using checkCorrect_S by auto
   next
-    case (invocId procName args initState impl C' valid)
+    case (invocation procName args initState impl C' valid)
     then show ?thesis 
       using a_not_invoc by (case_tac a, auto simp add: isAInvoc_def)
   next
@@ -406,10 +406,10 @@ next
     case (endAtomic C s ls f ls' t C' valid)
     then show ?case using i2 by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
-    case (dbop C s ls f Op args ls' t c res vis)
+    case (dbop C s ls f Op  ls' t c res vis)
     then show ?case using i2 by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
-    case (invocId C s procName args initState impl C' C'' valid)
+    case (invocation C s procName  initState impl C' C'' valid)
     then show ?case using i2 by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
     case (return C s ls f res C' valid)
@@ -577,8 +577,8 @@ from \<open>S ~~ (i, a) \<leadsto>\<^sub>S S'\<close>
     with \<open>state_wellFormed S\<close> show ?case 
       by (rule state_wellFormed_combine1, simp)
   next
-    case (newId C s ls f ls' uid)
-    then have "S ~~ (i, ANewId uid) \<leadsto> S'"
+    case (newId C s ls f ls' uid uidv ls'')
+    then have "S ~~ (i, ANewId uidv) \<leadsto> S'"
       by (auto simp add: step.simps)
     with \<open>state_wellFormed S\<close> show ?case 
       by (rule state_wellFormed_combine1, simp)
@@ -593,14 +593,14 @@ from \<open>S ~~ (i, a) \<leadsto>\<^sub>S S'\<close>
     with \<open>state_wellFormed S\<close> show ?case 
       by (rule state_wellFormed_combine1, simp)
   next
-    case (dbop C s ls f Op args ls' t c res vis)
-    then have "S ~~ (i, ADbOp c Op args res) \<leadsto> S'"
+    case (dbop C s ls f Op ls' t c res vis)
+    then have "S ~~ (i, ADbOp c Op res) \<leadsto> S'"
       by (auto simp add: step.simps)
     with \<open>state_wellFormed S\<close> show ?case 
       by (rule state_wellFormed_combine1, simp)
   next
-    case (invocId C s procName args initState impl C' C'' valid)
-    then have "C' ~~ (i, AInvoc procName args) \<leadsto> C''"
+    case (invocation C s proc initState impl C' C'' valid)
+    then have "C' ~~ (i, AInvoc proc) \<leadsto> C''"
       apply (auto simp add: step.simps)
       using wf_localState_to_invocationOp by blast+
 
@@ -677,510 +677,13 @@ next
     by (auto simp add: step.simps split: if_splits)
 qed
 
-lemma checkCorrect_end: 
-  assumes "state_wellFormed S"
-and "localState S i = None"
-shows "checkCorrect program S i"
-  using assms checkCorrect_noProc wf_localState_currentProc by blast
 
-
-
-lemma show_traceCorrect_s_1:
-  assumes initialCorrect: "\<And>S. S\<in>initialStates program i \<Longrightarrow> invariant_all' S "
-    and check: "\<And>S. S\<in>initialStates program i \<Longrightarrow> checkCorrect program S i"
-    and steps: "initS ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
-    and initS: "initS \<in> initialStates program i"
-    and trace_len2: "0 < length trace"
-    and initS_wf: "state_wellFormed initS"
-  shows "traceCorrect_s program trace \<and> checkCorrect program S_fin i \<and> state_wellFormed S_fin"
-  using steps check  trace_len2 proof (induct "length trace" arbitrary: trace S_fin)
-  case 0
-  then show ?case
-    by simp 
-
-next
-  case (Suc trLen trace S_fin)
-
-  obtain tr a where tr_def: "trace = tr@[a]"
-    by (metis Suc.hyps(2) Zero_not_Suc list.size(3) rev_exhaust)
-
-  obtain a_action a_inv where a_def[simp]: "a = (a_action, a_inv)"
-    by fastforce
-
-
-  have  wf: "state_wellFormed_s initS i"
-    using initS initialStates_wf steps_s_refl  by blast
-
-
-  from \<open>initS ~~ (i, trace) \<leadsto>\<^sub>S* S_fin\<close>
-  obtain S_pre 
-    where steps_pre: "initS ~~ (i, tr) \<leadsto>\<^sub>S* S_pre"
-      and step_final: "S_pre ~~ (i, a) \<leadsto>\<^sub>S S_fin"
-    by (auto simp add: tr_def steps_s_append_simp steps_s_single)
-
-
-
-  show ?case
-  proof (cases "trLen > 0")
-    case True
-
-    have hasInvocation: "invocationOp S_pre i \<noteq> None"
-      using Suc.hyps(2) True has_invocationOp_afterStart local.wf steps_pre tr_def by fastforce
-
-    have "prog initS = program"
-      using initS by (auto simp add: initialStates_def)
-    then have [simp]: "prog S_pre = program"
-      using prog_invariant steps_pre by blast
-
-      
-
-    have "traceCorrect_s program tr \<and> checkCorrect program S_pre i \<and> state_wellFormed S_pre"
-    proof (rule Suc.hyps)
-      show "trLen = length tr"
-        using \<open>Suc trLen = length trace\<close> tr_def by auto
-
-      show "initS ~~ (i, tr) \<leadsto>\<^sub>S* S_pre"
-        by (simp add: steps_pre)
-
-      show "\<And>S. S \<in> initialStates program i \<Longrightarrow> checkCorrect program S i"
-        using check by blast
-
-      show "0 < length tr"
-        using True \<open>trLen = length tr\<close> by auto
-    qed
-    then have tr_correct: "traceCorrect_s program tr"
-      and S_pre_correct: "checkCorrect program S_pre i "
-      and S_pre_wf: "state_wellFormed S_pre"
-      using \<open>traceCorrect_s program tr \<and> checkCorrect program S_pre i \<and> state_wellFormed S_pre\<close> by blast+
-
-    have "state_wellFormed S_fin"
-      using S_pre_wf state_wellFormed_combine_s1 step_final by blast
-
-    show "traceCorrect_s program trace \<and> checkCorrect program S_fin i  \<and> state_wellFormed S_fin"
-    proof (cases "currentTransaction S_pre i")
-      case (Some tx)
-      then have tx1: "currentTransaction S_pre i \<triangleq> tx"
-        by simp
-
-
-
-      have tx2: "transactionStatus S_pre tx \<triangleq> Uncommitted"
-        using initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre tx1 by blast 
-
-      have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommitted" if "t \<noteq> tx" for t
-        using initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre that tx1 by fastforce
-
-      from S_pre_correct tr_correct step_final  
-      have "a_inv = True" 
-        apply (subst(asm) checkCorrect_simps)
-        using \<open>state_wellFormed S_fin\<close> invContext_same_allCommitted[OF \<open>state_wellFormed S_fin\<close>]
-        by (auto simp add: tx1 step_s.simps Let_def hasInvocation onlyOneTx split: option.splits if_splits)
-        
-
-
-      from S_pre_correct step_final
-      have cc: "checkCorrect program S_fin i" 
-        apply (subst (asm) checkCorrect_simps)
-        using \<open>state_wellFormed S_fin\<close> apply (auto simp add: step_s.simps Let_def hasInvocation \<open>a_inv = True\<close> tx1 split: option.splits if_splits)
-        using onlyOneTx tx1 apply auto[1]
-        apply (drule_tac x=c in spec)
-        apply auto
-        by (simp add: updateHb_single)
-
-
-
-      from tr_correct \<open>a_inv = True\<close>
-      have "traceCorrect_s program trace"
-        by (auto simp add: traceCorrect_s_def tr_def)
-
-      with cc
-      show ?thesis
-        by (simp add: \<open>state_wellFormed S_fin\<close>) 
-    next
-      case None
-      then have notx[simp]: "currentTransaction S_pre i = None" by simp
-
-      have onlyOneTx: "transactionStatus S_pre t \<noteq> Some Uncommitted" for t
-        using None initS initialStates_wf state_wellFormed_s_currentTransactions_iff_uncommitted steps_pre by fastforce
-
-
-
-      have invContextSimp: "invContext S_fin = invContext' S_fin" if "\<And>t. transactionStatus S_fin t \<noteq> Some Uncommitted"
-        by (simp add: \<open>state_wellFormed S_fin\<close> invContext_same_allCommitted that) 
-
-
-      from S_pre_correct tr_correct step_final  
-      have "a_inv = True" 
-        apply (subst(asm) checkCorrect_simps)
-        using \<open>state_wellFormed S_fin\<close> invContextSimp apply (auto simp add: onlyOneTx step_s.simps Let_def hasInvocation invContextSimp None split: option.splits if_splits)
-        apply (subst(asm) invContextH_same_allCommitted)
-         apply (auto simp add: wellFormed_callOrigin_dom3[OF S_pre_wf])
-        using wf_no_transactionStatus_origin_for_nothing[OF S_pre_wf]  apply auto[1]
-        using wellFormed_happensBefore_calls_l[OF S_pre_wf] wellFormed_happensBefore_calls_r[OF S_pre_wf]
-          wf_no_transactionStatus_origin_for_nothing[OF S_pre_wf]
-          wellFormed_callOrigin_dom3[OF S_pre_wf]
-          wellFormed_state_callOrigin_transactionStatus[OF S_pre_wf]
-           wf_transaction_status_iff_origin[OF S_pre_wf]
-          onlyOneTx
-        by auto
-        
-
-
-
-
-
-      have invAll': "invariant_all' S_fin" if "invariant_all S_fin" and "\<And>t. transactionStatus S_fin t \<noteq> Some Uncommitted"
-        using that by (simp add: invContextSimp) 
-
-      from step_final
-      have cc: "checkCorrect program S_fin i" 
-      proof (induct rule: step_s.cases)
-        case (local C s ls f ls')
-        then show ?case
-          apply (insert S_pre_correct)
-          apply (subst(asm) checkCorrect_simps)
-          using local by (auto simp add:  split: option.splits localAction.splits)
-
-      next
-        case (newId C s ls f ls' uid)
-        then show ?case
-          apply (insert S_pre_correct)
-          apply (subst(asm) checkCorrect_simps)
-          using newId by (auto simp add:  split: option.splits localAction.splits)
-      next
-        case (beginAtomic C i' ls f ls' t C' C'' vis  vis' txns)
-
-        then have [simp]: "i' = i"
-          by blast 
-
-
-        from S_pre_correct
-        have S_pre_correct': "(\<forall>t S' vis newTxns S'' vis' ls.
-                  localState C i \<triangleq> ls \<and>
-                  currentTransaction C i = None \<and>
-                  transactionStatus C t = None \<and>
-                  prog S' = prog C \<and>
-                  invariant_all' S' \<and>
-                  (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted) \<and>
-                  state_wellFormed S' \<and>
-                  state_wellFormed S'' \<and>
-                  state_monotonicGrowth i C S' \<and>
-                  (\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin C t \<triangleq> i) \<and>
-                  localState S' i \<triangleq> ls \<and>
-                  currentProc S' i \<triangleq> f \<and>
-                  currentTransaction S' i = None \<and>
-                  visibleCalls C i \<triangleq> vis \<and>
-                  visibleCalls S' i \<triangleq> vis \<and>
-                  vis' = vis \<union> callsInTransaction S' newTxns \<down> happensBefore S' \<and>
-                  newTxns \<subseteq> dom (transactionStatus S') \<and>
-                  consistentSnapshot S' vis' \<and>
-                  transactionStatus S' t = None \<and>
-                  (\<forall>c. callOrigin S' c \<noteq> Some t) \<and>
-                  transactionOrigin S' t = None \<and>
-                  S'' = S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i),
-                             currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> ls'), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr> \<longrightarrow>
-                  checkCorrect program S'' i)"
-          apply (subst(asm) checkCorrect_simps)
-          by (auto simp add: beginAtomic[simplified]  split: option.splits localAction.splits)
-
-        from \<open>chooseSnapshot vis' vis C'\<close>
-        obtain newTxns
-          where newTxns1: "newTxns \<subseteq> committedTransactions C'"
-            and newTxns2: "vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C'"
-          by (auto simp add: chooseSnapshot_def)
-
-        show ?case
-        proof (rule S_pre_correct'[rule_format], intro conjI)
-          show "transactionStatus C t = None" using \<open>transactionStatus C t = None\<close> .
-
-          show "invariant_all' C'"
-            using \<open>invariant_all C'\<close> \<open>\<And>tx. transactionStatus C' tx \<noteq> Some Uncommitted\<close> \<open>state_wellFormed C'\<close> invContext_same_allCommitted by fastforce 
-          show "state_wellFormed C'"  
-            by (simp add: \<open>state_wellFormed C'\<close>)
-          show "state_monotonicGrowth i C C'"
-            using \<open>i' = i\<close> beginAtomic.hyps(10) by blast
-          show "localState C' i \<triangleq> ls"
-            using \<open>localState C' i' \<triangleq> ls\<close> by auto
-          show "currentProc C' i \<triangleq> f"
-            using True beginAtomic.hyps by blast 
-          show "currentTransaction C' i = None"  
-            using True beginAtomic.hyps by blast
-          show "transactionStatus C' t = None"
-            using \<open>transactionStatus C' t = None\<close> .
-          show "transactionOrigin C' t = None"  
-            using \<open>transactionOrigin C' t = None\<close> .
-          show " \<forall>c. callOrigin C' c \<noteq> Some t"
-            using \<open>\<And>c. callOrigin C' c \<noteq> Some t\<close> by blast  
-          show "prog C' = prog C"
-            by (simp add: beginAtomic.hyps(9))
-
-          show " \<forall>tx. transactionStatus C' tx \<noteq> Some Uncommitted"
-            by (simp add: beginAtomic.hyps(13))
-
-          show "visibleCalls C' i \<triangleq> vis"
-            using True beginAtomic.hyps by blast
-
-          show "localState C i \<triangleq> ls"
-            using True beginAtomic.hyps by blast
-
-          show "currentTransaction C i = None"
-            using beginAtomic.hyps(7) by auto
-
-          show "state_wellFormed S_fin"
-            by (simp add: \<open>state_wellFormed S_fin\<close>)
-
-          show "visibleCalls C i \<triangleq> vis"
-            using beginAtomic.hyps(19) by auto
-
-          show "newTxns \<subseteq> dom (transactionStatus C')"
-            using newTxns1 by auto
-
-          show "vis' = vis \<union> callsInTransaction C' newTxns \<down> happensBefore C'"
-            by (simp add: newTxns2)
-
-          show "consistentSnapshot C' vis'"
-
-            using \<open>consistentSnapshot C' vis'\<close> .
-
-          show "\<forall>t. transactionOrigin C' t \<triangleq> i = transactionOrigin C t \<triangleq> i"
-            using beginAtomic.hyps(11) by auto
-
-          show "S_fin = C'
-              \<lparr>transactionStatus := transactionStatus C'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin C'(t \<mapsto> i), currentTransaction := currentTransaction C'(i \<mapsto> t),
-                 localState := localState C'(i \<mapsto> ls'), visibleCalls := visibleCalls C'(i \<mapsto> vis')\<rparr>"  
-            by (auto simp add: beginAtomic state_ext)
-        qed
-      next
-        case (endAtomic C s ls f ls' t C' valid)
-        then show ?case
-          apply (insert S_pre_correct)
-          apply (subst(asm) checkCorrect_simps)
-          using endAtomic notx by (auto simp add: Let_def  split: option.splits localAction.splits if_splits)
-      next
-        case (dbop C s ls f Op args ls' t c res vis)
-        then show ?case
-          apply (insert S_pre_correct)
-          apply (subst(asm) checkCorrect_simps)
-          using dbop notx by (auto simp add:  split: option.splits localAction.splits)
-      next
-        case (invocId C s procName args initState impl C' C'' valid)
-        then show ?case
-          apply (insert S_pre_correct)
-          apply (subst(asm) checkCorrect_simps)
-          using invocId notx hasInvocation by (auto simp add:  split: option.splits localAction.splits)
-      next
-        case (return C s ls f res C' valid)
-
-        show ?case
-        proof (rule checkCorrect_end)
-          show " state_wellFormed S_fin"
-            by (simp add: \<open>state_wellFormed S_fin\<close>)
-          show "localState S_fin i = None"
-            using return by auto
-        qed
-
-      qed
-
-
-
-      from tr_correct \<open>a_inv = True\<close>
-      have "traceCorrect_s program trace"
-        by (auto simp add: traceCorrect_s_def tr_def)
-
-
-
-      show "traceCorrect_s program trace \<and> checkCorrect program S_fin i  \<and> state_wellFormed S_fin "
-        by (simp add: \<open>traceCorrect_s program trace\<close> cc \<open>state_wellFormed S_fin\<close>)
-    qed
-
-  next
-    case False
-    then have [simp]: "tr = []"
-      using Suc.hyps(2) tr_def by auto
-
-    then have [simp]: "S_pre = initS"
-      using steps_pre steps_s_empty by blast   
-
-    then have "initS ~~ (i, a) \<leadsto>\<^sub>S S_fin"
-      using step_final by blast
-
-    have initS_correct: "checkCorrect program initS i"
-      by (simp add: check initS)  
-
-    from \<open>initS \<in> initialStates program i\<close>
-    have hasInvocationOp: "invocationOp initS i \<noteq> None"
-      by (auto simp add: initialStates_def)
-
-    from \<open>initS \<in> initialStates program i\<close>
-    have noTransaction: "currentTransaction initS i = None"  
-      apply (auto simp add: initialStates_def)
-      using wellFormed_invoc_notStarted(1) by blast
-
-
-    from step_final 
-    have "a_inv" 
-    proof (cases rule: step_s.cases)
-      case (local ls f ls')
-      then show ?thesis by auto
-    next
-      case (newId ls f ls' uid)
-      then show ?thesis  by auto
-    next
-      case (beginAtomic ls f ls' t txns)
-      then show ?thesis  by auto
-    next
-      case (endAtomic ls f ls' t valid)
-      then show ?thesis
-        by (simp add: noTransaction) 
-    next
-      case (dbop ls f Op args ls' t c res vis)
-      then show ?thesis  by auto
-    next
-      case (invocId procName args initState impl C' valid)
-      then show ?thesis
-        by (simp add: hasInvocationOp) 
-    next
-      case (return ls f res valid)
-      then show ?thesis  
-        using initS_correct
-        apply (subst(asm) checkCorrect_simps)
-        apply (auto simp add: )
-        using initS initialState_noTxns1 apply blast
-        apply (subst(asm) invContextH_same_allCommitted)
-        using wellFormed_callOrigin_dom3[OF initS_wf]
-              wellFormed_state_callOrigin_transactionStatus[OF initS_wf]
-              initialState_noTxns1[OF initS]
-              wellFormed_happensBefore_calls_r[OF initS_wf]
-              wellFormed_happensBefore_calls_l[OF initS_wf]
-              wf_no_transactionStatus_origin_for_nothing[OF initS_wf]
-              wf_transaction_status_iff_origin[OF initS_wf]
-              by blast+
-    qed
-
-
-    then have "traceCorrect_s program trace"
-      by (auto simp add: tr_def traceCorrect_s_def)   
-
-    have " state_wellFormed S_fin"
-      using \<open>initS ~~ (i, a) \<leadsto>\<^sub>S S_fin\<close> initS_wf state_wellFormed_combine_s1 by blast
-
-
-
-    from step_final   
-    have "checkCorrect program S_fin i "
-    proof (cases rule: step_s.cases)
-      case (local ls f ls')
-      then show ?thesis 
-        using initS_correct by (auto simp add: checkCorrect_simps)
-    next
-      case (newId ls f ls' uid)
-      then show ?thesis using initS_correct by (auto simp add: checkCorrect_simps)
-    next
-      case (beginAtomic ls f ls' t S' vis  vis' txns)
-
-      have "transactionStatus S_fin t \<triangleq> Uncommitted"
-        by (simp add: beginAtomic)
-
-      find_theorems S_pre
-
-      have "checkCorrect program S_pre i"
-        using \<open>S_pre = initS\<close> initS_correct by blast
-
-      have "currentTransaction initS i = None"
-        by (simp add: noTransaction)
-
-
-
-      from initS_correct
-      have initS_correct2:
-        "(\<forall>t S' vis newTxns S'' vis' ls.
-                  localState initS i \<triangleq> ls \<and>
-                  currentTransaction initS i = None \<and>
-                  transactionStatus initS t = None \<and>
-                  prog S' = prog initS \<and>
-                  invariant_all' S' \<and>
-                  (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted) \<and>
-                  state_wellFormed S' \<and>
-                  state_wellFormed S'' \<and>
-                  state_monotonicGrowth i initS S' \<and>
-                  (\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin initS t \<triangleq> i) \<and>
-                  localState S' i \<triangleq> ls \<and>
-                  currentProc S' i \<triangleq> f \<and>
-                  currentTransaction S' i = None \<and>
-                  visibleCalls initS i \<triangleq> vis \<and>
-                  visibleCalls S' i \<triangleq> vis \<and>
-                  vis' = vis \<union> callsInTransaction S' newTxns \<down> happensBefore S' \<and>
-                  newTxns \<subseteq> dom (transactionStatus S') \<and>
-                  consistentSnapshot S' vis' \<and>
-                  transactionStatus S' t = None \<and>
-                  (\<forall>c. callOrigin S' c \<noteq> Some t) \<and>
-                  transactionOrigin S' t = None \<and>
-                  S'' = S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i),
-                             currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> ls'), visibleCalls := visibleCalls S'(i \<mapsto> vis')\<rparr> \<longrightarrow>
-                  checkCorrect program S'' i)"
-        apply (subst(asm) checkCorrect_simps)
-        using \<open>currentProc S_pre i \<triangleq> f\<close> \<open>f ls = BeginAtomic ls'\<close> \<open>localState S_pre i \<triangleq> ls\<close> by auto
-
-      thm  initS_correct2[rule_format]
-
-
-      from \<open>chooseSnapshot vis' vis S'\<close>
-      obtain newTxns
-        where newTxns1: "newTxns \<subseteq> committedTransactions S'"
-          and newTxns2: "vis' = vis \<union> callsInTransaction S' newTxns \<down> happensBefore S'"
-        by (auto simp add: chooseSnapshot_def)
-
-      show ?thesis
-      proof (rule initS_correct2[rule_format], intro conjI; (solves\<open> simp add:  beginAtomic[simplified]\<close>)?)
-
-        show "state_wellFormed S_fin" 
-          using beginAtomic by simp
-
-        show "invariant_all' S'"
-          using invContext_same_allCommitted local.beginAtomic(12) local.beginAtomic(10) local.beginAtomic(11) by fastforce 
-
-
-        show "newTxns \<subseteq> dom (transactionStatus S')"
-          using newTxns1 by auto
-
-        show "vis' = vis \<union> callsInTransaction S' newTxns \<down> happensBefore S'"
-          by (simp add: newTxns2)
-      qed
-
-
-    next
-      case (endAtomic ls f ls' t valid)
-      then show ?thesis using initS_correct
-        by (simp add: noTransaction)
-    next
-      case (dbop ls f Op args ls' t c res vis)
-      then show ?thesis using initS_correct 
-        by (auto simp add:  noTransaction)
-    next
-      case (invocId procName args initState impl C' valid)
-      then show ?thesis using initS_correct 
-        by (auto simp add:  hasInvocationOp)
-    next
-      case (return ls f res valid)
-      then show ?thesis using initS_correct 
-        by (auto simp add: checkCorrect_simps)
-    qed
-
-    with \<open>traceCorrect_s program trace\<close>
-    show ?thesis
-      by (auto simp add: checkCorrect_simps \<open>state_wellFormed S_fin\<close>)
-  qed
-qed
-
-
-lemma "\<lbrakk>\<not>P; P\<rbrakk> \<Longrightarrow> False"
-  by simp
 
 
 
 
 lemma show_exists_state:
-  fixes P :: "('ls,'any) state \<Rightarrow> bool"
+  fixes P :: "('proc, 'ls, 'operation, 'any)state \<Rightarrow> bool"
   assumes "\<exists>calls happensBefore prog callOrigin transactionOrigin
    generatedIds knownIds invocationOp invocationRes transactionStatus
 localState currentProc visibleCalls currentTransaction. P \<lparr>
@@ -1239,183 +742,6 @@ exists_narrowR4
 lemma prog_initial: "prog (initialState program) = program"
   by (auto simp add: initialState_def)
 
-lemma show_program_correct_single_invocation:
-  assumes initialCorrect: "\<And>S i. S\<in>initialStates program i \<Longrightarrow> invariant_all' S "
-    and check: "\<And>S i. \<lbrakk>S\<in>initialStates program i; invariant_all' S; state_wellFormed S\<rbrakk> \<Longrightarrow> checkCorrect program S i"
-  shows "programCorrect_s program"
-proof (auto simp add: programCorrect_s_def)
-  fix trace i S_fin
-  assume steps: "initialState program ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
-
-  {
-    fix a tr
-    assume trace_def: "trace = a#tr"
-
-    with steps
-    obtain S_init 
-      where step1: "initialState program ~~ (i, a) \<leadsto>\<^sub>S S_init"
-        and steps': "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S_fin"
-      using steps_s_cons_simp by blast
-
-    find_theorems isAInvoc
-
-    thm invocations_only_in_beginning[OF steps, where j=0, simplified]
-    have "isAInvoc (fst (trace ! 0))"
-    proof (rule invocations_only_in_beginning[OF steps, where j=0, simplified])
-      show "state_wellFormed_s (initialState program) i"
-        using state_wellFormed_s_def steps_s_refl by blast
-      show "invocationOp (initialState program) i = None"
-        by (simp add: initialState_def)
-      show "trace \<noteq> [] "
-        by (simp add: trace_def)
-    qed
-    from this
-    obtain p args invInitial where a_def: "a = (AInvoc p args, invInitial)"
-      by (cases a, auto simp add: trace_def isAInvoc_def split: action.splits)
-
-    have invContext_same: "invContext S = invContext' S"  if  "S \<in> initialStates program i"  for S
-      using initialState_noTxns1 initialStates_wellFormed invContext_same_allCommitted that by blast
-
-
-    from initialCorrect[where i=i]
-    have initialCorrect': "invariant progr (invContext S)" if "S \<in> initialStates program i" and "progr = prog S" for S progr
-      using that invContext_same by fastforce 
-
-
-    have "invariant_all' S_init"
-    proof (rule initialCorrect[where i=i])
-      show "S_init \<in> initialStates program i"
-        using step1 and a_def apply (auto simp add: step_s.simps initialStates_def )
-         apply (auto simp add: state_ext prog_initial)
-        by blast+
-
-(*
-        using [[smt_solver = cvc4]]
-         apply (smt distributed_state.select_convs(1) initialState_def old.unit.exhaust state.surjective)
-        by (smt distributed_state.select_convs(1) initialState_def old.unit.exhaust state.surjective)*)
-    qed
-
-    with step1 and a_def
-    have "invInitial"
-    proof (auto simp add: step_s.simps state_wellFormed_init prog_initial)
-      fix initState impl C'
-      assume a0: "a = (AInvoc p args, False)"
-        and a1: "invariant (prog C')          (invContextH2 (callOrigin C') (transactionOrigin C') (transactionStatus C') (happensBefore C') (calls C') (knownIds C') (invocationOp C'(i \<mapsto> (p, args)))            (invocationRes C'))"
-        and a2: "invocationOp (initialState (prog C')) i = None"
-        and a3: "procedure (prog C') p args \<triangleq> (initState, impl)"
-        and a4: "uniqueIdsInList args \<subseteq> knownIds C'"
-        and a5: "state_wellFormed C'"
-        and a6: "\<forall>x. transactionStatus C' x \<noteq> Some Uncommitted"
-        and a7: "invariant_all C'"
-        and a8: "invocationOp C' i = None"
-        and a9: "program = prog C'"
-        and a10: "S_init = C'         \<lparr>localState := localState C'(i \<mapsto> initState), currentProc := currentProc C'(i \<mapsto> impl), visibleCalls := visibleCalls C'(i \<mapsto> {}),            invocationOp := invocationOp C'(i \<mapsto> (p, args))\<rparr>"
-        and a11: "\<forall>x. transactionOrigin C' x \<noteq> Some i"
-        and a12: "\<not> invInitial"
-        and a13: "\<not> invariant (prog C')             (invContextH (callOrigin C') (transactionOrigin C') (transactionStatus C') (happensBefore C') (calls C') (knownIds C') (invocationOp C'(i \<mapsto> (p, args)))               (invocationRes C'))"
-
-      have contextSame:
-           "(invContextH  (callOrigin C') (transactionOrigin C') (transactionStatus C') (happensBefore C') (calls C') (knownIds C') (invocationOp C'(i \<mapsto> (p, args))) (invocationRes C'))
-          = (invContextH2 (callOrigin C') (transactionOrigin C') (transactionStatus C') (happensBefore C') (calls C') (knownIds C') (invocationOp C'(i \<mapsto> (p, args))) (invocationRes C'))"
-      proof (rule invContextH_same_allCommitted)
-        show "\<And>c. (calls C' c = None) = (callOrigin C' c = None)"
-          using a5 wellFormed_callOrigin_dom3 by blast
-        show "\<And>c tx. callOrigin C' c \<triangleq> tx \<Longrightarrow> transactionStatus C' tx \<noteq> None"
-          by (simp add: a5 wf_callOrigin_implies_transactionStatus_defined)
-        show "\<And>a b. (a, b) \<in> happensBefore C' \<Longrightarrow> calls C' a \<noteq> None"
-          using a5 wellFormed_happensBefore_calls_l by blast
-        show "\<And>a b. (a, b) \<in> happensBefore C' \<Longrightarrow> calls C' b \<noteq> None"
-          by (simp add: a5 wellFormed_happensBefore_calls_r)
-        show "\<And>c. (transactionOrigin C' c = None) = (transactionStatus C' c = None)"
-          by (simp add: a5 wf_transaction_status_iff_origin)
-        show "\<And>t. transactionStatus C' t \<noteq> Some Uncommitted"
-          by (simp add: a6)
-      qed
-
-      show "False"
-        using a1 a13 contextSame by auto
-
-    qed
-
-
-
-    have "S_init\<in>initialStates program i"
-      using step1 by (auto simp add: step_s.simps initialStates_def a_def initialState_def; blast)
-
-
-    { 
-      assume "0 < length tr"
-      have "traceCorrect_s program tr"
-      proof (rule show_traceCorrect_s_1[THEN conjunct1]) 
-        show "S_init\<in>initialStates program i" using \<open>S_init\<in>initialStates program i\<close> .
-        show "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S_fin" using steps' .
-        show "\<And>S. S \<in> initialStates program i \<Longrightarrow> invariant_all' S"
-          using initialCorrect by blast
-
-        show S_init_wf: "state_wellFormed S_init"
-          using \<open>S_init \<in> initialStates program i\<close> initialStates_wellFormed by blast
-
-        show "checkCorrect program S i" if " S \<in> initialStates program i" for S
-          using \<open>S \<in> initialStates program i\<close> proof (rule check)
-          show " invariant_all' S"
-            using initialCorrect \<open>S \<in> initialStates program i\<close> by blast
-          show "state_wellFormed S"
-          proof -
-            from \<open>S \<in> initialStates program i\<close> obtain S_pre initState impl procName args tr
-              where S_def: "S = S_pre\<lparr>localState := localState S_pre(i \<mapsto> initState), currentProc := currentProc S_pre(i \<mapsto> impl), visibleCalls := visibleCalls S_pre(i \<mapsto> {}),
-                 invocationOp := invocationOp S_pre(i \<mapsto> (procName, args))\<rparr>"
-                and "program = prog S_pre"
-                and implproc: "procedure (prog S_pre) procName args \<triangleq> (initState, impl)"
-                and uids: "uniqueIdsInList args \<subseteq> knownIds S_pre"
-                and "invariant_all' S_pre"
-                and noInvOp: "invocationOp S_pre i = None"
-                and steps_pre: "initialState (prog S_pre) ~~ tr \<leadsto>* S_pre" 
-              apply (atomize_elim)
-              apply (auto simp add: initialStates_def state_wellFormed_def)
-              by (metis invContext_same_allCommitted state_wellFormed_def)
-
-            have "S_pre ~~ (i, AInvoc procName args) \<leadsto> S"
-              apply (auto simp add: step_simps S_def)
-              apply (rule_tac x="initState" in exI)
-              apply (rule_tac x="impl" in exI)
-              apply auto
-              using steps_pre noInvOp invocation_ops_if_localstate_nonempty apply blast
-                apply (simp add: implproc)
-              using uids apply auto[1]
-              by (simp add: noInvOp)
-
-            with steps_pre
-            show "state_wellFormed S"
-              using initialStates_wellFormed that by blast
-          qed
-        qed
-        show "0 < length tr" using \<open>0 < length tr\<close> .
-      qed
-    } 
-    moreover
-    {
-      assume "0 = length tr"
-      have "traceCorrect_s program tr"
-        using \<open>0 = length tr\<close> traceCorrect_s_def by force
-    }
-    ultimately have "traceCorrect_s program trace" 
-      by (auto simp add: traceCorrect_s_def trace_def a_def \<open>invInitial\<close>, fastforce)
-  }
-  moreover 
-  {
-    assume "trace = []"
-    then have "traceCorrect_s program trace" 
-      by (simp add: traceCorrect_s_def)
-  }
-  ultimately
-  show "traceCorrect_s program trace"
-    using list.exhaust by blast
-qed  
-
-(*
-TODO continue here: remove VIS set -- we will later provide lemmas for 
-showing that a snapshot is consistent
-*)
 
 
 definition Def (infix "::=" 50) where
@@ -1424,126 +750,6 @@ definition Def (infix "::=" 50) where
 definition DefSome (infix "::\<triangleq>" 50) where
 "x ::\<triangleq> y \<equiv> y = Some x"
 
-\<comment> \<open>check program (with a given start-state, bound by a number of steps)\<close>
-definition checkCorrect2F :: "(('localState, 'any::valueType) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool) 
-                           \<Rightarrow> ('localState, 'any) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool" where
-"checkCorrect2F \<equiv> (\<lambda>checkCorrect' (progr, txCalls, S, i).
-(case currentProc S i of
-    None \<Rightarrow> True
-  | Some impl \<Rightarrow>
-      (case impl (the (localState S i)) of
-          LocalStep ls \<Rightarrow> 
-            (\<forall>S'. S' ::= (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>)
-             \<longrightarrow> checkCorrect' (progr, txCalls, S', i))
-        | BeginAtomic ls' \<Rightarrow> 
-            currentTransaction S i = None
-            \<and> (\<forall>t S' newTxns S'' vis' ls.
-               localState S i \<triangleq> ls
-              \<and> currentTransaction S i = None
-              \<and> transactionStatus S t = None
-              \<and> prog S' = prog S
-              \<and> invariant_all' S'
-              \<and> (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted)
-              \<and> state_wellFormed S'
-              \<and> state_wellFormed S''
-              \<and> state_monotonicGrowth i S S'
-               \<comment> \<open>  transactions in current invocId unchanged:   \<close>
-              \<and> (\<forall>t . transactionOrigin S t \<triangleq> i \<longleftrightarrow> transactionOrigin S' t \<triangleq> i)
-              \<and> localState S' i \<triangleq> ls
-              \<and> currentProc S' i \<triangleq> impl
-              \<and> currentTransaction S' i = None
-              \<and> visibleCalls S i \<triangleq> txCalls
-              \<and> visibleCalls S' i \<triangleq> txCalls
-              \<and> vis' ::= (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')
-              \<and> newTxns \<subseteq> dom (transactionStatus S')
-              \<and> consistentSnapshot S' vis'
-              \<and> transactionStatus S' t = None
-              \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
-              \<and> transactionOrigin S' t = None
-              \<and> (S'' ::= S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommitted),
-                          transactionOrigin := (transactionOrigin S')(t \<mapsto> i),
-                          currentTransaction := (currentTransaction S')(i \<mapsto> t),
-                          localState := (localState S')(i \<mapsto> ls'),
-                          visibleCalls := (visibleCalls S')(i \<mapsto> vis')
-                \<rparr>)
-              \<longrightarrow> checkCorrect' (progr, vis', S'' , i))
-        | EndAtomic ls \<Rightarrow> 
-            (case currentTransaction S i of
-                None \<Rightarrow> False
-              | Some t \<Rightarrow>
-                (\<forall>S'.
-                 S' ::= (S\<lparr>
-                  localState := (localState S)(i \<mapsto> ls), 
-                  currentTransaction := (currentTransaction S)(i := None),
-                  transactionStatus := (transactionStatus S)(t \<mapsto> Committed) \<rparr>)
-                \<longrightarrow> (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) 
-                     \<longrightarrow> state_wellFormed S'
-                     \<longrightarrow> (invariant progr (invContext' S')
-                          \<and> (invariant progr (invContext' S')  \<longrightarrow> checkCorrect' (progr, txCalls, S', i))
-                        ))
-            )
-        | NewId ls \<Rightarrow> 
-          (\<forall>uid S' ls'.
-            generatedIds S uid = None
-           \<and> ls uid \<triangleq> ls'
-           \<and> uniqueIds uid = {uid}
-           \<and> S' ::= (S\<lparr>localState := (localState S)(i \<mapsto> ls'), generatedIds := (generatedIds S)(uid \<mapsto> i) \<rparr>)
-            \<longrightarrow> checkCorrect' (progr, txCalls, S', i)
-          )
-        | DbOperation Op args ls \<Rightarrow> 
-           (case currentTransaction S i of
-                None \<Rightarrow> False
-              | Some t \<Rightarrow>
-                  (\<exists>res. querySpec progr Op args (getContext S i) res)
-                  \<and>
-                  (\<forall>c res S' vis' hb'. 
-                      calls S c = None
-                    \<and> querySpec progr Op args (getContext S i) res
-                    \<and> visibleCalls S i \<triangleq> txCalls
-                    \<and> vis' ::= (visibleCalls S)(i \<mapsto> insert c txCalls)
-                    \<and> hb' ::= updateHb (happensBefore S) txCalls [c] 
-                    \<and> S' ::= (S\<lparr>
-                          localState := (localState S)(i \<mapsto> ls res), 
-                          calls := (calls S)(c \<mapsto> Call Op args res ),
-                          callOrigin := (callOrigin S)(c \<mapsto> t),
-                          visibleCalls := vis',
-                          happensBefore := hb' \<rparr>)
-                    \<longrightarrow> checkCorrect' (progr, insert c txCalls, S', i)
-                  )
-           )
-        | Return res \<Rightarrow> 
-            currentTransaction S i = None
-            \<and> (\<forall>S'. S' ::= (S\<lparr>
-                 localState := (localState S)(i := None),
-                 currentProc := (currentProc S)(i := None),
-                 visibleCalls := (visibleCalls S)(i := None),
-                 invocationRes := (invocationRes S)(i \<mapsto> res),
-                 knownIds := knownIds S \<union> uniqueIds res\<rparr>) \<longrightarrow>
-               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) \<longrightarrow> invariant progr (invContext' S')  
-            )
-        )))
-"
-
-
-
-lemma checkCorrect2F_mono:
-"mono checkCorrect2F"
-proof (rule monoI)
-  show "checkCorrect2F x \<le> checkCorrect2F y" if c0: "x \<le> y"  for  x :: "(('localState, 'any::valueType) prog \<times> callId set \<times> ('localState, 'any) state \<times> invocId \<Rightarrow> bool)" and y
-    apply auto
-    apply (auto simp add: checkCorrect2F_def Let_def Def_def intro!: predicate1D[OF \<open>x \<le> y\<close>] split: option.splits localAction.splits if_splits)
-    by force
-qed
-
-
-
-(*
-definition checkCorrect2 :: "('localState, 'any) prog \<Rightarrow> callId set \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocId \<Rightarrow> bool" where
- "checkCorrect2 progr txCalls S i \<equiv> lfp checkCorrect2F (progr, txCalls, S, i)"
-*)
-
-definition checkCorrect2 :: "('localState, 'any::valueType) prog \<Rightarrow> callId set \<Rightarrow> ('localState, 'any) state \<Rightarrow> invocId \<Rightarrow> bool" where
- "checkCorrect2 progr txCalls S i \<equiv> \<exists>n. (checkCorrect2F^^n) bot (progr, txCalls, S, i)"
 
 
 
@@ -1554,12 +760,6 @@ lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or>
   done
 
 
-lemma checkCorrect2_unfold:
-"checkCorrect2 progr txCalls S i = (\<exists>n. checkCorrect2F ((checkCorrect2F^^n) bot) (progr, txCalls, S, i))"
-  apply (subst checkCorrect2_def)
-  apply (subst exists_nat_split)
-  apply auto
-  done
 
 
 
@@ -1571,445 +771,6 @@ lemma exists_optionI: "x \<noteq> None \<Longrightarrow> \<exists>y. x \<triangl
   by auto
 
 
-lemma checkCorrect_eq2:
-  assumes "invariant_all S" 
-    and "state_wellFormed S"
-    and "progr = prog S"
-    and "visibleCalls S i \<triangleq> txCalls" 
-    and c2: "(checkCorrect2F ^^bound) bot (progr, txCalls, S, i) "
-  shows "checkCorrect progr S i"
-  using assms proof (induct bound arbitrary: S txCalls)
-  case 0
-
-  have "consistentSnapshot S {}"
-    by (auto simp add: consistentSnapshotH_def causallyConsistent_def transactionConsistent_def)
-  then have "(checkCorrect2F ^^0) bot (progr, txCalls, S, i)"
-    using \<open>(checkCorrect2F ^^ 0) bot (progr, txCalls, S, i)\<close> by blast
-  then have False
-    by auto
-
-  then show ?case by simp
-
-next
-  case (Suc bound)
-
-  have [simp]: "prog S = progr"
-    by (simp add: Suc)
-
-
-  have IH: "\<lbrakk>invariant_all S; 
-      state_wellFormed S; 
-      progr = prog S; 
-      progr' = progr;
-      visibleCalls S i \<triangleq> txCalls;
-      (checkCorrect2F ^^ bound) bot (progr,  txCalls, S, i)\<rbrakk>
-    \<Longrightarrow> checkCorrect progr' S i" for S txCalls progr'
-    using Suc  by blast
-
-
-  have use_checkCorrect2: "(checkCorrect2F ^^ Suc bound) bot (progr, txCalls, S, i)" 
-    using Suc by blast
-
-  show "checkCorrect progr S i"
-  proof (cases "currentProc S i")
-    case None
-    then show ?thesis by (simp add: checkCorrect_simps)
-  next
-    case (Some proc)
-    then have [simp]: "currentProc S i \<triangleq> proc" .
-
-    obtain ls where ls_def[simp]: "localState S i \<triangleq> ls"
-      using \<open>state_wellFormed S\<close> \<open>visibleCalls S i \<triangleq> txCalls\<close> state_wellFormed_ls_visibleCalls by fastforce
-
-    show "checkCorrect progr S i"
-    proof (cases "proc ls")
-      case (LocalStep f)
-
-
-
-      show ?thesis
-      proof (subst checkCorrect_simps, auto simp add: LocalStep)
-        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>) i"
-        proof (rule IH)
-          from \<open>invariant_all S\<close>
-          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>)"
-            by (auto simp add: )
-
-          have step: "S ~~ (i, ALocal) \<leadsto> S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>"
-            using LocalStep Some ls_def step_simp_ALocal by blast
-
-          with state_wellFormed_combine_step[OF \<open>state_wellFormed S\<close>, OF step]
-          show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>)" by simp
-
-          show " progr = prog (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>)" by simp
-
-          from \<open>visibleCalls S i \<triangleq> txCalls\<close>
-          show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>) i \<triangleq> txCalls"
-            by auto
-
-          show "progr = progr" ..
-
-          show "(checkCorrect2F ^^ bound) bot (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>, i)"
-          proof -
-
-            from use_checkCorrect2
-            show "(checkCorrect2F ^^ bound) bot (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> f)\<rparr>, i)"
-              apply simp
-              apply (subst(asm) checkCorrect2F_def)
-              apply (auto simp add: LocalStep Def_def)
-              done
-          qed
-        qed
-      qed
-    next
-      case (BeginAtomic tx)
-
-      
-
-      show ?thesis
-      proof (subst checkCorrect_simps, auto simp add: BeginAtomic \<open>visibleCalls S i \<triangleq> txCalls\<close>)
-        have cs_empty: "consistentSnapshot S {}"
-          by (simp add: consistentSnapshot_empty)
-
-
-        show "currentTransaction S i = None"
-          using use_checkCorrect2
-          apply simp
-          apply (subst(asm) checkCorrect2F_def)
-          apply (auto simp add: BeginAtomic)
-          done
-
-        fix t newTxns
-        fix S'
-
-        assume c0a: "currentTransaction S i = None"
-            and c0: "transactionStatus S t = None"
-            and c2a: "progr = prog S'"
-            and c1: "invariant_all' S'"
-            and c13: "\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
-            and c2: "state_wellFormed S'"
-            and c6a: "state_wellFormed (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
-            and c3: "state_monotonicGrowth i S S'"
-            and c4: "localState S' i \<triangleq> ls"
-            and c5: "currentProc S' i \<triangleq> proc"
-            and c6: "currentTransaction S' i = None"
-            and c11a: "visibleCalls S' i \<triangleq> txCalls"
-            and c11: "newTxns \<subseteq> dom (transactionStatus S')"
-            and c12: "consistentSnapshot S' (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
-            and c0: "transactionStatus S' t = None"
-            and c15a: "\<forall>c. callOrigin S' c \<noteq> Some t"
-            and c7: "transactionOrigin S' t = None"
-            and transactionOriginUnchanged: "\<forall>t. transactionOrigin S' t \<triangleq> i = transactionOrigin S t \<triangleq> i"
-
-        define S'' where S''_def: "S'' = (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> tx), visibleCalls := visibleCalls S'(i \<mapsto> txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<rparr>)"
-
-
-        from \<open>state_monotonicGrowth i S S'\<close>
-        have "transactionStatus S t \<le> transactionStatus S' t"
-          by (simp add: state_monotonicGrowth_transactionStatus)
-        with \<open>transactionStatus S' t = None\<close>
-        have "transactionStatus S t = None"
-          by (simp add: less_eq_option_None_is_None) \<comment> \<open>EXTRACT\<close>
-          
-
-
-
-        show "checkCorrect (prog S') S'' i"
-        proof (rule IH)
-          show "prog S' = progr"
-            by (simp add: \<open>progr = prog S'\<close>)
-          then show "progr = prog S''"
-            by (simp add: S''_def)
-
-          show "visibleCalls S'' i \<triangleq> (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')"
-            by (simp add: S''_def)
-
-          show "state_wellFormed S''"
-            using S''_def c6a by blast
-
-          have "invContext S'' = invContext S'"
-            by (auto simp add: S''_def c13 c2 c0 invContextH_def restrict_map_def committedCallsH_update_uncommitted)
-
-
-          with \<open>invariant_all' S'\<close>
-          show "invariant_all S''"
-            by (auto simp add: S''_def c13 c2 invContext_same_allCommitted)
-
-          show "(checkCorrect2F ^^ bound) bot (progr, txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S', S'', i)"
-            using use_checkCorrect2
-            apply simp
-            apply (subst(asm) checkCorrect2F_def)
-            apply (auto simp add: BeginAtomic \<open>visibleCalls S i \<triangleq> txCalls\<close>)
-            apply (drule_tac x=t in spec)
-            apply (drule_tac x=S' in spec)
-            apply (drule_tac x=newTxns in spec)
-            apply (auto simp add: Def_def)
-            using \<open>transactionStatus S t = None\<close> apply blast
-                           apply (simp add: c2a)
-                          apply (simp add: \<open>invariant_all' S'\<close>)
-            using c13 apply blast
-            apply (simp add: c2)
-            using \<open>state_wellFormed S''\<close> apply (simp add: S''_def)
-            using \<open>state_monotonicGrowth i S S'\<close> apply simp
-            using transactionOriginUnchanged apply blast
-            using transactionOriginUnchanged apply blast
-            using \<open>localState S' i \<triangleq> ls\<close> apply simp
-            using \<open>currentProc S' i \<triangleq> proc\<close> apply simp
-            using \<open>currentTransaction S' i = None\<close> apply simp
-            using \<open>visibleCalls S' i \<triangleq> txCalls\<close> apply simp
-            using c11 apply blast
-
-            using \<open> consistentSnapshot S' (txCalls \<union> callsInTransaction S' newTxns \<down> happensBefore S')\<close> apply simp
-            using \<open>transactionStatus S' t = None\<close> apply simp
-            using c15a apply blast
-            using c7 apply blast
-            by (simp add: S''_def)
-
-
-        qed
-      qed
-    next
-      case (EndAtomic ls')
-
-      obtain tx where tx: "currentTransaction S i \<triangleq> tx"
-        using use_checkCorrect2
-        apply simp
-        apply (subst(asm) checkCorrect2F_def)
-        apply (auto simp add: EndAtomic split: option.splits)
-        done
-
-      show ?thesis
-      proof (subst checkCorrect_simps, auto simp add: EndAtomic tx Let_def)
-
-        assume all_committed: "\<forall>t. t \<noteq> tx \<longrightarrow> transactionStatus S t \<noteq> Some Uncommitted"
-          and wf: "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>)"
-
-
-        show inv: "invariant progr (invContextH2 (callOrigin S) (transactionOrigin S) (transactionStatus S(tx \<mapsto> Committed)) (happensBefore S) (calls S) (knownIds S) (invocationOp S) (invocationRes S))"
-          using use_checkCorrect2 local.wf 
-          apply simp
-          apply (subst(asm) checkCorrect2F_def)
-          apply (auto simp add: Def_def EndAtomic all_committed tx split: option.splits if_splits)
-          done
-
-
-        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>) i"
-        proof (rule IH)
-          show "invariant_all (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>)"
-            using inv apply (auto simp add:)
-            apply (subst invContextH_same_allCommitted)
-            using wellFormed_callOrigin_dom3[OF \<open>state_wellFormed S\<close>] wellFormed_state_callOrigin_transactionStatus[OF \<open>state_wellFormed S\<close>]
-                  wellFormed_happensBefore_calls_l[OF \<open>state_wellFormed S\<close>]
-                  wellFormed_happensBefore_calls_r[OF \<open>state_wellFormed S\<close>]
-                (*  wellFormed_currentTransactionUncommitted[OF `state_wellFormed S`]
-                  wf_transaction_status_iff_origin[OF `state_wellFormed S`]*)
-                  all_committed
-                  apply (auto simp add: Def_def)
-              apply (metis Suc.prems(2) not_Some_eq tx wellFormed_currentTransactionUncommitted wf_transaction_status_iff_origin)
-            using Suc.prems(2) wf_transaction_status_iff_origin apply blast
-            using Suc.prems(2) wf_transaction_status_iff_origin by blast
-
-          show "progr = progr" ..
-
-          show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>)"
-            using local.wf by blast
-
-          show "progr = prog (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>)"
-            by simp
-
-          from \<open>visibleCalls S i \<triangleq> txCalls\<close>
-          show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>) i \<triangleq> txCalls"
-            by simp
-
-          show "(checkCorrect2F ^^ bound) bot
-             (progr, txCalls, S\<lparr>localState := localState S(i \<mapsto> ls'), currentTransaction := (currentTransaction S)(i := None), transactionStatus := transactionStatus S(tx \<mapsto> Committed)\<rparr>, i)"
-            using use_checkCorrect2 local.wf 
-            apply simp
-            apply (subst(asm) checkCorrect2F_def)
-            by (auto simp add: Def_def EndAtomic all_committed tx split: option.splits if_splits)
-        qed
-      qed
-    next
-      case (NewId ls')
-      show ?thesis
-      proof (subst checkCorrect_simps, auto simp add: NewId)
-
-        fix uid ls''
-        assume "generatedIds S uid = None" 
-          and "ls' uid \<triangleq> ls''"
-          and "uniqueIds uid = {uid}"
-
-        have step: "S ~~ (i, ANewId uid) \<leadsto> S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := (generatedIds S)(uid \<mapsto> i)\<rparr>"
-          apply (auto simp add: step_simps)
-          using NewId \<open>generatedIds S uid = None\<close> \<open>ls' uid \<triangleq> ls''\<close> \<open>uniqueIds uid = {uid}\<close> by blast
-
-
-        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>) i"
-        proof (rule IH)
-          show " invariant_all (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>)"
-            using Suc.prems(1) by auto
-
-          from state_wellFormed_combine_step[OF \<open>state_wellFormed S\<close>, OF step]
-          show "state_wellFormed (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>)"
-            by simp
-
-          show "progr = prog (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>)"
-            by simp
-
-          show "visibleCalls (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>) i \<triangleq> txCalls"
-            by (simp add: Suc.prems(4))
-
-          show "progr = progr" ..
-
-          show "(checkCorrect2F ^^ bound) bot (progr, txCalls, (S\<lparr>localState := localState S(i \<mapsto> ls''), generatedIds := generatedIds S(uid \<mapsto> i)\<rparr>), i)"
-            using use_checkCorrect2
-            apply simp
-            apply (subst(asm) checkCorrect2F_def)
-            apply (auto simp add: Def_def NewId  split: option.splits if_splits)
-            using \<open>generatedIds S uid = None\<close> \<open>ls' uid \<triangleq> ls''\<close> \<open>uniqueIds uid = {uid}\<close> by blast
-        qed
-      qed
-    next
-      case (DbOperation m a r)
-
-      obtain tx where tx: "currentTransaction S i \<triangleq> tx"
-        using use_checkCorrect2
-        apply simp
-        apply (subst(asm) checkCorrect2F_def)
-        apply (auto simp add: DbOperation split: option.splits)
-        done
-
-
-      show ?thesis
-      proof (subst checkCorrect_simps, auto simp add: DbOperation tx \<open>visibleCalls S i \<triangleq> txCalls\<close>)
-
-        show "\<exists>res. querySpec progr m a (getContextH (calls S) (happensBefore S) (Some txCalls)) res"
-          using use_checkCorrect2
-          apply simp
-          apply (subst(asm) checkCorrect2F_def)
-          by (auto simp add: DbOperation \<open>visibleCalls S i \<triangleq> txCalls\<close> split: option.splits)
-
-        show "checkCorrect progr (S\<lparr>localState := localState S(i \<mapsto> r res), calls := calls S(c \<mapsto> Call m a res), callOrigin := callOrigin S(c \<mapsto> tx), visibleCalls := visibleCalls S(i \<mapsto> insert c txCalls), happensBefore := updateHb (happensBefore S) txCalls [c]\<rparr>) i"
-          if c0: "calls S c = None"
-            and c1: "querySpec progr m a (getContextH (calls S) (happensBefore S) (Some txCalls)) res"
-          for  c res
-        proof (rule IH, auto)
-
-
-
-          have "(invContextH (callOrigin S(c \<mapsto> tx)) (transactionOrigin S) (transactionStatus S) (updateHb (happensBefore S) txCalls [c]) (calls S(c \<mapsto> Call m a res)) (knownIds S) (invocationOp S) (invocationRes S)) 
-               = invContext S"
-            using Suc.prems(2) c0 tx 
-            by (auto simp add: invContextH_def updateHb.simps(2) restrict_relation_def   committedCallsH_notin  committedCalls_unchanged_callOrigin wellFormed_committedCallsExist wellFormed_currentTransaction_unique_h(2) wf_callOrigin_and_calls)
-
-
-
-          with \<open>invariant_all S\<close>
-          show "invariant progr
-             (invContextH (callOrigin S(c \<mapsto> tx)) (transactionOrigin S) (transactionStatus S) (updateHb (happensBefore S) txCalls [c]) (calls S(c \<mapsto> Call m a res)) (knownIds S) (invocationOp S) (invocationRes S))"
-            by auto
-
-          have step: "S ~~ (i, ADbOp c m a res) \<leadsto> S\<lparr>localState := localState S(i \<mapsto> r res), calls := calls S(c \<mapsto> Call m a res), callOrigin := callOrigin S(c \<mapsto> tx), visibleCalls := visibleCalls S(i \<mapsto> insert c txCalls),
-              happensBefore := updateHb (happensBefore S) txCalls [c]\<rparr>"
-            by (auto simp add: step_simps DbOperation Suc.prems(4) c0 c1 tx updateHb_single)
-
-
-          show "state_wellFormed
-            (S\<lparr>localState := localState S(i \<mapsto> r res), calls := calls S(c \<mapsto> Call m a res), callOrigin := callOrigin S(c \<mapsto> tx), visibleCalls := visibleCalls S(i \<mapsto> insert c txCalls),
-              happensBefore := updateHb (happensBefore S) txCalls [c]\<rparr>)"
-            using state_wellFormed_combine1[OF \<open>state_wellFormed S\<close>, OF step] by simp
-
-
-          show "(checkCorrect2F ^^ bound) bot
-             (progr, insert c txCalls, S
-              \<lparr>localState := localState S(i \<mapsto> r res), calls := calls S(c \<mapsto> Call m a res), callOrigin := callOrigin S(c \<mapsto> tx), visibleCalls := visibleCalls S(i \<mapsto> insert c txCalls),
-                 happensBefore := updateHb (happensBefore S) txCalls [c]\<rparr>,
-              i)"
-            using use_checkCorrect2
-            apply simp
-            apply (subst(asm) checkCorrect2F_def)
-            apply (auto simp add: Def_def DbOperation tx Suc.prems(4) c0 c1 split: option.splits if_splits)
-            done
-
-        qed
-      qed
-    next
-      case (Return r)
-
-      have tx: "currentTransaction S i = None"
-        using use_checkCorrect2
-        apply simp
-        apply (subst(asm) checkCorrect2F_def)
-        apply (auto simp add: Return split: option.splits)
-        done
-
-      show ?thesis
-      proof (subst checkCorrect_simps, auto simp add: Return tx \<open>visibleCalls S i \<triangleq> txCalls\<close>)
-
-        show "invariant progr (invContextH2 (callOrigin S) (transactionOrigin S) (transactionStatus S) (happensBefore S) (calls S) (knownIds S \<union> uniqueIds r) (invocationOp S) (invocationRes S(i \<mapsto> r)))"
-          if c0: "\<forall>t. transactionStatus S t \<noteq> Some Uncommitted"
-          using use_checkCorrect2
-          apply simp
-          apply (subst(asm) checkCorrect2F_def)
-          by (auto simp add: Def_def c0 Return split: option.splits)
-
-      qed
-    qed
-  qed
-qed
-
-
-lemma checkCorrect_eq2':
-  assumes initState: "S\<in>initialStates progr i" 
-    and invInitial: "invariant_all S"
-    and c2: "(checkCorrect2F ^^bound) bot (progr, {}, S, i) "
-  shows "checkCorrect progr S i"
-  using \<open>invariant_all S\<close>
-proof (rule checkCorrect_eq2)
-  show " state_wellFormed S"
-    using initState initialStates_wellFormed by auto
-
-  show "progr = prog S"
-    using initState by (auto simp add: initialStates_def)
-
-  show "visibleCalls S i \<triangleq> {}"
-    using initState by (auto simp add: initialStates_def)
-
-  show "(checkCorrect2F ^^ bound) bot (progr, {}, S, i)"
-    using c2 .
-qed
-
-(*
-lemma checkCorrect_eq2'':
-  assumes initState: "S\<in>initialStates progr i" 
-    and invInitial: "invariant_all' S"
-    and c2: "checkCorrect2 progr {} S i"
-  shows "checkCorrect progr S i"
-proof -
-
-  from c2
-  have "\<exists>bound. (checkCorrect2F ^^ bound) bot (progr, {}, S, i)"
-    apply (auto simp add: checkCorrect2_def)
-
-
-  from initState invInitial
-  show "checkCorrect progr S i"
-  proof (rule checkCorrect_eq2')
-
-
-  show " state_wellFormed S"
-    using initState initialStates_wellFormed by auto
-
-  show "progr = prog S"
-    using initState by (auto simp add: initialStates_def)
-
-  show "visibleCalls S i \<triangleq> {}"
-    using initState by (auto simp add: initialStates_def)
-
-  show "(checkCorrect2F ^^ bound) bot (progr, {}, S, i)"
-    using c2 .
-qed
-*)
 
 lemma transactionStatus_initial: "transactionStatus (initialState progr) t = None"
   by (simp add: initialState_def)
@@ -2017,16 +778,16 @@ lemma transactionStatus_initial: "transactionStatus (initialState progr) t = Non
 
 
 
-definition initialStates' :: "('localState, 'any::valueType) prog \<Rightarrow> invocId \<Rightarrow> ('localState, 'any) state set"  where
+definition initialStates' :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) prog \<Rightarrow> invocId \<Rightarrow> ('proc, 'ls, 'operation, 'any) state set"  where
   "initialStates' progr i \<equiv> {
     (S\<lparr>localState := (localState S)(i \<mapsto> initState),
        currentProc := (currentProc S)(i \<mapsto> impl),
        visibleCalls := (visibleCalls S)(i \<mapsto> {}),
-       invocationOp := (invocationOp S)(i \<mapsto> (procName, args))\<rparr>) 
- | S procName args initState impl.
+       invocationOp := (invocationOp S)(i \<mapsto> proc)\<rparr>) 
+ | S proc initState impl.
     prog S = progr
-  \<and> procedure progr procName args \<triangleq> (initState, impl)  
-  \<and> uniqueIdsInList args \<subseteq> knownIds S
+  \<and> procedure progr proc \<triangleq> (initState, impl)  
+  \<and> uniqueIds proc \<subseteq> knownIds S
   \<and> invariant_all' S
   \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
   \<and> invocationOp S i = None
@@ -2038,14 +799,12 @@ lemma initialStates'_same:
   shows "initialStates progr i = initialStates' progr i"
   apply (auto simp add: initialStates_def initialStates'_def)
    apply (rule_tac x=S in exI)
-   apply (rule_tac x=procName in exI)
-   apply (rule_tac x=args in exI)
+   apply (rule_tac x=proc in exI)
    apply (rule_tac x=initState in exI)
    apply (rule_tac x=impl in exI)
    apply (auto simp add: invContext_same_allCommitted)
   apply (rule_tac x=S in exI)
-  apply (rule_tac x=procName in exI)
-  apply (rule_tac x=args in exI)
+  apply (rule_tac x=proc in exI)
   apply (rule_tac x=initState in exI)
   apply (rule_tac x=impl in exI)
   apply (auto simp add: invContext_same_allCommitted)

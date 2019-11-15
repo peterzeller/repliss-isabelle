@@ -17,8 +17,7 @@ lemma increase_bound:
   shows "\<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
   using assms by blast
 
-definition "procedureCorrect" where
-"procedureCorrect progr S i \<equiv> invariant_all' S \<and> (\<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i))"
+
 
 lemma DC_show_programCorrect:
   fixes ct defines "ct' \<equiv> \<lambda>pos name. (name, pos,[]) # ct"
@@ -27,7 +26,9 @@ lemma DC_show_programCorrect:
           \<Longrightarrow> C\<langle>Suc n2, (''procedure_correct'', n2, [VAR S, VAR i])#ct, n3: procedureCorrect progr S i\<rangle>"
   shows "C\<langle>n1,ct,n3: programCorrect progr\<rangle>"
   using assms
-  unfolding LABEL_simps using show_programCorrect_using_checkCorrect procedureCorrect_def by blast
+  unfolding LABEL_simps  
+proof -
+  oops
 
 
 lemma DC_show_procedureCorrect:

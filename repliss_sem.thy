@@ -3,49 +3,48 @@ theory repliss_sem
     "HOL-Library.Multiset"
     "HOL-Library.Option_ord"
     "~~/src/HOL/Eisbach/Eisbach"
+    "~~/src/HOL/Library/Countable"
     utils
 begin
 
 section \<open>Semantics\<close>
 
-text \<open>This theory describes the distributed semantics used by Repliss.\<close>
+text \<open>This theory describes the distributed semantics used by Repliss.
+We use a fine grained interleaving semantics.
+\<close>
 
 
 typedecl invocId
+typedecl txid
+typedecl callId
 
-axiomatization where 
-  infinitely_many_invocations: " infinite (UNIV::invocId set)"
+text "A value type is a type that contains unique identifiers.
+Since higher kinded classes are not supported, we represent unique ids using natural numbers.
+The countable type class can then be used to convert other countable types to nat."
 
-term "x::'a::ord"
-
-class valueType =
-  fixes uniqueIds :: "'a \<Rightarrow> 'a set"
+type_synonym uniqueId = nat
+class valueType = countable +
+  fixes uniqueIds :: "'a \<Rightarrow> uniqueId set"
 
 
 definition 
   "uniqueIdsInList xs = (\<Union>x\<in>set xs. uniqueIds x)"
 
 
-type_synonym operation = string
 
 
+datatype ('operation, 'any) call = Call (call_operation: 'operation) (call_res:"'any")
 
-typedecl txid
-typedecl callId
-
-datatype 'any call = Call operation (call_args:"'any list") (call_res:"'any")
-
-datatype ('localState, 'any) localAction =
-  LocalStep 'localState
-  | BeginAtomic 'localState
-  | EndAtomic 'localState
-  | NewId "'any \<rightharpoonup> 'localState"
-  | DbOperation operation "'any list" "'any \<Rightarrow> 'localState"
+datatype ('ls, 'operation, 'any) localAction =
+  LocalStep 'ls
+  | BeginAtomic 'ls
+  | EndAtomic 'ls
+  | NewId "'any \<rightharpoonup> 'ls"
+  | DbOperation 'operation "'any \<Rightarrow> 'ls"
   | Return 'any
 
-type_synonym procedureName = string
 
-type_synonym ('localState, 'any) procedureImpl = "'localState \<Rightarrow> ('localState, 'any) localAction"
+type_synonym ('ls, 'operation, 'any) procedureImpl = "'ls \<Rightarrow> ('ls, 'operation, 'any) localAction"
 
 datatype transactionStatus = Uncommitted | Committed 
 
@@ -64,35 +63,35 @@ lemma onlyCommittedGreater: "a \<triangleq> Committed" if "a\<ge>Some Committed"
 
 
 
-record 'any operationContext = 
-  calls :: "callId \<rightharpoonup> 'any call"
+record ('operation, 'any) operationContext = 
+  calls :: "callId \<rightharpoonup> ('operation, 'any) call"
   happensBefore :: "callId rel"
 
-record 'any invariantContext = "'any operationContext" +
+record ('proc, 'operation, 'any) invariantContext = "('operation, 'any) operationContext" +
   callOrigin :: "callId \<rightharpoonup> txid"
   transactionOrigin :: "txid \<rightharpoonup> invocId"
-  knownIds :: "'any set"
-  invocationOp :: "invocId \<rightharpoonup> (procedureName \<times> 'any list)"
+  knownIds :: "uniqueId set"
+  invocationOp :: "invocId \<rightharpoonup> 'proc"
   invocationRes :: "invocId \<rightharpoonup> 'any"
 
-record ('localState, 'any) prog =
-  querySpec :: "operation \<Rightarrow> 'any list \<Rightarrow> 'any operationContext \<Rightarrow> 'any \<Rightarrow> bool"
-  procedure :: "procedureName \<Rightarrow> 'any list \<rightharpoonup> ('localState \<times> ('localState, 'any) procedureImpl)"
-  invariant :: "'any invariantContext \<Rightarrow> bool"
+record ('proc, 'ls, 'operation, 'any) prog =
+  querySpec :: "'operation \<Rightarrow> ('operation, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool"
+  procedure :: "'proc \<rightharpoonup> ('ls \<times> ('ls, 'operation, 'any) procedureImpl)"
+  invariant :: "('proc, 'operation, 'any) invariantContext \<Rightarrow> bool"
 
-record ('localState, 'any) distributed_state = "'any invariantContext" +
-  prog :: "('localState, 'any) prog"
+record ('proc, 'ls, 'operation, 'any) distributed_state = "('proc, 'operation, 'any) invariantContext" +
+  prog :: "('proc, 'ls, 'operation, 'any) prog"
   transactionStatus :: "txid \<rightharpoonup> transactionStatus"
-  generatedIds :: "'any \<rightharpoonup> invocId" \<comment> \<open>unique identifiers and which invocId generated them\<close>
+  generatedIds :: "uniqueId \<rightharpoonup> invocId" \<comment> \<open>unique identifiers and which invocId generated them\<close>
 
-record ('localState, 'any) state = "('localState, 'any) distributed_state" + 
-  localState :: "invocId \<rightharpoonup> 'localState"
-  currentProc :: "invocId \<rightharpoonup> ('localState, 'any) procedureImpl"
+record ('proc, 'ls, 'operation, 'any) state = "('proc, 'ls, 'operation, 'any) distributed_state" + 
+  localState :: "invocId \<rightharpoonup> 'ls"
+  currentProc :: "invocId \<rightharpoonup> ('ls, 'operation, 'any) procedureImpl"
   visibleCalls :: "invocId \<rightharpoonup> callId set"
   currentTransaction :: "invocId \<rightharpoonup> txid"
 
 
-lemma state_ext: "((x::('localState, 'any) state) = y) \<longleftrightarrow> (
+lemma state_ext: "((x::('proc, 'ls, 'operation, 'any) state) = y) \<longleftrightarrow> (
     calls x = calls y
   \<and> happensBefore x = happensBefore y
   \<and> prog x = prog y
@@ -125,11 +124,11 @@ lemma stateEqI:
   and "knownIds x = knownIds y"
   and "invocationOp x = invocationOp y"
   and "invocationRes x = invocationRes y"
-shows "(x::('localState, 'any) state) = y"
+shows "(x::('proc, 'ls, 'operation, 'any) state) = y"
   using assms by (auto simp add: state_ext)
 
 lemma state_ext_exI:
-  fixes P :: "('localState, 'any) state \<Rightarrow> bool"
+  fixes P :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool"
   assumes "
 \<exists>
 s_calls
@@ -333,13 +332,13 @@ abbreviation "emptyInvariantContext \<equiv> \<lparr>
 definition isCommittedH where
   "isCommittedH state_callOrigin state_transactionStatus c \<equiv> \<exists>tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Committed"
 
-abbreviation isCommitted :: "('localState, 'any) state \<Rightarrow> callId \<Rightarrow> bool" where
+abbreviation isCommitted :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> callId \<Rightarrow> bool" where
   "isCommitted state \<equiv> isCommittedH (callOrigin state) (transactionStatus state)"
 
 definition "committedCallsH state_callOrigin state_transactionStatus \<equiv> 
    {c. isCommittedH state_callOrigin state_transactionStatus c}"
 
-abbreviation committedCalls :: "('localState, 'any) state \<Rightarrow> callId set" where
+abbreviation committedCalls :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> callId set" where
   "committedCalls state \<equiv> committedCallsH (callOrigin state) (transactionStatus state)"
 
 definition invContextH  where
@@ -539,18 +538,18 @@ transactionOrigin x = transactionOrigin y;
 knownIds x = knownIds y;
 invocationOp x = invocationOp y;
 invocationRes x = invocationRes y
-\<rbrakk> \<Longrightarrow> x = (y::'any invariantContext)"
+\<rbrakk> \<Longrightarrow> x = (y::('proc, 'operation, 'any) invariantContext)"
   by auto
 
 
 
-datatype 'any action =
+datatype ('proc, 'operation, 'any) action =
   ALocal
   | ANewId 'any
   | ABeginAtomic txid "callId set"
   | AEndAtomic
-  | ADbOp callId operation "'any list" 'any
-  | AInvoc procedureName "'any list"
+  | ADbOp callId 'operation 'any
+  | AInvoc 'proc
   | AReturn 'any
   | AFail  
   | AInvcheck bool
@@ -566,14 +565,14 @@ schematic_goal [simp]: "isAFail (ALocal) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (ANewId u) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (ABeginAtomic t newTxns) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AEndAtomic) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (ADbOp c oper args res) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (AInvoc pname args) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (ADbOp c oper res) = ?x" by (auto simp add: isAFail_def)
+schematic_goal [simp]: "isAFail (AInvoc proc) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AReturn res) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AFail) = ?x" by (auto simp add: isAFail_def)
 schematic_goal [simp]: "isAFail (AInvcheck c) = ?x" by (auto simp add: isAFail_def) 
 
 
-definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> bool" where
+definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> bool" where
 "chooseSnapshot snapshot vis S \<equiv>
   \<exists>newTxns newCalls.
   \<comment> \<open>  choose a set of committed transactions to add to the snapshot  \<close>
@@ -584,7 +583,7 @@ definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> 
    \<and> snapshot = vis \<union> newCalls"
 
 
-inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
+inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'operation, 'any) action) \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -594,10 +593,11 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
    f ls = NewId ls';
-   generatedIds S uid = None;
-   uniqueIds uid = {uid}; \<comment> \<open>  there is exactly one unique id  \<close>
-   ls' uid \<triangleq> ls''
-   \<rbrakk> \<Longrightarrow> S ~~ (i, ANewId uid) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls''), 
+   generatedIds S (uid) = None;
+   uniqueIds uidv = {uid}; \<comment> \<open>  there is exactly one unique id  \<close>
+   ls' uidv \<triangleq> ls'';
+   uid = to_nat uidv
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ANewId uidv) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls''), 
                                    generatedIds := (generatedIds S)(uid \<mapsto> i)  \<rparr>)"   
 | beginAtomic: 
   "\<lbrakk>localState S i \<triangleq> ls; 
@@ -611,7 +611,7 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \
                 currentTransaction := (currentTransaction S)(i \<mapsto> t),
                 transactionStatus := (transactionStatus S)(t \<mapsto> Uncommitted),
                 transactionOrigin := (transactionOrigin S)(t \<mapsto> i),
-                visibleCalls := (visibleCalls S)(i \<mapsto> snapshot)\<rparr>)"
+                visibleCalls := (visibleCalls S)(i \<mapsto> snapshot)\<rparr>)" 
 | endAtomic: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -623,26 +623,26 @@ inductive step :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \
 | dbop: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
-   f ls = DbOperation Op args ls';
+   f ls = DbOperation Op ls';
    currentTransaction S i \<triangleq> t;
    calls S c = None;
-   querySpec (prog S) Op args (getContext S i)  res;
+   querySpec (prog S) Op (getContext S i)  res;
    visibleCalls S i \<triangleq> vis
-   \<rbrakk> \<Longrightarrow>  S ~~ (i, ADbOp c Op args res) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls' res), 
-                calls := (calls S)(c \<mapsto> Call Op args res ),
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, ADbOp c Op res) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls' res), 
+                calls := (calls S)(c \<mapsto> Call Op res ),
                 callOrigin := (callOrigin S)(c \<mapsto> t),
                 visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
-                happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>)"                
+                happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>)"              
 
-| invocId:
+| invocation:
   "\<lbrakk>localState S i = None; \<comment> \<open>  TODO this might not be necessary  \<close>
-   procedure (prog S) procName args \<triangleq> (initialState, impl);
-   uniqueIdsInList args \<subseteq> knownIds S;
+   procedure (prog S) proc \<triangleq> (initialState, impl);
+   uniqueIds proc \<subseteq> knownIds S;
    invocationOp S i = None
-   \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc procName args) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> initialState),
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc proc) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> initialState),
                  currentProc := (currentProc S)(i \<mapsto> impl),
                  visibleCalls := (visibleCalls S)(i \<mapsto> {}),
-                 invocationOp := (invocationOp S)(i \<mapsto> (procName, args)) \<rparr>)"                   
+                 invocationOp := (invocationOp S)(i \<mapsto> proc) \<rparr>)"                  
 | return:
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -667,8 +667,8 @@ inductive_simps step_simp_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
 inductive_simps step_simp_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
 inductive_simps step_simp_ABeginAtomic: "A ~~ (s, ABeginAtomic t newTxns) \<leadsto> B "
 inductive_simps step_simp_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
-inductive_simps step_simp_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
-inductive_simps step_simp_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
+inductive_simps step_simp_ADbOp: "A ~~ (s, ADbOp c oper res) \<leadsto> B "
+inductive_simps step_simp_AInvoc: "A ~~ (s, AInvoc proc) \<leadsto> B "
 inductive_simps step_simp_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_simps step_simp_AFail: "A ~~ (s, AFail) \<leadsto> B "
 inductive_simps step_simp_AInvcheck: "A ~~ (s, AInvcheck res) \<leadsto> B "
@@ -689,8 +689,8 @@ inductive_cases step_elim_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
 inductive_cases step_elim_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
 inductive_cases step_elim_ABeginAtomic: "A ~~ (s, ABeginAtomic t newTxns) \<leadsto> B "
 inductive_cases step_elim_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
-inductive_cases step_elim_ADbOp: "A ~~ (s, ADbOp c oper args res) \<leadsto> B "
-inductive_cases step_elim_AInvoc: "A ~~ (s, AInvoc procname args) \<leadsto> B "
+inductive_cases step_elim_ADbOp: "A ~~ (s, ADbOp c oper res) \<leadsto> B "
+inductive_cases step_elim_AInvoc: "A ~~ (s, AInvoc procname) \<leadsto> B "
 inductive_cases step_elim_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
 inductive_cases step_elim_AFail: "A ~~ (s, AFail) \<leadsto> B "
 inductive_cases step_elim_AInvcheck: "A ~~ (s, AInvcheck i) \<leadsto> B "
@@ -707,7 +707,7 @@ lemmas step_elims =
   step_elim_AFail
   step_elim_AInvcheck
 
-inductive steps :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
+inductive steps :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'operation, 'any) action) list \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
   steps_refl:
   "S ~~ [] \<leadsto>* S"
 | steps_step:
@@ -741,7 +741,7 @@ next
     by (metis snoc_eq_iff_butlast stepDeterministic steps.cases) 
 qed
 
-definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState, 'any) state" where
+definition initialState :: "('proc, 'ls, 'operation, 'any) prog \<Rightarrow> ('proc, 'ls, 'operation, 'any) state" where
   "initialState program \<equiv> \<lparr>
   calls = Map.empty,
   happensBefore = {},
@@ -759,7 +759,7 @@ definition initialState :: "('localState, 'any) prog \<Rightarrow> ('localState,
   currentTransaction = Map.empty
 \<rparr>"
 
-type_synonym 'any trace = "(invocId\<times>'any action) list"
+type_synonym ('proc, 'operation, 'any) trace = "(invocId\<times>('proc, 'operation, 'any) action) list"
 
 definition traces where
   "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
@@ -772,7 +772,7 @@ definition programCorrect where
 
 definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rightarrow> True | _ \<Rightarrow> False)"
 
-definition "isAInvoc action = (case action of AInvoc _ _  \<Rightarrow> True | _ \<Rightarrow> False)"
+definition "isAInvoc action = (case action of AInvoc _   \<Rightarrow> True | _ \<Rightarrow> False)"
 
 
 lemma show_programCorrect:
@@ -787,7 +787,7 @@ lemma show_programCorrect:
 2. part until and including (s, EndAtomic); same invocId
 3. rest
 *)
-fun splitTrace :: "invocId \<Rightarrow> 'any trace \<Rightarrow> ('any trace \<times> 'any trace \<times> 'any trace)" where
+fun splitTrace :: "invocId \<Rightarrow> ('proc, 'operation, 'any) trace \<Rightarrow> (('proc, 'operation, 'any) trace \<times> ('proc, 'operation, 'any) trace \<times> ('proc, 'operation, 'any) trace)" where
   "splitTrace s [] = ([],[],[])"
 | "splitTrace s ((sa, a)#tr) = (
     if s = sa then
@@ -826,7 +826,7 @@ lemma splitTrace_len2:
 declare splitTrace.simps[simp del]
 
   
-function (sequential) compactTrace :: "invocId \<Rightarrow> 'any trace \<Rightarrow> 'any trace" where
+function (sequential) compactTrace :: "invocId \<Rightarrow> ('proc, 'operation, 'any) trace \<Rightarrow> ('proc, 'operation, 'any) trace" where
   compactTrace_empty:
   "compactTrace s [] = []"
 | compactTrace_step:
@@ -921,8 +921,8 @@ schematic_goal steps_simp_ALocal: "(A ~~ (i, ALocal)#rest \<leadsto>* B) \<longl
 schematic_goal steps_simp_ANewId: "(A ~~ (i, ANewId n)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_ABeginAtomic: "(A ~~ (i, ABeginAtomic t newTxns)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_AEndAtomic: "(A ~~ (i, AEndAtomic)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
-schematic_goal steps_simp_ADbOp: "(A ~~ (i, ADbOp c oper args res)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
-schematic_goal steps_simp_AInvoc: "(A ~~ (i, AInvoc procname args)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_ADbOp: "(A ~~ (i, ADbOp c oper res)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_AInvoc: "(A ~~ (i, AInvoc procname)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_AReturn: "(A ~~ (i, AReturn res)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_AFail: "(A ~~ (i, AFail)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_AInvcheck: "(A ~~ (i, AInvcheck invi)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule

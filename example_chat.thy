@@ -409,7 +409,7 @@ lemma [simp]: "procedure progr = procedures" by (simp add: progr_def)
 lemma [simp]: "invariant progr = inv" by (simp add: progr_def)
 
 (*
-definition initialStates :: "('localState, 'any) prog \<Rightarrow> invocId \<Rightarrow> ('localState, 'any) state set"  where
+definition initialStates :: "('proc, 'ls, 'operation, 'any) prog \<Rightarrow> invocId \<Rightarrow> ('proc, 'ls, 'operation, 'any) state set"  where
 "initialStates progr i \<equiv> {
     (S\<lparr>localState := (localState S)(i \<mapsto> initState),
        currentProc := (currentProc S)(i \<mapsto> impl),

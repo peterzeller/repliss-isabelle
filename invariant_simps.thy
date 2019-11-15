@@ -250,18 +250,6 @@ proof (auto simp add: invocation_happensBeforeH_def)
     by (auto simp add:  i_callOriginI_h_def restrict_map_def split: option.splits if_splits)
 qed
 
-schematic_goal checkCorrect2F_step:
-  "\<lbrakk>b>0; ?F (checkCorrect2F ^^ (b - 1)) bot S\<rbrakk> \<Longrightarrow> (checkCorrect2F ^^ b) bot S"
-  apply (case_tac b)
-   apply simp
-  apply (rule_tac t=b and s="Suc nat" in ssubst, assumption)
-  apply (subst funpow.simps)
-  apply (subst o_apply)
-  apply (subst checkCorrect2F_def)
-  apply (rule_tac t=nat and s="b - 1" in ssubst)
-   apply simp
-  apply assumption
-  done
 
 
 

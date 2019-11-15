@@ -102,7 +102,7 @@ next
       by (auto simp add: step_simps_all causallyConsistent_def split: if_splits)
 
   next
-    case (dbop S i ls f Op args ls' t c res vis)
+    case (dbop S i ls f Op ls' t c res vis)
     have "state_wellFormed S"
       using dbop.hyps(1) step.hyps(1) by blast
 
@@ -223,7 +223,7 @@ next
       using IH1 by blast
       
   next
-    case (dbop s' ls f Op args ls' t c' res vis')
+    case (dbop s' ls f Op ls' t c' res vis')
     show ?thesis 
       using g1 g2 g3 apply (auto simp add: dbop split: if_splits)
       using IH1 local.dbop(6) local.dbop(9) apply fastforce
@@ -231,15 +231,15 @@ next
       using IH1 by blast
       
   next
-    case (invocId s' procName args initialState impl)
+    case (invocation s' procName initialState impl)
     show ?thesis 
-      using IH1 g1 g2 g3 by (auto simp add: invocId split: if_splits)
+      using IH1 g1 g2 g3 by (auto simp add: invocation split: if_splits)
   next
     case (return s ls f res)
-    then show ?thesis using IH1 g1 g2 g3 by (auto simp add: invocId split: if_splits)
+    then show ?thesis using IH1 g1 g2 g3 by (auto simp add: invocation split: if_splits)
   next
     case (fail s ls)
-    then show ?thesis using IH1 g1 g2 g3 by (auto simp add: invocId split: if_splits)
+    then show ?thesis using IH1 g1 g2 g3 by (auto simp add: invocation split: if_splits)
   next
     case (invCheck res s)
     then show ?thesis using IH1 g1 g2 g3 by auto
@@ -322,7 +322,7 @@ next
     case (endAtomic s ls f ls' t)
     then show ?thesis  using IH2 g1 g2 g3 by auto
   next
-    case (dbop s' ls f Op args ls' t c res vis')
+    case (dbop s' ls f Op ls' t c res vis')
     show ?thesis  
     proof (cases "s' = s")
       case True
@@ -345,7 +345,7 @@ next
       using IH2 by blast
     qed
   next
-    case (invocId s procName args initialState impl)
+    case (invocation s procName initialState impl)
     then show ?thesis  using IH2 g1 g2 g3 by (auto split: if_splits)
   next
     case (return s ls f res)
@@ -381,7 +381,7 @@ next
     case (endAtomic s ls f ls' t)
     then show ?thesis using g1 g2 g3 IH4 by auto
   next
-    case (dbop s ls f Op args ls' t c res vis)
+    case (dbop s ls f Op ls' t c res vis)
     show ?thesis 
       using g1 g2 g3 apply (auto simp add: dbop split: if_splits)
       using local.dbop(7) step.hyps(1) wellFormed_happensBefore_calls_r apply blast
@@ -390,7 +390,7 @@ next
       using IH4 by blast
       
   next
-    case (invocId s procName args initialState impl)
+    case (invocation s procName initialState impl)
     then show ?thesis using g1 g2 g3 IH4 by auto
   next
     case (return s ls f res)
@@ -429,7 +429,7 @@ next
       case (endAtomic s ls f ls' t)
       then show ?thesis using whenUnchanged by auto
     next
-      case (dbop s ls f Op args ls' t c res vis)
+      case (dbop s ls f Op ls' t c res vis)
       
       from \<open>calls C c = None\<close>
       have c_no_hb1[simp]: "(x, c) \<notin> happensBefore C" for x
@@ -480,7 +480,7 @@ next
           by (simp add: IH3_to)
       qed
     next
-      case (invocId s procName args initialState impl)
+      case (invocation s procName initialState impl)
       then show ?thesis using whenUnchanged by auto
     next
       case (return s ls f res)

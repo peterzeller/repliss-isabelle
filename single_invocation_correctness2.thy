@@ -3,15 +3,24 @@ theory single_invocation_correctness2
     single_invocation_reduction
 begin
 
+text "Checks that a procedure with initial state S on invocation i is correct."
+
+definition "execution_s_correct" where
+"execution_s_correct progr S i \<equiv> \<forall>trace S'. (S ~~ (i, trace) \<leadsto>\<^sub>S* S') \<longrightarrow> traceCorrect_s progr trace"
+
+definition "procedureCorrect" where
+"procedureCorrect progr S i \<equiv> invariant_all' S \<and> execution_s_correct progr S i"
+
+
 
 lemma show_programCorrect_using_checkCorrect1:
   assumes initalStatesCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> invariant_all' S"
     and invInitial: "invariant_all' (initialState progr)"
-   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> \<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
+   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> procedureCorrect progr S i"
  shows "programCorrect progr"
 proof (rule show_correctness_via_single_session)
   show "invariant_all (initialState progr)"
-    using invInitial 
+    using invInitial
     by (auto simp add: invContext_same_allCommitted state_wellFormed_init transactionStatus_initial)
 
 
@@ -36,26 +45,36 @@ proof (rule show_correctness_via_single_session)
   qed
 qed
 
-lemma show_programCorrect_using_checkCorrect:
-  assumes initialStatesCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates' progr i\<rbrakk> \<Longrightarrow> invariant_all' S"
-    and invInitial: "invariant_all' (initialState progr)"
-   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates' progr i\<rbrakk> \<Longrightarrow> \<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
- shows "programCorrect progr"
-proof (rule show_programCorrect_using_checkCorrect1)
 
-  from invInitial
-  show "invariant_all' (initialState progr)".
+  assume "ct' \<equiv> \<lambda>pos name. (name, pos, []) # ct"
+    and a1: "invariant_all' (initialState progr)"
+    and a2: "\<And>S i. S \<in> initialStates' progr i \<Longrightarrow> procedureCorrect progr S i"
+  show "programCorrect progr"
+  proof (rule show_correctness_via_single_session)
+    show "invariant_all (initialState progr)"
+      using a1
+      by (metis initialState_def invContext_same_allCommitted invariantContext.select_convs(1) invariantContext.select_convs(4) state_wellFormed_init transactionStatus_initial wellFormed_currentTransaction_back4 wellFormed_invoc_notStarted(1) wf_callOrigin_implies_transactionStatus_defined)
 
-  from stepsCorrect
-  show "\<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)"
-    if c0: "S\<in>initialStates progr i"
-    for  S i
-    using initialStates'_same that by blast
+    show "programCorrect_s progr"
+    proof (auto simp add: programCorrect_s_def)
 
-  show "invariant_all' S"
-    if c0: "S \<in> initialStates progr i"
-    for  S i
-    using initialStates'_same initialStatesCorrect that by blast
-qed
+      show "traceCorrect_s progr trace"
+        if c0: "initialState progr ~~ (s, trace) \<leadsto>\<^sub>S* x"
+        for  trace s x
+        using a2
+
+
+
+  show "programCorrect progr"
+      if c0: "S \<in> initialStates' progr i \<Longrightarrow> procedureCorrect progr S i"
+     for  S i
+
+
+
+  thm show_correctness_via_single_session
+  apply (auto simp add: procedureCorrect_def procedureCorrect_def)
+
+
+
 
 end

@@ -7,7 +7,7 @@ section \<open>Execution Invariants\<close>
 text \<open>This theory includes proof for invariants that hold for all executions.\<close>
 
 
-definition state_wellFormed :: "('localState, 'any::valueType) state \<Rightarrow> bool" where
+definition state_wellFormed :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> bool" where
   "state_wellFormed state \<equiv> \<exists>tr. (\<forall>i. (i, AFail) \<notin> set tr) \<and>  initialState (prog state) ~~ tr \<leadsto>* state"
 
 lemma state_wellFormed_init:
@@ -248,7 +248,7 @@ next
       case (dbop ls f Op args ls' t c res vis)
       then show ?thesis using a1 a3 by (auto split: if_splits)
     next
-      case (invocId procName args initialState impl)
+      case (invocation proc initialState impl)
       then show ?thesis using a1 a3 by (auto split: if_splits)
     next
       case (return ls f res)
@@ -761,7 +761,7 @@ lemma exists_implementation:
   assumes "state_wellFormed S"
     and "currentProc S i \<triangleq> impl"
     and "progr = prog S"
-  shows "\<exists>p args lsInit. procedure progr p args \<triangleq> (lsInit, impl)"
+  shows "\<exists>p lsInit. procedure progr p \<triangleq> (lsInit, impl)"
   using assms proof (induct rule: wellFormed_induct)
   case initial
   then show ?case by (auto simp add: initialState_def)
@@ -872,21 +872,21 @@ text \<open>
 \<close>
 lemma invation_info_set_iff_invocation_happened:
   assumes steps: "initialState program ~~ tr \<leadsto>* S"
-  shows "(invocationOp S s = None) \<longleftrightarrow> (\<forall>proc args. (s, AInvoc proc args)\<notin> set tr )"
-    and "\<forall>proc args. (invocationOp S s = Some (proc, args)) \<longleftrightarrow> ((s, AInvoc proc args) \<in> set tr )"
+  shows "(invocationOp S s = None) \<longleftrightarrow> (\<forall>proc. (s, AInvoc proc)\<notin> set tr )"
+    and "\<forall>proc. (invocationOp S s = Some proc) \<longleftrightarrow> ((s, AInvoc proc) \<in> set tr )"
   using steps proof (induct rule: steps_induct)
   case initial
-  show "(invocationOp (initialState program) s = None) \<longleftrightarrow> (\<forall>proc args. (s, AInvoc proc args) \<notin> set [])"
+  show "(invocationOp (initialState program) s = None) \<longleftrightarrow> (\<forall>proc. (s, AInvoc proc) \<notin> set [])"
     by (auto simp add: initialState_def)
-  show "\<forall>proc args. invocationOp (initialState program) s \<triangleq> (proc, args) = ((s, AInvoc proc args) \<in> set [])"
+  show "\<forall>proc. invocationOp (initialState program) s \<triangleq> proc = ((s, AInvoc proc ) \<in> set [])"
     by (auto simp add: initialState_def)
 next
   case (step S' tr a S'')
 
-  show "(invocationOp S'' s = None) = (\<forall>proc args. (s, AInvoc proc args) \<notin> set (tr @ [a]))"
+  show "(invocationOp S'' s = None) = (\<forall>proc. (s, AInvoc proc) \<notin> set (tr @ [a]))"
     using \<open>S' ~~ a \<leadsto> S''\<close> by (induct rule: step.cases, auto simp add: step.IH(1))
 
-  show "\<forall>proc args. invocationOp S'' s \<triangleq> (proc, args) = ((s, AInvoc proc args) \<in> set (tr @ [a]))"
+  show "\<forall>proc. invocationOp S'' s \<triangleq> proc = ((s, AInvoc proc) \<in> set (tr @ [a]))"
     using \<open>S' ~~ a \<leadsto> S''\<close> using step.IH(2) by (induct rule: step.cases, auto)
 qed
 
@@ -920,10 +920,10 @@ next
       case (endAtomic C s ls f ls' t)
       then show ?case  using step.IH by (auto simp add: True)
     next
-      case (dbop C s ls f Op args ls' t c res vis)
+      case (dbop C s ls f Op ls' t c res vis)
       then show ?case  using step.IH by (auto simp add: True)
     next
-      case (invocId C s procName args initialState impl)
+      case (invocation C s procName initialState impl)
       then show ?case  using step.IH by (auto simp add: True)
     next
       case (return C s ls f res)
@@ -1292,15 +1292,15 @@ next
   case AEndAtomic
   then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
 next
-  case (ADbOp callId operation args res)
+  case (ADbOp callId operation res)
   from this
   obtain ls f ls' vis 
     where 1: "localState A sa \<triangleq> ls"
       and 2: "currentProc A sa \<triangleq> f"
-      and 3: "f ls = DbOperation operation args ls'"
-      and 4: "querySpec (prog A) operation args (getContext A sa) res"
+      and 3: "f ls = DbOperation operation ls'"
+      and 4: "querySpec (prog A) operation (getContext A sa) res"
       and 5: "visibleCalls A sa \<triangleq> vis"
-      and 6: "B = A\<lparr>localState := localState A(sa \<mapsto> ls' res), calls := calls A(callId \<mapsto> Call operation args res), callOrigin := callOrigin A(callId \<mapsto> tx), visibleCalls := visibleCalls A(sa \<mapsto> {callId} \<union> vis),
+      and 6: "B = A\<lparr>localState := localState A(sa \<mapsto> ls' res), calls := calls A(callId \<mapsto> Call operation res), callOrigin := callOrigin A(callId \<mapsto> tx), visibleCalls := visibleCalls A(sa \<mapsto> {callId} \<union> vis),
                 happensBefore := happensBefore A \<union> vis \<times> {callId}\<rparr>"
     using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
   have case1: "getContext B sb = getContext A sb" if "visibleCalls A sb = None"
@@ -1329,7 +1329,7 @@ next
   qed 
   from case1 case2 show ?thesis by fastforce 
 next
-  case (AInvoc x71 x72)
+  case (AInvoc x71 )
   then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
 next
   case (AReturn x8)
@@ -1404,10 +1404,10 @@ next
     case AEndAtomic
     then show ?thesis using steps_step by auto
   next
-    case (ADbOp x51 x52 x53 x54)
+    case (ADbOp)
     then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
   next
-    case (AInvoc x71 x72)
+    case (AInvoc )
     then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
   next
     case (AReturn x8)
@@ -1667,16 +1667,16 @@ lemma noNestedTransactions':
 
 lemma localState_iff_exists_invoc:
   assumes steps: "initialState program ~~ tr \<leadsto>* C"
-  shows "localState C s \<noteq> None \<longrightarrow> (\<exists>p args. (s, AInvoc p args) \<in> set tr)"
+  shows "localState C s \<noteq> None \<longrightarrow> (\<exists>p. (s, AInvoc p) \<in> set tr)"
   using invation_info_set_iff_invocation_happened(1) invocation_ops_if_localstate_nonempty steps by blast
 
 lemma exists_invoc:
   assumes steps: "initialState program ~~ tr \<leadsto>* C"
     and "i < length tr"
     and "fst(tr!i) = s"
-    and "\<And>p args. snd(tr!i) \<noteq> AInvoc p args"
+    and "\<And>p. snd(tr!i) \<noteq> AInvoc p"
     and "\<not>is_AInvcheck (snd(tr!i))"
-  shows "\<exists>j. j<i \<and> fst(tr!j) = s \<and> (\<exists>p args. snd(tr!j) = AInvoc p args)"    
+  shows "\<exists>j. j<i \<and> fst(tr!j) = s \<and> (\<exists>p. snd(tr!j) = AInvoc p)"    
   using assms proof (induct arbitrary: i rule: steps_induct)
   case initial
   then show ?case by (auto simp add: initialState_def)
@@ -1684,11 +1684,11 @@ next
   case (step S' tr a S'')
 
   from \<open>initialState program ~~ tr \<leadsto>* S'\<close>
-  have "\<exists>p args. (s, AInvoc p args) \<in> set tr" if "localState S' s \<noteq> None" for s
+  have "\<exists>p. (s, AInvoc p) \<in> set tr" if "localState S' s \<noteq> None" for s
     using that
     using localState_iff_exists_invoc by blast 
 
-  then have getI: "\<exists>j p args. j<length tr \<and> tr!j =(s, AInvoc p args)" if "localState S' s \<triangleq> x" for s x
+  then have getI: "\<exists>j p. j<length tr \<and> tr!j =(s, AInvoc p)" if "localState S' s \<triangleq> x" for s x
     by (metis in_set_conv_nth option.distinct(1) that)
 
 
@@ -1713,10 +1713,10 @@ qed
 
 lemma uid_used_only_once:
   assumes steps:  "S_start ~~ tr \<leadsto>* S_end"
-    and alreadyGenerated: "generatedIds S_start uid \<triangleq> i'"
+    and alreadyGenerated: "generatedIds S_start (to_nat uid) \<triangleq> i'"
   shows "(i, ANewId uid) \<notin> set tr"
 proof -
-  have "(i, ANewId uid) \<notin> set tr \<and> generatedIds S_end uid \<triangleq> i'"
+  have "(i, ANewId uid) \<notin> set tr \<and> generatedIds S_end  (to_nat uid) \<triangleq> i'"
     using steps alreadyGenerated proof (induct rule: steps_induct)
     case initial
     then show ?case by simp
@@ -1738,24 +1738,24 @@ lemma wf_transaction_status_iff_origin:
 lemma callIds_unique:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and "calls S cId \<noteq> None"
-  shows "(s, ADbOp cId Op args res) \<notin> set tr" and "calls S' cId \<noteq> None"
+  shows "(s, ADbOp cId Op res) \<notin> set tr" and "calls S' cId \<noteq> None"
 using steps proof (induct rule: steps_induct)
   case initial
   then show "calls S cId \<noteq> None" using \<open>calls S cId \<noteq> None\<close> .
-  show "(s, ADbOp cId Op args res) \<notin> set []" by simp
+  show "(s, ADbOp cId Op res) \<notin> set []" by simp
 next
   case (step S' tr a S'')
   from step
-  show "(s, ADbOp cId Op args res) \<notin> set (tr @ [a])" and "calls S'' cId \<noteq> None"
+  show "(s, ADbOp cId Op res) \<notin> set (tr @ [a])" and "calls S'' cId \<noteq> None"
     by (auto simp add: step.simps)
 qed
 
 lemma callIds_unique2:
   assumes steps: "S ~~ tr \<leadsto>* S'"
-    and "tr ! i = (s, ADbOp cId Op args res)"
+    and "tr ! i = (s, ADbOp cId Op res)"
     and "i<j"
     and "j < length tr"
-  shows  "tr ! j  \<noteq> (s', ADbOp cId Op' args' res')"
+  shows  "tr ! j  \<noteq> (s', ADbOp cId Op' res')"
   using assms 
 proof -
   have "i < length tr"
@@ -1770,18 +1770,18 @@ proof -
       and "Si ~~ drop (Suc i) tr \<leadsto>* S'"
     using steps steps_append by fastforce
   from \<open>S ~~ take (Suc i) tr \<leadsto>* Si\<close>
-  obtain Si_pre where "Si_pre ~~ (s, ADbOp cId Op args res) \<leadsto> Si"
-    using steps_appendBack[where A=S and tr="take (Suc i) tr" and a="(s, ADbOp cId Op args res)"]
-      `tr ! i = (s, ADbOp cId Op args res)`
+  obtain Si_pre where "Si_pre ~~ (s, ADbOp cId Op res) \<leadsto> Si"
+    using steps_appendBack[where A=S and tr="take (Suc i) tr" and a="(s, ADbOp cId Op res)"]
+      `tr ! i = (s, ADbOp cId Op res)`
       take_Suc_conv_app_nth[OF `i < length tr`]
     by (auto, insert steps_appendBack, blast)
 
   then have "calls Si cId \<noteq> None"
     by (auto simp add: step_simps)
   with callIds_unique[OF \<open>Si ~~ drop (Suc i) tr \<leadsto>* S'\<close>]
-  have "(s', ADbOp cId Op' args' res') \<notin> set (drop (Suc i) tr)"
+  have "(s', ADbOp cId Op' res') \<notin> set (drop (Suc i) tr)"
     by blast
-  then show "tr ! j  \<noteq> (s', ADbOp cId Op' args' res')"
+  then show "tr ! j  \<noteq> (s', ADbOp cId Op' res')"
     by (smt Suc_leI \<open>tr = take (Suc i) tr @ drop (Suc i) tr\<close> assms(3) assms(4) in_set_conv_nth le_add_diff_inverse2 length_drop length_take less_diff_conv min_def min_less_iff_conj not_less_eq nth_append)
     
 qed
@@ -1992,7 +1992,7 @@ next
       using \<open>a = (s, ALocal)\<close> by (auto simp add: nth_append)
 
   next
-    case (newId s ls f ls' uid)
+    case (newId s ls f ls' uidv uid)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
     proof (rule step)
       show "currentTransaction S' i \<triangleq> tx"
@@ -2046,7 +2046,7 @@ next
           insert endAtomic \<open>currentTransaction S'' i \<triangleq> tx\<close>,
           auto simp add: nth_append)
   next
-    case (dbop s ls f Op args ls' t c res vis)
+    case (dbop s ls f Op  ls' t c res vis)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
     proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
@@ -2054,17 +2054,17 @@ next
     qed
 
     then show ?thesis
-      using \<open>a = (s, ADbOp c Op args res)\<close> by (auto simp add: nth_append)
+      using \<open>a = (s, ADbOp c Op  res)\<close> by (auto simp add: nth_append)
   next
-    case (invocId s procName args initialState impl)
+    case (invocation s procName initialState impl)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
     proof (rule IH)
       show "currentTransaction S' i \<triangleq> tx"
-        using \<open>currentTransaction S'' i \<triangleq> tx\<close> by (simp add:  invocId)
+        using \<open>currentTransaction S'' i \<triangleq> tx\<close> by (simp add:  invocation)
     qed
 
     then show ?thesis
-      using invocId by (auto simp add: nth_append)
+      using invocation by (auto simp add: nth_append)
   next
     case (return s ls f res)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"

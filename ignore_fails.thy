@@ -80,7 +80,7 @@ proof (rule iffI2; clarsimp)
               insert induct_step.coupling no_fail local,
               auto simp add: step_simps state_ext local induct_step steps_single)
       next
-        case (newId s ls f ls' uid ls'')
+        case (newId s ls f ls' uid uidv ls'')
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
         have no_fail: "(s, AFail) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
@@ -120,25 +120,25 @@ proof (rule iffI2; clarsimp)
               insert induct_step.coupling no_fail endAtomic,
               auto simp add: step_simps state_ext  induct_step steps_single)
       next
-        case (dbop s ls f Op args ls' t c res vis)
+        case (dbop s ls f Op ls' t c res vis)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
         have no_fail: "(s, AFail) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls' res), calls := calls S2(c \<mapsto> Call Op args res), callOrigin := callOrigin S1(c \<mapsto> t), visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> {c}), happensBefore := happensBefore S1 \<union> vis \<times> {c}\<rparr>"],
+          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls' res), calls := calls S2(c \<mapsto> Call Op res), callOrigin := callOrigin S1(c \<mapsto> t), visibleCalls := visibleCalls S2(s \<mapsto> vis \<union> {c}), happensBefore := happensBefore S1 \<union> vis \<times> {c}\<rparr>"],
               insert induct_step.coupling no_fail dbop,
               auto simp add: step_simps state_ext  induct_step steps_single)
 
       next
-        case (invocId s procName args initialLocalState impl)
+        case (invocation s procName initialLocalState impl)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>invocationOp S1 s = None\<close>
         have no_fail: "(s, AFail) \<notin> set tr"
           by (meson everything_starts_with_an_invocation in_set_conv_nth)
 
         show ?thesis 
-          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> initialLocalState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> (procName, args))\<rparr>"],
-              insert induct_step.coupling no_fail invocId,
+          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> initialLocalState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> procName)\<rparr>"],
+              insert induct_step.coupling no_fail invocation,
               auto simp add: step_simps state_ext  induct_step steps_single)
       next
         case (return s ls f res)

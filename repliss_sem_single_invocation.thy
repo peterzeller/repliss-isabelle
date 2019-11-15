@@ -10,7 +10,7 @@ text \<open>This theory describes the single-invocId semantics used for our proo
 definition 
 "state_monotonicGrowth_txStable callOrigin_S callOrigin_S' transactionStatus_S' \<equiv> (\<forall>c tx. callOrigin_S c \<triangleq> tx \<and> transactionStatus_S' tx \<triangleq> Committed \<longrightarrow> callOrigin_S' c \<triangleq> tx)"
 
-definition state_monotonicGrowth :: "invocId \<Rightarrow> ('localState, 'any::valueType) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
+definition state_monotonicGrowth :: "invocId \<Rightarrow> ('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth i S S' \<equiv> state_wellFormed S \<and> (\<exists>tr. (S ~~ tr \<leadsto>* S') \<and> (\<forall>(i',a)\<in>set tr. i' \<noteq> i) \<and> (\<forall>i. (i, AFail) \<notin> set tr))"
 
 \<comment> \<open>TODO add definitions\<close>
@@ -25,7 +25,7 @@ definition state_monotonicGrowth :: "invocId \<Rightarrow> ('localState, 'any::v
    \<comment> \<open>monotonic growth of invocId happens-before\<close>
    \<comment> \<open>--> no new calls can be added before\<close>
 (*
-definition state_monotonicGrowth :: "('localState, 'any::valueType) state \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" where
+definition state_monotonicGrowth :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth S' S \<equiv> 
       \<comment> \<open> monotonic growth of i calls \<close>
       \<and>  (\<forall>c i. calls S' c \<triangleq> i \<longrightarrow> calls S c \<triangleq> i)
@@ -248,7 +248,7 @@ state_monotonicGrowth_transactionOrigin
 
 \<comment> \<open>TODO remove definition\<close>
 text \<open>Invariant holds for state\<close>
-abbreviation invariant_all :: "('localState, 'any) state \<Rightarrow> bool" where
+abbreviation invariant_all :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
 "invariant_all state \<equiv>  invariant (prog state) (invContext state)"
 
 
@@ -286,7 +286,7 @@ lemma chooseSnapshot_same_if_everything_committed:
     using assms not_uncommitted_cases by auto
 qed
   
-inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId \<times> 'any action \<times> bool) \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
+inductive step_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'operation, 'any) action \<times> bool) \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S" 60) where
   local: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -297,9 +297,10 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId
    currentProc S i \<triangleq> f; 
    f ls = NewId ls';
    generatedIds S uid = None;
-   uniqueIds uid = {uid}; \<comment> \<open> there is exactly one unique id \<close>
-   ls' uid \<triangleq> ls''
-   \<rbrakk> \<Longrightarrow> S ~~ (i, ANewId uid, True) \<leadsto>\<^sub>S (S\<lparr>localState := (localState S)(i \<mapsto> ls''), 
+   uniqueIds uidv = {uid}; \<comment> \<open> there is exactly one unique id \<close>
+   ls' uidv \<triangleq> ls'';
+   uid = to_nat uidv
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ANewId uidv, True) \<leadsto>\<^sub>S (S\<lparr>localState := (localState S)(i \<mapsto> ls''), 
                                    generatedIds := (generatedIds S)( uid \<mapsto> i) \<rparr>)"   
 | beginAtomic: 
   "\<lbrakk>localState S i \<triangleq> ls; 
@@ -335,7 +336,7 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId
               localState := (localState S')(i \<mapsto> ls'),
               visibleCalls := (visibleCalls S')(i \<mapsto> vis')
     \<rparr>)
-   \<rbrakk> \<Longrightarrow> S ~~ (i, ABeginAtomic t txns, True) \<leadsto>\<^sub>S S''"
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ABeginAtomic t txns, True) \<leadsto>\<^sub>S S''" 
 | endAtomic: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -350,32 +351,21 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId
 | dbop: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
-   f ls = DbOperation Op args ls';
+   f ls = DbOperation Op ls';
    currentTransaction S i \<triangleq> t;
    calls S c = None;
-   querySpec (prog S) Op args (getContext S i)  res;
+   querySpec (prog S) Op (getContext S i)  res;
    visibleCalls S i \<triangleq> vis
-   \<rbrakk> \<Longrightarrow>  S ~~ (i, ADbOp c Op args res, True) \<leadsto>\<^sub>S (S\<lparr>localState := (localState S)(i \<mapsto> ls' res), 
-                calls := (calls S)(c \<mapsto> Call Op args res ),
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, ADbOp c Op res, True) \<leadsto>\<^sub>S (S\<lparr>localState := (localState S)(i \<mapsto> ls' res), 
+                calls := (calls S)(c \<mapsto> Call Op res ),
                 callOrigin := (callOrigin S)(c \<mapsto> t),
                 visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
-                happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>)"                
-(* TODO integrate pull into beginAtomic
-| pull:
-  "\<lbrakk>localState C s \<triangleq> ls; 
-   currentTransaction C s = None;
-   visibleCalls C s \<triangleq> vis;
-   \<comment> \<open>  choose a set of committed transactions to pull in \<close>
-   newTxns \<subseteq> committedTransactions C;
-   \<comment> \<open>  pull in calls from the transactions and their dependencies  \<close>
-   newCalls = callsInTransaction C newTxns \<down> happensBefore C
-   \<rbrakk> \<Longrightarrow>  C ~~ (s, APull newTxns) \<leadsto>\<^sub>S (C\<lparr> visibleCalls := (visibleCalls C)(s \<mapsto> vis \<union> newCalls)\<rparr>)"                         
-*)
-| invocId:
+                happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>)"              
+| invocation:
   "\<lbrakk>\<comment> \<open> localState C s = None; \<close>
    invocationOp S i = None;
-   procedure (prog S) procName args \<triangleq> (initState, impl);
-   uniqueIdsInList args \<subseteq> knownIds S';
+   procedure (prog S) proc \<triangleq> (initState, impl);
+   uniqueIds proc \<subseteq> knownIds S';
    \<comment> \<open>   TODO add welformedness?  \<close>
    state_wellFormed S';
    \<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted;
@@ -386,10 +376,10 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId
    S'' = (S'\<lparr>localState := (localState S')(i \<mapsto> initState),
                  currentProc := (currentProc S')(i \<mapsto> impl),
                  visibleCalls := (visibleCalls S')(i \<mapsto> {}),
-                 invocationOp := (invocationOp S')(i \<mapsto> (procName, args)) \<rparr>);
+                 invocationOp := (invocationOp S')(i \<mapsto> proc) \<rparr>);
    valid = invariant_all S'';  \<comment> \<open>  TODO check invariant in C ?  \<close>            
    \<And>tx. transactionOrigin S'' tx \<noteq> Some i
-   \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc procName args, valid) \<leadsto>\<^sub>S S''"       
+   \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc proc, valid) \<leadsto>\<^sub>S S''"        
 | return:
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -403,7 +393,8 @@ inductive step_s :: "('localState, 'any::valueType) state \<Rightarrow> (invocId
    valid = invariant_all S'                   
    \<rbrakk> \<Longrightarrow>  S ~~ (i, AReturn res, valid) \<leadsto>\<^sub>S S'"
 
-inductive steps_s :: "('localState, 'any::valueType) state \<Rightarrow> invocId \<times> ('any action \<times> bool) list \<Rightarrow> ('localState, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
+
+inductive steps_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> invocId \<times> (('proc, 'operation, 'any) action \<times> bool) list \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_s_refl:
   "S ~~ (s, []) \<leadsto>\<^sub>S* S"
 | steps_s_step:

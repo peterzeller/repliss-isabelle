@@ -10,17 +10,16 @@ text \<open>This theory includes proof for invariants that hold for all single-i
 
 
 
-
-definition initialStates :: "('localState, 'any::valueType) prog \<Rightarrow> invocId \<Rightarrow> ('localState, 'any) state set"  where
+definition initialStates :: "('proc::valueType, 'ls, 'operation, 'any::valueType) prog \<Rightarrow> invocId \<Rightarrow> ('proc, 'ls, 'operation, 'any) state set"   where
   "initialStates progr i \<equiv> {
     (S\<lparr>localState := (localState S)(i \<mapsto> initState),
        currentProc := (currentProc S)(i \<mapsto> impl),
        visibleCalls := (visibleCalls S)(i \<mapsto> {}),
-       invocationOp := (invocationOp S)(i \<mapsto> (procName, args))\<rparr>) 
- | S procName args initState impl.
+       invocationOp := (invocationOp S)(i \<mapsto> proc)\<rparr>) 
+ | S proc initState impl.
     prog S = progr
-  \<and> procedure progr procName args \<triangleq> (initState, impl)  
-  \<and> uniqueIdsInList args \<subseteq> knownIds S
+  \<and> procedure progr proc \<triangleq> (initState, impl)  
+  \<and> uniqueIds proc \<subseteq> knownIds S
   \<and> invariant_all S
   \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
   \<and> invocationOp S i = None
@@ -32,20 +31,20 @@ definition initialStates :: "('localState, 'any::valueType) prog \<Rightarrow> i
 lemma initialStates_wellFormed:
 "state_wellFormed S" if "S \<in> initialStates progr i"
   using that proof (auto simp add: initialStates_def)
-  fix Sa procName args initState impl
+  fix Sa proc initState impl
   assume S_def: "S = Sa\<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),
-                 invocationOp := invocationOp Sa(i \<mapsto> (procName, args))\<rparr>"
+                 invocationOp := invocationOp Sa(i \<mapsto> proc)\<rparr>"
     and "progr = prog Sa"
-    and "procedure (prog Sa) procName args \<triangleq> (initState, impl)"
-    and "uniqueIdsInList args \<subseteq> knownIds Sa"
+    and "procedure (prog Sa) proc \<triangleq> (initState, impl)"
+    and "uniqueIds proc \<subseteq> knownIds Sa"
     and "invariant_all Sa"
     and "state_wellFormed Sa"
     and "invocationOp Sa i = None"
     and "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommitted"
 
-  have step: "Sa ~~ (i, AInvoc procName args) \<leadsto> S"
+  have step: "Sa ~~ (i, AInvoc proc) \<leadsto> S"
     apply (auto simp add: step.simps S_def)
-    by (metis \<open>invocationOp Sa i = None\<close> \<open>procedure (prog Sa) procName args \<triangleq> (initState, impl)\<close> \<open>state_wellFormed Sa\<close> \<open>uniqueIdsInList args \<subseteq> knownIds Sa\<close> state.surjective state.update_convs(1) state.update_convs(2) wf_localState_to_invocationOp)
+    by (metis \<open>invocationOp Sa i = None\<close> \<open>procedure (prog Sa) proc \<triangleq> (initState, impl)\<close> \<open>state_wellFormed Sa\<close> \<open>uniqueIds proc \<subseteq> knownIds Sa\<close> state.surjective state.update_convs(1) state.update_convs(2) wf_localState_to_invocationOp)
 
   with \<open>state_wellFormed Sa\<close>
   have "state_wellFormed S"
@@ -53,7 +52,7 @@ lemma initialStates_wellFormed:
 
   then show " state_wellFormed
             (Sa\<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),
-                  invocationOp := invocationOp Sa(i \<mapsto> (procName, args))\<rparr>)"
+                  invocationOp := invocationOp Sa(i \<mapsto> proc)\<rparr>)"
     using S_def by simp
 qed
 
@@ -63,7 +62,7 @@ definition state_wellFormed_s where
 
 lemma initialStates_reachable_from_initialState:
   assumes "init\<in>initialStates progr i"
-  shows "\<exists>p args invr. initialState progr ~~ (i, AInvoc p args, invr) \<leadsto>\<^sub>S init" 
+  shows "\<exists>p invr. initialState progr ~~ (i, AInvoc p, invr) \<leadsto>\<^sub>S init" 
   using assms apply (auto simp add: initialStates_def step_s.simps )
    apply (auto simp add: initialState_def)
   by blast
@@ -122,7 +121,7 @@ next
     then show ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   next
-    case (newId C s ls f ls' uid)
+    case (newId C s ls f ls' uidv uid)
     then have "S ~~ (i, ANewId uid) \<leadsto> S'"
       by (auto simp add: step_simps)
     then show ?case
@@ -138,14 +137,14 @@ next
     then show ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   next
-    case (dbop C s ls f Op args ls' t c res vis)
-    then have "S ~~ (i, ADbOp c Op args res) \<leadsto> S'"
+    case (dbop C s ls f Op ls' t c res vis)
+    then have "S ~~ (i, ADbOp c Op res) \<leadsto> S'"
       by (auto simp add: step_simps)
     then show ?case
       using state_wellFormed_combine_step step.IH by fastforce 
   next
-    case (invocId C s procName args initState impl C' C'' valid)
-    then have "C' ~~ (i, AInvoc procName args) \<leadsto> S'"
+    case (invocation C s procName initState impl C' C'' valid)
+    then have "C' ~~ (i, AInvoc procName) \<leadsto> S'"
       apply (auto simp add: step_simps)
       using wf_localState_to_invocationOp by blast+
 
@@ -175,7 +174,7 @@ next
 qed
 
 lemma wf_s_localState_to_invocationOp2:
-  "\<lbrakk>state_wellFormed_s S i; localState S i \<triangleq> x\<rbrakk> \<Longrightarrow> \<exists>x y. invocationOp S i \<triangleq> (x,y)"
+  "\<lbrakk>state_wellFormed_s S i; localState S i \<triangleq> x\<rbrakk> \<Longrightarrow> \<exists>p. invocationOp S i \<triangleq> p"
   using wf_s_localState_to_invocationOp by fastforce
 
 lemma wellFormed_s_invoc_notStarted1:

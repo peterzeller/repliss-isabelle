@@ -11,7 +11,7 @@ text \<open>This theory proves commutativity between certain actions in executio
 
 
 
-definition commutativeS :: "('localState, 'any::valueType) state \<Rightarrow> invocId \<times> 'any action \<Rightarrow> invocId \<times> 'any action \<Rightarrow> bool" where
+definition commutativeS :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> invocId \<times> ('proc, 'operation, 'any) action \<Rightarrow> invocId \<times> ('proc, 'operation, 'any) action \<Rightarrow> bool" where
   "commutativeS s a b \<equiv> (\<forall>t. ((s ~~ [a,b] \<leadsto>*  t) \<longleftrightarrow> (s ~~ [b,a] \<leadsto>* t)))"
 
 
@@ -82,11 +82,11 @@ proof (auto simp add: commutativeS_def precondition_def steps_appendFront steps_
 qed
 
 
-definition differentIds :: "(invocId \<times> 'any action) \<Rightarrow> (invocId \<times> 'any action) \<Rightarrow> bool" where
+definition differentIds :: "(invocId \<times> ('proc, 'operation, 'any) action) \<Rightarrow> (invocId \<times> ('proc, 'operation, 'any) action) \<Rightarrow> bool" where
   "differentIds a b \<equiv> case (a,b) of
    ((s1, ANewId u1), (s2, ANewId u2)) \<Rightarrow> (u1 \<noteq> u2)
  | ((s1, ABeginAtomic u1 nt1), (s2, ABeginAtomic u2 nt2)) \<Rightarrow> (u1 \<noteq> u2)
- | ((s1, ADbOp u1 o1 a1 r1), (s2, ADbOp u2 o2 a2 r2)) \<Rightarrow> (u1 \<noteq> u2)
+ | ((s1, ADbOp u1 o1 r1), (s2, ADbOp u2 o2 r2)) \<Rightarrow> (u1 \<noteq> u2)
  | _ \<Rightarrow> True"
 
 lemma differentIds_newId:
@@ -98,7 +98,7 @@ lemma differentIds_beginAtomic:
   by (simp add: differentIds_def)
 
 lemma differentIds_dbop:
-  "differentIds (s1, ADbOp u1 o1 a1 r1) (s2, ADbOp u2 o2 a2 r2) \<longleftrightarrow> (u1 \<noteq> u2)"
+  "differentIds (s1, ADbOp u1 o1 r1) (s2, ADbOp u2 o2 r2) \<longleftrightarrow> (u1 \<noteq> u2)"
   by (simp add: differentIds_def)
 
 lemma steps_to_differentIds: 
@@ -152,10 +152,13 @@ lemma precondition_alocal:
   by (auto simp add: precondition_def intro: step.intros elim: step_elims)
 
 
-
 lemma precondition_newid:
-  "precondition (s, ANewId uid) C = (\<exists>ls f ls' ls''. localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = NewId ls' \<and> generatedIds C uid = None \<and> uniqueIds uid = {uid} \<and> ls' uid \<triangleq> ls'')"
+  "precondition (s, ANewId uid) C = (\<exists>ls f ls' ls''.
+     localState C s \<triangleq> ls \<and> currentProc C s \<triangleq> f \<and> f ls = NewId ls' 
+   \<and>  generatedIds C (to_nat uid) = None \<and> uniqueIds uid = {to_nat uid} 
+   \<and>  ls' uid \<triangleq> ls'')"
   by (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+
 
 lemma precondition_beginAtomic:
   "precondition (s, ABeginAtomic tx snapshot) C = 
@@ -174,12 +177,14 @@ lemma precondition_endAtomic:
   by (auto simp add: precondition_def intro: step.intros elim!: step_elims)
 
 lemma precondition_invoc:
-  "precondition (s, AInvoc procName args) C = (\<exists>initialState impl. invocationOp C s = None \<and> localState C s = None \<and> procedure (prog C) procName args \<triangleq> (initialState, impl) \<and> uniqueIdsInList args \<subseteq> knownIds C)"
+  "precondition (s, AInvoc proc) C = (\<exists>initialState impl.
+       localState C s = None \<and> procedure (prog C) proc \<triangleq> (initialState, impl) \<and> uniqueIds proc \<subseteq> knownIds C \<and> invocationOp C s = None)"
   by (auto simp add: precondition_def intro: step.intros elim!: step_elims)
 
+
 lemma precondition_dbop:
-  "precondition (s, ADbOp c operation args res) C = (\<exists>ls f ls' t vis. calls C c = None \<and> localState C s \<triangleq> ls 
-    \<and> currentProc C s \<triangleq> f \<and> f ls = DbOperation operation args ls' \<and> currentTransaction C s \<triangleq> t \<and> querySpec (prog C) operation args (getContext C s) res \<and> visibleCalls C s \<triangleq> vis)"
+  "precondition (s, ADbOp c operation  res) C = (\<exists>ls f ls' t vis. calls C c = None \<and> localState C s \<triangleq> ls 
+    \<and> currentProc C s \<triangleq> f \<and> f ls = DbOperation operation  ls' \<and> currentTransaction C s \<triangleq> t \<and> querySpec (prog C) operation  (getContext C s) res \<and> visibleCalls C s \<triangleq> vis)"
   by (auto simp add: precondition_def intro: step.intros elim!: step_elims)
 
 
@@ -243,12 +248,12 @@ proof -
     obtain ls f ls' ls''
       where 1: "localState B sb \<triangleq> ls" 
         and 2: "currentProc B sb \<triangleq> f" 
-        and 3: "generatedIds B x2 = None" 
+        and 3: "generatedIds B (to_nat x2) = None" 
         and 4: "f ls = NewId ls'"
-        and 6: "uniqueIds x2 = {x2}"
+        and 6: "uniqueIds x2 = {to_nat x2}"
         and 7: "ls' x2 \<triangleq> ls''"
       by (auto simp add: precondition_newid)
-    have 5: "generatedIds A x2 = None"
+    have 5: "generatedIds A (to_nat x2) = None"
       using generatedIds_mono2_rev[OF 3 exec] by blast
     then show ?thesis
       by (metis "1" "2" 4 6 7 ANewId differentSessions exec precondition_newid unchangedInTransaction(1) unchangedInTransaction(2)) 
@@ -273,14 +278,14 @@ proof -
     then show ?thesis
       by (metis differentSessions exec preconditionHolds precondition_endAtomic unchangedInTransaction(1) unchangedInTransaction(2) unchangedInTransaction(3))
   next
-    case (ADbOp callId operation args res)
+    case (ADbOp callId operation res)
     with preconditionHolds obtain ls f ls' vis t 
       where 1: "calls B callId = None"
         and 2: "localState B sb \<triangleq> ls"
         and 3: "currentProc B sb \<triangleq> f"
-        and 4: "f ls = DbOperation operation args ls'"
+        and 4: "f ls = DbOperation operation  ls'"
         and 5: "currentTransaction B sb \<triangleq> t"
-        and 6: "querySpec (prog B) operation args (getContext B sb) res"
+        and 6: "querySpec (prog B) operation  (getContext B sb) res"
         and 7: "visibleCalls B sb \<triangleq> vis"
       by (auto simp add: precondition_dbop)
     moreover have "calls A callId = None"
@@ -293,12 +298,12 @@ proof -
       by (smt ADbOp aIsInTransaction differentSessions exec precondition_dbop)
 
   next
-    case (AInvoc procName args)
+    case (AInvoc proc)
     with preconditionHolds obtain initialState impl
       where "invocationOp B sb = None"
         and "localState B sb = None"
-        and "procedure (prog B) procName args \<triangleq> (initialState, impl)"
-        and "uniqueIdsInList args \<subseteq> knownIds B"
+        and "procedure (prog B) proc \<triangleq> (initialState, impl)"
+        and "uniqueIds proc \<subseteq> knownIds B"
       by (auto simp add: precondition_invoc)
     moreover have "invocationOp A sb = None"
       using aIsInTransaction calculation(1) differentSessions exec unchangedInTransaction(5) by fastforce
@@ -353,7 +358,7 @@ lemma step_existsH:
 lemma commutative_Dbop_other:
   assumes a1[simp]: "sa \<noteq> sb"
     and a2: "state_wellFormed S"
-  shows "commutativeS S (sa, ADbOp c operation args res) (sb, a)"
+  shows "commutativeS S (sa, ADbOp c operation res) (sb, a)"
 proof (cases a)
   case ALocal
   then show ?thesis  by (simp add: commutative_other_ALocal)
@@ -369,7 +374,7 @@ next
   case AFail
   then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront  a1[symmetric]  step_simps fun_upd_twist)
 next
-  case (AInvoc p a)
+  case (AInvoc p)
   show ?thesis 
   proof (induct rule: show_commutativeS_pres)
     case (preBfront s1)
@@ -407,7 +412,7 @@ next
 
 
 next
-  case (ADbOp c' operation' args' res')
+  case (ADbOp c' operation'  res')
   show ?thesis 
     by (rule show_commutativeS_pres2; insert ADbOp a2,
         auto simp add: precondition_dbop a1[symmetric] step_simps 
@@ -427,11 +432,11 @@ next
 
   next
     case (preAfront s1)
-    then show "precondition (sa, ADbOp c operation args res) S" 
+    then show "precondition (sa, ADbOp c operation res) S" 
       by (auto simp add: precondition_dbop precondition_beginAtomic step_simps)
   next
     case (preAback s1)
-    then show "precondition (sa, ADbOp c operation args res) s1" 
+    then show "precondition (sa, ADbOp c operation res) s1" 
       by (auto simp add: precondition_dbop precondition_beginAtomic step_simps)
   next
     case (preBback s1)
@@ -441,10 +446,10 @@ next
 
   next
     case (commute s1 s2 s1' s2')
-    then have step1: "S ~~ (sa, ADbOp c operation args res) \<leadsto> s1"
+    then have step1: "S ~~ (sa, ADbOp c operation res) \<leadsto> s1"
       and step2: "s1 ~~ (sb, ABeginAtomic tx txns) \<leadsto> s2"
       and step3: "S ~~ (sb, ABeginAtomic tx txns) \<leadsto> s1'"
-      and step4: "s1' ~~ (sa, ADbOp c operation args res) \<leadsto> s2'"
+      and step4: "s1' ~~ (sa, ADbOp c operation  res) \<leadsto> s2'"
       by auto
     show "s2 = s2'" 
       by (insert step1, auto simp add: step_simps,
@@ -473,11 +478,11 @@ next
   case AEndAtomic
   then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 next
-  case (ADbOp x51 x52 x53 x54)
+  case (ADbOp )
   then show ?thesis
     using a1 a2 commutativeS_switchArgs commutative_Dbop_other by metis
 next
-  case (AInvoc x71 x72)
+  case (AInvoc )
   then show ?thesis by (auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute)
 next
   case (AReturn x8)
@@ -529,7 +534,7 @@ proof -
     then show ?thesis
       using no_end_atomic by auto 
   next
-    case (ADbOp x51 x52 x53 x54)
+    case (ADbOp )
     then show ?thesis
       using a1 a2 commutativeS_switchArgs commutative_Dbop_other by metis 
         (**next
@@ -538,7 +543,7 @@ proof -
   by (auto simp add: a2 commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute,
     auto, smt mem_Collect_eq option.inject subsetCE transactionStatus.distinct(1))*)
   next
-    case (AInvoc x71 x72)
+    case (AInvoc)
     then show ?thesis by (auto simp add: steps_empty a2 commutativeS_def steps_appendFront step_simps fun_upd_twist insert_commute split: if_splits elim!: chooseSnapshot_unchanged_precise)
   next
     case (AReturn x8)

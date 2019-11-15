@@ -4,7 +4,7 @@ begin
 
 
 
-definition openTransactions :: "'any trace \<Rightarrow> (invocId \<times> txid) set" where
+definition openTransactions :: "('proc, 'operation, 'any) trace \<Rightarrow> (invocId \<times> txid) set" where
 "openTransactions tr \<equiv> {(i, tx) | i j tx txns. j<length tr \<and> tr!j = (i, ABeginAtomic tx txns) \<and> (\<forall>k. k>j \<and> k<length tr \<longrightarrow> tr!k \<noteq> (i, AEndAtomic))}"
 
 
@@ -40,10 +40,10 @@ proof -
     then show ?thesis
       by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast+)
   next
-    case (ADbOp x51 x52 x53 x54)
+    case (ADbOp )
     then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
   next
-    case (AInvoc x61 x62)
+    case (AInvoc )
     then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
   next
     case (AReturn x7)
@@ -58,7 +58,7 @@ proof -
 qed
 
 
-definition allTransactionsEnd :: "'any trace \<Rightarrow> bool" where
+definition allTransactionsEnd :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
   "allTransactionsEnd tr \<equiv> \<forall>i j tx txns. j<length tr \<longrightarrow> tr!j = (i, ABeginAtomic tx txns) \<longrightarrow> (\<exists>k. k>j \<and> k<length tr \<and> tr!k = (i, AEndAtomic))"
 
 lemma allTransactionsEnd_def_alt: 
@@ -112,7 +112,7 @@ qed
 
 
 lemma remove_local_step: 
-  fixes S_start S_end :: "('ls,'any::valueType) state" 
+  fixes S_start S_end :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state" 
   assumes step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
@@ -122,7 +122,7 @@ lemma remove_local_step:
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
   define T where 
-    "T \<equiv> \<lambda>S::('ls,'any) state. S\<lparr>localState := (localState S)(i := localState S_start i)\<rparr>"
+    "T \<equiv> \<lambda>S::('proc::valueType, 'ls, 'operation, 'any::valueType) state. S\<lparr>localState := (localState S)(i := localState S_start i)\<rparr>"
 
   have "T S_mid = S_start"
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
@@ -149,29 +149,29 @@ qed
 
 
 lemma remove_newId_step: 
-  fixes S_start S_end :: "('ls,'any::valueType) state" 
+  fixes S_start S_end :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
     and a_def: "a = (i, ANewId uid)"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
     and wf: "state_wellFormed S_start"
-    and S_end'_def: "S_end' = S_end\<lparr>generatedIds := (generatedIds S_end)(uid := None), localState := (localState S_end)(i := localState S_start i)\<rparr>"
+    and S_end'_def: "S_end' = S_end\<lparr>generatedIds := (generatedIds S_end)(to_nat uid := None), localState := (localState S_end)(i := localState S_start i)\<rparr>"
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
   define T where 
-    "T \<equiv> \<lambda>S::('ls,'any) state. S\<lparr>generatedIds := (generatedIds S)(uid := None), localState := (localState S)(i := localState S_start i)\<rparr>"
+    "T \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. S\<lparr>generatedIds := (generatedIds S)(to_nat uid := None), localState := (localState S)(i := localState S_start i)\<rparr>"
 
   have "T S_mid = S_start"
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
 
-  have uid_fresh: "generatedIds S_start uid = None"
+  have uid_fresh: "generatedIds S_start (to_nat uid) = None"
     using step_a a_def by (auto simp add: step_simps)
 
-  obtain uid_i where "generatedIds S_mid uid \<triangleq> uid_i"
+  obtain uid_i where "generatedIds S_mid (to_nat uid) \<triangleq> uid_i"
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
 
-  from \<open>S_mid ~~ tr \<leadsto>* S_end\<close> \<open>generatedIds S_mid uid \<triangleq> uid_i\<close>
+  from \<open>S_mid ~~ tr \<leadsto>* S_end\<close> \<open>generatedIds S_mid (to_nat uid) \<triangleq> uid_i\<close>
   have uid_not_used: "(i, ANewId uid) \<notin> set tr" for i
     by (rule uid_used_only_once)
 
@@ -200,10 +200,10 @@ proof -
         case (endAtomic C s ls f ls' t)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (dbop C s ls f Op args ls' t c res vis)
+        case (dbop C s ls f Op  ls' t c res vis)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (invocId C s procName args initialState impl)
+        case (invocation C s proc initialState impl)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
         case (return C s ls f res)
@@ -228,7 +228,7 @@ qed
 
 
 lemma remove_beginAtomic_step: 
-  fixes S_start S_end :: "('ls,'any::valueType) state" 
+  fixes S_start S_end :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
@@ -247,7 +247,7 @@ lemma remove_beginAtomic_step:
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
   define T where 
-    "T \<equiv> \<lambda>S::('ls,'any) state. S\<lparr>
+    "T \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. S\<lparr>
                 localState := (localState S)(i := localState S_start i), 
                 currentTransaction := (currentTransaction S)(i := None),
                 transactionStatus := (transactionStatus S)(t := None),
@@ -264,7 +264,7 @@ proof -
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
 
   define P where
-    p_def: "P \<equiv> \<lambda>S::('ls,'any) state. t \<notin> committedTransactions S \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow>  currentTransaction S i' \<noteq> Some t)"
+    p_def: "P \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. t \<notin> committedTransactions S \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow>  currentTransaction S i' \<noteq> Some t)"
 
   have "currentTransaction S_start i \<noteq> Some t" for i
     by (metis local.wf noOrig option.simps(3) wellFormed_currentTransactionUncommitted wf_transaction_status_iff_origin)
@@ -318,10 +318,10 @@ proof -
           using t_not_used1 \<open>P S\<close>
           by (auto simp add: step_simps T_def state_ext p_def, fastforce)
       next
-        case (dbop C s ls f Op args ls' t c res vis)
+        case (dbop C s ls f Op ls' t c res vis)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (invocId C s procName args initialState impl)
+        case (invocation C s proc initialState impl)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
         case (return C s ls f res)
@@ -355,11 +355,11 @@ qed
 
 
 lemma remove_DBOp_step: 
-  fixes S_start S_end :: "('ls,'any::valueType) state" 
+  fixes S_start S_end :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
-    and a_def: "a = (i, ADbOp cId operation args res)"
+    and a_def: "a = (i, ADbOp cId operation res)"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
     and wf: "state_wellFormed S_start"
     and S_end'_def: "S_end' = S_end\<lparr>
@@ -395,7 +395,7 @@ proof -
 
 
   define T where 
-    "T \<equiv> \<lambda>S::('ls,'any) state. S\<lparr>
+    "T \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. S\<lparr>
                 localState := (localState S)(i := localState S_start i), 
                 calls := (calls S)(cId := None),
                 callOrigin := (callOrigin S)(cId := None),
@@ -416,7 +416,7 @@ proof -
 
 
   define P where
-    p_def: "P \<equiv> \<lambda>S::('ls,'any) state. 
+    p_def: "P \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. 
                      callOrigin S cId \<triangleq> start_txn 
                    \<and> transactionStatus S start_txn \<triangleq> Uncommitted
                    \<and> (\<forall>i'. i\<noteq>i' \<longrightarrow> currentTransaction S i' \<noteq> Some start_txn)
@@ -424,7 +424,7 @@ proof -
                    \<and> (\<forall>i' vis. i\<noteq>i' \<and> visibleCalls S i' \<triangleq> vis \<longrightarrow> cId \<notin> vis)"
 
 
-  have cId_not_used_again: "(s, ADbOp cId Op args res) \<notin> set tr" for s Op args res
+  have cId_not_used_again: "(s, ADbOp cId Op res) \<notin> set tr" for s Op res
     using callIds_unique2[OF steps, where i=0] by (simp add: a_def,
         metis One_nat_def Suc_mono diff_Suc_1 in_set_conv_nth zero_less_Suc)
 
@@ -500,7 +500,7 @@ proof -
         case (endAtomic C s ls f ls' t)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (dbop C s ls f Op args ls' t c res vis)
+        case (dbop C s ls f Op ls' t c res vis)
 
         have [simp]: "cId \<notin> vis "
           using P_S \<open>i' \<noteq> i\<close> dbop.hyps(1) dbop.hyps(10) dbop.hyps(2) p_def by fastforce
@@ -515,7 +515,7 @@ proof -
         show ?case using cId_not_used_again in_trace by (auto simp add: step_simps T_def state_ext sameContext)
 
       next
-        case (invocId C s procName args initialState impl)
+        case (invocation C s procName initialState impl)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
         case (return C s ls f res)
@@ -612,11 +612,11 @@ next
     then show ?case 
       using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
-    case (dbop C s ls f Op args ls' t c res vis)
+    case (dbop C s ls f Op ls' t c res vis)
     then show ?case 
       using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
-    case (invocId C s procName args initialState impl)
+    case (invocation C s procName initialState impl)
     then show ?case 
       using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next

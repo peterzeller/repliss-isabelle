@@ -13,7 +13,7 @@ proof (rule useCommutativeS)
     using assms by (rule commutative_beginAtomic_other)
 qed
 
-definition transactionIsPackedMeasure :: "'any trace \<Rightarrow> txid \<Rightarrow> nat" where
+definition transactionIsPackedMeasure :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> nat" where
   "transactionIsPackedMeasure tr tx \<equiv>
   card {k . indexInOtherTransaction tr tx k}"  
 

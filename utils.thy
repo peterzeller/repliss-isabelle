@@ -231,5 +231,7 @@ lemma in_sequence_in2: "in_sequence xs x y \<Longrightarrow> y\<in>set xs"
   by (metis in_sequence_def nth_mem)
 
 
+lemma domExists_simp: "x \<in> dom f \<longleftrightarrow> (\<exists>y. f x \<triangleq> y)"
+  by (auto)
 
 end

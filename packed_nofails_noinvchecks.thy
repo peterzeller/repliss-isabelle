@@ -2,7 +2,8 @@ theory packed_nofails_noinvchecks
 imports no_failing_invchecks packed_no_fails consistency
 begin
 
-
+definition isNotTrueInvcheck :: "(invocId \<times> ('proc, 'operation, 'any) action) \<Rightarrow> bool"
+      where "isNotTrueInvcheck \<equiv> (\<lambda>a. case a of (s, AInvcheck True) \<Rightarrow> False | _\<Rightarrow> True)"
 
 text \<open>
  To show that a program is correct, we only have to consider packed transactions 
@@ -13,7 +14,7 @@ theorem show_programCorrect_noTransactionInterleaving_no_passing_invchecks:
     "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; \<And>s. (s, AInvcheck True) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving)
-  fix trace :: "(invocId \<times> 'a action) list"
+  fix trace
   fix S
   assume steps: "initialState program ~~ trace \<leadsto>* S"
     and packed: "packed_trace trace" 
@@ -23,8 +24,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
   proof (rule ccontr)
     assume a: "\<not> traceCorrect trace"
 
-    define isNotTrueInvcheck :: "(invocId \<times> 'a action) \<Rightarrow> bool"
-      where "isNotTrueInvcheck \<equiv> (\<lambda>a. case a of (s, AInvcheck True) \<Rightarrow> False | _\<Rightarrow> True)"
+    
     define trace' where "trace' \<equiv> filter isNotTrueInvcheck trace"
 
     have isNotTrueInvcheck_simps: "isNotTrueInvcheck a \<longleftrightarrow> \<not>(\<exists>s. a = (s, AInvcheck True))" for a
@@ -299,7 +299,7 @@ lemma move_invariant_checks_out_of_transactions:
         then show ?thesis
           using action_def ib2 noEndAtomic by auto 
       next
-        case (ADbOp cId proc args res)
+        case (ADbOp cId proc res)
 
         obtain tx where currentTransaction: "currentTransaction S1 s \<triangleq> tx"
           using \<open>S1 ~~ (s, action) \<leadsto> S2\<close> ADbOp
@@ -330,7 +330,7 @@ lemma move_invariant_checks_out_of_transactions:
          then show ?thesis 
           using invariant_fail_S2 ADbOp \<open>S1 ~~ (s, action) \<leadsto> S2\<close> by (auto simp add: step_simps ls_none)
       next
-        case (AInvoc x61 x62)
+        case (AInvoc )
         then show ?thesis 
           using invariant_fail_S2 \<open>S1 ~~ (s, action) \<leadsto> S2\<close>  by (auto simp add: step_simps ls_none)
       next
@@ -472,7 +472,7 @@ theorem show_programCorrect_noTransactionInterleaving':
     "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
-  fix trace :: "(invocId \<times> 'a action) list"
+  fix trace
   fix S
   assume steps: "initialState program ~~ trace \<leadsto>* S"
     and packed: "packed_trace trace" 
@@ -615,6 +615,11 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
   qed
 qed
 
+definition "induct_measure" where "induct_measure  \<equiv> \<lambda>trace. \<lambda>pos'.
+    case pos' of
+        0 \<Rightarrow> True
+      | Suc pos \<Rightarrow>  pos<length trace \<and> (\<exists>i j tx txns. fst(trace!pos) = i \<and>  j\<le>pos \<and> trace!j = (i, ABeginAtomic tx txns) \<and> (\<nexists>k. k>j \<and> k<length trace \<and> trace!k = (i, AEndAtomic)))" 
+
 
 thm show_programCorrect_noTransactionInterleaving'
 text \<open>
@@ -625,7 +630,7 @@ theorem show_programCorrect_noTransactionInterleaving'':
     "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving')
-  fix trace :: "(invocId \<times> 'a action) list"
+  fix trace 
   fix s
   assume steps: "initialState program ~~ trace \<leadsto>* s"
     and packed: "packed_trace trace" 
@@ -633,10 +638,6 @@ proof (rule show_programCorrect_noTransactionInterleaving')
     and no_inv_checks: "no_invariant_checks_in_transaction trace"
 
 
-  define "induct_measure" where "induct_measure  \<equiv> \<lambda>trace::(invocId \<times> 'a action) list. \<lambda>pos'.
-    case pos' of
-        0 \<Rightarrow> True
-      | Suc pos \<Rightarrow>  pos<length trace \<and> (\<exists>i j tx txns. fst(trace!pos) = i \<and>  j\<le>pos \<and> trace!j = (i, ABeginAtomic tx txns) \<and> (\<nexists>k. k>j \<and> k<length trace \<and> trace!k = (i, AEndAtomic)))" 
 
   have induct_measure_ex: "\<exists>x. induct_measure trace x" for trace
     by (rule_tac x=0 in exI, auto simp add: induct_measure_def)
@@ -669,7 +670,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
       have "induct_measure trace' (GREATEST x. induct_measure trace' x) \<and> (\<forall>y. induct_measure trace' y \<longrightarrow> y \<le> (GREATEST x. induct_measure trace' x))"
         by (rule use_Greatest[OF induct_measure_ex induct_measure_bound])
       then have m: "induct_measure trace' (Suc pos)"
-        and  m_max: "\<And>y. induct_measure trace' y \<Longrightarrow> y \<le> Suc pos"
+        and  m_max: "induct_measure trace' y \<Longrightarrow> y \<le> Suc pos" for y
         by auto
 
       from m have "pos<length trace' \<and> (\<exists>i j tx txns. fst(trace'!pos) = i \<and>  j\<le>pos \<and> trace'!j = (i, ABeginAtomic tx txns) \<and> (\<nexists>k. k>j \<and> k<length trace' \<and> trace'!k = (i, AEndAtomic)))"
@@ -682,7 +683,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
         by auto
 
       have maxPos: "fst (trace'!pos') \<noteq> fst(trace'!pos)" if "pos' > pos" and "pos' < length trace'" for pos'
-        using m_max[where y="Suc pos'"] that
+        using m_max[where y2="Suc pos'"] that
           beginAtomic_trace' j_leq_pos le_less_trans less_imp_le noEndAtomic_trace'
           by (auto simp add: induct_measure_def, blast )
 
@@ -909,13 +910,13 @@ proof (rule show_programCorrect_noTransactionInterleaving')
             then show ?thesis 
               using \<open>j \<le> pos\<close> \<open>pos < length trace'\<close> local.beginAtomic noEndAtomic by fastforce
           next
-            case (ADbOp x51 x52 x53 x54)
+            case (ADbOp )
             show ?thesis 
               by (rule exI,
                   rule remove_DBOp_step[OF S_pos_steps_to_S_end S_pos_step' S_pos2_steps],
                   auto simp add: other_invocation ADbOp)
           next
-            case (AInvoc x61 x62)
+            case (AInvoc)
 
             \<comment> \<open>We already have an beginAtomic before, so we already have an invocId\<close>
             have "invocationOp S_pos invoc \<noteq> None"
@@ -1052,7 +1053,7 @@ qed
 
 find_consts name: allowed
 
-definition noContextSwitchesInTransaction :: "'any trace \<Rightarrow> bool" where
+definition noContextSwitchesInTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
   "noContextSwitchesInTransaction tr \<equiv> \<forall>i k invoc. 
     i < k \<and> k \<le> length tr 
    \<and> (\<exists>tx txns.  tr!i = (invoc, ABeginAtomic tx txns))
@@ -1073,7 +1074,7 @@ proof (simp add: allowed_context_switch_def; intro conjI allI)
   show "snd (tr ! j) \<noteq> ABeginAtomic txId txns" for txId txns
     by (metis (full_types) a0 a1 a2 a3 a4 a5 a6 allowed_context_switch_simps(3) noContextSwitchesInTransaction_def)
 
-  show " snd (tr ! j) \<noteq> AInvoc p a" for p a
+  show " snd (tr ! j) \<noteq> AInvoc p " for p 
     by (metis (full_types) a0 a1 a2 a3 a4 a5 a6 allowed_context_switch_simps(6) noContextSwitchesInTransaction_def)
 qed
 
@@ -1653,10 +1654,10 @@ next
     case (endAtomic s ls f ls' t)
     then show ?thesis using IH by (auto simp add: open_transactions_append_one)
   next
-    case (dbop s ls f Op args ls' t c res vis)
+    case (dbop s ls f Op  ls' t c res vis)
     then show ?thesis using IH by (auto simp add: open_transactions_append_one)
   next
-    case (invocId s procName args initialState impl)
+    case (invocation s proc initialState impl)
     then show ?thesis using IH by (auto simp add: open_transactions_append_one)
   next
     case (return s ls f res)
@@ -1780,10 +1781,10 @@ next
       case (endAtomic s ls f ls' t)
       then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
     next
-      case (dbop s ls f Op args ls' t c res vis)
+      case (dbop s ls f Op ls' t c res vis)
       then show ?thesis using IH by auto
     next
-      case (invocId s procName args initialState impl)
+      case (invocation s proc  initialState impl)
       then show ?thesis using IH no_tx_if_context_switch by (auto simp add: allowed_context_switch_simps)
     next
       case (return s ls f res)

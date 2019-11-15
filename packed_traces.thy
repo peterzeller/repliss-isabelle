@@ -31,11 +31,11 @@ proof (rule useCommutativeS)
     case AEndAtomic
     then show ?thesis using not_endAtomic by simp
   next
-    case (ADbOp x51 x52 x53 x54)
+    case (ADbOp)
     then show ?thesis
       by (simp add: commutative_Dbop_other)  
   next
-    case (AInvoc x71 x72)
+    case (AInvoc)
     then show ?thesis 
       by (auto simp add: commutativeS_def steps_appendFront,
        metis a_is_in_transaction local.wf option.distinct(1) preconditionI precondition_invoc wellFormed_invoc_notStarted(1),
@@ -203,7 +203,7 @@ lemma one_compaction_step3:
   shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr' \<leadsto>* C)"
   using local.wf one_compaction_step2 splitTrace splitTrace' txaInTx xOutside no_endatomic noFail by blast 
 
-definition indexInOtherTransaction :: "'any trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
+definition indexInOtherTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
   "indexInOtherTransaction tr tx k \<equiv> 
   \<exists>i s ntxns. 
       k<length tr 
@@ -212,7 +212,7 @@ definition indexInOtherTransaction :: "'any trace \<Rightarrow> txid \<Rightarro
     \<and> fst (tr!k) \<noteq> s
     \<and> \<not>(\<exists>j. i < j \<and> j < k \<and> tr!j = (s, AEndAtomic))"
 
-definition transactionIsPacked :: "'any trace \<Rightarrow> txid \<Rightarrow> bool" where
+definition transactionIsPacked :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
   "transactionIsPacked tr tx \<equiv> 
   \<forall>k. \<not>indexInOtherTransaction tr tx k"  
 
@@ -220,7 +220,7 @@ definition transactionIsPacked :: "'any trace \<Rightarrow> txid \<Rightarrow> b
 
 
 \<comment> \<open>this is an alternative definition, which might be easier to work with in some cases\<close>
-definition transactionIsPackedAlt :: "'any trace \<Rightarrow> txid \<Rightarrow> bool" where
+definition transactionIsPackedAlt :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
   "transactionIsPackedAlt tr tx \<equiv> 
   if \<exists>i s ntxns. i < length tr \<and> tr!i = (s, ABeginAtomic tx ntxns) then
     \<exists>i s end ntxns. 
@@ -433,11 +433,11 @@ qed
 
 
 \<comment> \<open>the set of transactions occurring in the trace\<close>    
-definition traceTransactions :: "'any trace \<Rightarrow> txid set" where
+definition traceTransactions :: "('proc, 'operation, 'any) trace \<Rightarrow> txid set" where
   "traceTransactions tr \<equiv> {tx | s tx txns. (s, ABeginAtomic tx txns) \<in> set tr}"
 
 text \<open>between begin and end of a transaction there are no actions from other sessions\<close>
-definition transactionsArePacked :: "'any trace \<Rightarrow> bool" where
+definition transactionsArePacked :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
   "transactionsArePacked tr \<equiv>
   \<forall>i k s t txns. 
       i<k 
@@ -454,14 +454,14 @@ it appears.
 
 
 \<comment> \<open>checks if sessions s is in a transaction at position i in trace tr\<close>
-definition inTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocId \<Rightarrow> bool"  where 
+definition inTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> nat \<Rightarrow> invocId \<Rightarrow> bool"  where 
   "inTransaction tr i s \<equiv>
   \<exists>j. j\<le>i \<and> i<length tr \<and> (\<exists>t txns. tr!j = (s, ABeginAtomic t txns))
      \<and> (\<forall>k. j<k \<and> k < length tr \<and> k\<le>i \<longrightarrow> tr!k \<noteq> (s, AEndAtomic))
 "
 
 \<comment> \<open>returns the set of all transactions, which are in a transaction at point i in the trace\<close>
-definition sessionsInTransaction :: "'any trace \<Rightarrow> nat \<Rightarrow> invocId set"  where 
+definition sessionsInTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> nat \<Rightarrow> invocId set"  where 
   "sessionsInTransaction tr i \<equiv> {s. inTransaction tr i s}"
 
 
@@ -511,7 +511,7 @@ lemma show_traceCorrect_same:
 definition allowed_context_switch where 
   "allowed_context_switch action \<equiv> 
             (\<exists>txId txns. action = ABeginAtomic txId txns) 
-          \<or> (\<exists>p a. action = AInvoc p a)"
+          \<or> (\<exists>p. action = AInvoc p)"
 
 
 lemma allowed_context_switch_simps:
@@ -519,14 +519,14 @@ lemma allowed_context_switch_simps:
     and "\<not>allowed_context_switch (ANewId uid)"
     and "allowed_context_switch (ABeginAtomic t ats)"
     and "\<not>allowed_context_switch AEndAtomic" 
-    and "\<not>allowed_context_switch (ADbOp c x a ar)" 
-    and "allowed_context_switch (AInvoc p ia)"
+    and "\<not>allowed_context_switch (ADbOp c x ar)" 
+    and "allowed_context_switch (AInvoc p)"
     and "\<not>allowed_context_switch (AReturn ir)" 
     and "\<not>allowed_context_switch AFail" 
     and "\<not>allowed_context_switch (AInvcheck invr)" by (auto simp add: allowed_context_switch_def)
 
 
-definition packed_trace :: "'any trace \<Rightarrow> bool" where
+definition packed_trace :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
   "packed_trace tr \<equiv>
   \<forall>i.
       0<i
@@ -570,14 +570,14 @@ qed
 
 
 
-definition canSwap :: "'ls itself \<Rightarrow> 'any::valueType action \<Rightarrow> 'any action \<Rightarrow> bool" where
-  "canSwap t a b \<equiv> (\<forall>(C1::('ls,'any) state) C2 s1 s2. s1\<noteq>s2 \<and> (C1 ~~ [(s1,a),(s2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(s2,b),(s1,a)] \<leadsto>* C2))"
+definition canSwap :: "'ls itself \<Rightarrow> ('proc::valueType, 'operation, 'any::valueType)  action \<Rightarrow> ('proc, 'operation, 'any) action \<Rightarrow> bool" where
+  "canSwap t a b \<equiv> (\<forall>(C1::('proc, 'ls, 'operation, 'any) state) C2 s1 s2. s1\<noteq>s2 \<and> (C1 ~~ [(s1,a),(s2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(s2,b),(s1,a)] \<leadsto>* C2))"
 
 lemma show_canSwap:
-  assumes "\<And>(C1::('ls,'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+  assumes "\<And>(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
   shows "canSwap (t::'ls itself) a b"
 proof (auto simp add: canSwap_def)
-  fix C1 C3 :: "('ls,'any) state"
+  fix C1 C3 :: "('proc, 'ls, 'operation, 'any) state"
   fix s1 s2
   assume a0: "s1 \<noteq> s2"
     and a1: "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C3"
@@ -599,7 +599,7 @@ qed
        
 lemma show_canSwap':
   assumes "x = a" 
-    and"\<And>(C1::('ls,'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+    and"\<And>(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
   shows "canSwap (t::'ls itself) x b"
   by (simp add: assms show_canSwap)
 
@@ -615,10 +615,10 @@ method prove_canSwap'' = (
     auto del: ext  simp add: wellFormed_callOrigin_dom2 step_simps wellFormed_currentTransactionUncommitted state_updates_normalize fun_upd_twist intro!: show_state_calls_eq ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
 lemma commutativeS_canSwap:
-  assumes comm: "\<And>(C::('ls,'any::valueType) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
+  assumes comm: "\<And>(C::('proc::valueType, 'ls, 'operation, 'any::valueType) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
   shows "canSwap (t::'ls itself) a b"
 proof (auto simp add: canSwap_def)
-  fix C1 C2 :: "('ls,'any) state"
+  fix C1 C2 :: "('proc, 'ls, 'operation, 'any) state"
   fix s1 s2
   assume a0: "s1 \<noteq> s2"
     and a1: "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C2"
@@ -675,10 +675,10 @@ next
     case AEndAtomic
     then show ?thesis by prove_canSwap''
   next
-    case (ADbOp x51 x52 x53 x54)
+    case (ADbOp )
     then show ?thesis by prove_canSwap''
   next
-    case (AInvoc x61 x62)
+    case (AInvoc )
     then show ?thesis by prove_canSwap''
   next
     case (AReturn x7)
@@ -692,8 +692,8 @@ next
       using is_AInvcheck_def no_invcheck_a by auto 
   qed
 next
-  case (ADbOp x51 x52 x53 x54)
-  then have [simp]: "b = ADbOp x51 x52 x53 x54" .
+  case (ADbOp c op r)
+  then have [simp]: "b = ADbOp c op r" .
   then show ?thesis 
   proof (cases a)
     case ALocal
@@ -708,11 +708,11 @@ next
     case AEndAtomic
     then show ?thesis by prove_canSwap''
   next
-    case (ADbOp x51 x52 x53 x54)
+    case (ADbOp )
     then show ?thesis
       by (meson canSwap_def commutative_Dbop_other useCommutativeS)  
   next
-    case (AInvoc x61 x62)
+    case (AInvoc )
     then show ?thesis by prove_canSwap''
   next
     case (AReturn x7)
@@ -727,7 +727,7 @@ next
       using is_AInvcheck_def no_invcheck_a by blast 
   qed
 next
-  case (AInvoc x61 x62)
+  case (AInvoc )
   then show ?thesis
     using allowed_context_switch_def[where action = b] no_ctxt_switch by auto 
 
@@ -748,10 +748,10 @@ next
     case AEndAtomic
     then show ?thesis by prove_canSwap''
   next
-    case (ADbOp x51 x52 x53 x54)
+    case (ADbOp)
     then show ?thesis by prove_canSwap''
   next
-    case (AInvoc x61 x62)
+    case (AInvoc)
     then show ?thesis by prove_canSwap''
   next
     case (AReturn x7)
@@ -777,7 +777,7 @@ qed
 
 text \<open>We can swap one action over a list of actions with canSwap\<close>
 lemma swapMany:
-  assumes steps: "(C1::('ls,'any::valueType) state) ~~ tr @ [(s,a)] \<leadsto>* C2"
+  assumes steps: "(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) ~~ tr @ [(s,a)] \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
     and wf: "state_wellFormed C1"
@@ -831,7 +831,7 @@ qed
 
 
 lemma swapMany_middle:
-  fixes C1 :: "('ls,'any::valueType) state"
+  fixes C1 :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state"
   assumes steps: "C1 ~~ tr_start @ tr @ [(s,a)] @ tr_end \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
@@ -854,7 +854,7 @@ proof -
 qed    
 
 lemma swapMany_middle':
-  fixes C1 :: "('ls,'any::valueType) state"
+  fixes C1 :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state"
   assumes steps: "C1 ~~ tr_start @ tr @ [a] @ tr_end \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> (fst a)"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) (snd a)"
@@ -865,7 +865,7 @@ lemma swapMany_middle':
   by (insert assms, cases a, rule ssubst, assumption, rule swapMany_middle, auto)
 
 
-definition packed_trace_s :: "'any trace \<Rightarrow> invocId \<Rightarrow> bool" where
+definition packed_trace_s :: "('proc, 'operation, 'any) trace \<Rightarrow> invocId \<Rightarrow> bool" where
   "packed_trace_s tr s \<equiv>
   \<forall>i.
       0<i
@@ -946,9 +946,9 @@ proof (induct "max_natset {length tr - i  | i.
         and prev3: "\<And>j. \<lbrakk>prev < j; j < i\<rbrakk> \<Longrightarrow> fst(tr!j) \<noteq> s"
     proof (atomize_elim)
       from \<open>initialState program ~~ tr \<leadsto>* C\<close> \<open>i<length tr\<close> \<open>fst (tr!i) = s\<close>
-      have "\<exists>j<i. fst (tr ! j) = s \<and> (\<exists>p args. snd (tr ! j) = AInvoc p args)"
+      have "\<exists>j<i. fst (tr ! j) = s \<and> (\<exists>p. snd (tr ! j) = AInvoc p)"
       proof (rule exists_invoc)
-        show "\<And>p args. snd (tr ! i) \<noteq> AInvoc p args"
+        show "\<And>p. snd (tr ! i) \<noteq> AInvoc p"
           using allowed_context_switch_def[where action="snd (tr ! i)"] i5 by auto 
         show "\<not> is_AInvcheck (snd (tr ! i))"
           by (metis i2 less.prems(3) nth_mem snd_conv surj_pair)
