@@ -33,10 +33,10 @@ lemma DC_show_programCorrect:
 lemma DC_show_procedureCorrect:
   fixes ct defines "ct' \<equiv> \<lambda>pos name. (name, pos,[]) # ct"
   assumes "C\<langle>Suc n1, ct' n1 ''after_invocation'', n2: invariant_all' S\<rangle>"
-    and  "C\<langle>Suc n2, (''execution'', n2, [])#ct, n3: \<exists>bound. (checkCorrect2F ^^bound) bot (progr, {}, S, i)\<rangle>"
+    and  "C\<langle>Suc n2, (''execution'', n2, [])#ct, n3: execution_s_correct progr S i\<rangle>"
   shows "C\<langle>n1,ct,n3: procedureCorrect progr S i\<rangle>"
   using assms
-  unfolding LABEL_simps using procedureCorrect_def by blast
+  unfolding LABEL_simps by (auto simp add: procedureCorrect_def)
 
 lemma DC_final:
   assumes "V\<langle>(''g'',inp,[]), ct: a\<rangle>"
@@ -107,6 +107,7 @@ method M_show_procedureCorrect =
 
 lemma test:
   shows "programCorrect progr"
+
 proof M_show_programCorrect
   case invariant_initial_state
   then show ?case sorry

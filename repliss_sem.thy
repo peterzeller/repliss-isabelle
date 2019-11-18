@@ -767,7 +767,7 @@ definition traces where
 definition traceCorrect where
   "traceCorrect trace \<equiv> (\<forall>s. (s, AInvcheck False) \<notin> set trace)"
 
-definition programCorrect where
+definition programCorrect :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) prog \<Rightarrow> bool" where
   "programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"
 
 definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rightarrow> True | _ \<Rightarrow> False)"
