@@ -1,7 +1,6 @@
 theory impl_language
   imports Main 
     "~~/src/HOL/Library/Monad_Syntax"
-"~~/src/HOL/Library/State_Monad"
   repliss_sem
 begin
 
@@ -89,8 +88,7 @@ fun toImpl :: "(('val,'operation, 'val) io, 'operation, 'val) procedureImpl" whe
 | "toImpl (Fail s) = ??? s"
 
 
-lemma return_bind[simp]: "return x \<bind> f = f x"
-  by (auto simp add: return_def)
+
 
 
 lemma toImpl_simps[simp]:
@@ -113,6 +111,20 @@ lemma toImpl_bind_simps[simp]:
 
 find_theorems name: "impl_language.bind"
 
+paragraph "Monad Laws"
+
+text "We prove the typical monad laws: identity of return and associativity."
+
+lemma return_left_ident[simp]: 
+  fixes x and f :: "'a \<Rightarrow> ('b,'operation, 'any) io"
+  shows "return x \<bind> f = f x"
+  by (auto simp add: return_def)
+
+lemma right_ident[simp]: 
+  fixes m :: "('a,'operation, 'any) io"
+  shows "(m \<bind> return) = m"
+  by (induct m, auto simp add: return_def)
+
 lemma bind_assoc[simp]: 
   fixes x :: "('a,'operation, 'any) io"
     and y :: "'a \<Rightarrow> ('b,'operation, 'any) io"
@@ -120,13 +132,17 @@ lemma bind_assoc[simp]:
   shows "((x \<bind> y) \<bind> z) = (x \<bind> (\<lambda>a. y a \<bind> z))"
   by (induct x, auto)
 
+
+
+
 lemma atomic_simp1[simp]: 
 "toImpl (atomic f) = BeginAtomic (f \<bind> (\<lambda>r. endAtomic \<bind> (\<lambda>_. return r)))"
   by (auto simp add: atomic_def bind_assoc)
 
 lemma atomic_simp2[simp]: 
 "toImpl (atomic f \<bind> x) = BeginAtomic (f \<bind> (\<lambda>a. endAtomic \<bind> (\<lambda>b. x a)))"
-by (auto simp add: atomic_def bind_assoc)
+  by (auto simp add: atomic_def bind_assoc)
+
 
 
 end
