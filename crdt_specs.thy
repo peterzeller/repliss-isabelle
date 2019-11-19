@@ -1,5 +1,7 @@
 theory crdt_specs
-imports repliss_sem
+  imports repliss_sem
+ "HOL-Library.Countable"
+ unique_ids
 begin
 
 section "Composable CRDT specifications"
@@ -86,6 +88,22 @@ datatype 'a registerOp =
     Assign 'a
   | Read
 
+instance registerOp :: (countable) countable
+  by countable_datatype
+instantiation registerOp :: (valueType) valueType begin
+definition  "uniqueIds_registerOp x \<equiv> 
+  case x of 
+     Assign x \<Rightarrow> uniqueIds x
+   | Read \<Rightarrow> {}"
+definition [simp]: "default_registerOp \<equiv> Read"
+
+lemma [simp]: "uniqueIds (Assign x) = uniqueIds x"
+  and [simp]: "uniqueIds Read = {}"
+  by (auto simp add: uniqueIds_registerOp_def)
+
+instance by (standard, auto simp add: uniqueIds_registerOp_def)
+end
+
 text "The latest values are all assigned values that have not been overridden by another call to assign."
 
 definition 
@@ -112,10 +130,10 @@ lemma latestValues_def2:
 
 
 
-definition register_spec :: "'a \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
+definition register_spec :: "'a::default \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
 "register_spec initial oper ctxt res \<equiv> 
   case oper of
-    Assign x \<Rightarrow> True
+    Assign x \<Rightarrow> res = default
   | Read \<Rightarrow> if latestValues ctxt = {} then res = initial else res \<in> latestValues ctxt "
 
 
@@ -179,10 +197,10 @@ shows "firstValue d m \<in> Map.ran m"
 qed
 
 
-definition lww_register_spec :: "'a \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
+definition lww_register_spec :: "'a::default \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
 "lww_register_spec initial oper ctxt res \<equiv> 
   case oper of
-    Assign x \<Rightarrow> True
+    Assign x \<Rightarrow> res = default
   | Read \<Rightarrow> res = firstValue initial (latestAssignments ctxt)"
 
 lemma lwwregister_spec_wf: "crdt_spec_wf (lww_register_spec i)"
@@ -193,10 +211,10 @@ lemma lwwregister_spec_wf: "crdt_spec_wf (lww_register_spec i)"
 subsection "Multi-Value Register"
 
 
-definition mv_register_spec :: "('a \<Rightarrow> 'a set \<Rightarrow> bool) \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
+definition mv_register_spec :: "('a::default \<Rightarrow> 'a set \<Rightarrow> bool) \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
 "mv_register_spec is_set oper ctxt res \<equiv> 
   case oper of
-    Assign x \<Rightarrow> True
+    Assign x \<Rightarrow> res = default
   | Read \<Rightarrow> is_set res (latestValues ctxt)"
 
 lemma mv_register_spec_wf: "crdt_spec_wf (mv_register_spec f)"
@@ -210,6 +228,24 @@ datatype ('k,'v) mapOp =
     | KeyExists 'k
     | DeleteKey 'k
 
+instance mapOp :: (countable,countable) countable
+  by countable_datatype
+instantiation mapOp :: (valueType,valueType) valueType begin
+definition  "uniqueIds_mapOp x \<equiv> 
+  case x of 
+     NestedOp k v \<Rightarrow> uniqueIds k \<union> uniqueIds v
+   | KeyExists k \<Rightarrow> uniqueIds k
+   | DeleteKey k \<Rightarrow> uniqueIds k"
+definition [simp]: "default_mapOp \<equiv> KeyExists default"
+
+lemma [simp]: "uniqueIds (NestedOp k v) = uniqueIds k \<union> uniqueIds v"
+  and "uniqueIds (KeyExists k) = uniqueIds k"
+  and "uniqueIds (DeleteKey k) = uniqueIds k"
+  by (auto simp add: uniqueIds_mapOp_def)
+
+instance by (standard, auto simp add: uniqueIds_mapOp_def)
+end
+
 
 definition
 "nested_op_on_key k op \<equiv> case op of NestedOp k' op' \<Rightarrow> if k = k' then Some op' else None | _ \<Rightarrow> None"
@@ -221,20 +257,20 @@ definition
 "deleted_calls_dw ctxt k \<equiv> {c\<in>dom (calls ctxt). \<exists>c' r. calls ctxt c' \<triangleq> Call (DeleteKey k) r \<and> (c',c)\<notin>happensBefore ctxt}"
 
 
-definition map_spec :: "((('k, 'v) mapOp, 'r) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow>  ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
-"map_spec deleted_calls nestedSpec oper ctxt res \<equiv>
+definition map_spec :: "((('k, 'v) mapOp, 'r::default) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow> (bool \<Rightarrow> 'r) \<Rightarrow>   ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+"map_spec deleted_calls to_bool nestedSpec oper ctxt res \<equiv>
   case oper of
-    DeleteKey k \<Rightarrow> True
-  | KeyExists k \<Rightarrow> \<exists>c\<in>dom (calls ctxt). c \<notin> deleted_calls ctxt k
+    DeleteKey k \<Rightarrow> res = default
+  | KeyExists k \<Rightarrow> res = to_bool (\<exists>c\<in>dom (calls ctxt). c \<notin> deleted_calls ctxt k)
   | NestedOp k op \<Rightarrow>
      nestedSpec op (restrict_ctxt_op (nested_op_on_key k) 
           (ctxt_remove_calls (deleted_calls ctxt k) ctxt)) res
 "
 
-definition map_uw_spec :: "('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+definition map_uw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v,'r::default) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_uw_spec \<equiv> map_spec deleted_calls_uw"
 
-definition map_dw_spec :: "('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+definition map_dw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v,'r::default) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_dw_spec \<equiv> map_spec deleted_calls_dw"
 
 
@@ -261,7 +297,7 @@ lemma happensBefore_ctxt_remove_calls: "(c, c') \<in> happensBefore (ctxt_remove
 lemma map_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
     and deleted_calls_wf: "\<And>ctxt. deleted_calls (ctxt\<lparr>happensBefore := Restr (happensBefore ctxt) (dom (calls ctxt))\<rparr>) = deleted_calls ctxt"
-  shows "crdt_spec_wf (map_spec deleted_calls nested)"
+  shows "crdt_spec_wf (map_spec deleted_calls to_bool nested)"
   by (auto simp add: crdt_spec_wf_def map_spec_def  
       deleted_calls_wf calls_ctxt_remove_calls calls_restrict_ctxt_op restrict_map_def restrict_relation_def deleted_calls_uw_def 
       happensBefore_restrict_ctxt_op happensBefore_ctxt_remove_calls 
@@ -271,16 +307,193 @@ lemma map_spec_wf:
 
 lemma map_uw_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
-  shows "crdt_spec_wf (map_uw_spec  nested)"
+  shows "crdt_spec_wf (map_uw_spec to_bool nested)"
   using wf unfolding map_uw_spec_def by (rule map_spec_wf, auto simp add: deleted_calls_uw_def intro!: ext, auto)
 
 lemma map_dw_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
-  shows "crdt_spec_wf (map_dw_spec  nested)"
+  shows "crdt_spec_wf (map_dw_spec to_bool  nested)"
   using wf unfolding map_dw_spec_def by (rule map_spec_wf, auto simp add: deleted_calls_dw_def intro!: ext, auto)
 
 
+text "Structs"
 
+definition struct_field :: "(('i, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool) \<Rightarrow> ('o \<Rightarrow> 'i option) \<Rightarrow> ('o, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool"  where
+"struct_field spec to_op   \<equiv> \<lambda>ctxt r. spec (restrict_ctxt_op to_op ctxt) r"
+
+definition struct_spec (*:: "('a \<Rightarrow> ('v,'r::default) crdtSpec) \<Rightarrow> ('a, 'r) crdtSpec"*) where
+"struct_spec nested oper ctxt \<equiv>
+  nested oper ctxt 
+"
+
+definition ctxt_map_result :: "('a \<Rightarrow> 'b) \<Rightarrow> ('o, 'a) operationContext \<Rightarrow> ('o, 'b) operationContext" where
+"ctxt_map_result f ctxt  \<equiv> \<lparr>
+    calls = (\<lambda>c. (case calls ctxt c of Some (Call op r) \<Rightarrow> Some (Call op (f r)) | _ \<Rightarrow> None)),
+    happensBefore = happensBefore ctxt
+ \<rparr>"
+
+definition map_result :: "('b \<Rightarrow> 'a) \<Rightarrow> ('o, 'a) crdtSpec \<Rightarrow> ('o, 'b) crdtSpec" where
+"map_result f spec \<equiv> \<lambda>op ctxt r. spec op (ctxt_map_result f ctxt) (f r)" 
+
+
+subsection "Queries cannot guess Ids"
+
+lemmas use_queries_cannot_guess_ids = queries_cannot_guess_ids_def2[THEN iffD1, rule_format]
+
+lemma map_spec_queries_cannot_guess_ids[intro]:
+  assumes nested: "queries_cannot_guess_ids n"
+    and bools_no_uids[simp]: "\<And>b. uniqueIds (to_bool b) = {}"
+  shows"queries_cannot_guess_ids (map_spec r to_bool n) "
+proof (auto simp add: queries_cannot_guess_ids_def2 map_spec_def  split: mapOp.splits)
+  fix ctxt res key op x
+  assume a0: "n op (restrict_ctxt_op (nested_op_on_key key) (ctxt_remove_calls (r ctxt key) ctxt)) res"
+    and a1: "x \<in> uniqueIds res"
+    and a2: "x \<notin> uniqueIds key"
+and a3: "x \<notin> uniqueIds op"
+
+
+
+  obtain cId opr res
+    where cId1: "calls (restrict_ctxt_op (nested_op_on_key key) (ctxt_remove_calls (r ctxt key) ctxt)) cId \<triangleq> Call opr res"
+      and cId2: "x \<in> uniqueIds opr"
+    using use_queries_cannot_guess_ids[OF nested a0 a1 a3] by blast
+
+
+  from this
+  show "\<exists>cId opr. (\<exists>res. calls ctxt cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
+  proof (intro exI conjI)
+    from cId1
+    show  "calls ctxt cId \<triangleq> Call (NestedOp key opr) res"
+      by (auto simp add: calls_restrict_ctxt_op calls_ctxt_remove_calls restrict_map_def nested_op_on_key_def split: option.splits call.splits if_splits mapOp.splits)
+
+    from `x \<in> uniqueIds opr`
+    show "x \<in> uniqueIds (NestedOp key opr)"
+      by (simp add: uniqueIds_mapOp_def)
+  qed
+qed
+
+
+lemma map_uw_spec_queries_cannot_guess_ids[intro]:
+  assumes nested: "queries_cannot_guess_ids n"
+    and bools_no_uids[simp]: "\<And>b. uniqueIds (to_bool b) = {}"
+  shows"queries_cannot_guess_ids (map_uw_spec to_bool n) "
+  by (simp add: map_spec_queries_cannot_guess_ids map_uw_spec_def nested)
+
+lemma map_dw_spec_queries_cannot_guess_ids[intro]:
+  assumes nested: "queries_cannot_guess_ids n"
+    and bools_no_uids[simp]: "\<And>b. uniqueIds (to_bool b) = {}"
+  shows"queries_cannot_guess_ids (map_dw_spec to_bool n) "
+  by (simp add: map_spec_queries_cannot_guess_ids map_dw_spec_def nested)
+
+
+lemma register_spec_queries_cannot_guess_ids[intro]:
+  assumes i_no: "uniqueIds i = {}"
+  shows "queries_cannot_guess_ids (register_spec i)"
+  apply (auto simp add: queries_cannot_guess_ids_def register_spec_def latestValues_def i_no
+      latestAssignments_def ran_def uniqueIds_registerOp_def split: registerOp.splits option.splits if_splits)
+  apply (auto split: call.splits if_splits registerOp.splits)
+  by (metis call.sel(1) registerOp.distinct(1) registerOp.inject)
+
+(*
+TODO this is difficult because there are no existential types.
+Could maybe use the countable trick again, see https://stackoverflow.com/questions/51409639/how-can-i-fake-existential-types-in-isabelle-hol
+
+definition 
+"struct_field_cannot_guess_id c oper \<equiv> 
+\<exists>op spec f. c oper = struct_field (spec op) f  
+            \<and> queries_cannot_guess_ids spec 
+            \<and> f oper \<triangleq> op 
+            \<and> (\<forall>op' x. f op' \<triangleq> x \<longrightarrow> uniqueIds x \<subseteq> uniqueIds op')"
+
+term struct_field_cannot_guess_id
+
+lemma struct_spec_queries_cannot_guess_ids[intro]:
+  assumes "\<And>oper. \<exists>t. struct_field_cannot_guess_id c oper"
+  shows "queries_cannot_guess_ids (struct_spec c)"
+  apply (auto simp add:  queries_cannot_guess_ids_def)
+  using assms  apply (auto simp add: struct_spec_def )
+  apply (drule_tac x=opr in meta_spec)
+  apply (auto simp add: struct_field_def)
+
+proof (rule ccontr)
+  fix opr ctxt res x t
+  assume a0: "c opr ctxt res"
+    and a1: "x \<in> uniqueIds res"
+    and a2: "\<forall>xa. (\<forall>cId c. xa = uniqueIds (call_operation c) \<longrightarrow> calls ctxt cId \<noteq> Some c) \<or> x \<notin> xa"
+    and a3: "struct_field_cannot_guess_id t c opr"
+    and a4: "x \<notin> uniqueIds opr"
+
+  from a3 have ???
+     apply (auto simp add: struct_field_cannot_guess_id_def)
+    thm struct_field_cannot_guess_id_def
+
+  show "False"
+
+
+  fix opr ctxt res x op f spec
+  assume a0: "spec op (restrict_ctxt_op f ctxt) res"
+    and a1: "x \<in> uniqueIds res"
+    and a2: "\<forall>xa. (\<forall>cId c. xa = uniqueIds (call_operation c) \<longrightarrow> calls ctxt cId \<noteq> Some c) \<or> x \<notin> xa"
+    and a3: "c opr = (\<lambda>ctxt. spec op (restrict_ctxt_op f ctxt))"
+    and a4: "queries_cannot_guess_ids spec"
+    and a5: "f opr \<triangleq> op"
+    and a6: "\<forall>op' x. f op' \<triangleq> x \<longrightarrow> uniqueIds x \<subseteq> uniqueIds op'"
+    and a7: "x \<notin> uniqueIds opr"
+
+
+  from a6[rule_format, OF a5]
+  have "uniqueIds op \<subseteq> uniqueIds opr"  .
+
+
+  thm use_queries_cannot_guess_ids
+
+  have "\<exists>cId opr res. calls (restrict_ctxt_op f ctxt) cId \<triangleq> Call opr res \<and> x \<in> uniqueIds opr"
+  proof (rule use_queries_cannot_guess_ids[OF a4 a0 a1])
+    show "x \<notin> uniqueIds op"
+      using \<open>uniqueIds op \<subseteq> uniqueIds opr\<close> a7 by blast
+  qed
+
+  from this obtain cId opr res 
+    where cId1: "calls (restrict_ctxt_op f ctxt) cId \<triangleq> Call opr res" and cId2: "x \<in> uniqueIds opr"
+    by blast
+
+  from cId1 obtain oprOrig
+    where cId3: "calls ctxt cId \<triangleq> Call oprOrig res" and cId4: "f oprOrig \<triangleq> opr"
+    by (auto simp add: calls_restrict_ctxt_op  split: option.splits call.splits)
+  find_theorems calls restrict_ctxt_op
+
+
+  show False
+    by (metis cId3 cId4 a2 a6 cId2 call.sel(1) subset_eq)
+qed
+
+*)
+
+datatype x = A int int | B string
+
+term "case x of A y z \<Rightarrow> y+1+z | B s \<Rightarrow> (s @ ''a'')"
+(*
+case_cons (case_abs (\<lambda>y. case_abs (\<lambda>z. case_elem (A y z) (y + 1 + z)))) :: (x \<Rightarrow> int) \<Rightarrow> x \<Rightarrow> int
+Operand:   case_cons (case_abs (\<lambda>s. case_elem (B s) (s @ ''a''))) case_nil :: x \<Rightarrow> char list
+*)
+
+
+(*
+term "case_cons"
+
+declare[[show_sorts]]
+
+lemma 
+  shows "queries_cannot_guess_ids (struct_spec (\<lambda>oper. case_cons (case_abs (\<lambda>op. case_elem (X op) 
+(struct_field (spec ) f))) other_cases))"
+
+
+
+queries_cannot_guess_ids
+     (struct_spec
+       (\<lambda>oper.
+           case oper of Name op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Name op \<Rightarrow> Some op | Mail x \<Rightarrow> Map.empty x)
+           | Mail op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Name x \<Rightarrow> Map.empty x | Mail op \<Rightarrow> Some op)))*)
 
 
 

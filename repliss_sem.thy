@@ -20,12 +20,15 @@ typedecl callId
 
 text "A value type is a type that contains unique identifiers.
 Since higher kinded classes are not supported, we represent unique ids using natural numbers.
-The countable type class can then be used to convert other countable types to nat."
+The countable type class can then be used to convert other countable types to nat.
+
+We also expect a default value, which does not include any unique ids. 
+This will be used for database operations with no result value."
 
 type_synonym uniqueId = nat
-class valueType = countable +
+class valueType = countable + default +
   fixes uniqueIds :: "'a \<Rightarrow> uniqueId set"
-
+  assumes default_none[simp]: "uniqueIds default = {}"
 
 definition 
   "uniqueIdsInList xs = (\<Union>x\<in>set xs. uniqueIds x)"

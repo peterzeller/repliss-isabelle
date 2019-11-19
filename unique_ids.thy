@@ -48,9 +48,9 @@ shows "procedure_cannot_guess_ids uids' ls impl"
 
 
 
-definition procedures_cannot_guess_ids :: "('proc \<rightharpoonup> ('ls \<times> ('ls, 'operation::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
+definition procedures_cannot_guess_ids :: "('proc::valueType \<rightharpoonup> ('ls \<times> ('ls, 'operation::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
 "procedures_cannot_guess_ids proc = 
-(\<forall>p ls impl uids. proc p \<triangleq> (ls, impl) \<longrightarrow>  procedure_cannot_guess_ids uids ls impl)"
+(\<forall>p ls impl uids. proc p \<triangleq> (ls, impl) \<longrightarrow>  procedure_cannot_guess_ids (uids\<union>uniqueIds p) ls impl)"
 
 lemmas show_procedures_cannot_guess_ids = procedures_cannot_guess_ids_def[THEN iffD1, rule_format]
 
@@ -266,7 +266,7 @@ proof -
         case (invocation i proc initialState impl)
         then show ?thesis using c0 c1
           apply (auto simp add: inv1 split: if_splits)
-          by (meson \<open>procedures_cannot_guess_ids (procedure progr)\<close> inv2 show_procedures_cannot_guess_ids)
+          by (metis (no_types, lifting) \<open>procedures_cannot_guess_ids (procedure progr)\<close> inv2 show_procedures_cannot_guess_ids subset_Un_eq subset_refl subset_trans)
       next
         case (return i ls f res)
         then show ?thesis using c0 c1

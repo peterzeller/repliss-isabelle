@@ -4,6 +4,7 @@ theory example_userbase
     impl_language
     "HOL-Library.Countable"
     crdt_specs
+    unique_ids
 begin
 
 
@@ -22,10 +23,24 @@ instance val :: countable
   by countable_datatype
 
 instantiation val :: valueType begin
-definition uniqueIds_val where 
+
+definition uniqueIds_val where
   "uniqueIds_val x \<equiv> case x of UserId u \<Rightarrow> {to_nat (UserId u)} | _ \<Rightarrow> {}"
-instance by standard
+
+definition [simp]: "default_val \<equiv> Undef"
+
+lemma uniqueIds_simp[simp]:
+  shows "uniqueIds (String x) = {}"
+    and "uniqueIds (Bool b) = {}"
+    and "uniqueIds Undef = {}"
+    and "uniqueIds (Found x y) = {}"
+    and "uniqueIds NotFound = {}"
+  by (auto simp add: uniqueIds_val_def)
+
+instance by (standard, auto)
 end
+
+
 
 definition "isUserId x \<equiv> case x of UserId _ \<Rightarrow> True | _ \<Rightarrow> False"
 
@@ -40,6 +55,24 @@ fun stringval where
 datatype userDataOp =
     Name "val registerOp"
     | Mail "val registerOp"
+
+
+instance userDataOp :: countable
+  by countable_datatype
+instantiation userDataOp ::  valueType begin
+definition "uniqueIds_userDataOp x \<equiv> 
+  case x of 
+     Name x \<Rightarrow> uniqueIds x
+   | Mail x \<Rightarrow> uniqueIds x"
+
+lemma [simp]: "uniqueIds (Name x) = uniqueIds x"
+  "uniqueIds (Mail x) = uniqueIds x"
+  by (auto simp add: uniqueIds_userDataOp_def)
+
+definition [simp]: "default_userDataOp = Mail default"
+
+instance by (standard, auto)
+end
 
 type_synonym operation = 
   "(val, userDataOp) mapOp"
@@ -70,24 +103,24 @@ definition updateMail_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operatio
 }"
 
 
-definition removeUser_impl :: "val \<Rightarrow> (val,val) io" where
+definition removeUser_impl :: "val \<Rightarrow> (val,operation,val) io" where
  "removeUser_impl u \<equiv>  do {
   atomic (do {
-    exists \<leftarrow> call users_contains_key [u];  
+    exists \<leftarrow> call (KeyExists u);  
     (if exists = Bool True then do {
-      call users_remove [u]
+      call (DeleteKey u)
     } else skip)
   });
   return Undef
 }"
 
-definition getUser_impl :: "val \<Rightarrow> (val,val) io" where
+definition getUser_impl :: "val \<Rightarrow> (val,operation,val) io" where
  "getUser_impl u \<equiv>  do {
   atomic (do {
-    exists \<leftarrow> call users_contains_key [u];  
+    exists \<leftarrow> call (KeyExists u);  
     (if exists = Bool True then do {
-      name \<leftarrow> call users_name_get [u];
-      mail \<leftarrow> call users_mail_get [u];
+      name \<leftarrow> call (NestedOp u (Name Read));
+      mail \<leftarrow> call (NestedOp u (Mail Read));
       return (Found (stringval name) (stringval mail))
     } else return NotFound)
   })
@@ -97,85 +130,67 @@ term "toImpl (registerUser_impl (String name) (String mail))"
 
 abbreviation "toImpl2 x \<equiv> (x, toImpl)" 
 
-definition procedures :: "char list \<Rightarrow> val list \<Rightarrow> ((val, val) io \<times> ((val, val) io, val) procedureImpl) option" where
-  "procedures proc args \<equiv> 
-  if proc = registerUser then
-    case args of 
-      [String name, String mail] \<Rightarrow> Some (toImpl2 (registerUser_impl (String name) (String mail)))
-      | _ \<Rightarrow> None
-  else if proc = updateMail then 
-    case args of 
-      [UserId u, String mail] \<Rightarrow> Some (toImpl2 (updateMail_impl (UserId u) (String mail)))
-      | _ \<Rightarrow> None
-  else if proc = removeUser then 
-    case args of 
-      [UserId u] \<Rightarrow> Some (toImpl2 (removeUser_impl (UserId u)))
-      | _ \<Rightarrow> None
-  else if proc = getUser then 
-    case args of 
-      [UserId u] \<Rightarrow> Some (toImpl2 (getUser_impl (UserId u)))
-      | _ \<Rightarrow> None  
-  else 
-    None"
+datatype proc =
+    RegisterUser string string
+  | UpdateMail int string
+  | RemoveUser int
+  | GetUser int
+
+instance proc :: countable
+  by countable_datatype
+
+instantiation proc :: valueType begin
+definition "uniqueIds_proc proc \<equiv> 
+  case proc of 
+     UpdateMail u _ \<Rightarrow> {to_nat (UserId u)}
+   | RemoveUser u  \<Rightarrow> {to_nat (UserId u)}
+   | GetUser u  \<Rightarrow> {to_nat (UserId u)}
+   | RegisterUser _ _ \<Rightarrow> {}"
+
+lemma [simp]:
+"uniqueIds (UpdateMail u x) = {to_nat (UserId u)}"
+"uniqueIds (RemoveUser u ) = {to_nat (UserId u)}"
+"uniqueIds (GetUser u ) = {to_nat (UserId u)}"
+"uniqueIds (RegisterUser x y) = {}"
+  by (auto simp add: uniqueIds_proc_def)
+
+definition [simp]: "default_proc \<equiv> RegisterUser [] []"
+
+instance by (standard, auto)
+end
 
 
-definition latest_name_assign :: "val operationContext \<Rightarrow> val \<Rightarrow> val set" where
-  "latest_name_assign ctxt u \<equiv>  {v | c1 v. 
-     calls ctxt c1 \<triangleq> Call users_name_assign [u, v] Undef
-   \<and> (\<forall>c2. calls ctxt c2 \<triangleq> Call users_remove [u] Undef \<longrightarrow> (c2,c1)\<in>happensBefore ctxt)
-   \<and> (\<forall>c2 v'. calls ctxt c2 \<triangleq> Call users_name_assign [u] v' \<longrightarrow> \<not>(c1,c2)\<in>happensBefore ctxt)}"
+definition procedures :: "proc \<Rightarrow> ((val, operation, val) io \<times> ((val, operation, val) io, operation, val) procedureImpl) option" where
+"procedures invoc \<equiv>
+  case invoc of
+    RegisterUser name mail \<Rightarrow> Some (toImpl2 (registerUser_impl (String name) (String mail)))
+  | UpdateMail u mail \<Rightarrow> Some (toImpl2 (updateMail_impl (UserId u) (String mail)))
+  | RemoveUser u \<Rightarrow>  Some (toImpl2 (removeUser_impl (UserId u)))
+  | GetUser u  \<Rightarrow>  Some (toImpl2 (getUser_impl (UserId u)))
+"
 
-definition latest_mail_assign :: "val operationContext \<Rightarrow> val \<Rightarrow> val set" where
-  "latest_mail_assign ctxt u \<equiv>  {v | c1 v. 
-     calls ctxt c1 \<triangleq> Call users_mail_assign [u, v] Undef
-   \<and> (\<forall>c2. calls ctxt c2 \<triangleq> Call users_remove [u] Undef \<longrightarrow> (c2,c1)\<in>happensBefore ctxt)
-   \<and> (\<forall>c2 v'. calls ctxt c2 \<triangleq> Call users_mail_assign [u] v' \<longrightarrow> \<not>(c1,c2)\<in>happensBefore ctxt)}"   
-
-definition crdtSpec :: "operation \<Rightarrow> val list \<Rightarrow> val operationContext \<Rightarrow> val \<Rightarrow> bool" where
-  "crdtSpec oper args ctxt res \<equiv> 
-  if oper \<in> {users_name_assign, users_mail_assign, users_remove} then
-    \<comment> \<open>  update-operations always return Undef  \<close>
-    res = Undef
-  else if oper = users_contains_key then
-    res = Bool (\<exists>c1 v. (calls ctxt c1 \<triangleq> Call users_name_assign (args @ [v]) Undef
-                 \<or> calls ctxt c1 \<triangleq> Call users_mail_assign (args @ [v]) Undef)
-               \<and> (\<forall>c2. calls ctxt c2 \<triangleq> Call users_remove args Undef \<longrightarrow> (c2,c1)\<in>happensBefore ctxt))
-  else if oper = users_name_get \<and> length args = 1 then 
-    if latest_name_assign ctxt (hd args) = {} then 
-      res = Undef
-    else
-      res \<in> latest_name_assign ctxt (hd args)
-  else if oper = users_mail_get \<and> length args = 1 then 
-    if latest_mail_assign ctxt (hd args) = {} then 
-      res = Undef
-    else
-      res \<in> latest_mail_assign ctxt (hd args)
-  else
-    False"
-
-definition inv1 :: "val invariantContext \<Rightarrow> bool" where
+definition inv1 :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
   "inv1 ctxt \<equiv> \<forall>r g u g_res.
-    invocationOp ctxt r \<triangleq> (removeUser, [u])
-  \<longrightarrow> invocationOp ctxt g \<triangleq> (getUser, [u])
+    invocationOp ctxt r \<triangleq> RemoveUser u
+  \<longrightarrow> invocationOp ctxt g \<triangleq> GetUser u
   \<longrightarrow> (r,g) \<in> invocation_happensBefore ctxt
   \<longrightarrow> invocationRes ctxt g \<triangleq> g_res
   \<longrightarrow> g_res = NotFound"
 
-definition inv2 :: "val invariantContext \<Rightarrow> bool" where
+definition inv2 :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
   "inv2 ctxt \<equiv> \<forall>u i c.
-    invocationOp ctxt i \<triangleq> (removeUser, [u])
+    invocationOp ctxt i \<triangleq> RemoveUser u
   \<longrightarrow> i_callOriginI ctxt c \<triangleq> i
-  \<longrightarrow> calls ctxt c \<triangleq> Call users_remove [u] Undef"
+  \<longrightarrow> calls ctxt c \<triangleq> Call (DeleteKey (UserId u)) Undef"
 
-definition inv3 :: "val invariantContext \<Rightarrow> bool" where
-  "inv3 ctxt \<equiv> \<not>(\<exists>write delete u v.
-  (calls ctxt write \<triangleq> Call users_name_assign [u, v] Undef
-    \<or> calls ctxt write \<triangleq> Call users_mail_assign [u, v] Undef)
-  \<and> (calls ctxt delete \<triangleq> Call users_remove [u] Undef)
+definition inv3 :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
+  "inv3 ctxt \<equiv> \<not>(\<exists>write delete u upd.
+    (calls ctxt write \<triangleq> Call (NestedOp u upd) Undef)
+  \<and> (calls ctxt delete \<triangleq> Call (DeleteKey u) Undef)
   \<and> (delete, write) \<in> happensBefore ctxt
   )"
 
-definition inv :: "val invariantContext \<Rightarrow> bool" where
+definition inv :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
   "inv ctxt \<equiv> inv1 ctxt \<and> inv2 ctxt \<and> inv3 ctxt"
 
 lemma show_inv[intro]:
@@ -183,7 +198,17 @@ lemma show_inv[intro]:
   shows "inv S"
   using assms  by (auto simp add: inv_def)
 
-definition progr :: "(localState, val) prog" where
+definition userStruct :: "(userDataOp, val) crdtSpec" where
+"userStruct \<equiv> (\<lambda>oper.
+  case oper of
+    Name op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Name op \<Rightarrow> Some op | _ \<Rightarrow> None) 
+  | Mail op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Mail op \<Rightarrow> Some op | _ \<Rightarrow> None)
+)" 
+
+definition crdtSpec :: "(operation, val) crdtSpec" where
+"crdtSpec \<equiv> map_dw_spec Bool (struct_spec userStruct)"
+
+definition progr :: "(proc, localState, operation, val) prog" where
   "progr \<equiv> \<lparr>
   querySpec = crdtSpec,
   procedure = procedures,
@@ -194,83 +219,101 @@ lemma procedure_progr[simp]: "procedure progr = procedures"
   by (simp add: progr_def)
 
 
-lemma if_split_h: "\<lbrakk>c \<Longrightarrow> P x; \<not>c \<Longrightarrow> P y\<rbrakk>  \<Longrightarrow> P (if c then x else y)"
-  by auto
-
-lemma procedure_cases: "procedures procName args \<noteq> None \<Longrightarrow> procName \<in> {registerUser, updateMail, removeUser, getUser}"
-  by (auto simp add: procedures_def split: if_splits)
-
-lemma procedure_cases': "\<lbrakk>procedures procName args \<triangleq> x; procName \<noteq> registerUser; procName \<noteq> updateMail; procName \<noteq> removeUser\<rbrakk> \<Longrightarrow> procName = getUser"
-  by (auto simp add: procedures_def split: if_splits)
-
-lemma procedure_case_split: "\<lbrakk>procedures procName args \<triangleq> x; procName = registerUser \<Longrightarrow> P; procName = updateMail \<Longrightarrow> P; procName = removeUser \<Longrightarrow> P; procName = getUser \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P"
-  using procedure_cases' by blast
-
-(*
-lemma procedure_cases2: "procedures procName args \<triangleq> (initState, impl) \<longleftrightarrow> (
-  (\<exists>name mail. procName = registerUser \<and> args = [String name, String mail] \<and> initState = lsInit\<lparr>ls_name := name, ls_mail := mail \<rparr> \<and> impl = registerUserImpl)
-\<or> (\<exists>u mail. procName = updateMail \<and> args = [UserId u, String mail] \<and> initState = lsInit\<lparr>ls_u := UserId u, ls_mail := mail \<rparr> \<and> impl = updateMailImpl)
-\<or> (\<exists>u. procName = removeUser \<and> args = [UserId u] \<and> initState = lsInit\<lparr>ls_u := UserId u \<rparr> \<and> impl = removeUserImpl)
-\<or> (\<exists>u. procName = getUser \<and> args = [UserId u] \<and> initState = lsInit\<lparr>ls_u := UserId u \<rparr> \<and> impl = getUserImpl))" (is "?Left \<longleftrightarrow> ?Right")
-  by (auto simp add: procedures_def split: list.splits val.splits)
-*)
-
-lemma procedure_cases3[cases set,case_names 
-    case_registerUser[procname args initiState impl] 
-    case_updateMail[procname args initiState impl]  
-    case_removeUser[procname args initiState impl]  
-    case_get_User[procname args initiState impl] ]: 
-  assumes impl: "procedures procName args \<triangleq> (initState, impl)"
-and "\<And>name mail. \<lbrakk>procName = registerUser; args = [String name, String mail]; initState = registerUser_impl (String name) (String mail); impl = toImpl\<rbrakk> \<Longrightarrow> P" 
-and "\<And>u mail. \<lbrakk>procName = updateMail; args = [UserId u, String mail]; initState = updateMail_impl (UserId u) (String mail); impl = toImpl\<rbrakk> \<Longrightarrow> P"
-and "\<And>u.  \<lbrakk>procName = removeUser; args = [UserId u]; initState = removeUser_impl (UserId u); impl = toImpl\<rbrakk> \<Longrightarrow> P"
-and "\<And>u.  \<lbrakk>procName = getUser; args = [UserId u]; initState = getUser_impl (UserId u); impl = toImpl\<rbrakk> \<Longrightarrow> P"
-shows P
-  using impl  by (auto simp add: procedures_def split: list.splits val.splits if_splits elim: assms(2-))
-
-
-lemma StateDef_simps: 
-  "S' ::= S ==> calls S' = calls S"
-  "S' ::= S ==> happensBefore S' = happensBefore S"
-  "S' ::= S ==> prog S' = prog S"
-  "S' ::= S ==> callOrigin S' = callOrigin S"
-  "S' ::= S ==> transactionOrigin S' = transactionOrigin S"
-  "S' ::= S ==> generatedIds S' = generatedIds S"
-  "S' ::= S ==> knownIds S' = knownIds S"
-  "S' ::= S ==> invocationOp S' = invocationOp S"
-  "S' ::= S ==> invocationRes S' = invocationRes S"
-  "S' ::= S ==> transactionStatus S' = transactionStatus S"
-  "S' ::= S ==> localState S' = localState S"
-  "S' ::= S ==> currentProc S' = currentProc S"
-  "S' ::= S ==> visibleCalls S' = visibleCalls S"
-  "S' ::= S ==> currentTransaction S' = currentTransaction S"
-  by (auto simp add: Def_def)
 
 
 
-lemma IStateDef_simps: 
-  "S' ::= S ==> i_callOrigin S' = i_callOrigin S"
-  "S' ::= S ==> i_transactionOrigin S' = i_transactionOrigin S"
-  "S' ::= S ==> i_knownIds S' = i_knownIds S"
-  "S' ::= S ==> i_invocationOp S' = i_invocationOp S"
-  "S' ::= S ==> i_invocationRes S' = i_invocationRes S"
-  by (auto simp add: Def_def)
 
-
-
-lemma uniqueIds_simp[simp]:
-  shows "uniqueIds (String x) = {}"
-    and "uniqueIds (Bool b) = {}"
-    and "uniqueIds Undef = {}"
-    and "uniqueIds (Found x y) = {}"
-    and "uniqueIds NotFound = {}"
-  by (auto simp add: uniqueIds_val_def)
-
-lemma uniqueId_no_nested: "x \<in> uniqueIds uid \<Longrightarrow> x = (uid :: val)"
+lemma uniqueId_no_nested: "x \<in> uniqueIds uid \<Longrightarrow> x = (to_nat (uid :: val))"
   by (auto simp add: uniqueIds_val_def split: val.splits)
 
-lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exists>u. x = UserId u \<and> uid = UserId u)"
+lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exists>u. x = to_nat (UserId u) \<and> uid = UserId u)"
   by (auto simp add: uniqueIds_val_def split: val.splits)
+
+method show_procedures_cannot_guess_ids = 
+  (((auto simp add: newId_def bind_def atomic_def beginAtomic_def call_def skip_def endAtomic_def return_def 
+       uniqueIds_mapOp_def uniqueIds_userDataOp_def uniqueIds_registerOp_def uniqueIds_val_def
+      split: if_splits)[1])?;
+      ((rule procedure_cannot_guess_ids.intros, force); show_procedures_cannot_guess_ids?)?)
+
+lemma progr_wf: "program_wellFormed progr"
+proof (auto simp add: program_wellFormed_def)
+  show "procedures_cannot_guess_ids procedures"
+  proof (auto simp add: procedures_cannot_guess_ids_def procedures_def uniqueIds_proc_def split: proc.splits)
+    show "\<And>n m uids. procedure_cannot_guess_ids uids (registerUser_impl (String n) (String m)) toImpl"
+      by (auto simp add: registerUser_impl_def, show_procedures_cannot_guess_ids  )
+
+    show "\<And>u m uids. procedure_cannot_guess_ids (insert (to_nat (UserId u)) uids) (updateMail_impl (UserId u) (String m)) toImpl"
+      by (auto simp add: updateMail_impl_def, show_procedures_cannot_guess_ids  )
+
+    show "\<And>u uids. procedure_cannot_guess_ids (insert (to_nat (UserId u)) uids) (removeUser_impl (UserId u)) toImpl"
+      by (auto simp add: removeUser_impl_def, show_procedures_cannot_guess_ids  )
+    show "\<And>u uids. procedure_cannot_guess_ids (insert (to_nat (UserId u)) uids) (getUser_impl (UserId u)) toImpl"
+      by (auto simp add: getUser_impl_def, show_procedures_cannot_guess_ids  )
+  qed
+
+  show "queries_cannot_guess_ids (querySpec progr)"
+  proof (simp add: progr_def crdtSpec_def, standard)
+    show "queries_cannot_guess_ids (struct_spec userStruct)"
+      apply (auto simp add: userStruct_def)
+
+      using [[show_sorts]] find_theorems queries_cannot_guess_ids struct_spec
+    proof
+      fix oper :: userDataOp
+      obtain nested where "oper = Mail nested \<or> oper = Name nested" 
+        by (case_tac oper, auto)
+
+      show "\<exists>op spec f.
+          userStruct oper = struct_field (spec op) f \<and>
+          queries_cannot_guess_ids spec \<and> f oper \<triangleq> op \<and> (\<forall>op' x. f op' \<triangleq> x \<longrightarrow> uniqueIds x \<subseteq> uniqueIds op')"
+        apply (rule_tac x=nested in exI)
+
+      proof (cases "oper")
+        case (Name nested)
+
+        from [[show_sorts]]
+        term "uniqueIds nested "
+
+        have "\<exists>op spec f.
+       userStruct oper = struct_field (spec op) f \<and>
+       queries_cannot_guess_ids spec \<and> f oper \<triangleq> op \<and> (\<forall>op' x. f op' \<triangleq> x \<longrightarrow> uniqueIds x \<subseteq> uniqueIds op')"
+          for oper
+          apply (rule exI[where x=nested])
+
+
+          apply (rule exI)
+apply (rule exI[where x="(\<lambda>oper. case oper of Name op \<Rightarrow> Some op | _ \<Rightarrow> None)"])
+          apply (rule exI[where x="nested"])
+
+        show ?thesis
+          apply (rule exI)
+          apply (rule exI)
+apply (rule exI[where x="(\<lambda>oper. case oper of Name op \<Rightarrow> Some op | _ \<Rightarrow> None)"])
+          apply (rule exI[where x="nested"])
+
+          using [[show_sorts]]
+        proof (intro )
+
+          unfolding Name
+        proof (intro exI conjI allI impI)
+          
+          show "queries_cannot_guess_ids (register_spec Undef)"
+          show "userStruct (Name nested) = struct_field (register_spec Undef nested) (\<lambda>oper. case oper of Name op \<Rightarrow> Some op | _ \<Rightarrow> None)"
+            apply auto
+          sorry
+      next
+        case (Mail nested)
+        then show ?thesis sorry
+      qed
+
+    show "queries_cannot_guess_ids userStruct"
+      unfolding userStruct_def proof (rule struct_spec_queries_cannot_guess_ids)
+
+
+      apply (auto simp add: userStruct_def)
+    find_theorems queries_cannot_guess_ids map_dw_spec
+
+
+  find_theorems program_wellFormed
 
 (*
 TODO can this still be defined? maybe using noninterference? 
@@ -2245,6 +2288,71 @@ show "example_userbase.inv (invContext' S'e)"
     qed
   qed
 qed
+
+
+
+lemma if_split_h: "\<lbrakk>c \<Longrightarrow> P x; \<not>c \<Longrightarrow> P y\<rbrakk>  \<Longrightarrow> P (if c then x else y)"
+  by auto
+
+lemma procedure_cases: "procedures procName args \<noteq> None \<Longrightarrow> procName \<in> {registerUser, updateMail, removeUser, getUser}"
+  by (auto simp add: procedures_def split: if_splits)
+
+lemma procedure_cases': "\<lbrakk>procedures procName args \<triangleq> x; procName \<noteq> registerUser; procName \<noteq> updateMail; procName \<noteq> removeUser\<rbrakk> \<Longrightarrow> procName = getUser"
+  by (auto simp add: procedures_def split: if_splits)
+
+lemma procedure_case_split: "\<lbrakk>procedures procName args \<triangleq> x; procName = registerUser \<Longrightarrow> P; procName = updateMail \<Longrightarrow> P; procName = removeUser \<Longrightarrow> P; procName = getUser \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P"
+  using procedure_cases' by blast
+
+(*
+lemma procedure_cases2: "procedures procName args \<triangleq> (initState, impl) \<longleftrightarrow> (
+  (\<exists>name mail. procName = registerUser \<and> args = [String name, String mail] \<and> initState = lsInit\<lparr>ls_name := name, ls_mail := mail \<rparr> \<and> impl = registerUserImpl)
+\<or> (\<exists>u mail. procName = updateMail \<and> args = [UserId u, String mail] \<and> initState = lsInit\<lparr>ls_u := UserId u, ls_mail := mail \<rparr> \<and> impl = updateMailImpl)
+\<or> (\<exists>u. procName = removeUser \<and> args = [UserId u] \<and> initState = lsInit\<lparr>ls_u := UserId u \<rparr> \<and> impl = removeUserImpl)
+\<or> (\<exists>u. procName = getUser \<and> args = [UserId u] \<and> initState = lsInit\<lparr>ls_u := UserId u \<rparr> \<and> impl = getUserImpl))" (is "?Left \<longleftrightarrow> ?Right")
+  by (auto simp add: procedures_def split: list.splits val.splits)
+*)
+
+lemma procedure_cases3[cases set,case_names 
+    case_registerUser[procname args initiState impl] 
+    case_updateMail[procname args initiState impl]  
+    case_removeUser[procname args initiState impl]  
+    case_get_User[procname args initiState impl] ]: 
+  assumes impl: "procedures procName args \<triangleq> (initState, impl)"
+and "\<And>name mail. \<lbrakk>procName = registerUser; args = [String name, String mail]; initState = registerUser_impl (String name) (String mail); impl = toImpl\<rbrakk> \<Longrightarrow> P" 
+and "\<And>u mail. \<lbrakk>procName = updateMail; args = [UserId u, String mail]; initState = updateMail_impl (UserId u) (String mail); impl = toImpl\<rbrakk> \<Longrightarrow> P"
+and "\<And>u.  \<lbrakk>procName = removeUser; args = [UserId u]; initState = removeUser_impl (UserId u); impl = toImpl\<rbrakk> \<Longrightarrow> P"
+and "\<And>u.  \<lbrakk>procName = getUser; args = [UserId u]; initState = getUser_impl (UserId u); impl = toImpl\<rbrakk> \<Longrightarrow> P"
+shows P
+  using impl  by (auto simp add: procedures_def split: list.splits val.splits if_splits elim: assms(2-))
+
+
+lemma StateDef_simps: 
+  "S' ::= S ==> calls S' = calls S"
+  "S' ::= S ==> happensBefore S' = happensBefore S"
+  "S' ::= S ==> prog S' = prog S"
+  "S' ::= S ==> callOrigin S' = callOrigin S"
+  "S' ::= S ==> transactionOrigin S' = transactionOrigin S"
+  "S' ::= S ==> generatedIds S' = generatedIds S"
+  "S' ::= S ==> knownIds S' = knownIds S"
+  "S' ::= S ==> invocationOp S' = invocationOp S"
+  "S' ::= S ==> invocationRes S' = invocationRes S"
+  "S' ::= S ==> transactionStatus S' = transactionStatus S"
+  "S' ::= S ==> localState S' = localState S"
+  "S' ::= S ==> currentProc S' = currentProc S"
+  "S' ::= S ==> visibleCalls S' = visibleCalls S"
+  "S' ::= S ==> currentTransaction S' = currentTransaction S"
+  by (auto simp add: Def_def)
+
+
+
+lemma IStateDef_simps: 
+  "S' ::= S ==> i_callOrigin S' = i_callOrigin S"
+  "S' ::= S ==> i_transactionOrigin S' = i_transactionOrigin S"
+  "S' ::= S ==> i_knownIds S' = i_knownIds S"
+  "S' ::= S ==> i_invocationOp S' = i_invocationOp S"
+  "S' ::= S ==> i_invocationRes S' = i_invocationRes S"
+  by (auto simp add: Def_def)
+
 
 *)
 
