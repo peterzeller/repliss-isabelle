@@ -1,7 +1,9 @@
 theory example_userbase
   imports 
     program_verification_tactics
-  impl_language
+    impl_language
+    "HOL-Library.Countable"
+    crdt_specs
 begin
 
 
@@ -15,9 +17,13 @@ datatype val =
   | Found string string
   | NotFound
 
+
+instance val :: countable
+  by countable_datatype
+
 instantiation val :: valueType begin
 definition uniqueIds_val where 
-  "uniqueIds_val x \<equiv> case x of UserId u \<Rightarrow> {UserId u} | _ \<Rightarrow> {}"
+  "uniqueIds_val x \<equiv> case x of UserId u \<Rightarrow> {to_nat (UserId u)} | _ \<Rightarrow> {}"
 instance by standard
 end
 
@@ -31,125 +37,33 @@ fun stringval where
   "stringval (String s) = s"
 | "stringval _ = ''''"
 
-type_synonym localState = "(val,val) io"
+datatype userDataOp =
+    Name "val registerOp"
+    | Mail "val registerOp"
 
-(*
-  querySpec :: "operation \<Rightarrow> 'any list \<Rightarrow> ('operation, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool"
-  procedure :: "procedureName \<Rightarrow> 'any list \<rightharpoonup> ('ls \<times> ('ls, 'operation, 'any) procedureImpl)"
-  invariant :: "('proc, 'operation, 'any) invariantContext \<Rightarrow> bool"
-*)
+type_synonym operation = 
+  "(val, userDataOp) mapOp"
 
-\<comment> \<open>define used names, to avoid typos and to help Isabelle\<close>
-
-definition "users_name_assign \<equiv> ''users_name_assign''"
-definition "users_mail_assign \<equiv> ''users_mail_assign''"
-definition "users_contains_key \<equiv> ''users_contains_key''"
-definition "users_remove \<equiv> ''users_remove''"
-definition "users_name_get \<equiv> ''users_name_get''"
-definition "users_mail_get \<equiv> ''users_mail_get''"
-definition "registerUser \<equiv> ''registerUser''"
-definition "updateMail \<equiv> ''updateMail''"
-definition "removeUser \<equiv> ''removeUser''"
-definition "getUser \<equiv> ''getUser''"
-
-lemma names_distinct: "distinct [users_name_assign, users_mail_assign, users_contains_key, users_remove, users_name_get, users_mail_get, registerUser, updateMail, removeUser, getUser]"
-  by eval
-
-lemma distinct_perm1: "distinct [x,y] \<longleftrightarrow> x \<noteq> y \<and> y \<noteq> x"
-  by auto
-
-lemma distinct_perm2: "distinct (x#xs) \<longleftrightarrow> (\<forall>y\<in>set xs. x \<noteq> y \<and> y \<noteq> x) \<and> distinct xs"
-  by auto
-
-lemma distinct_perm3: "(\<forall>x\<in>set [x]. P x) \<longleftrightarrow> P x"
-  by auto
-
-lemma distinct_perm4: "(\<forall>x\<in>set (y#ys). P x) \<longleftrightarrow> (P y \<and> (\<forall>x\<in>set ys. P x))"
-  by auto
-
-schematic_goal name_distinct2[simp]: "?X"
-  apply (insert names_distinct)
-  apply (subst(asm) distinct_perm1 distinct_perm2)+
-  apply (subst(asm) distinct_perm3 distinct_perm4)+
-  apply assumption
-  done
-
-lemma "users_remove \<noteq> users_name_assign"
-  by simp
-
-thm conjI
-thm name_distinct2[intro]
-
-lemma names_distinct3[simp]:
-  "users_name_assign \<noteq> users_mail_assign"
-  "users_name_assign \<noteq> users_contains_key"
-  "users_name_assign \<noteq> users_remove"
-  "users_name_assign \<noteq> users_name_get"
-  "users_name_assign \<noteq> users_mail_get"
-  "users_name_assign \<noteq> registerUser "
-  "users_name_assign \<noteq> updateMail "
-  "users_name_assign \<noteq> removeUser "
-  "users_name_assign \<noteq> getUser"
-  "users_mail_assign \<noteq> users_contains_key"
-  "users_mail_assign \<noteq> users_remove"
-  "users_mail_assign \<noteq> users_name_get"
-  "users_mail_assign \<noteq> users_mail_get"
-  "users_mail_assign \<noteq> registerUser "
-  "users_mail_assign \<noteq> updateMail "
-  "users_mail_assign \<noteq> removeUser "
-  "users_mail_assign \<noteq> getUser "
-  "users_contains_key \<noteq> users_remove"
-  "users_contains_key \<noteq> users_name_get"
-  "users_contains_key \<noteq> users_mail_get"
-  "users_contains_key \<noteq> registerUser"
-  "users_contains_key \<noteq> updateMail"
-  "users_contains_key \<noteq> removeUser"
-  "users_contains_key \<noteq> getUser"
-  "users_remove \<noteq> users_name_get"
-  "users_remove \<noteq> users_mail_get"
-  "users_remove \<noteq> registerUser"
-  "users_remove \<noteq> updateMail"
-  "users_remove \<noteq> removeUser"
-  "users_remove \<noteq> getUser"
-  "users_name_get \<noteq> users_mail_get"
-  "users_name_get \<noteq> registerUser "
-  "users_name_get \<noteq> updateMail "
-  "users_name_get \<noteq> removeUser "
-  "users_name_get \<noteq> getUser "
-  "users_mail_get \<noteq> registerUser"
-  "users_mail_get \<noteq> updateMail "
-  "users_mail_get \<noteq> removeUser "
-  "users_mail_get \<noteq> getUser "
-  "registerUser \<noteq> updateMail"
-  "registerUser \<noteq> removeUser "
-  "registerUser \<noteq> getUser "
-  "updateMail \<noteq> removeUser "
-  "updateMail \<noteq> getUser "
-  "removeUser \<noteq> getUser"
-  using name_distinct2 by auto
-
-lemmas names_distinct4[simp] = names_distinct3[symmetric]
+type_synonym localState = "(val,operation,val) io"
 
 
-
-
-definition registerUser_impl :: "val \<Rightarrow> val \<Rightarrow> (val,val) io" where
+definition registerUser_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operation,val) io" where
  "registerUser_impl name mail \<equiv>  do {
   u \<leftarrow> newId isUserId;
   atomic (do {
-    call users_name_assign [u, name];
-    call users_mail_assign [u, mail]
+    call (NestedOp u (Name (Assign name)));
+    call (NestedOp u (Mail (Assign mail)))
   });
   return u
 }"
 
 
-definition updateMail_impl :: "val \<Rightarrow> val \<Rightarrow> (val,val) io" where
+definition updateMail_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operation,val) io" where
  "updateMail_impl u mail \<equiv>  do {
   atomic (do {
-  exists \<leftarrow> call users_contains_key [u];  
+  exists \<leftarrow> call (KeyExists u);  
     (if exists = Bool True then do {
-      call users_mail_assign [u, mail]
+      call (NestedOp u (Mail (Assign mail)))
     } else skip)
   });
   return Undef
