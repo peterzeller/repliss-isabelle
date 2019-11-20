@@ -2161,7 +2161,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
         by blast
     qed
     
-    have not_correct: "\<not>traceCorrect_s program tr'_s"
+    have not_correct: "\<not>traceCorrect_s  tr'_s"
       by (simp add: \<open>\<exists>a. (a, False) \<in> set tr'_s\<close> traceCorrect_s_def)
       
  
@@ -2172,10 +2172,10 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
       using that by (auto simp add: programCorrect_s_def)
     *)
     from works_in_single_session
-    have use_single_session: "traceCorrect_s program trace" if "initialState program ~~ (s, trace) \<leadsto>\<^sub>S* S" for  trace s S
+    have use_single_session: "traceCorrect_s  trace" if "initialState program ~~ (s, trace) \<leadsto>\<^sub>S* S" for  trace s S
       using that by (auto simp add: programCorrect_s_def)  
       
-    have correct: "traceCorrect_s program tr'_s" 
+    have correct: "traceCorrect_s  tr'_s" 
     proof (rule use_single_session)
       show "initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s"
         using \<open>initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s\<close> .

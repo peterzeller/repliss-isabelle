@@ -6,7 +6,7 @@ begin
 text "Checks that a procedure with initial state S on invocation i is correct."
 
 definition "execution_s_correct" where
-"execution_s_correct progr S i \<equiv> \<forall>trace S'. (S ~~ (i, trace) \<leadsto>\<^sub>S* S') \<longrightarrow> traceCorrect_s progr trace"
+"execution_s_correct progr S i \<equiv> \<forall>trace S'. (S ~~ (i, trace) \<leadsto>\<^sub>S* S') \<longrightarrow> traceCorrect_s trace"
 
 definition "procedureCorrect" where
 "procedureCorrect progr S i \<equiv> invariant_all' S \<and> execution_s_correct progr S i"
@@ -118,26 +118,26 @@ proof (auto simp add: programCorrect_s_def)
 
     { 
       assume "0 < length tr"
-      have "traceCorrect_s program tr"
+      have "traceCorrect_s  tr"
         by (meson \<open>S_init \<in> initialStates program i\<close> \<open>invariant_all' S_init\<close> assms(2) execution_s_correct_def initialStates_wellFormed procedureCorrect_def steps')
     } 
     moreover
     {
       assume "0 = length tr"
-      have "traceCorrect_s program tr"
+      have "traceCorrect_s  tr"
         using \<open>0 = length tr\<close> traceCorrect_s_def by force
     }
-    ultimately have "traceCorrect_s program trace" 
+    ultimately have "traceCorrect_s  trace" 
       by (auto simp add: traceCorrect_s_def trace_def a_def \<open>invInitial\<close>, fastforce)
   }
   moreover 
   {
     assume "trace = []"
-    then have "traceCorrect_s program trace" 
+    then have "traceCorrect_s  trace" 
       by (simp add: traceCorrect_s_def)
   }
   ultimately
-  show "traceCorrect_s program trace"
+  show "traceCorrect_s  trace"
     using list.exhaust by blast
 qed  
 

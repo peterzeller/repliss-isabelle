@@ -237,29 +237,6 @@ lemma state_wellFormed_s_currentTransactions_iff_uncommitted:
   shows "currentTransaction S i \<triangleq> tx \<longleftrightarrow> (transactionStatus S tx \<triangleq> Uncommitted)"
   using local.wf state_wellFormed_s_currentTransactionsOnlyInCurrent state_wellFormed_s_to_wf wellFormed_currentTransactionUncommitted wellFormed_currentTransaction_back3 by fastforce
 
-lemma no_more_invoc:
-  assumes steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
-and ls: "localState S i \<noteq> None"
-and wf: "state_wellFormed S"
-shows "(AInvoc p, t) \<notin> set trace"
-proof -
-
-  from ls have no_invoc: "invocationOp S (fst (i, trace)) \<noteq> None"
-    by (simp add: wf wf_localState_to_invocationOp)
-
-
-  have "(AInvoc p, t) \<notin> set (snd (i, trace))"
-  using steps no_invoc
-proof (induct rule: steps_s.induct)
-case (steps_s_refl S s)
-  then show ?case 
-    by auto
-
-next
-  case (steps_s_step S s tr S' a S'')
-  then show ?case 
-    by (auto simp add: step_s.simps has_invocationOp_forever)
-qed
 
 
 end

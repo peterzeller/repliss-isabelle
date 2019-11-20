@@ -402,19 +402,19 @@ inductive steps_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state
   
 
 definition traceCorrect_s where
-"traceCorrect_s program trace \<equiv> (\<forall>a. (a, False) \<notin> set trace)"
+"traceCorrect_s trace \<equiv> (\<forall>a. (a, False) \<notin> set trace)"
 
 lemma traceCorrect_s_split: 
   assumes "snd a"
-and "traceCorrect_s progr trace"
-shows "traceCorrect_s progr (a#trace)"
+and "traceCorrect_s trace"
+shows "traceCorrect_s (a#trace)"
   by (metis assms set_ConsD sndI traceCorrect_s_def)
 
 
 definition programCorrect_s where
 "programCorrect_s program \<equiv> (\<forall>trace s S. 
    (initialState program ~~ (s, trace) \<leadsto>\<^sub>S* S)
-    \<longrightarrow> traceCorrect_s program trace)"
+    \<longrightarrow> traceCorrect_s trace)"
   
 lemma steps_s_append: 
 assumes a1: "S ~~ (s, tra) \<leadsto>\<^sub>S* S'"
