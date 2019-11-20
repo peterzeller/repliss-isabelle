@@ -48,16 +48,34 @@ shows "procedure_cannot_guess_ids uids' ls impl"
 
 
 
-definition procedures_cannot_guess_ids :: "('proc::valueType \<rightharpoonup> ('ls \<times> ('ls, 'operation::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
+definition procedures_cannot_guess_ids :: "('proc::valueType \<Rightarrow> ('ls \<times> ('ls, 'operation::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
 "procedures_cannot_guess_ids proc = 
-(\<forall>p ls impl uids. proc p \<triangleq> (ls, impl) \<longrightarrow>  procedure_cannot_guess_ids (uids\<union>uniqueIds p) ls impl)"
+(\<forall>p ls impl uids. proc p = (ls, impl) \<longrightarrow>  procedure_cannot_guess_ids (uids\<union>uniqueIds p) ls impl)"
 
 lemmas show_procedures_cannot_guess_ids = procedures_cannot_guess_ids_def[THEN iffD1, rule_format]
 
+definition query_cannot_guess_ids :: "uniqueId set \<Rightarrow> (('operation::valueType, 'any::valueType) operationContext \<Rightarrow> 'any \<Rightarrow> bool) \<Rightarrow> bool"  where
+"query_cannot_guess_ids oprUids spec \<equiv> 
+  \<forall>ctxt res. 
+   spec ctxt res \<longrightarrow> uniqueIds res \<subseteq> oprUids \<union> \<Union>{uniqueIds (call_operation c) | cId c. calls ctxt cId \<triangleq> c}"
+
+lemma query_cannot_guess_ids_def2:
+"query_cannot_guess_ids oprUids spec =
+  (\<forall>ctxt res x. 
+   spec ctxt res 
+ \<longrightarrow> x \<in> uniqueIds res 
+ \<longrightarrow> x \<notin> oprUids
+ \<longrightarrow> (\<exists>cId opr res. calls ctxt cId \<triangleq> Call opr res \<and> x \<in> uniqueIds opr))"
+  apply (auto simp add: query_cannot_guess_ids_def)
+   apply ((drule spec)+,drule(1) mp) 
+   apply (drule(1) subsetD)
+   apply auto
+   apply (metis call.collapse)
+  by (metis call.sel(1))
+
 definition queries_cannot_guess_ids :: "('operation \<Rightarrow> ('operation::valueType, 'any::valueType) operationContext \<Rightarrow> 'any \<Rightarrow> bool) \<Rightarrow> bool"  where
-"queries_cannot_guess_ids qry \<equiv> 
-  \<forall>opr ctxt res. 
-   qry opr ctxt res \<longrightarrow> uniqueIds res \<subseteq> uniqueIds opr \<union> \<Union>{uniqueIds (call_operation c) | cId c. calls ctxt cId \<triangleq> c}"
+"queries_cannot_guess_ids spec \<equiv> 
+  \<forall>opr. query_cannot_guess_ids (uniqueIds opr) (spec opr)"
 
 
 lemma queries_cannot_guess_ids_def2:
@@ -67,12 +85,7 @@ lemma queries_cannot_guess_ids_def2:
  \<longrightarrow> x \<in> uniqueIds res 
  \<longrightarrow> x \<notin> uniqueIds opr
  \<longrightarrow> (\<exists>cId opr res. calls ctxt cId \<triangleq> Call opr res \<and> x \<in> uniqueIds opr))"
-  apply (auto simp add: queries_cannot_guess_ids_def)
-   apply ((drule spec)+,drule(1) mp) 
-   apply (drule(1) subsetD)
-   apply auto
-   apply (metis call.collapse)
-  by force
+  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def2)
 
 
 definition program_wellFormed :: " ('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) prog \<Rightarrow> bool" where

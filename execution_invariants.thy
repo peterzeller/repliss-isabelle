@@ -761,7 +761,7 @@ lemma exists_implementation:
   assumes "state_wellFormed S"
     and "currentProc S i \<triangleq> impl"
     and "progr = prog S"
-  shows "\<exists>p lsInit. procedure progr p \<triangleq> (lsInit, impl)"
+  shows "\<exists>p lsInit. procedure progr p = (lsInit, impl)"
   using assms proof (induct rule: wellFormed_induct)
   case initial
   then show ?case by (auto simp add: initialState_def)

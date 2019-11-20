@@ -18,7 +18,7 @@ definition initialStates :: "('proc::valueType, 'ls, 'operation, 'any::valueType
        invocationOp := (invocationOp S)(i \<mapsto> proc)\<rparr>) 
  | S proc initState impl.
     prog S = progr
-  \<and> procedure progr proc \<triangleq> (initState, impl)  
+  \<and> procedure progr proc = (initState, impl)  
   \<and> uniqueIds proc \<subseteq> knownIds S
   \<and> invariant_all S
   \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
@@ -35,7 +35,7 @@ lemma initialStates_wellFormed:
   assume S_def: "S = Sa\<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}),
                  invocationOp := invocationOp Sa(i \<mapsto> proc)\<rparr>"
     and "progr = prog Sa"
-    and "procedure (prog Sa) proc \<triangleq> (initState, impl)"
+    and "procedure (prog Sa) proc = (initState, impl)"
     and "uniqueIds proc \<subseteq> knownIds Sa"
     and "invariant_all Sa"
     and "state_wellFormed Sa"
@@ -44,7 +44,7 @@ lemma initialStates_wellFormed:
 
   have step: "Sa ~~ (i, AInvoc proc) \<leadsto> S"
     apply (auto simp add: step.simps S_def)
-    by (metis \<open>invocationOp Sa i = None\<close> \<open>procedure (prog Sa) proc \<triangleq> (initState, impl)\<close> \<open>state_wellFormed Sa\<close> \<open>uniqueIds proc \<subseteq> knownIds Sa\<close> state.surjective state.update_convs(1) state.update_convs(2) wf_localState_to_invocationOp)
+    by (metis \<open>invocationOp Sa i = None\<close> \<open>procedure (prog Sa) proc = (initState, impl)\<close> \<open>state_wellFormed Sa\<close> \<open>uniqueIds proc \<subseteq> knownIds Sa\<close> state.surjective state.unfold_congs(12) state.update_convs(1) wf_localState_to_invocationOp)
 
   with \<open>state_wellFormed Sa\<close>
   have "state_wellFormed S"

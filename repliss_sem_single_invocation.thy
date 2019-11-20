@@ -364,7 +364,7 @@ inductive step_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state 
 | invocation:
   "\<lbrakk>\<comment> \<open> localState C s = None; \<close>
    invocationOp S i = None;
-   procedure (prog S) proc \<triangleq> (initState, impl);
+   procedure (prog S) proc = (initState, impl);
    uniqueIds proc \<subseteq> knownIds S';
    \<comment> \<open>   TODO add welformedness?  \<close>
    state_wellFormed S';

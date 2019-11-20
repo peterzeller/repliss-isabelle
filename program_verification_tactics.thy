@@ -7,6 +7,7 @@ theory program_verification_tactics
     execution_invariants2
     execution_invariants_s
     execution_invariants_unused
+    program_proof_rules
 begin
 
 context begin
@@ -59,7 +60,8 @@ and a2: "\<And>S_pre proc initState impl.
          visibleCalls := visibleCalls S_pre(i \<mapsto> {}),
          invocationOp := invocationOp S_pre(i \<mapsto> (proc))\<rparr>\<rangle>;
         B\<langle>''progr_def'', n1 : prog S_pre = progr\<rangle>; 
-        B\<langle>''proc_impl'', n1 : procedure progr proc \<triangleq> (initState, impl)\<rangle>; 
+        B\<langle>''proc_initState'', n1 : initState = fst (procedure progr proc)\<rangle>; 
+        B\<langle>''proc_impl'', n1 : impl = snd (procedure progr proc)\<rangle>; 
         B\<langle>''ids_in_args_are_knownIds'', n1 : uniqueIds proc \<subseteq> knownIds S_pre\<rangle>; 
         B\<langle>''invariant_pre'', n1 : invariant_all' S_pre\<rangle>;
         B\<langle>''wf_pre'', n1 : state_wellFormed S_pre\<rangle>; 
@@ -73,7 +75,7 @@ proof -
   from a1[unfolded initialStates'_def]
   obtain S proc initState impl 
     where "prog S = progr"
-      and "procedure progr proc \<triangleq> (initState, impl)"
+      and "procedure progr proc = (initState, impl)"
       and "uniqueIds proc \<subseteq> knownIds S"
       and "invariant_all' S"
       and "state_wellFormed S"

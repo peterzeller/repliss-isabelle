@@ -79,7 +79,7 @@ record ('proc, 'operation, 'any) invariantContext = "('operation, 'any) operatio
 
 record ('proc, 'ls, 'operation, 'any) prog =
   querySpec :: "'operation \<Rightarrow> ('operation, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool"
-  procedure :: "'proc \<rightharpoonup> ('ls \<times> ('ls, 'operation, 'any) procedureImpl)"
+  procedure :: "'proc \<Rightarrow> ('ls \<times> ('ls, 'operation, 'any) procedureImpl)"
   invariant :: "('proc, 'operation, 'any) invariantContext \<Rightarrow> bool"
 
 record ('proc, 'ls, 'operation, 'any) distributed_state = "('proc, 'operation, 'any) invariantContext" +
@@ -639,7 +639,7 @@ inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<
 
 | invocation:
   "\<lbrakk>localState S i = None; \<comment> \<open>  TODO this might not be necessary  \<close>
-   procedure (prog S) proc \<triangleq> (initialState, impl);
+   procedure (prog S) proc = (initialState, impl);
    uniqueIds proc \<subseteq> knownIds S;
    invocationOp S i = None
    \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc proc) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> initialState),

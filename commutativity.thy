@@ -177,9 +177,8 @@ lemma precondition_endAtomic:
   by (auto simp add: precondition_def intro: step.intros elim!: step_elims)
 
 lemma precondition_invoc:
-  "precondition (s, AInvoc proc) C = (\<exists>initialState impl.
-       localState C s = None \<and> procedure (prog C) proc \<triangleq> (initialState, impl) \<and> uniqueIds proc \<subseteq> knownIds C \<and> invocationOp C s = None)"
-  by (auto simp add: precondition_def intro: step.intros elim!: step_elims)
+  "precondition (s, AInvoc proc) C = (localState C s = None \<and> uniqueIds proc \<subseteq> knownIds C \<and> invocationOp C s = None)"
+  by (auto simp add: precondition_def step.simps)
 
 
 lemma precondition_dbop:
@@ -299,10 +298,9 @@ proof -
 
   next
     case (AInvoc proc)
-    with preconditionHolds obtain initialState impl
-      where "invocationOp B sb = None"
+    with preconditionHolds 
+      have "invocationOp B sb = None"
         and "localState B sb = None"
-        and "procedure (prog B) proc \<triangleq> (initialState, impl)"
         and "uniqueIds proc \<subseteq> knownIds B"
       by (auto simp add: precondition_invoc)
     moreover have "invocationOp A sb = None"

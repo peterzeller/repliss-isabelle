@@ -5,6 +5,7 @@ theory example_userbase
     "HOL-Library.Countable"
     crdt_specs
     unique_ids
+    program_proof_rules
 begin
 
 
@@ -31,10 +32,10 @@ definition [simp]: "default_val \<equiv> Undef"
 
 lemma uniqueIds_simp[simp]:
   shows "uniqueIds (String x) = {}"
-    and "uniqueIds (Bool b) = {}"
-    and "uniqueIds Undef = {}"
-    and "uniqueIds (Found x y) = {}"
-    and "uniqueIds NotFound = {}"
+     "uniqueIds (Bool b) = {}"
+     "uniqueIds Undef = {}"
+     "uniqueIds (Found x y) = {}"
+     "uniqueIds NotFound = {}"
   by (auto simp add: uniqueIds_val_def)
 
 instance by (standard, auto)
@@ -160,13 +161,13 @@ instance by (standard, auto)
 end
 
 
-definition procedures :: "proc \<Rightarrow> ((val, operation, val) io \<times> ((val, operation, val) io, operation, val) procedureImpl) option" where
+definition procedures :: "proc \<Rightarrow> ((val, operation, val) io \<times> ((val, operation, val) io, operation, val) procedureImpl)" where
 "procedures invoc \<equiv>
   case invoc of
-    RegisterUser name mail \<Rightarrow> Some (toImpl2 (registerUser_impl (String name) (String mail)))
-  | UpdateMail u mail \<Rightarrow> Some (toImpl2 (updateMail_impl (UserId u) (String mail)))
-  | RemoveUser u \<Rightarrow>  Some (toImpl2 (removeUser_impl (UserId u)))
-  | GetUser u  \<Rightarrow>  Some (toImpl2 (getUser_impl (UserId u)))
+    RegisterUser name mail \<Rightarrow> toImpl2 (registerUser_impl (String name) (String mail))
+  | UpdateMail u mail \<Rightarrow> toImpl2 (updateMail_impl (UserId u) (String mail))
+  | RemoveUser u \<Rightarrow>  toImpl2 (removeUser_impl (UserId u))
+  | GetUser u  \<Rightarrow>  toImpl2 (getUser_impl (UserId u))
 "
 
 definition inv1 :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
@@ -206,7 +207,7 @@ definition userStruct :: "(userDataOp, val) crdtSpec" where
 )" 
 
 definition crdtSpec :: "(operation, val) crdtSpec" where
-"crdtSpec \<equiv> map_dw_spec Bool (struct_spec userStruct)"
+"crdtSpec \<equiv> map_dw_spec Bool userStruct"
 
 definition progr :: "(proc, localState, operation, val) prog" where
   "progr \<equiv> \<lparr>
@@ -235,6 +236,7 @@ method show_procedures_cannot_guess_ids =
       split: if_splits)[1])?;
       ((rule procedure_cannot_guess_ids.intros, force); show_procedures_cannot_guess_ids?)?)
 
+
 lemma progr_wf: "program_wellFormed progr"
 proof (auto simp add: program_wellFormed_def)
   show "procedures_cannot_guess_ids procedures"
@@ -253,133 +255,19 @@ proof (auto simp add: program_wellFormed_def)
 
   show "queries_cannot_guess_ids (querySpec progr)"
   proof (simp add: progr_def crdtSpec_def, standard)
-    show "queries_cannot_guess_ids (struct_spec userStruct)"
-      apply (auto simp add: userStruct_def)
-
-      using [[show_sorts]] find_theorems queries_cannot_guess_ids struct_spec
-    proof
-      fix oper :: userDataOp
-      obtain nested where "oper = Mail nested \<or> oper = Name nested" 
-        by (case_tac oper, auto)
-
-      show "\<exists>op spec f.
-          userStruct oper = struct_field (spec op) f \<and>
-          queries_cannot_guess_ids spec \<and> f oper \<triangleq> op \<and> (\<forall>op' x. f op' \<triangleq> x \<longrightarrow> uniqueIds x \<subseteq> uniqueIds op')"
-        apply (rule_tac x=nested in exI)
-
-      proof (cases "oper")
-        case (Name nested)
-
-        from [[show_sorts]]
-        term "uniqueIds nested "
-
-        have "\<exists>op spec f.
-       userStruct oper = struct_field (spec op) f \<and>
-       queries_cannot_guess_ids spec \<and> f oper \<triangleq> op \<and> (\<forall>op' x. f op' \<triangleq> x \<longrightarrow> uniqueIds x \<subseteq> uniqueIds op')"
-          for oper
-          apply (rule exI[where x=nested])
-
-
-          apply (rule exI)
-apply (rule exI[where x="(\<lambda>oper. case oper of Name op \<Rightarrow> Some op | _ \<Rightarrow> None)"])
-          apply (rule exI[where x="nested"])
-
-        show ?thesis
-          apply (rule exI)
-          apply (rule exI)
-apply (rule exI[where x="(\<lambda>oper. case oper of Name op \<Rightarrow> Some op | _ \<Rightarrow> None)"])
-          apply (rule exI[where x="nested"])
-
-          using [[show_sorts]]
-        proof (intro )
-
-          unfolding Name
-        proof (intro exI conjI allI impI)
-          
-          show "queries_cannot_guess_ids (register_spec Undef)"
-          show "userStruct (Name nested) = struct_field (register_spec Undef nested) (\<lambda>oper. case oper of Name op \<Rightarrow> Some op | _ \<Rightarrow> None)"
-            apply auto
-          sorry
-      next
-        case (Mail nested)
-        then show ?thesis sorry
-      qed
-
     show "queries_cannot_guess_ids userStruct"
-      unfolding userStruct_def proof (rule struct_spec_queries_cannot_guess_ids)
+    proof (auto simp add: userStruct_def queries_cannot_guess_ids_def split: userDataOp.splits)
+
+      show "query_cannot_guess_ids (uniqueIds s) (struct_field (register_spec Undef s) (case_userDataOp Some Map.empty))" for s
+        by (standard, auto split: userDataOp.splits)
 
 
-      apply (auto simp add: userStruct_def)
-    find_theorems queries_cannot_guess_ids map_dw_spec
+      show "query_cannot_guess_ids (uniqueIds s) (struct_field (register_spec Undef s) (case_userDataOp Map.empty Some))" for s 
+        by (standard, auto split: userDataOp.splits)
+    qed
 
-
-  find_theorems program_wellFormed
-
-(*
-TODO can this still be defined? maybe using noninterference? 
-
-definition "progr_uids  ls \<equiv> uniqueIds (ls_u ls)"
-
-lemma progr_wf: "program_wellFormed progr_uids progr"
-proof (auto simp add: program_wellFormed_def)
-  show "procedures_cannot_guess_ids progr_uids procedures"
-    apply (rule show_procedures_cannot_guess_ids )
-    apply (auto simp add: procedures_cannot_guess_ids_def procedures_def progr_uids_def split: localAction.splits)
-    by (auto simp add: uniqueIdsInList_def getUserImpl_def removeUserImpl_def updateMailImpl_def registerUserImpl_def  lsInit_def uniqueId_no_nested  split: list.splits val.splits if_splits nat.splits)
-
-  show "queries_cannot_guess_ids (querySpec progr)"
-    apply (auto simp add: progr_def queries_cannot_guess_ids_def2 crdtSpec_def; case_tac args)
-           apply (auto simp add: uniqueId_no_nested2)
-       apply (auto simp add: uniqueId_no_nested2 latest_mail_assign_def latest_name_assign_def uniqueIdsInList_def)
-    by (meson list.set_intros(1) list.set_intros(2))+
-
-
+  qed (simp)
 qed
-*)
-
-
-
-
-
-(*
-  using cs_no_orig apply fastforce
-  using cs_no_orig apply force
-  using cs_def cs_no_orig apply fastforce
-  apply (metis cs_no_orig option.distinct(1) option.sel)
-  apply (metis cs_no_orig option.inject option.simps(3))
-  using cs_notin_vis apply fastforce
-  using cs_def apply auto[1]
-   defer
-  apply (simp add: cs_def)
-
-  apply fastforce
-
-
-  apply (metis option.sel option.simps(3))
-  apply fastforce
-
-  thm option.sel option.simps(3)
-
-  using [[smt_solver=cvc4]]
-                apply (smt Orig'_def cs_notin_hb2 cs_notin_vis option.case_eq_if option.exhaust_sel)
-  apply (smt Orig'_def cs_notin_hb1 option.case_eq_if option.exhaust_sel option.sel)
-
-  find_theorems "op`" "op\<in>" "\<exists>x. _ "
-
-
-  apply (rename_tac i1 i2 c1 c2)
-*)
-
-
-lemma queries_defined_users_name_assign[simp]: 
-  "Ex (querySpec progr users_name_assign [u, n] ctxt)"
-  for u n ctxt
-  by (auto simp add: progr_def crdtSpec_def )
-
-lemma queries_defined_users_mail_assign[simp]: 
-  "Ex (querySpec progr users_mail_assign [u, n] ctxt)"
-  for u n ctxt
-  by (auto simp add: progr_def crdtSpec_def )
 
 
 
@@ -398,13 +286,44 @@ proof M_show_programCorrect
 
   show "procedureCorrect progr S i"
   proof (rule Initial_Label, rule show_initial_state_prop[OF procedure_correct], rule DC_final2, casify)
-    case show_P
+    case (show_P S_pre proc initState impl)
+    find_theorems name: show_P
 
     note show_P[simp]
 
     show "procedureCorrect progr S i"
-      using show_P.proc_impl[simplified procedure_progr]
-    proof (cases rule: procedure_cases3)
+    proof (cases proc)
+      case (RegisterUser name mail)
+
+      show "procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
+        show ?case 
+          using show_P.invariant_pre RegisterUser
+          by (auto simp add:  inv_def inv1_def inv2_def inv3_def invContextH2_simps)
+
+      next
+        case execution
+        show "execution_s_correct progr S i"
+          using show_P.proc_impl
+          apply (auto simp add: RegisterUser procedures_def registerUser_impl_def)
+          apply (rule execution_s_check_sound; simp?)
+
+          find_theorems  execution_s_correct 
+
+      qed
+
+      then show ?thesis sorry
+    next
+      case (UpdateMail x21 x22)
+      then show ?thesis sorry
+    next
+      case (RemoveUser x3)
+      then show ?thesis sorry
+    next
+      case (GetUser x4)
+      then show ?thesis sorry
+    qed
       case (case_registerUser name mail)
 
       show " procedureCorrect progr S i"

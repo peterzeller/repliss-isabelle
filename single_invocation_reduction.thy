@@ -691,7 +691,7 @@ next
                    visibleCalls := visibleCalls S'(s \<mapsto> {}), 
                    invocationOp := invocationOp S'(s \<mapsto> (proc))\<rparr>"
             and a2: "localState S' s = None"
-            and a3: "procedure (prog S') proc \<triangleq> (initialState, impl)"
+            and a3: "procedure (prog S') proc = (initialState, impl)"
             and a4: "uniqueIds proc \<subseteq> knownIds S'"
             and a5: "invocationOp S' s = None"
           by metis
@@ -760,7 +760,7 @@ next
         proof (rule step_s.invocation)
           show "invocationOp S' s = None"
             by (simp add: S2_invocationOp a5)
-          show "procedure (prog S) proc \<triangleq> (initialState, impl)"
+          show "procedure (prog S) proc = (initialState, impl)"
             using a3 steps steps_do_not_change_prog by force
           show "uniqueIds proc \<subseteq> knownIds S'"
             by (simp add: S2_knownIds a4)
@@ -1131,7 +1131,7 @@ next
                     visibleCalls := visibleCalls S'(s \<mapsto> {}), 
                     invocationOp := invocationOp S'(s \<mapsto> p)\<rparr>"
             and a2: "localState S' s = None"
-            and a3: "procedure (prog S') p \<triangleq> (initial, impl)"
+            and a3: "procedure (prog S') p = (initial, impl)"
             and a4: "uniqueIds p \<subseteq> knownIds S'"
             and a5: "invocationOp S' s = None"
           by metis
@@ -1145,7 +1145,7 @@ next
             then show "invocationOp S2 s = None" by blast
             have [simp]: "prog S2 = prog S'"
               using ih3 state_coupling_def state_monotonicGrowth_prog by force 
-            show "procedure (prog S2) p \<triangleq> (initial, impl)"
+            show "procedure (prog S2) p = (initial, impl)"
               using a3 state_coupling_def by auto
             show "uniqueIds p \<subseteq> knownIds S'"
               using a4 ih3 state_coupling_def by auto
@@ -1395,7 +1395,7 @@ next
     have "\<And>x. invocationOp S2 s \<noteq> Some x"      
       using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_invocationOp split: if_splits)
     then show "invocationOp S2 s = None" by blast     
-    show "procedure (prog S2) proc \<triangleq> (initialState, impl)"
+    show "procedure (prog S2) proc = (initialState, impl)"
       using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_prog split: if_splits)
     show "uniqueIds proc \<subseteq> knownIds S"
       using invocation coupling by (auto simp add: state_coupling_def split: if_splits)

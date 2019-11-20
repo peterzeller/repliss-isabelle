@@ -321,10 +321,6 @@ text "Structs"
 definition struct_field :: "(('i, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool) \<Rightarrow> ('o \<Rightarrow> 'i option) \<Rightarrow> ('o, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool"  where
 "struct_field spec to_op   \<equiv> \<lambda>ctxt r. spec (restrict_ctxt_op to_op ctxt) r"
 
-definition struct_spec (*:: "('a \<Rightarrow> ('v,'r::default) crdtSpec) \<Rightarrow> ('a, 'r) crdtSpec"*) where
-"struct_spec nested oper ctxt \<equiv>
-  nested oper ctxt 
-"
 
 definition ctxt_map_result :: "('a \<Rightarrow> 'b) \<Rightarrow> ('o, 'a) operationContext \<Rightarrow> ('o, 'b) operationContext" where
 "ctxt_map_result f ctxt  \<equiv> \<lparr>
@@ -389,111 +385,54 @@ lemma map_dw_spec_queries_cannot_guess_ids[intro]:
 lemma register_spec_queries_cannot_guess_ids[intro]:
   assumes i_no: "uniqueIds i = {}"
   shows "queries_cannot_guess_ids (register_spec i)"
-  apply (auto simp add: queries_cannot_guess_ids_def register_spec_def latestValues_def i_no
+  apply (auto simp add: queries_cannot_guess_ids_def2 register_spec_def latestValues_def i_no
       latestAssignments_def ran_def uniqueIds_registerOp_def split: registerOp.splits option.splits if_splits)
   apply (auto split: call.splits if_splits registerOp.splits)
   by (metis call.sel(1) registerOp.distinct(1) registerOp.inject)
 
-(*
-TODO this is difficult because there are no existential types.
-Could maybe use the countable trick again, see https://stackoverflow.com/questions/51409639/how-can-i-fake-existential-types-in-isabelle-hol
 
-definition 
-"struct_field_cannot_guess_id c oper \<equiv> 
-\<exists>op spec f. c oper = struct_field (spec op) f  
-            \<and> queries_cannot_guess_ids spec 
-            \<and> f oper \<triangleq> op 
-            \<and> (\<forall>op' x. f op' \<triangleq> x \<longrightarrow> uniqueIds x \<subseteq> uniqueIds op')"
+lemma query_cannot_guess_ids_struct_field:
+  assumes a1: "query_cannot_guess_ids uids spec"
+    and a2: "\<And>op op'. f op \<triangleq> op' \<Longrightarrow> uniqueIds op' \<subseteq> uniqueIds op"
+  shows "query_cannot_guess_ids uids (struct_field spec f)"
+  using a1 proof (auto simp add: query_cannot_guess_ids_def2)
+  fix ctxt res x
+  assume a0: "\<forall>ctxt res.            spec ctxt res \<longrightarrow> (\<forall>x. x \<in> uniqueIds res \<longrightarrow> x \<notin> uids \<longrightarrow> (\<exists>cId opr. (\<exists>res. calls ctxt cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr))"
+    and a1: "struct_field spec f ctxt res"
+    and a2: "x \<in> uniqueIds res"
+    and a3: "x \<notin> uids"
 
-term struct_field_cannot_guess_id
+  from a1 have "spec (restrict_ctxt_op f ctxt) res"
+    by (auto simp add: struct_field_def)
 
-lemma struct_spec_queries_cannot_guess_ids[intro]:
-  assumes "\<And>oper. \<exists>t. struct_field_cannot_guess_id c oper"
-  shows "queries_cannot_guess_ids (struct_spec c)"
-  apply (auto simp add:  queries_cannot_guess_ids_def)
-  using assms  apply (auto simp add: struct_spec_def )
-  apply (drule_tac x=opr in meta_spec)
-  apply (auto simp add: struct_field_def)
+  from a0[rule_format, OF this a2 a3]
+  have " \<exists>cId opr. (\<exists>res. calls (restrict_ctxt_op f ctxt) cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
+    by simp
 
-proof (rule ccontr)
-  fix opr ctxt res x t
-  assume a0: "c opr ctxt res"
-    and a1: "x \<in> uniqueIds res"
-    and a2: "\<forall>xa. (\<forall>cId c. xa = uniqueIds (call_operation c) \<longrightarrow> calls ctxt cId \<noteq> Some c) \<or> x \<notin> xa"
-    and a3: "struct_field_cannot_guess_id t c opr"
-    and a4: "x \<notin> uniqueIds opr"
-
-  from a3 have ???
-     apply (auto simp add: struct_field_cannot_guess_id_def)
-    thm struct_field_cannot_guess_id_def
-
-  show "False"
-
-
-  fix opr ctxt res x op f spec
-  assume a0: "spec op (restrict_ctxt_op f ctxt) res"
-    and a1: "x \<in> uniqueIds res"
-    and a2: "\<forall>xa. (\<forall>cId c. xa = uniqueIds (call_operation c) \<longrightarrow> calls ctxt cId \<noteq> Some c) \<or> x \<notin> xa"
-    and a3: "c opr = (\<lambda>ctxt. spec op (restrict_ctxt_op f ctxt))"
-    and a4: "queries_cannot_guess_ids spec"
-    and a5: "f opr \<triangleq> op"
-    and a6: "\<forall>op' x. f op' \<triangleq> x \<longrightarrow> uniqueIds x \<subseteq> uniqueIds op'"
-    and a7: "x \<notin> uniqueIds opr"
-
-
-  from a6[rule_format, OF a5]
-  have "uniqueIds op \<subseteq> uniqueIds opr"  .
-
-
-  thm use_queries_cannot_guess_ids
-
-  have "\<exists>cId opr res. calls (restrict_ctxt_op f ctxt) cId \<triangleq> Call opr res \<and> x \<in> uniqueIds opr"
-  proof (rule use_queries_cannot_guess_ids[OF a4 a0 a1])
-    show "x \<notin> uniqueIds op"
-      using \<open>uniqueIds op \<subseteq> uniqueIds opr\<close> a7 by blast
-  qed
-
-  from this obtain cId opr res 
-    where cId1: "calls (restrict_ctxt_op f ctxt) cId \<triangleq> Call opr res" and cId2: "x \<in> uniqueIds opr"
+  from this obtain cId opr res' 
+    where "calls (restrict_ctxt_op f ctxt) cId \<triangleq> Call opr res'"
+      and "x \<in> uniqueIds opr"
     by blast
 
-  from cId1 obtain oprOrig
-    where cId3: "calls ctxt cId \<triangleq> Call oprOrig res" and cId4: "f oprOrig \<triangleq> opr"
-    by (auto simp add: calls_restrict_ctxt_op  split: option.splits call.splits)
-  find_theorems calls restrict_ctxt_op
+  from this obtain opr'
+    where "calls ctxt cId \<triangleq> Call opr' res'"
+      and "f opr' \<triangleq> opr"
+    by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def split: option.splits call.splits)
+
+  have "x \<in> uniqueIds opr'"
+    using \<open>f opr' \<triangleq> opr\<close> \<open>x \<in> uniqueIds opr\<close> assms(2) by blast
 
 
-  show False
-    by (metis cId3 cId4 a2 a6 cId2 call.sel(1) subset_eq)
+  show "\<exists>cId opr. (\<exists>res. calls ctxt cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
+    using \<open>calls ctxt cId \<triangleq> Call opr' res'\<close> \<open>x \<in> uniqueIds opr'\<close> by blast
 qed
 
-*)
+lemma query_cannot_guess_ids_struct_field2[intro]:
+  assumes a1: "queries_cannot_guess_ids spec"
+    and a2: "\<And>op op'. f op \<triangleq> op' \<Longrightarrow> uniqueIds op' \<subseteq> uniqueIds op"
+  shows "query_cannot_guess_ids (uniqueIds op) (struct_field (spec op) f)"
+  using a1 a2 queries_cannot_guess_ids_def query_cannot_guess_ids_struct_field by blast
 
-datatype x = A int int | B string
-
-term "case x of A y z \<Rightarrow> y+1+z | B s \<Rightarrow> (s @ ''a'')"
-(*
-case_cons (case_abs (\<lambda>y. case_abs (\<lambda>z. case_elem (A y z) (y + 1 + z)))) :: (x \<Rightarrow> int) \<Rightarrow> x \<Rightarrow> int
-Operand:   case_cons (case_abs (\<lambda>s. case_elem (B s) (s @ ''a''))) case_nil :: x \<Rightarrow> char list
-*)
-
-
-(*
-term "case_cons"
-
-declare[[show_sorts]]
-
-lemma 
-  shows "queries_cannot_guess_ids (struct_spec (\<lambda>oper. case_cons (case_abs (\<lambda>op. case_elem (X op) 
-(struct_field (spec ) f))) other_cases))"
-
-
-
-queries_cannot_guess_ids
-     (struct_spec
-       (\<lambda>oper.
-           case oper of Name op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Name op \<Rightarrow> Some op | Mail x \<Rightarrow> Map.empty x)
-           | Mail op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Name x \<Rightarrow> Map.empty x | Mail op \<Rightarrow> Some op)))*)
 
 
 

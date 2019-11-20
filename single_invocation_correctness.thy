@@ -786,7 +786,7 @@ definition initialStates' :: "('proc::valueType, 'ls, 'operation::valueType, 'an
        invocationOp := (invocationOp S)(i \<mapsto> proc)\<rparr>) 
  | S proc initState impl.
     prog S = progr
-  \<and> procedure progr proc \<triangleq> (initState, impl)  
+  \<and> procedure progr proc = (initState, impl)  
   \<and> uniqueIds proc \<subseteq> knownIds S
   \<and> invariant_all' S
   \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>

@@ -67,7 +67,7 @@ proof (auto simp add: programCorrect_s_def)
       fix initState impl S'
       assume a0: "a = (AInvoc p, False)"
         and a1: "invariant (prog S')          (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S')            (invocationOp S'(i \<mapsto> p)) (invocationRes S'))"
-        and a2: "procedure (prog S') p \<triangleq> (initState, impl)"
+        and a2: "procedure (prog S') p = (initState, impl)"
         and a3: "uniqueIds p \<subseteq> knownIds S'"
         and a4: "state_wellFormed S'"
         and a5: "\<forall>x. transactionStatus S' x \<noteq> Some Uncommitted"
