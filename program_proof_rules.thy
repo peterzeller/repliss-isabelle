@@ -70,9 +70,9 @@ execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_tran
 
 
 
-  text "It is sufficient to check with execution_s_check to ensure that the procedure is correct:"
+text "It is sufficient to check with execution_s_check to ensure that the procedure is correct:"
 
-  find_theorems "\<lbrakk>?f ?x; ?x = ?y\<rbrakk> \<Longrightarrow> ?f ?y"
+find_theorems "\<lbrakk>?f ?x; ?x = ?y\<rbrakk> \<Longrightarrow> ?f ?y"
 
 lemma execution_s_check_sound:
   assumes  "localState S i \<triangleq> ls"
@@ -185,7 +185,8 @@ lemma execution_s_check_single_step:
   localState S1 i \<triangleq> ls;
   currentProc S1 i \<triangleq> toImpl;
   visibleCalls S1 i \<triangleq>  vis;
-  currentTransaction S1 i = tx
+  currentTransaction S1 i = tx;
+  state_wellFormed S1
 \<rbrakk> \<Longrightarrow> 
   Inv
 \<and> (case localState S' i of
@@ -206,7 +207,7 @@ lemma execution_s_check_single_step:
     (currentTransaction S' i)
     LS')
 "
-shows"execution_s_check
+  shows"execution_s_check
   progr 
   i
   s_calls 
@@ -272,6 +273,9 @@ next
       have hasInvoc: "invocationOp S1 i \<noteq> None"
         using Some a8 by auto
 
+      have wf: "state_wellFormed S1"
+        using a2 by auto
+
 
       from step
       have appliedH: "Inv \<and>
@@ -279,8 +283,8 @@ next
      | Some LS' \<Rightarrow>
          execution_s_check progr i (calls S1') (happensBefore S1') (callOrigin S1') (transactionOrigin S1') (knownIds S1') (invocationOp S1')
           (invocationRes S1') {x. generatedIds S1' x \<triangleq> i} (visibleCalls S1' i orElse {}) (currentTransaction S1' i) LS')"
-        by (rule H; (simp add: a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 hasInvoc))
-        
+        by (rule H; (simp add: a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 hasInvoc wf )?)
+
 
 
       hence Inv
@@ -362,29 +366,42 @@ lemma back_subst19: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'
 lemma back_subst20: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12 x'13 x'14 x'15 x'16 x'17 x'18 x'19 x'20; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12; x'13 = x13; x'14 = x14; x'15 = x15; x'16 = x16; x'17 = x17; x'18 = x18; x'19 = x19; x'20 = x20 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20" by auto 
 
 method back_subst for P :: "'a1 \<Rightarrow> bool" uses rule = (rule back_subst[where P=P], rule rule)
- method back_subst2 for P :: "'a1\<Rightarrow>'a2 \<Rightarrow> bool" uses rule = (rule back_subst2[where P=P], rule rule) 
- method back_subst3 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3 \<Rightarrow> bool" uses rule = (rule back_subst3[where P=P], rule rule) 
- method back_subst4 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4 \<Rightarrow> bool" uses rule = (rule back_subst4[where P=P], rule rule) 
- method back_subst5 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5 \<Rightarrow> bool" uses rule = (rule back_subst5[where P=P], rule rule) 
- method back_subst6 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6 \<Rightarrow> bool" uses rule = (rule back_subst6[where P=P], rule rule) 
- method back_subst7 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7 \<Rightarrow> bool" uses rule = (rule back_subst7[where P=P], rule rule) 
- method back_subst8 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8 \<Rightarrow> bool" uses rule = (rule back_subst8[where P=P], rule rule) 
- method back_subst9 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9 \<Rightarrow> bool" uses rule = (rule back_subst9[where P=P], rule rule) 
- method back_subst10 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10 \<Rightarrow> bool" uses rule = (rule back_subst10[where P=P], rule rule) 
- method back_subst11 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11 \<Rightarrow> bool" uses rule = (rule back_subst11[where P=P], rule rule) 
- method back_subst12 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12 \<Rightarrow> bool" uses rule = (rule back_subst12[where P=P], rule rule) 
- method back_subst13 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13 \<Rightarrow> bool" uses rule = (rule back_subst13[where P=P], rule rule) 
- method back_subst14 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14 \<Rightarrow> bool" uses rule = (rule back_subst14[where P=P], rule rule) 
- method back_subst15 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15 \<Rightarrow> bool" uses rule = (rule back_subst15[where P=P], rule rule) 
- method back_subst16 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16 \<Rightarrow> bool" uses rule = (rule back_subst16[where P=P], rule rule) 
- method back_subst17 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17 \<Rightarrow> bool" uses rule = (rule back_subst17[where P=P], rule rule) 
- method back_subst18 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17\<Rightarrow>'a18 \<Rightarrow> bool" uses rule = (rule back_subst18[where P=P], rule rule) 
- method back_subst19 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17\<Rightarrow>'a18\<Rightarrow>'a19 \<Rightarrow> bool" uses rule = (rule back_subst19[where P=P], rule rule) 
- method back_subst20 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17\<Rightarrow>'a18\<Rightarrow>'a19\<Rightarrow>'a20 \<Rightarrow> bool" uses rule = (rule back_subst20[where P=P], rule rule) 
+method back_subst2 for P :: "'a1\<Rightarrow>'a2 \<Rightarrow> bool" uses rule = (rule back_subst2[where P=P], rule rule) 
+method back_subst3 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3 \<Rightarrow> bool" uses rule = (rule back_subst3[where P=P], rule rule) 
+method back_subst4 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4 \<Rightarrow> bool" uses rule = (rule back_subst4[where P=P], rule rule) 
+method back_subst5 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5 \<Rightarrow> bool" uses rule = (rule back_subst5[where P=P], rule rule) 
+method back_subst6 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6 \<Rightarrow> bool" uses rule = (rule back_subst6[where P=P], rule rule) 
+method back_subst7 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7 \<Rightarrow> bool" uses rule = (rule back_subst7[where P=P], rule rule) 
+method back_subst8 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8 \<Rightarrow> bool" uses rule = (rule back_subst8[where P=P], rule rule) 
+method back_subst9 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9 \<Rightarrow> bool" uses rule = (rule back_subst9[where P=P], rule rule) 
+method back_subst10 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10 \<Rightarrow> bool" uses rule = (rule back_subst10[where P=P], rule rule) 
+method back_subst11 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11 \<Rightarrow> bool" uses rule = (rule back_subst11[where P=P], rule rule) 
+method back_subst12 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12 \<Rightarrow> bool" uses rule = (rule back_subst12[where P=P], rule rule) 
+method back_subst13 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13 \<Rightarrow> bool" uses rule = (rule back_subst13[where P=P], rule rule) 
+method back_subst14 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14 \<Rightarrow> bool" uses rule = (rule back_subst14[where P=P], rule rule) 
+method back_subst15 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15 \<Rightarrow> bool" uses rule = (rule back_subst15[where P=P], rule rule) 
+method back_subst16 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16 \<Rightarrow> bool" uses rule = (rule back_subst16[where P=P], rule rule) 
+method back_subst17 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17 \<Rightarrow> bool" uses rule = (rule back_subst17[where P=P], rule rule) 
+method back_subst18 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17\<Rightarrow>'a18 \<Rightarrow> bool" uses rule = (rule back_subst18[where P=P], rule rule) 
+method back_subst19 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17\<Rightarrow>'a18\<Rightarrow>'a19 \<Rightarrow> bool" uses rule = (rule back_subst19[where P=P], rule rule) 
+method back_subst20 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17\<Rightarrow>'a18\<Rightarrow>'a19\<Rightarrow>'a20 \<Rightarrow> bool" uses rule = (rule back_subst20[where P=P], rule rule) 
 
+definition 
+  "new_unique_not_in_invocationOp iop uidv \<equiv>
+\<forall>i op. iop i \<triangleq> op \<longrightarrow> to_nat uidv \<notin> uniqueIds op "
+
+
+definition 
+  "new_unique_not_in_calls iop uidv \<equiv>
+\<forall>i op r. iop i \<triangleq> Call op r \<longrightarrow> to_nat uidv \<notin> uniqueIds op "
+
+definition 
+  "new_unique_not_in_calls_result iop uidv \<equiv>
+\<forall>i op r. iop i \<triangleq> Call op r \<longrightarrow> to_nat uidv \<notin> uniqueIds r "
 
 lemma execution_s_check_newId:
   assumes "infinite (Collect P)"
+    and "program_wellFormed progr"
     (* TODO add properties about uniqueness of v:
   - not in calls
   - not in ops/results
@@ -393,10 +410,11 @@ lemma execution_s_check_newId:
 *)
     and cont: "\<And>v. \<lbrakk>P v; 
  new_unique_not_in_calls s_calls v;
-new_unique_not_in_invocationOp v;
-new_unique_not_in_invocationRes v;
-new_unique_not_in_knownIds v;
-new_unique_not_generated_in_current v;
+new_unique_not_in_calls_result s_calls v;
+new_unique_not_in_invocationOp s_invocationOp v;
+new_unique_not_in_invocationRes s_invocationRes v;
+new_unique_not_in_knownIds s_knownIds v;
+new_unique_not_generated_in_current localGenerated v;
 uniqueIds v = {to_nat v}
 \<rbrakk> \<Longrightarrow> execution_s_check
   progr 
@@ -435,18 +453,37 @@ proof (rule  execution_s_check_single_step, auto simp add: step_s.simps split: i
     show "localGenerated \<union> {to_nat uidv} = {x. x \<noteq> to_nat uidv \<longrightarrow> generatedIds S1 x \<triangleq> i}"
       using `localGenerated = {x. generatedIds S1 x \<triangleq> i}` by auto
 
-      show "new_unique_not_in_invocationOp uidv"
-        sorry
-      show "new_unique_not_in_invocationRes uidv"
-        sorry
-      show "new_unique_not_in_knownIds uidv"
-        sorry
-      show "new_unique_not_generated_in_current uidv"
-        sorry
-      show " new_unique_not_in_calls s_calls uidv"
-        sorry
+    show "new_unique_not_in_invocationOp s_invocationOp uidv"
+      apply (auto simp add: new_unique_not_in_invocationOp_def)
+      find_theorems  uniqueIds program_wellFormed
+      sorry
+    show "new_unique_not_in_invocationRes s_invocationRes uidv"
+      sorry
+    show "new_unique_not_in_knownIds s_knownIds uidv"
+      sorry
+    show "new_unique_not_generated_in_current localGenerated uidv"
+      sorry
+    have "to_nat uidv \<notin> uniqueIds opr" if "calls S1 c \<triangleq> Call opr r" for c opr r
+    proof (rule wf_onlyGeneratedIdsInCalls)
+      show "calls S1 c \<triangleq> Call opr r" using that .
+      show "state_wellFormed S1"
+        by (simp add: goal(5)) 
+
+      show "program_wellFormed (prog S1)"
+        using assms(2) goal(13) by blast
+
+      show "generatedIds S1 (to_nat uidv) = None"
+        by (simp add: goal(17))
     qed
+
+    from this
+    show " new_unique_not_in_calls s_calls uidv"
+      by (simp add: goal(6) new_unique_not_in_calls_def)
+
+    show " new_unique_not_in_calls_result s_calls uidv"
+      sorry
   qed
+qed
 
 
 
