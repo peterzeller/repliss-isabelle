@@ -134,9 +134,14 @@ lemma state_monotonicGrowth_callOrigin2:
 
 lemma state_monotonicGrowth_generatedIds:
   assumes "state_monotonicGrowth i S' S"
-  shows "generatedIds S' uid \<triangleq> i \<Longrightarrow> generatedIds S uid \<triangleq> i"
+  shows "generatedIds S' uid \<triangleq> j \<Longrightarrow> generatedIds S uid \<triangleq> j"
   using assms generatedIds_mono1 state_monotonicGrowth_def by blast
 
+lemma state_monotonicGrowth_generatedIds_same1:
+  assumes "state_monotonicGrowth i S' S"
+  shows "generatedIds S' uid \<triangleq> i \<longleftrightarrow> generatedIds S uid \<triangleq> i"
+  using assms generatedIds_mono1_self state_monotonicGrowth_def by fastforce
+  
 
 lemma state_monotonicGrowth_knownIds:
   assumes "state_monotonicGrowth i S' S"

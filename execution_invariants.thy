@@ -603,6 +603,22 @@ next
     by (auto simp add: step.simps )
 qed
 
+lemma generatedIds_mono1_self: 
+  assumes "S ~~ tr \<leadsto>* S'"
+and "\<And>a. (i,a)\<notin>set tr"
+  shows "generatedIds S uid \<triangleq> i \<longleftrightarrow> generatedIds S' uid \<triangleq> i"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case 
+    by auto
+next
+  case (step S' tr a S'')
+  from step
+  show ?case 
+    by (auto simp add: step.simps split: if_splits, blast)
+
+qed
+
 lemma knownIds_mono: 
   assumes "S ~~ tr \<leadsto>* S'"
   shows "knownIds S \<subseteq> knownIds S'"

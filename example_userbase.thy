@@ -236,7 +236,7 @@ method show_procedures_cannot_guess_ids =
       ((rule procedure_cannot_guess_ids.intros, force); show_procedures_cannot_guess_ids?)?)
 
 
-lemma progr_wf: "program_wellFormed progr"
+lemma progr_wf[simp]: "program_wellFormed progr"
 proof (auto simp add: program_wellFormed_def)
   show "procedures_cannot_guess_ids procedures"
   proof (auto simp add: procedures_cannot_guess_ids_def procedures_def uniqueIds_proc_def split: proc.splits)
@@ -268,12 +268,48 @@ proof (auto simp add: program_wellFormed_def)
   qed (simp)
 qed
 
+lemma infinite_if_mappable_to_nat:
+  assumes mapping: "\<And>n::nat. \<exists>x\<in>S. f x \<ge> n"
+  shows "infinite S"
+proof auto
+  assume "finite S"
+  hence "finite (f ` S)"
+    by force
 
+  define m where "m \<equiv> Max (f ` S)"
+
+  from mapping[where n="Suc m"] obtain x where
+    "x\<in>S" and "f x \<ge> Suc m"
+    by auto
+
+  have "f x \<in> (f ` S)"
+    using \<open>x \<in> S\<close> by blast
+
+  have "f x > m"
+    using Suc_le_eq \<open>Suc m \<le> f x\<close> by blast
+  hence "f x > Max (f ` S)"
+    using m_def by blast
+  thus False
+    using Max_ge \<open>f x \<in> f ` S\<close> \<open>finite (f ` S)\<close> leD by blast
+qed
+
+
+
+
+
+lemma isUserId_infinite[simp]: "infinite (Collect isUserId)"
+proof (rule infinite_if_mappable_to_nat)
+  show "\<exists>x\<in>Collect isUserId. n \<le> (case x of UserId n \<Rightarrow> nat n)" for n
+    by (rule bexI[where x="UserId (int n)"],
+         auto simp add: isUserId_def)
+qed
 
 
 
 lemma invariant_progr[simp]: "invariant progr = example_userbase.inv"
-      by (auto simp add: progr_def)
+  by (auto simp add: progr_def)
+
+
 
 theorem userbase_correct: "programCorrect progr"
 proof M_show_programCorrect
@@ -306,12 +342,26 @@ proof M_show_programCorrect
       next
         case execution
         show "execution_s_correct progr S i"
-          using show_P.proc_impl
-          apply (auto simp add: RegisterUser procedures_def registerUser_impl_def)
-          apply (rule execution_s_check_sound; simp?)
-             (* TODO  state_wellFormed should be for free here *)
-          sorry
+        proof (rule execution_s_check_sound2)
+          show "S \<in> initialStates progr i"
+            using initialStates'_same procedure_correct.in_initial_state by blast
 
+          show "currentProc S i \<triangleq> toImpl"
+            by (auto simp add: RegisterUser procedures_def )
+
+          show "localState S i \<triangleq> registerUser_impl (String name) (String mail)"
+            by (auto simp add: RegisterUser procedures_def )
+
+          note registerUser_impl_def[simp]
+
+          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes {} {}
+        None (registerUser_impl (String name) (String mail))"
+            for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+            apply simp
+            apply (rule execution_s_check_newId; simp)
+
+            sorry
+        qed
 
       qed
 

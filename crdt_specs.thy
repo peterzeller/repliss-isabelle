@@ -1,6 +1,5 @@
 theory crdt_specs
   imports repliss_sem
- "HOL-Library.Countable"
  unique_ids
 begin
 
