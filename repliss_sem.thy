@@ -3,7 +3,7 @@ theory repliss_sem
     "HOL-Library.Multiset"
     "HOL-Library.Option_ord"
     "~~/src/HOL/Eisbach/Eisbach"
-    "~~/src/HOL/Library/Countable"
+    "HOL-Library.Countable"
     utils
 begin
 
