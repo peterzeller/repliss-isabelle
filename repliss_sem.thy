@@ -279,7 +279,7 @@ and "\<And>x y. S\<lparr>currentTransaction := y, currentProc := x\<rparr> = S\<
 and "\<And>x y. S\<lparr>currentTransaction := y, visibleCalls := x\<rparr> = S\<lparr>visibleCalls := x,  currentTransaction := y\<rparr>"
   by auto
   
-find_theorems localState generatedIds
+
 
 
 

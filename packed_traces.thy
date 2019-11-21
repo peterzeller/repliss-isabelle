@@ -395,9 +395,9 @@ lemma transactionIsPackedAlt_eq2:
   shows "transactionIsPackedAlt tr tx = transactionIsPacked tr tx"
   by (auto simp add: transactionIdsUnique[OF steps] transactionIsPackedAlt_eq)
 
-find_theorems steps ABeginAtomic
 
-find_theorems "card _ = 0"
+
+
 
 
 lemma transactionIsPacked_show:

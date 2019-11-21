@@ -573,7 +573,7 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
         using \<open>ib < i\<close> \<open>i < length trace\<close>
         by (metis add_Suc_right add_diff_cancel_left' append.assoc drop_take id_take_nth_drop less_imp_Suc_add take_add)
 
-      find_theorems "trace!i"
+      
 
       define s'' where "s'' = fst (trace ! (ib -1))"
       define trace' where "trace' \<equiv> take ib trace @ [(s'', AInvcheck False)]"
@@ -801,7 +801,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
         qed
         show "\<exists>S_newEnd. initialState program ~~ newTrace \<leadsto>* S_newEnd"
         proof -
-          find_theorems "initialState program" trace'
+          
           have "trace' = take pos trace' @ [trace'!pos] @ drop (Suc pos) trace'"
             by (simp add: \<open>pos < length trace'\<close> id_take_nth_drop)
 
@@ -844,10 +844,10 @@ proof (rule show_programCorrect_noTransactionInterleaving')
               by (meson in_set_takeD less.prems(3))
           qed
 
-          find_theorems S_pos
-          find_theorems S_pos2
+          
+          
 
-          find_theorems "steps S_pos"
+          
 
           obtain pos_action where pos_action_def[simp]: "trace'!pos = (invoc, pos_action)"
             by (metis invoc_def prod.collapse)
@@ -898,7 +898,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
           next
             case (ABeginAtomic x31 x32)
 
-            find_theorems ABeginAtomic steps
+            
 
             show ?thesis
               by (rule exI,
@@ -1006,7 +1006,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 
 \<comment> \<open>because no inv-checks in transaction\<close>
       have removedNoInvCheck: "snd (trace'!pos) \<noteq> AInvcheck v" for v
-        find_theorems trace'
+        
         using \<open>no_invariant_checks_in_transaction trace'\<close>
         by (auto simp add: no_invariant_checks_in_transaction_def,
             smt \<open>pos < length trace' \<and> (\<exists>i j tx txns. fst (trace' ! pos) = i \<and> j \<le> pos \<and> trace' ! j = (i, ABeginAtomic tx txns) \<and> \<not> (\<exists>k>j. k < length trace' \<and> trace' ! k = (i, AEndAtomic)))\<close> allowed_context_switch_def allowed_context_switch_simps(9) le_eq_less_or_eq min_def min_less_iff_conj prod.collapse prod.inject)
@@ -1414,7 +1414,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
 
   from  \<open>S_j_min ~~ take (back_min - Suc j_min) (drop (Suc j_min) tr) \<leadsto>* S_back_min_pre\<close>
   have "currentTransaction S_back_min_pre invoc \<triangleq> tx"
-    find_theorems currentTransaction steps
+    
   proof (rule currentTransaction_unchangedInternalSteps4(1))
     show "currentTransaction S_j_min invoc \<triangleq> tx"
       by (simp add: \<open>currentTransaction S_j_min invoc \<triangleq> tx\<close>) 

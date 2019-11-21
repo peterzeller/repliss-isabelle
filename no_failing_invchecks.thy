@@ -378,7 +378,7 @@ proof -
   have calls_S_start_cId: "calls S_start cId = None"
     using a_def preconditionI precondition_dbop step_a by fastforce
 
-  find_theorems calls happensBefore state_wellFormed
+  
 
   with wellFormed_visibleCallsSubsetCalls_h(1)[OF wf]
   have hb1: "(c, cId) \<notin> happensBefore S_start" for c

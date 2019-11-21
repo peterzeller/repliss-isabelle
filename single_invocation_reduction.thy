@@ -495,7 +495,7 @@ next
             using a6 by force
 
 
-          find_theorems S2
+          
 
           show "visibleCalls S2 s \<triangleq> vis"
             using a7 ih3_tx by blast
@@ -712,7 +712,7 @@ next
           by (auto simp add: S2_simps vis_None invContextH_def)
 
 
-        find_theorems steps tr
+        
 
 
         have at_most_one_tx: "(\<forall>i tx. ((i, tx) \<in> openTransactions tr) = currentTransaction S' i \<triangleq> tx) \<and> (\<forall>i j. currentTransaction S' i \<noteq> None \<and> currentTransaction S' j \<noteq> None \<longrightarrow> i = j)"
@@ -755,7 +755,7 @@ next
           by auto
 
 
-        find_theorems S
+        
         have step_s': "S ~~ (s, (AInvoc proc, True)) \<leadsto>\<^sub>S S'' "
         proof (rule step_s.invocation)
           show "invocationOp S' s = None"
@@ -974,7 +974,7 @@ next
         and a6: "transactionStatus S' tx = None"
         by metis
     *)
-        find_theorems "S'" S2    
+        
 
         show ?thesis
         proof (intro exI conjI)
@@ -1853,7 +1853,7 @@ proof -
                 by (metis False One_nat_def diff_Suc_less last_conv_nth list.simps(3) local.Cons nth_append nth_append_length tr1_len)
             qed
 
-            find_theorems "allowed_context_switch" packed_trace
+            
 
             moreover have "\<not> allowed_context_switch (snd ((tr1@[a]) ! length tr1))"
             proof (rule use_noContextSwitchesInTransaction)
@@ -2003,7 +2003,6 @@ proof -
       by (simp add: isPrefix_empty)
   next
     case (snoc x ys)
-    find_theorems name: local.snoc
     show ?case
     proof auto
       fix xs' 
@@ -2131,7 +2130,6 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
     
     text \<open>Next get the invocId start before the failure\<close>  
       
-    find_theorems "(\<exists>x y. ?P x y) \<longleftrightarrow> (\<exists>y x. ?P x y)"
     
       
     obtain tr'_s S_fail_s s'

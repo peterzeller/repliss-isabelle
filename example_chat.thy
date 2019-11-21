@@ -96,7 +96,6 @@ lemma distinct_unfold3: "a\<notin>set(x#xs) \<longleftrightarrow> a \<noteq> x \
 lemma distinct_unfold4: "a\<notin>set[] \<longleftrightarrow> True"
   by auto
 
-find_theorems "_ \<and> _ \<and> _"
 
 schematic_goal constants_distinct2[simp]: "?P"
   apply (insert constants_distinct)
@@ -580,7 +579,6 @@ lemma finite_mapping:
 next
   case (insert x F)
 
-  find_theorems name: "insert."
 
   have "finite (B - {f x})"
   proof (rule insert.hyps)

@@ -2,7 +2,6 @@ theory example_userbase
   imports 
     program_verification_tactics
     impl_language
-    "HOL-Library.Countable"
     crdt_specs
     unique_ids
     program_proof_rules
@@ -289,7 +288,7 @@ proof M_show_programCorrect
   show "procedureCorrect progr S i"
   proof (rule Initial_Label, rule show_initial_state_prop[OF procedure_correct], rule DC_final2, casify)
     case (show_P S_pre proc initState impl)
-    find_theorems name: show_P
+    
 
     note show_P[simp]
 

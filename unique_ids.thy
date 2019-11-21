@@ -13,7 +13,6 @@ pcgi_local:  "\<lbrakk>impl ls = LocalStep ls'; procedure_cannot_guess_ids uids 
     \<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
 | pcgi_return: "\<lbrakk>impl ls = Return r; uniqueIds r \<subseteq> uids\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls impl"
 
-find_theorems procedure_cannot_guess_ids
 
 lemma pcgi_local_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = LocalStep ls'\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls' impl"
   by (subst(asm) procedure_cannot_guess_ids.simps, auto)

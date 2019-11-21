@@ -29,7 +29,7 @@ proof (auto simp add: programCorrect_s_def)
         and steps': "S_init ~~ (i, tr) \<leadsto>\<^sub>S* S_fin"
       using steps_s_cons_simp by blast
 
-    find_theorems isAInvoc
+    
 
     thm invocations_only_in_beginning[OF steps, where j=0, simplified]
     have "isAInvoc (fst (trace ! 0))"

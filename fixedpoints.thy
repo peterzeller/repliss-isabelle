@@ -484,7 +484,7 @@ proof
     by (smt le_fun_def order_refl tailrec_def that)
 qed
 
-find_theorems name: countable
+
 
 definition even :: "(nat \<Rightarrow> bool) \<Rightarrow> nat \<Rightarrow> bool" where
 "even g x \<equiv> if x = 0 then True else if x = 1 then False else g (x - 2)"

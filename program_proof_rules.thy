@@ -60,7 +60,7 @@ execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_tran
   apply (case_tac trace, auto)
    apply (simp add: traceCorrect_s_def)
   apply (auto simp add: steps_s_cons_simp Let_def)
-  find_theorems steps_s "(#)"
+  
   apply (erule step_s.cases, auto)
   using wf_localState_to_invocationOp apply auto
   by fastforce+
@@ -70,9 +70,9 @@ execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_tran
 
 
 
-text "It is sufficient to check with execution_s_check to ensure that the procedure is correct:"
+text "It is sufficient to check with @{term execution_s_check} to ensure that the procedure is correct:"
 
-find_theorems "\<lbrakk>?f ?x; ?x = ?y\<rbrakk> \<Longrightarrow> ?f ?y"
+
 
 lemma execution_s_check_sound:
   assumes  "localState S i \<triangleq> ls"
@@ -290,7 +290,7 @@ next
       hence Inv
         by simp
 
-      find_theorems "traceCorrect_s" "(#)"
+      
 
       show ?thesis
         unfolding trace_split 
@@ -455,7 +455,7 @@ proof (rule  execution_s_check_single_step, auto simp add: step_s.simps split: i
 
     show "new_unique_not_in_invocationOp s_invocationOp uidv"
       apply (auto simp add: new_unique_not_in_invocationOp_def)
-      find_theorems  uniqueIds program_wellFormed
+      
       sorry
     show "new_unique_not_in_invocationRes s_invocationRes uidv"
       sorry

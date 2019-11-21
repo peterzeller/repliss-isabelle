@@ -109,7 +109,7 @@ lemma toImpl_bind_simps[simp]:
 "\<And> x. toImpl (call op  \<bind> x) = DbOperation op  (\<lambda>r. x r)"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
 
-find_theorems name: "impl_language.bind"
+
 
 paragraph "Monad Laws"
 
