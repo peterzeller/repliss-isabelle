@@ -357,8 +357,9 @@ proof M_show_programCorrect
           show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes {} {}
         None (registerUser_impl (String name) (String mail))"
             for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-            apply simp
+            apply (simp add: atomic_def)
             apply (rule execution_s_check_newId; simp)
+            apply (rule execution_s_check_beginAtomic; simp)
 
             sorry
         qed

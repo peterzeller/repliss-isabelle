@@ -15,7 +15,12 @@ thm execution_s_correct_def
  execution_s_correct ?progr ?S ?i \<equiv> \<forall>trace S'. ?S ~~ (?i, trace) \<leadsto>\<^sub>S* S' \<longrightarrow> traceCorrect_s ?progr trace
 *)
 
-find_consts "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b)"
+definition sorted_by where
+"sorted_by rel \<equiv> sorted_wrt (\<lambda>x y. (x,y)\<in>rel)"
+
+lemma sorted_by_empty:
+"sorted_by R []"
+  by (auto simp add: sorted_by_def)
 
 definition execution_s_check where
   "execution_s_check 
@@ -30,6 +35,7 @@ definition execution_s_check where
   s_invocationRes
   generatedLocal
   vis
+  localCalls
   tx
   ls
  \<equiv>  (\<forall>trace S1 S'. 
@@ -37,8 +43,8 @@ definition execution_s_check where
        \<longrightarrow> (\<forall>p t. (AInvoc p, t) \<notin> set trace)
        \<longrightarrow> state_wellFormed S1
        \<longrightarrow> calls S1 = s_calls
-       \<longrightarrow> happensBefore S1 = s_happensBefore
-       \<longrightarrow> callOrigin S1 = s_callOrigin
+       \<longrightarrow> happensBefore S1 = updateHb s_happensBefore vis localCalls
+       \<longrightarrow> callOrigin S1 = s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c, the tx)) localCalls))
        \<longrightarrow> transactionOrigin S1 = s_transactionOrigin
        \<longrightarrow> knownIds S1 = s_knownIds
        \<longrightarrow> invocationOp S1 = s_invocationOp
@@ -47,15 +53,17 @@ definition execution_s_check where
        \<longrightarrow> generatedLocal = {x. generatedIds S1 x \<triangleq> i}
        \<longrightarrow> localState S1 i \<triangleq> ls
        \<longrightarrow> currentProc S1 i \<triangleq> toImpl
-       \<longrightarrow> visibleCalls S1 i \<triangleq>  vis
+       \<longrightarrow> visibleCalls S1 i \<triangleq>  (vis \<union> set localCalls)
        \<longrightarrow> currentTransaction S1 i = tx
        \<longrightarrow> (\<forall>tx'. tx \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted)
+       \<longrightarrow> (case tx of Some tx' \<Rightarrow> set localCalls =  {c. callOrigin S' c \<triangleq> tx'} | None \<Rightarrow> localCalls = [])
+       \<longrightarrow> (sorted_by (happensBefore S1) localCalls)
        \<longrightarrow> traceCorrect_s  trace)"
 
 lemma beforeInvoc_execution_s_check: 
   assumes "s_invocationOp i = None"
   shows "
-execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_transactionOrigin   s_knownIds   s_invocationOp  s_invocationRes  generatedLocal  vis  tx  ls
+execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_transactionOrigin   s_knownIds   s_invocationOp  s_invocationRes  generatedLocal  vis localCalls  tx  ls
 "
   using assms  apply (auto simp add: execution_s_check_def)
   apply (case_tac trace, auto)
@@ -83,6 +91,7 @@ lemma execution_s_check_sound:
     and "generatedLocal = {x. generatedIds S x \<triangleq> i}"
     and "state_wellFormed S"
     and no_uncommitted: "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
+    and no_currentTxn: "currentTransaction S i = None"
     and c: "execution_s_check 
   progr 
   i
@@ -95,6 +104,7 @@ lemma execution_s_check_sound:
   (invocationRes S)
   generatedLocal
   vis
+  []
   (currentTransaction S i)
   ls"
   shows "execution_s_correct progr S i"
@@ -127,12 +137,17 @@ proof (auto simp add:  execution_s_correct_def)
     show "currentProc S i \<triangleq> toImpl"
       by (simp add: assms)
 
-    show "visibleCalls S i \<triangleq> vis"
-      by (simp add: assms)
-
-
     show "currentTransaction S i \<noteq> Some tx' \<Longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted" for tx'
       by (simp add: assms)
+
+    show "visibleCalls S i \<triangleq> (vis \<union> set [])"
+      by (simp add: assms)
+
+    show "case currentTransaction S i of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S' c \<triangleq> tx'}"
+      by (simp add: no_currentTxn)
+
+    show "sorted_by (happensBefore S) []"
+      by (simp add: sorted_by_empty)
 
   qed
 qed
@@ -155,6 +170,7 @@ lemma execution_s_check_sound2:
   s_invocationRes
   {}
   {}
+  []
   None
   ls"
   shows "execution_s_correct progr S i"
@@ -177,12 +193,12 @@ proof (rule execution_s_check_sound)
   show "{} = {x. generatedIds S x \<triangleq> i}"
     using a2 wf_generated_ids_invocation_exists by (auto simp add: initialStates_def, blast)
 
-  have currentTx: "currentTransaction S i = None"
+  show currentTx: "currentTransaction S i = None"
     using a2 initialState_noTxns2 by blast
 
 
   show "execution_s_check progr i (calls S) (happensBefore S) (callOrigin S) (transactionOrigin S) (knownIds S) (invocationOp S)
-     (invocationRes S) {} {} (currentTransaction S i) ls "
+     (invocationRes S) {} {} [] (currentTransaction S i) ls "
     unfolding currentTx
     by (rule c)
 
@@ -231,12 +247,12 @@ shows"execution_s_check
 "
 *)
 lemma execution_s_check_single_step:
-  assumes H: "\<And>S1 action Inv S'. \<lbrakk>
+  assumes H: "\<And>S1 action Inv S' localCalls'. \<lbrakk>
   S1 ~~ (i,action,Inv) \<leadsto>\<^sub>S S';
   invocationOp S1 i \<noteq> None;
   calls S1 = s_calls;
-  happensBefore S1 = s_happensBefore;
-  callOrigin S1 = s_callOrigin;
+  happensBefore S1 = updateHb s_happensBefore vis localCalls;
+  callOrigin S1 = s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c,the tx)) localCalls));
   transactionOrigin S1 = s_transactionOrigin;
   knownIds S1 = s_knownIds;
   invocationOp S1 = s_invocationOp;
@@ -245,10 +261,12 @@ lemma execution_s_check_single_step:
   generatedLocal = {x. generatedIds S1 x \<triangleq> i};
   localState S1 i \<triangleq> ls;
   currentProc S1 i \<triangleq> toImpl;
-  visibleCalls S1 i \<triangleq>  vis;
+  visibleCalls S1 i \<triangleq>  (vis \<union> set localCalls);
   currentTransaction S1 i = tx;
   state_wellFormed S1;
-  \<And>tx'. tx \<noteq> Some tx' \<Longrightarrow>  transactionStatus S1 tx' \<noteq> Some Uncommitted
+  \<And>tx'. tx \<noteq> Some tx' \<Longrightarrow>  transactionStatus S1 tx' \<noteq> Some Uncommitted;
+  localCalls' = localCalls \<Longrightarrow> sorted_by (updateHb s_happensBefore vis localCalls) localCalls'
+    \<and> (case tx of Some tx' \<Rightarrow> set localCalls' =  {c. callOrigin S' c \<triangleq> tx'} | None \<Rightarrow> localCalls' = [])
 \<rbrakk> \<Longrightarrow> 
   Inv
 \<and> (case localState S' i of
@@ -266,6 +284,7 @@ lemma execution_s_check_single_step:
     (invocationRes S')
     {x. generatedIds S' x \<triangleq> i}
     (case visibleCalls S' i of Some vis \<Rightarrow> vis | None \<Rightarrow> {})
+    localCalls'
     (currentTransaction S' i)
     LS')
 "
@@ -281,6 +300,7 @@ lemma execution_s_check_single_step:
   s_invocationRes
   generatedLocal
   vis
+  localCalls
   tx
   ls
 "
@@ -341,15 +361,16 @@ next
         using A by auto
 
 
+
       from step
       have appliedH: "Inv \<and>
     (case localState S1' i of None \<Rightarrow> True
      | Some LS' \<Rightarrow>
          execution_s_check progr i (calls S1') (happensBefore S1') (callOrigin S1') (transactionOrigin S1') (knownIds S1') (invocationOp S1')
-          (invocationRes S1') {x. generatedIds S1' x \<triangleq> i} (visibleCalls S1' i orElse {}) (currentTransaction S1' i) LS')"
-        by (rule H; (simp add: A hasInvoc wf )?)
+          (invocationRes S1') {x. generatedIds S1' x \<triangleq> i} (visibleCalls S1' i orElse {}) localCalls' (currentTransaction S1' i) LS')"
+      proof (rule H; (simp add: A hasInvoc wf )?)
 
-
+      thm H
 
       hence Inv
         by simp
@@ -378,7 +399,7 @@ next
           case (Some LS')
 
           with appliedH have "execution_s_check progr i (calls S1') (happensBefore S1') (callOrigin S1') (transactionOrigin S1') (knownIds S1') (invocationOp S1')
-          (invocationRes S1') {x. generatedIds S1' x \<triangleq> i} (visibleCalls S1' i orElse {}) (currentTransaction S1' i) LS'"
+          (invocationRes S1') {x. generatedIds S1' x \<triangleq> i} (visibleCalls S1' i orElse {}) localCalls' (currentTransaction S1' i) LS'"
             by auto
 
           then
