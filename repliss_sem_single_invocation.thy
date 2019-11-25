@@ -107,8 +107,8 @@ lemma state_monotonicGrowth_no_new_calls_in_committed_transactions:
 
 lemma state_monotonicGrowth_transactionOrigin: 
   assumes "state_monotonicGrowth i S' S" 
-    and "transactionOrigin S' t \<triangleq> i"
-  shows "transactionOrigin S t \<triangleq> i"
+    and "transactionOrigin S' t \<triangleq> i'"
+  shows "transactionOrigin S t \<triangleq> i'"
   using assms by (auto simp add: state_monotonicGrowth_def transactionOrigin_mono)
 
 
