@@ -1904,6 +1904,7 @@ next
 
 qed
 
+
 lemma state_wellFormed_ls_to_visibleCalls:     
   assumes "state_wellFormed S"
     and "currentTransaction S s \<triangleq> tx"

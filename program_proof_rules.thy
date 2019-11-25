@@ -8,6 +8,7 @@ theory program_proof_rules
     execution_invariants_s
     execution_invariants_unused
     impl_language
+    topological_sort
 begin
 
 thm execution_s_correct_def
@@ -15,12 +16,9 @@ thm execution_s_correct_def
  execution_s_correct ?progr ?S ?i \<equiv> \<forall>trace S'. ?S ~~ (?i, trace) \<leadsto>\<^sub>S* S' \<longrightarrow> traceCorrect_s ?progr trace
 *)
 
-definition sorted_by where
-"sorted_by rel \<equiv> sorted_wrt (\<lambda>x y. (x,y)\<in>rel)"
+(* TODO utils*)
+(* List is sorted wrt. a partial order *)
 
-lemma sorted_by_empty:
-"sorted_by R []"
-  by (auto simp add: sorted_by_def)
 
 definition execution_s_check where
   "execution_s_check 
@@ -56,24 +54,22 @@ definition execution_s_check where
        \<longrightarrow> visibleCalls S1 i \<triangleq>  (vis \<union> set localCalls)
        \<longrightarrow> currentTransaction S1 i = tx
        \<longrightarrow> (\<forall>tx'. tx \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted)
-       \<longrightarrow> (case tx of Some tx' \<Rightarrow> set localCalls =  {c. callOrigin S' c \<triangleq> tx'} | None \<Rightarrow> localCalls = [])
+       \<longrightarrow> (case tx of Some tx' \<Rightarrow> set localCalls =  {c. callOrigin S1 c \<triangleq> tx'} | None \<Rightarrow> localCalls = [])
        \<longrightarrow> (sorted_by (happensBefore S1) localCalls)
+       \<longrightarrow> (vis \<inter> set localCalls = {})
+       \<longrightarrow> (dom s_callOrigin \<inter> set localCalls = {})
+       \<longrightarrow> (Field s_happensBefore \<inter> set localCalls = {})
        \<longrightarrow> traceCorrect_s  trace)"
+
+lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, rotated]
 
 lemma beforeInvoc_execution_s_check: 
   assumes "s_invocationOp i = None"
   shows "
 execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_transactionOrigin   s_knownIds   s_invocationOp  s_invocationRes  generatedLocal  vis localCalls  tx  ls
 "
-  using assms  apply (auto simp add: execution_s_check_def)
-  apply (case_tac trace, auto)
-   apply (simp add: traceCorrect_s_def)
-  apply (auto simp add: steps_s_cons_simp Let_def)
-  
-  apply (erule step_s.cases, auto)
-  using wf_localState_to_invocationOp apply auto
-  by fastforce+
-
+  using assms 
+  by (auto simp add: execution_s_check_def steps_s_cons_simp Let_def wf_localState_to_invocationOp)
 
 
 
@@ -143,7 +139,7 @@ proof (auto simp add:  execution_s_correct_def)
     show "visibleCalls S i \<triangleq> (vis \<union> set [])"
       by (simp add: assms)
 
-    show "case currentTransaction S i of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S' c \<triangleq> tx'}"
+    show "case currentTransaction S i of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S c \<triangleq> tx'}"
       by (simp add: no_currentTxn)
 
     show "sorted_by (happensBefore S) []"
@@ -216,265 +212,55 @@ lemma case_trace_not_empty:
   shows "traceCorrect_s  trace"
   using assms by (cases trace, auto simp add: traceCorrect_s_empty)
 
-(*
-lemma proof_rule_soundness:
+lemma case_trace_not_empty2:
+  assumes  "\<And>action Inv trace'. trace = (action, Inv)#trace' \<Longrightarrow> traceCorrect_s  ((action, Inv)#trace')"
+  shows "traceCorrect_s  trace"
+  using assms by (cases trace, auto simp add: traceCorrect_s_empty)
 
-  assumes "\<And>x v. \<lbrakk>P x v\<rbrakk> \<Longrightarrow> execution_s_check
-  progr 
-  (s_calls' x)
-  (s_happensBefore' x)
-  (s_callOrigin' x)
-  (s_transactionOrigin' x)
-  (s_knownIds' x)
-  (s_invocationOp' x)
-  (s_invocationRes' x)
-  (vis' x)
-  (tx' x)
-  (cont v)"
+lemma case_trace_not_empty3:
+  assumes "S ~~ (i,trace) \<leadsto>\<^sub>S* S''"
+    and "\<And>action S' Inv trace'. \<lbrakk>
+      trace = (action, Inv)#trace'; 
+      S ~~ (i,action,Inv) \<leadsto>\<^sub>S S'; 
+      S' ~~ (i,trace') \<leadsto>\<^sub>S* S''\<rbrakk> \<Longrightarrow> Inv \<and> traceCorrect_s (trace')"
+  shows "traceCorrect_s  trace"
+  by (metis assms(1) assms(2) case_trace_not_empty2 sndI steps_s_cons_simp traceCorrect_s_split)
 
-shows"execution_s_check
-  progr 
-  s_calls 
-  s_happensBefore 
-  s_callOrigin 
-  s_transactionOrigin 
-  s_knownIds 
-  s_invocationOp
-  s_invocationRes
-  vis
-  tx
-  (A \<bind> cont)
-"
-*)
-lemma execution_s_check_single_step:
-  assumes H: "\<And>S1 action Inv S' localCalls'. \<lbrakk>
-  S1 ~~ (i,action,Inv) \<leadsto>\<^sub>S S';
-  invocationOp S1 i \<noteq> None;
-  calls S1 = s_calls;
-  happensBefore S1 = updateHb s_happensBefore vis localCalls;
-  callOrigin S1 = s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c,the tx)) localCalls));
-  transactionOrigin S1 = s_transactionOrigin;
-  knownIds S1 = s_knownIds;
-  invocationOp S1 = s_invocationOp;
-  invocationRes S1 = s_invocationRes;
-  prog S1 = progr;
-  generatedLocal = {x. generatedIds S1 x \<triangleq> i};
-  localState S1 i \<triangleq> ls;
-  currentProc S1 i \<triangleq> toImpl;
-  visibleCalls S1 i \<triangleq>  (vis \<union> set localCalls);
-  currentTransaction S1 i = tx;
-  state_wellFormed S1;
-  \<And>tx'. tx \<noteq> Some tx' \<Longrightarrow>  transactionStatus S1 tx' \<noteq> Some Uncommitted;
-  localCalls' = localCalls \<Longrightarrow> sorted_by (updateHb s_happensBefore vis localCalls) localCalls'
-    \<and> (case tx of Some tx' \<Rightarrow> set localCalls' =  {c. callOrigin S' c \<triangleq> tx'} | None \<Rightarrow> localCalls' = [])
-\<rbrakk> \<Longrightarrow> 
-  Inv
-\<and> (case localState S' i of
-    None \<Rightarrow> True
-  | Some LS' \<Rightarrow>
-    execution_s_check
-    progr 
-    i
-    (calls S')
-    (happensBefore S')
-    (callOrigin S')
-    (transactionOrigin S')
-    (knownIds S')
-    (invocationOp S')
-    (invocationRes S')
-    {x. generatedIds S' x \<triangleq> i}
-    (case visibleCalls S' i of Some vis \<Rightarrow> vis | None \<Rightarrow> {})
-    localCalls'
-    (currentTransaction S' i)
-    LS')
-"
-  shows"execution_s_check
-  progr 
-  i
-  s_calls 
-  s_happensBefore 
-  s_callOrigin 
-  s_transactionOrigin 
-  s_knownIds 
-  s_invocationOp
-  s_invocationRes
-  generatedLocal
-  vis
-  localCalls
-  tx
-  ls
-"
-proof (cases "s_invocationOp i")
-  case None
-  then show ?thesis
-    by (simp add: beforeInvoc_execution_s_check) 
+
+lemma sorted_by_updateHb:
+  assumes "set cs \<inter> vis = {}"
+    and "set cs \<inter> Field hb = {}"
+    and "distinct cs"
+  shows "sorted_by (updateHb hb vis cs) cs"
+  using assms proof (induct cs arbitrary: hb vis)
+case Nil
+  then show ?case 
+    by (simp add: sorted_by_empty)
+
 next
-  case (Some action)
+  case (Cons x xs)
 
-  show ?thesis
-  proof (auto simp add: execution_s_check_def, goal_cases "A")
-    case (A trace S1 S')
-    (*fix trace S1 S'
-    assume a0: "S1 ~~ (i, trace) \<leadsto>\<^sub>S* S'"
-      and a1: "\<forall>p t. (AInvoc p, t) \<notin> set trace"
-      and a2: "state_wellFormed S1"
-      and a3: "s_calls = calls S1"
-      and a4: "s_happensBefore = happensBefore S1"
-      and a5: "s_callOrigin = callOrigin S1"
-      and a6: "s_transactionOrigin = transactionOrigin S1"
-      and a7: "s_knownIds = knownIds S1"
-      and a8: "s_invocationOp = invocationOp S1"
-      and a9: "s_invocationRes = invocationRes S1"
-      and a10: "progr = prog S1"
-      and a11: "generatedLocal = {x. generatedIds S1 x \<triangleq> i}"
-      and a12: "localState S1 i \<triangleq> ls"
-      and a13: "currentProc S1 i \<triangleq> toImpl"
-      and a14: "visibleCalls S1 i \<triangleq> vis"
-      and a15: "tx = currentTransaction S1 i"*)
+  have "distinct xs"
+    using Cons.prems(3) by auto
 
 
-    show "traceCorrect_s  trace"
-    proof (cases trace)
-      case Nil
-      then show ?thesis
-        by (simp add: traceCorrect_s_empty) 
+  from this
+  have IH: "sorted_by (updateHb (hb \<union> vis \<times> {x}) (insert x vis) xs) xs"
+  proof (fuzzy_rule Cons)
 
-    next
-      case (Cons a trace')
-      obtain action Inv where a_def[simp]: "a = (action, Inv)" by force
+    show " set xs \<inter> insert x vis = {}"
+      using Cons by auto
+    show " set xs \<inter> Field (hb \<union> vis \<times> {x}) = {}"
+      using Cons by (auto simp add: Field_def)
+  qed
 
-      from `S1 ~~ (i, trace) \<leadsto>\<^sub>S* S'`
-      obtain S1'
-        where step: "S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S1'" 
-          and steps: "S1' ~~ (i, trace') \<leadsto>\<^sub>S* S'"
-          and trace_split: "trace = (action,Inv)#trace'"
-        using a_def local.Cons steps_s_cons_simp by blast
-
-
-      have gI: "\<forall>x\<in>generatedLocal. generatedIds S1 x \<triangleq> i"
-        using A by blast
-
-      have hasInvoc: "invocationOp S1 i \<noteq> None"
-        using Some A by auto
-
-      have wf: "state_wellFormed S1"
-        using A by auto
-
-
-
-      from step
-      have appliedH: "Inv \<and>
-    (case localState S1' i of None \<Rightarrow> True
-     | Some LS' \<Rightarrow>
-         execution_s_check progr i (calls S1') (happensBefore S1') (callOrigin S1') (transactionOrigin S1') (knownIds S1') (invocationOp S1')
-          (invocationRes S1') {x. generatedIds S1' x \<triangleq> i} (visibleCalls S1' i orElse {}) localCalls' (currentTransaction S1' i) LS')"
-      proof (rule H; (simp add: A hasInvoc wf )?)
-
-      thm H
-
-      hence Inv
-        by simp
-
-      
-
-      show ?thesis
-        unfolding trace_split 
-      proof (rule traceCorrect_s_split; (simp add: `Inv`)?)
-
-        show "traceCorrect_s trace'"
-
-        proof (cases "localState S1' i")
-          case None
-
-          with steps have "trace' = []"
-            using local_state_None_no_more_steps
-            by (metis A insert_iff list.simps(15) local.Cons no_more_invoc option.simps(3)) 
-
-
-          then show ?thesis
-            using traceCorrect_s_empty by blast
-
-
-        next
-          case (Some LS')
-
-          with appliedH have "execution_s_check progr i (calls S1') (happensBefore S1') (callOrigin S1') (transactionOrigin S1') (knownIds S1') (invocationOp S1')
-          (invocationRes S1') {x. generatedIds S1' x \<triangleq> i} (visibleCalls S1' i orElse {}) localCalls' (currentTransaction S1' i) LS'"
-            by auto
-
-          then
-          show ?thesis
-          proof (rule execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format])
-            show "S1' ~~ (i, trace') \<leadsto>\<^sub>S* S'" using steps .
-            show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
-              using Some local.step local.wf no_more_invoc state_wellFormed_combine_s1 steps by fastforce
-            show "state_wellFormed S1'"
-              using A local.step state_wellFormed_combine_s1 by blast
-            show "prog S1' = progr"
-              by (metis A steps unchangedProg)
-            show "localState S1' i \<triangleq> LS'"
-              by (simp add: Some)
-
-
-
-            show "currentProc S1' i \<triangleq> toImpl"
-              using step Some by (auto simp add: step_s.simps A wf_localState_to_invocationOp)
-
-            show "visibleCalls S1' i \<triangleq> visibleCalls S1' i orElse {}"
-              using step  Some  by (auto simp add: step_s.simps A wf_localState_to_invocationOp split: option.splits)
-
-            show "\<And>tx'. currentTransaction S1' i \<noteq> Some tx' \<Longrightarrow> transactionStatus S1' tx' \<noteq> Some Uncommitted"
-              using step Some  by (auto simp add: step_s.simps A wf_localState_to_invocationOp split: option.splits if_splits)
-
-
-
-          qed auto
-        qed
-      qed
-    qed
+  show ?case 
+  proof (auto simp add: updateHb.simps)
+    show "sorted_by (updateHb (hb \<union> vis \<times> {x}) (insert x vis) xs) (x # xs)"
+      apply (auto simp add: sorted_by_cons_iff IH)
+      using Cons.prems(1) Cons.prems(2) Cons.prems(3) FieldI1 updateHb_simp2 by fastforce
   qed
 qed
-
-lemma back_subst2: "\<lbrakk>P x'1 x'2; x'1 = x1; x'2 = x2 \<rbrakk> \<Longrightarrow>  P x1 x2" by auto 
-lemma back_subst3: "\<lbrakk>P x'1 x'2 x'3; x'1 = x1; x'2 = x2; x'3 = x3 \<rbrakk> \<Longrightarrow>  P x1 x2 x3" by auto 
-lemma back_subst4: "\<lbrakk>P x'1 x'2 x'3 x'4; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4" by auto 
-lemma back_subst5: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5" by auto 
-lemma back_subst6: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6" by auto 
-lemma back_subst7: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7" by auto 
-lemma back_subst8: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8" by auto 
-lemma back_subst9: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9" by auto 
-lemma back_subst10: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10" by auto 
-lemma back_subst11: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11" by auto 
-lemma back_subst12: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12" by auto 
-lemma back_subst13: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12 x'13; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12; x'13 = x13 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13" by auto 
-lemma back_subst14: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12 x'13 x'14; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12; x'13 = x13; x'14 = x14 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14" by auto 
-lemma back_subst15: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12 x'13 x'14 x'15; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12; x'13 = x13; x'14 = x14; x'15 = x15 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15" by auto 
-lemma back_subst16: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12 x'13 x'14 x'15 x'16; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12; x'13 = x13; x'14 = x14; x'15 = x15; x'16 = x16 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16" by auto 
-lemma back_subst17: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12 x'13 x'14 x'15 x'16 x'17; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12; x'13 = x13; x'14 = x14; x'15 = x15; x'16 = x16; x'17 = x17 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17" by auto 
-lemma back_subst18: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12 x'13 x'14 x'15 x'16 x'17 x'18; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12; x'13 = x13; x'14 = x14; x'15 = x15; x'16 = x16; x'17 = x17; x'18 = x18 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18" by auto 
-lemma back_subst19: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12 x'13 x'14 x'15 x'16 x'17 x'18 x'19; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12; x'13 = x13; x'14 = x14; x'15 = x15; x'16 = x16; x'17 = x17; x'18 = x18; x'19 = x19 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19" by auto 
-lemma back_subst20: "\<lbrakk>P x'1 x'2 x'3 x'4 x'5 x'6 x'7 x'8 x'9 x'10 x'11 x'12 x'13 x'14 x'15 x'16 x'17 x'18 x'19 x'20; x'1 = x1; x'2 = x2; x'3 = x3; x'4 = x4; x'5 = x5; x'6 = x6; x'7 = x7; x'8 = x8; x'9 = x9; x'10 = x10; x'11 = x11; x'12 = x12; x'13 = x13; x'14 = x14; x'15 = x15; x'16 = x16; x'17 = x17; x'18 = x18; x'19 = x19; x'20 = x20 \<rbrakk> \<Longrightarrow>  P x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14 x15 x16 x17 x18 x19 x20" by auto 
-
-method back_subst for P :: "'a1 \<Rightarrow> bool" uses rule = (rule back_subst[where P=P], rule rule)
-method back_subst2 for P :: "'a1\<Rightarrow>'a2 \<Rightarrow> bool" uses rule = (rule back_subst2[where P=P], rule rule) 
-method back_subst3 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3 \<Rightarrow> bool" uses rule = (rule back_subst3[where P=P], rule rule) 
-method back_subst4 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4 \<Rightarrow> bool" uses rule = (rule back_subst4[where P=P], rule rule) 
-method back_subst5 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5 \<Rightarrow> bool" uses rule = (rule back_subst5[where P=P], rule rule) 
-method back_subst6 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6 \<Rightarrow> bool" uses rule = (rule back_subst6[where P=P], rule rule) 
-method back_subst7 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7 \<Rightarrow> bool" uses rule = (rule back_subst7[where P=P], rule rule) 
-method back_subst8 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8 \<Rightarrow> bool" uses rule = (rule back_subst8[where P=P], rule rule) 
-method back_subst9 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9 \<Rightarrow> bool" uses rule = (rule back_subst9[where P=P], rule rule) 
-method back_subst10 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10 \<Rightarrow> bool" uses rule = (rule back_subst10[where P=P], rule rule) 
-method back_subst11 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11 \<Rightarrow> bool" uses rule = (rule back_subst11[where P=P], rule rule) 
-method back_subst12 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12 \<Rightarrow> bool" uses rule = (rule back_subst12[where P=P], rule rule) 
-method back_subst13 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13 \<Rightarrow> bool" uses rule = (rule back_subst13[where P=P], rule rule) 
-method back_subst14 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14 \<Rightarrow> bool" uses rule = (rule back_subst14[where P=P], rule rule) 
-method back_subst15 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15 \<Rightarrow> bool" uses rule = (rule back_subst15[where P=P], rule rule) 
-method back_subst16 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16 \<Rightarrow> bool" uses rule = (rule back_subst16[where P=P], rule rule) 
-method back_subst17 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17 \<Rightarrow> bool" uses rule = (rule back_subst17[where P=P], rule rule) 
-method back_subst18 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17\<Rightarrow>'a18 \<Rightarrow> bool" uses rule = (rule back_subst18[where P=P], rule rule) 
-method back_subst19 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17\<Rightarrow>'a18\<Rightarrow>'a19 \<Rightarrow> bool" uses rule = (rule back_subst19[where P=P], rule rule) 
-method back_subst20 for P :: "'a1\<Rightarrow>'a2\<Rightarrow>'a3\<Rightarrow>'a4\<Rightarrow>'a5\<Rightarrow>'a6\<Rightarrow>'a7\<Rightarrow>'a8\<Rightarrow>'a9\<Rightarrow>'a10\<Rightarrow>'a11\<Rightarrow>'a12\<Rightarrow>'a13\<Rightarrow>'a14\<Rightarrow>'a15\<Rightarrow>'a16\<Rightarrow>'a17\<Rightarrow>'a18\<Rightarrow>'a19\<Rightarrow>'a20 \<Rightarrow> bool" uses rule = (rule back_subst20[where P=P], rule rule) 
 
 definition 
   "new_unique_not_in_invocationOp iop uidv \<equiv>
@@ -493,6 +279,17 @@ definition
 "new_unique_not_in_invocationRes ires uidv \<equiv> 
 \<forall>i r. ires i \<triangleq> r \<longrightarrow> to_nat uidv \<notin> uniqueIds r "
 
+lemma no_ainvoc:
+  assumes "\<forall>p t. (AInvoc p, t) \<notin> set trace"
+    and "trace = (action, Inv) # trace'"
+and "\<lbrakk>\<forall>p t. (AInvoc p, t) \<notin> set trace; \<And>proc. action \<noteq> AInvoc proc\<rbrakk> \<Longrightarrow> P"
+shows "P"
+  using assms by auto
+
+method show_proof_rule = 
+  (subst  execution_s_check_def, intro allI impI, erule case_trace_not_empty3, erule(1) no_ainvoc, goal_cases Step)
+
+inductive_cases step_s_NewId: "S ~~ (i, ANewId uidv, Inv) \<leadsto>\<^sub>S S'"
 
 lemma execution_s_check_newId:
   assumes "infinite (Collect P)"
@@ -517,6 +314,7 @@ uniqueIds v = {to_nat v}
   s_invocationRes
   (localGenerated \<union> {to_nat v})
   vis
+  localCalls
   tx
   (cont v)"
 
@@ -532,45 +330,99 @@ shows"execution_s_check
   s_invocationRes
   localGenerated
   vis
+  localCalls
   tx
   (newId P \<bind> cont)
 "
-proof (rule  execution_s_check_single_step, auto simp add: step_s.simps split: if_splits, goal_cases "goal")
-  case (goal S1 Inv y uidv)
-  show ?case 
-  proof (rule back_subst13[where P=execution_s_check], rule cont; (simp add: goal; fail)?)
-    show "localGenerated \<union> {to_nat uidv} = {x. x \<noteq> to_nat uidv \<longrightarrow> generatedIds S1 x \<triangleq> i}"
-      using `localGenerated = {x. generatedIds S1 x \<triangleq> i}` by auto
+proof show_proof_rule
+  case (Step trace S1 S' action S'a Inv trace')
 
-    show "new_unique_not_in_invocationOp s_invocationOp uidv"
-      using assms(2) goal(12) goal(14) goal(18) goal(5) new_unique_not_in_invocationOp_def wf_onlyGeneratedIdsInInvocationOps by blast
-    show "new_unique_not_in_invocationRes s_invocationRes uidv"
-      using assms(2) goal(13) goal(14) goal(18) goal(5) new_unique_not_in_invocationRes_def wf_onlyGeneratedIdsInInvocationRes by blast
-    have "to_nat uidv \<notin> uniqueIds opr" if "calls S1 c \<triangleq> Call opr r" for c opr r
-    proof (rule wf_onlyGeneratedIdsInCalls)
-      show "calls S1 c \<triangleq> Call opr r" using that .
-      show "state_wellFormed S1"
-        by (simp add: goal(5)) 
+  thm step_s_NewId
 
-      show "program_wellFormed (prog S1)"
-        using assms(2) goal(14) by blast
+from ` S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
+    `localState S1 i \<triangleq> (newId P \<bind> cont)`
+    `currentProc S1 i \<triangleq> toImpl`
+    `\<And>proc. action \<noteq> AInvoc proc`
+  obtain uidv
+    where c0: "localState S1 i \<triangleq> (newId P \<bind> cont)"
+      and c1: "currentProc S1 i \<triangleq> toImpl"
+      and c2: "action = ANewId uidv"
+      and c3: "Inv"
+      and S'a_def: "S'a = S1\<lparr>localState := localState S1(i \<mapsto> cont uidv), generatedIds := generatedIds S1(to_nat uidv \<mapsto> i)\<rparr>"
+      and c5: "generatedIds S1 (to_nat uidv) = None"
+      and c6: "uniqueIds uidv = {to_nat uidv}"
+      and c7: "P uidv"
+    by (auto simp add: step_s.simps split:if_splits)
 
-      show "generatedIds S1 (to_nat uidv) = None"
-        by (simp add: goal(18))
-    qed
+  show "Inv \<and> traceCorrect_s trace'"
+  proof (intro conjI)
+    show "Inv" using `Inv` .
 
-    from this
-    show " new_unique_not_in_calls s_calls uidv"
-      by (simp add: goal(7) new_unique_not_in_calls_def)
+    from `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S'`
+    show "traceCorrect_s trace'"
+    proof (rule use_execution_s_check)
 
-    show " new_unique_not_in_calls_result s_calls uidv"
-      using assms(2) goal(14) goal(18) goal(5) goal(7) new_unique_not_in_calls_result_def wf_onlyGeneratedIdsInCallResults by blast
 
-    show "to_nat uidv \<notin> s_knownIds"
-      using assms(2) goal(11) goal(14) goal(18) goal(5) wf_onlyGeneratedIdsInKnownIds by blast
+      show "execution_s_check
+            progr 
+            i
+            s_calls 
+            s_happensBefore 
+            s_callOrigin 
+            s_transactionOrigin 
+            s_knownIds 
+            s_invocationOp
+            s_invocationRes
+            (localGenerated \<union> {to_nat uidv})
+            vis
+            localCalls
+            tx
+            (cont uidv)"
+      proof (rule cont)
+        show "P uidv"
+          by (simp add: c7)
 
+        show "new_unique_not_in_calls s_calls uidv"
+          using Step(1) Step(2) Step(9) assms(2) c5 new_unique_not_in_calls_def wf_onlyGeneratedIdsInCalls by blast
+
+
+        show "new_unique_not_in_calls_result s_calls uidv"
+          using Step(1) Step(2) Step(9) assms(2) c5 new_unique_not_in_calls_result_def wf_onlyGeneratedIdsInCallResults by blast
+
+        show "new_unique_not_in_invocationOp s_invocationOp uidv"
+          using Step(1) Step(7) Step(9) assms(2) c5 new_unique_not_in_invocationOp_def wf_onlyGeneratedIdsInInvocationOps by blast
+
+        show "new_unique_not_in_invocationRes s_invocationRes uidv"
+          using Step(1) Step(8) Step(9) assms(2) c5 new_unique_not_in_invocationRes_def wf_onlyGeneratedIdsInInvocationRes by blast
+
+        show "to_nat uidv \<notin> s_knownIds"
+          using Step(1) Step(6) Step(9) assms(2) c5 wf_onlyGeneratedIdsInKnownIds by blast
+
+        show "to_nat uidv \<notin> localGenerated"
+          by (simp add: Step(10) c5)
+
+        show "uniqueIds uidv = {to_nat uidv}"
+          by (simp add: c6)
+
+      qed
+
+
+      show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
+        using Step(21) Step(24) by auto
+
+      show "state_wellFormed S'a"
+        using Step(1) Step(22) state_wellFormed_combine_s1 by blast
+
+      show "case tx of None \<Rightarrow> localCalls = [] | Some tx' \<Rightarrow> set localCalls = {c. callOrigin S'a c \<triangleq> tx'}"
+        using Step(16) by (auto simp add: S'a_def  split: option.splits)
+
+      show "sorted_by (happensBefore S'a) localCalls"
+        using Step by (auto simp add:S'a_def )
+
+    qed (auto simp add: S'a_def Step)
   qed
 qed
+
 
 
 lemma restrict_map_noop: "dom m \<subseteq> S \<Longrightarrow> m |` S = m"
@@ -771,6 +623,423 @@ next
   qed
 qed
 
+
+
+
+
+
+(*
+lemma proof_rule_soundness:
+
+  assumes "\<And>x v. \<lbrakk>P x v\<rbrakk> \<Longrightarrow> execution_s_check
+  progr 
+  (s_calls' x)
+  (s_happensBefore' x)
+  (s_callOrigin' x)
+  (s_transactionOrigin' x)
+  (s_knownIds' x)
+  (s_invocationOp' x)
+  (s_invocationRes' x)
+  (vis' x)
+  (tx' x)
+  (cont v)"
+
+shows"execution_s_check
+  progr 
+  s_calls 
+  s_happensBefore 
+  s_callOrigin 
+  s_transactionOrigin 
+  s_knownIds 
+  s_invocationOp
+  s_invocationRes
+  vis
+  tx
+  (A \<bind> cont)
+"
+*)
+lemma execution_s_check_single_step:
+  assumes H: "\<And>S1 action Inv S' localCalls'. \<lbrakk>
+  S1 ~~ (i,action,Inv) \<leadsto>\<^sub>S S';
+  invocationOp S1 i \<noteq> None;
+  calls S1 = s_calls;
+  happensBefore S1 = updateHb s_happensBefore vis localCalls;
+  callOrigin S1 = s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c,the tx)) localCalls));
+  transactionOrigin S1 = s_transactionOrigin;
+  knownIds S1 = s_knownIds;
+  invocationOp S1 = s_invocationOp;
+  invocationRes S1 = s_invocationRes;
+  prog S1 = progr;
+  generatedLocal = {x. generatedIds S1 x \<triangleq> i};
+  localState S1 i \<triangleq> ls;
+  currentProc S1 i \<triangleq> toImpl;
+  visibleCalls S1 i \<triangleq>  (vis \<union> set localCalls);
+  currentTransaction S1 i = tx;
+  state_wellFormed S1;
+  vis \<inter> set localCalls = {};
+  dom s_callOrigin \<inter> set localCalls = {};
+  Field s_happensBefore \<inter> set localCalls = {};
+  sorted_by (updateHb s_happensBefore vis localCalls) localCalls;
+  (case currentTransaction S1 i of Some tx' \<Rightarrow> set localCalls =  {c. callOrigin S1 c \<triangleq> tx'} | None \<Rightarrow> localCalls = []);
+  \<And>tx'. tx \<noteq> Some tx' \<Longrightarrow>  transactionStatus S1 tx' \<noteq> Some Uncommitted;
+  localCalls' \<noteq> localCalls \<Longrightarrow> sorted_by (updateHb s_happensBefore vis localCalls') localCalls'
+    \<and> (case currentTransaction S' i of Some tx' \<Rightarrow> set localCalls' =  {c. callOrigin S' c \<triangleq> tx'} | None \<Rightarrow> localCalls' = [])
+\<rbrakk> \<Longrightarrow> 
+  Inv
+\<and> (case localState S' i of
+    None \<Rightarrow> True
+  | Some LS' \<Rightarrow>
+    execution_s_check
+    progr 
+    i
+    (calls S')
+    (happensBefore S' |r (dom (calls S') - set localCalls')) 
+    (callOrigin S' |` (dom (calls S') - set localCalls')) 
+    (transactionOrigin S')
+    (knownIds S')
+    (invocationOp S')
+    (invocationRes S')
+    {x. generatedIds S' x \<triangleq> i}
+    (case visibleCalls S' i of Some vis \<Rightarrow> vis - set localCalls' | None \<Rightarrow> {})
+    localCalls'
+    (currentTransaction S' i)
+    LS')
+"
+  shows"execution_s_check
+  progr 
+  i
+  s_calls 
+  s_happensBefore 
+  s_callOrigin 
+  s_transactionOrigin 
+  s_knownIds 
+  s_invocationOp
+  s_invocationRes
+  generatedLocal
+  vis
+  localCalls
+  tx
+  ls
+"
+proof (cases "s_invocationOp i")
+  case None
+  then show ?thesis
+    by (simp add: beforeInvoc_execution_s_check) 
+next
+  case (Some action)
+
+  show ?thesis
+  proof (auto simp add: execution_s_check_def, goal_cases "A")
+    case (A trace S1 S')
+    (*fix trace S1 S'
+    assume a0: "S1 ~~ (i, trace) \<leadsto>\<^sub>S* S'"
+      and a1: "\<forall>p t. (AInvoc p, t) \<notin> set trace"
+      and a2: "state_wellFormed S1"
+      and a3: "s_calls = calls S1"
+      and a4: "s_happensBefore = happensBefore S1"
+      and a5: "s_callOrigin = callOrigin S1"
+      and a6: "s_transactionOrigin = transactionOrigin S1"
+      and a7: "s_knownIds = knownIds S1"
+      and a8: "s_invocationOp = invocationOp S1"
+      and a9: "s_invocationRes = invocationRes S1"
+      and a10: "progr = prog S1"
+      and a11: "generatedLocal = {x. generatedIds S1 x \<triangleq> i}"
+      and a12: "localState S1 i \<triangleq> ls"
+      and a13: "currentProc S1 i \<triangleq> toImpl"
+      and a14: "visibleCalls S1 i \<triangleq> vis"
+      and a15: "tx = currentTransaction S1 i"*)
+
+
+    show "traceCorrect_s  trace"
+    proof (cases trace)
+      case Nil
+      then show ?thesis
+        by (simp add: traceCorrect_s_empty) 
+
+    next
+      case (Cons a trace')
+      obtain action Inv where a_def[simp]: "a = (action, Inv)" by force
+
+      from `S1 ~~ (i, trace) \<leadsto>\<^sub>S* S'`
+      obtain S1'
+        where step: "S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S1'" 
+          and steps: "S1' ~~ (i, trace') \<leadsto>\<^sub>S* S'"
+          and trace_split: "trace = (action,Inv)#trace'"
+        using a_def local.Cons steps_s_cons_simp by blast
+
+
+      have gI: "\<forall>x\<in>generatedLocal. generatedIds S1 x \<triangleq> i"
+        using A by blast
+
+      have hasInvoc: "invocationOp S1 i \<noteq> None"
+        using Some A by auto
+
+      have wf: "state_wellFormed S1"
+        using A by auto
+
+      have wf': "state_wellFormed S1'"
+        using local.step local.wf state_wellFormed_combine_s1 by blast
+
+      have "trans (happensBefore S1')"
+        by (simp add: happensBefore_transitive wf')
+
+      have "irrefl (happensBefore S1')"
+        by (simp add: happensBefore_irrefl wf')
+
+      have "finite {c. callOrigin S1' c \<triangleq> a}" for a
+      proof (rule finite_subset)
+        show "{c. callOrigin S1' c \<triangleq> a} \<subseteq> dom (callOrigin S1')" 
+          by auto
+        show "finite (dom (callOrigin S1'))"
+          by (simp add: wellFormed_callOrigin_dom wf' wf_finite_calls)
+      qed
+
+
+
+      obtain localCalls'
+        where localCalls'_def: "case currentTransaction S1' i of None \<Rightarrow> localCalls' = [] | Some tx' \<Rightarrow> set localCalls' = {c. callOrigin S1' c \<triangleq> tx'} "
+          and localCalls'_sorted: "sorted_by (happensBefore S1') localCalls'"
+        apply atomize_elim
+        apply (cases "currentTransaction S1' i")
+         apply (auto simp add: sorted_by_empty)
+        using `\<And>a. finite {c. callOrigin S1' c \<triangleq> a}`  `trans (happensBefore S1')` `irrefl (happensBefore S1')` 
+        by (rule exists_sorted_by_irrefl)
+
+      have localCalls'_empty:
+        "localCalls' = [] \<longleftrightarrow> (case currentTransaction S1' i of  None \<Rightarrow> True | Some tx \<Rightarrow> \<nexists>c. callOrigin S1' c \<triangleq> tx)"
+        using localCalls'_def by (auto split: option.splits)
+
+      have localCalls'_set:
+        "set localCalls' = S \<longleftrightarrow> (case currentTransaction S1' i of  None \<Rightarrow> S = {}  | Some tx \<Rightarrow> \<forall>c. callOrigin S1' c \<triangleq> tx \<longleftrightarrow> c\<in>S)" for S
+        using localCalls'_def by (auto split: option.splits)
+
+      from step
+      have appliedH1: "Inv \<and>
+    (case localState S1' i of None \<Rightarrow> True
+     | Some LS' \<Rightarrow>
+         execution_s_check progr i 
+              (calls S1') 
+              (happensBefore S1' |r (dom (calls S1') - set localCalls')) 
+              (callOrigin S1' |` (dom (calls S1') - set localCalls')) 
+              (transactionOrigin S1') 
+              (knownIds S1') 
+              (invocationOp S1')
+              (invocationRes S1') 
+              {x. generatedIds S1' x \<triangleq> i} 
+              (case visibleCalls S1' i of None \<Rightarrow> {} | Some vis \<Rightarrow> vis - set localCalls')
+              localCalls' 
+              (currentTransaction S1' i) 
+              LS')"
+      proof (rule H[where localCalls'=localCalls']; (simp add: A hasInvoc wf localCalls'_def)?)
+
+
+
+        show "sorted_by (updateHb s_happensBefore vis localCalls') localCalls'"
+          if c0: "localCalls' \<noteq> localCalls"
+            and c1: "S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S1'"
+        proof (rule sorted_by_updateHb)
+          show "set localCalls' \<inter> vis = {}"
+
+            using localCalls'_def
+            apply (auto simp add: split: option.splits)
+
+            sorry
+          show "set localCalls' \<inter> Field s_happensBefore = {}"
+
+
+
+      hence Inv
+        by simp
+
+      
+
+      show ?thesis
+        unfolding trace_split 
+      proof (rule traceCorrect_s_split; (simp add: `Inv`)?)
+
+        show "traceCorrect_s trace'"
+
+        proof (cases "localState S1' i")
+          case None
+
+          with steps have "trace' = []"
+            using local_state_None_no_more_steps
+            by (metis A insert_iff list.simps(15) local.Cons no_more_invoc option.simps(3)) 
+
+
+          then show ?thesis
+            using traceCorrect_s_empty by blast
+
+
+        next
+          case (Some LS')
+
+
+          from step
+          have appliedH: "Inv \<and>
+            (case localState S1' i of None \<Rightarrow> True
+             | Some LS' \<Rightarrow>
+                 execution_s_check progr i 
+                    (calls S1') 
+                    (happensBefore S1' |r (dom (calls S1') - set localCalls')) 
+                    (callOrigin S1' |` (dom (calls S1') - set localCalls')) 
+                    (transactionOrigin S1') 
+                    (knownIds S1') 
+                    (invocationOp S1')
+                    (invocationRes S1') 
+                    {x. generatedIds S1' x \<triangleq> i} 
+                    (case visibleCalls S1' i of None \<Rightarrow> {} | Some vis \<Rightarrow> vis - set localCalls')
+                    localCalls' 
+                    (currentTransaction S1' i) 
+                    LS')"
+          proof (fuzzy_rule H; (simp add: A; fail)?)
+            show "invocationOp S1 i \<noteq> None"
+              by (simp add: hasInvoc)
+
+            show "localCalls' = localCalls \<Longrightarrow>
+              sorted_by (updateHb s_happensBefore vis localCalls) localCalls' \<and>
+              (case tx of None \<Rightarrow> localCalls' = [] | Some tx' \<Rightarrow> set localCalls' = {c. callOrigin S1' c \<triangleq> tx'})"
+            proof (auto simp add: split: option.splits)
+              show "\<lbrakk>localCalls' = localCalls; tx = None\<rbrakk> \<Longrightarrow> sorted_by (updateHb s_happensBefore vis localCalls) localCalls"
+                by (simp add: A(19))
+              show "\<lbrakk>localCalls' = localCalls; tx = None\<rbrakk> \<Longrightarrow> localCalls = []"
+                using A(16) A(18) by auto
+
+              show "sorted_by (updateHb s_happensBefore vis localCalls) localCalls"
+                if c0: "localCalls' = localCalls"
+                  and c1: "tx \<triangleq> x2"
+                for  x2
+                by (simp add: A(19))
+
+
+              show "callOrigin S1' x \<triangleq> x2"
+                if c0: "localCalls' = localCalls"
+                  and c1: "tx \<triangleq> x2"
+                  and c2: "x \<in> set localCalls"
+                for  x2 x
+                using A(16) c0 c1 c2 localCalls'_def by force
+
+
+              show "x \<in> set localCalls"
+                if c0: "localCalls' = localCalls"
+                  and c1: "tx \<triangleq> x2"
+                  and c2: "callOrigin S1' x \<triangleq> x2"
+                for  x2 x
+                using A(16) c0 c1 c2 localCalls'_def by force
+            qed
+          qed
+
+          have transactionOrigin_unchanged:
+              "transactionOrigin S1' tx \<triangleq> i"
+            if "transactionOrigin S1 tx \<triangleq> i"
+            for tx i
+            using step  that
+            apply (auto simp add: hasInvoc step_s.simps local.wf state_wellFormed_transactionStatus_transactionOrigin)
+            using state_monotonicGrowth_transactionOrigin by blast
+
+
+
+          from Some and appliedH 
+          have "execution_s_check progr i (calls S1') (happensBefore S1' |r (dom (calls S1') - set localCalls'))
+              (callOrigin S1' |` (dom (calls S1') - set localCalls')) (transactionOrigin S1') (knownIds S1') (invocationOp S1') (invocationRes S1')
+              {x. generatedIds S1' x \<triangleq> i} (case visibleCalls S1' i of None \<Rightarrow> {} | Some vis \<Rightarrow> vis - set localCalls') localCalls'
+              (currentTransaction S1' i) LS'"
+            by auto
+
+          with steps
+          show ?thesis
+          proof (fuzzy_rule execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format]; (simp; fail)?)
+            find_theorems "S1'"
+
+            show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
+              using Some local.step local.wf no_more_invoc state_wellFormed_combine_s1 steps by fastforce
+            show "state_wellFormed S1'"
+              using A local.step state_wellFormed_combine_s1 by blast
+            show "prog S1' = progr"
+              by (metis A(1) A(11) steps unchangedProg)
+            show "localState S1' i \<triangleq> LS'"
+              by (simp add: Some)
+
+            show "happensBefore S1' =
+                updateHb (happensBefore S1' |r (dom (calls S1') - set localCalls'))
+                 (case visibleCalls S1' i of None \<Rightarrow> {} | Some vis \<Rightarrow> vis - set localCalls') localCalls'"
+              sorry
+
+            show "callOrigin S1' =
+    callOrigin S1' |` (dom (calls S1') - set localCalls') ++ map_of (map (\<lambda>c. (c, the (currentTransaction S1' i))) localCalls')"
+              sorry
+
+            show "currentProc S1' i \<triangleq> toImpl"
+              using step Some by (auto simp add: step_s.simps A wf_localState_to_invocationOp)
+
+            show " visibleCalls S1' i \<triangleq> ((case visibleCalls S1' i of None \<Rightarrow> {} | Some vis \<Rightarrow> vis - set localCalls') \<union> set localCalls')"
+            proof (cases "visibleCalls S1' i")
+              case None
+              then show ?thesis
+                by (metis Some option.simps(3) state_wellFormed_ls_visibleCalls wf') 
+            next
+              case (Some vis)
+              then show ?thesis
+                apply auto
+                using localCalls'_def apply (auto simp add:  split: option.splits)
+                using local.wf state_wellFormed_current_transaction_origin state_wellFormed_ls_visibleCalls_callOrigin transactionOrigin_unchanged wf' by blast
+
+            qed
+
+            show " \<And>tx'. currentTransaction S1' i \<noteq> Some tx' \<Longrightarrow> transactionStatus S1' tx' \<noteq> Some Uncommitted"
+              using step  Some  by (auto simp add: step_s.simps A wf_localState_to_invocationOp localCalls'_def split: option.splits if_splits)
+
+            show "sorted_by (happensBefore S1') localCalls'"
+              by (simp add: localCalls'_sorted)
+
+            have same_tx: "\<lbrakk>currentTransaction S1 i \<triangleq> tx; currentTransaction S1' i \<triangleq> tx'\<rbrakk> \<Longrightarrow> tx = tx'" for tx tx'
+              using step hasInvoc by (auto simp add: step_s.simps)
+
+
+            show "case currentTransaction S1' i of None \<Rightarrow> localCalls' = [] | Some tx' \<Rightarrow> set localCalls' = {c. callOrigin S1' c \<triangleq> tx'}"
+            proof (case_tac " currentTransaction S1 i"; case_tac " currentTransaction S1' i"; simp add: localCalls'_empty localCalls'_set)
+              show "\<And>a. \<lbrakk>currentTransaction S1 i = None; currentTransaction S1' i \<triangleq> a\<rbrakk> \<Longrightarrow> \<forall>x. callOrigin S1' x \<noteq> Some a"
+                using step hasInvoc by (auto simp add: step_s.simps)
+              show "\<And>a. \<lbrakk>currentTransaction S1 i \<triangleq> a; currentTransaction S1' i = None\<rbrakk> \<Longrightarrow> \<forall>c. callOrigin S1' c \<noteq> Some a"
+
+
+              show "\<And>a. \<lbrakk>currentTransaction S1 i = None; currentTransaction S1' i \<triangleq> a\<rbrakk> \<Longrightarrow> set localCalls' = {c. callOrigin S1' c \<triangleq> a}"
+                using localCalls'_def apply (simp add: localCalls_empty)
+
+
+              show " \<lbrakk>currentTransaction S1 i = None; currentTransaction S1' i = None\<rbrakk> \<Longrightarrow> localCalls' = []"
+                using localCalls'_def by simp
+              show " \<And>a. \<lbrakk>currentTransaction S1 i = None; currentTransaction S1' i \<triangleq> a\<rbrakk> \<Longrightarrow> set localCalls' = {c. callOrigin S1' c \<triangleq> a}"
+                using localCalls'_def  step hasInvoc by (auto simp add: step_s.simps)
+              show "\<And>a. \<lbrakk>currentTransaction S1 i \<triangleq> a; currentTransaction S1' i = None\<rbrakk> \<Longrightarrow> localCalls' = []"
+                using localCalls'_def  step hasInvoc apply (auto simp add: step_s.simps)
+
+                sorry
+              show "\<And>a aa. \<lbrakk>currentTransaction S1 i \<triangleq> a; currentTransaction S1' i \<triangleq> aa\<rbrakk> \<Longrightarrow> set localCalls' = {c. callOrigin S1' c \<triangleq> aa}"
+                using localCalls'_def same_tx by fastforce
+
+
+            show "case currentTransaction S1' i of None \<Rightarrow> localCalls' = [] | Some tx' \<Rightarrow> set localCalls' = {c. callOrigin S' c \<triangleq> tx'}"
+              using localCalls'_def 
+              sorry
+
+            show "visibleCalls S1' i \<triangleq> (visibleCalls S1' i orElse {} \<union> set localCalls')"
+              using step  Some  apply (auto simp add: step_s.simps A wf_localState_to_invocationOp localCalls'_def split: option.splits)
+
+              sledgehammer
+              apply (metis A(17) not_uncommitted_cases option.sel)
+              sorry
+            show "\<And>tx'. currentTransaction S1' i \<noteq> Some tx' \<Longrightarrow> transactionStatus S1' tx' \<noteq> Some Uncommitted"
+              using step Some  by (auto simp add: step_s.simps A wf_localState_to_invocationOp split: option.splits if_splits)
+
+
+
+          qed auto
+        qed
+      qed
+    qed
+  qed
+qed
 
 
 end

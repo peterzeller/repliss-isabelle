@@ -228,4 +228,65 @@ lemma invocation_happensBeforeH_update:
   using cs_notin_vis option.simps(3) apply fastforce
   using cs_nonempty last_in_set by blast
 
+
+
+lemma state_wellFormed_transactionStatus_callOrigin:     
+  assumes "state_wellFormed S"
+and "callOrigin S c \<triangleq> tx"
+shows "transactionStatus S tx \<noteq> None"
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step S a S')
+  thus ?case 
+    by (auto simp add: step.simps inTransaction_localState split: if_splits dest:  wellFormed_currentTransaction_unique_h(2) )
+qed
+
+lemma state_wellFormed_transactionStatus_transactionOrigin:     
+  assumes "state_wellFormed S"
+and "transactionOrigin S tx \<triangleq> i"
+shows "transactionStatus S tx \<noteq> None"
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step S a S')
+  thus ?case 
+    by (auto simp add: step.simps inTransaction_localState split: if_splits dest:  wellFormed_currentTransaction_unique_h(2) )
+qed
+
+lemma state_wellFormed_current_transaction_origin:     
+  assumes "state_wellFormed S"
+and "currentTransaction S i \<triangleq> tx"
+shows "transactionOrigin S tx \<triangleq> i"
+  using assms proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step S a S')
+  thus ?case 
+    by (auto simp add: step.simps  split: if_splits dest: state_wellFormed_transactionStatus_transactionOrigin)
+
+qed
+
+
+lemma state_wellFormed_ls_visibleCalls_callOrigin:     
+  assumes "state_wellFormed S"
+and "callOrigin S c \<triangleq> tx"
+and "transactionOrigin S tx \<triangleq> i"
+and "visibleCalls S i \<triangleq> vis"
+  shows "c \<in> vis"
+  using assms proof (induct  arbitrary: vis rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step S a S' vis')
+  thus ?case 
+    by (auto simp add: step.simps inTransaction_localState chooseSnapshot_def state_wellFormed_current_transaction_origin  split: if_splits 
+          dest: wf_no_transactionStatus_origin_for_nothing  wf_no_invocation_no_origin )
+
+qed
+
+
 end
