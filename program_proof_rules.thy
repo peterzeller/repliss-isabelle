@@ -337,9 +337,8 @@ shows"execution_s_check
 proof show_proof_rule
   case (Step trace S1 S' action S'a Inv trace')
 
-  thm step_s_NewId
 
-from ` S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
+  from ` S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
     `localState S1 i \<triangleq> (newId P \<bind> cont)`
     `currentProc S1 i \<triangleq> toImpl`
     `\<And>proc. action \<noteq> AInvoc proc`
@@ -470,6 +469,7 @@ TODO:
   s_invocationRes'
   localGenerated
   vis'
+  []
   (Some tx)
   (cont ())"
 
@@ -486,9 +486,77 @@ shows"execution_s_check
   s_invocationRes
   localGenerated
   vis
-  tx
+  []
+  None
   (beginAtomic \<bind> cont)
 "
+proof show_proof_rule
+  case (Step trace S1 S_end action S'a Inv trace')
+
+
+  from ` S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
+    `localState S1 i \<triangleq> (beginAtomic \<bind> cont)`
+    `currentProc S1 i \<triangleq> toImpl`
+    `\<And>proc. action \<noteq> AInvoc proc`
+    obtain t txns S' vis' vis''
+      where c0: "localState S1 i \<triangleq> (beginAtomic \<bind> cont)"
+   and c1: "currentProc S1 i \<triangleq> toImpl"
+   and c2: "action = ABeginAtomic t txns"
+   and c3: "Inv"
+   and c4: "currentTransaction S1 i = None"
+   and c5: "transactionStatus S1 t = None"
+   and c6: "prog S' = prog S1"
+   and growth: "state_monotonicGrowth i S1 S'"
+   and c8: "\<forall>x. transactionOrigin S1 x \<triangleq> i = transactionOrigin S' x \<triangleq> i"
+   and c9: "invariant (prog S1) (invContext S')"
+   and c10: "\<forall>x. transactionStatus S' x \<noteq> Some Uncommitted"
+   and c11: "state_wellFormed S'"
+   and c12: "state_wellFormed (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> cont ()), visibleCalls := visibleCalls S'(i \<mapsto> vis'')\<rparr>)"
+   and c13: "localState S' i \<triangleq> (beginAtomic \<bind> cont)"
+   and c14: "currentProc S' i \<triangleq> toImpl"
+   and c15: "currentTransaction S' i = None"
+   and c16: "visibleCalls S1 i \<triangleq> vis'"
+   and c17: "visibleCalls S' i \<triangleq> vis'"
+   and c18: "chooseSnapshot vis'' vis' S'"
+   and c19: "consistentSnapshot S' vis''"
+   and c20: "transactionStatus S' t = None"
+   and c21: "\<forall>x. callOrigin S' x \<noteq> Some t"
+   and c22: "transactionOrigin S' t = None"
+   and S'a_def: "S'a = S' \<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> cont ()), visibleCalls := visibleCalls S'(i \<mapsto> vis'')\<rparr>"
+      by (auto simp add: step_s.simps)
+
+
+  show "Inv \<and> traceCorrect_s trace'"
+  proof (intro conjI)
+    show "Inv" using `Inv` .
+
+    from `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S_end`
+    show "traceCorrect_s trace'"
+    proof (rule use_execution_s_check)
+
+      show "happensBefore S'a = updateHb (happensBefore S'a) vis []"
+        by simp
+
+      show "callOrigin S'a = (callOrigin S'a) ++ map_of (map (\<lambda>c. (c, the (Some t))) [])"
+        by simp
+
+      show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
+        using Step(21) Step(24) by auto
+
+
+      show " state_wellFormed S'a"
+        using S'a_def c12 by blast
+
+      show "currentProc S'a i \<triangleq> toImpl"
+        by (simp add: S'a_def c14)
+
+
+
+
+
+
+      apply_end (auto simp add: S'a_def Step)
+
 proof (rule  execution_s_check_single_step, auto simp add: step_s.simps split: if_splits, goal_cases "goal")
   case (goal S1 Inv y t S'a vis')
   show ?case 
