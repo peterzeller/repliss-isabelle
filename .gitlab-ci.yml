@@ -1,7 +1,10 @@
 image:
   name: peterzel/isabelle:latest
-
-
+before_script:
+  - mkdir -p ~/isabelle-deps
+  - curl -o ~/isabelle-deps/fuzzy_rule.zip https://codeload.github.com/peterzeller/isabelle_fuzzy_rule/zip/master
+  - unzip ~/isabelle-deps/fuzzy_rule.zip -d ~/isabelle-deps/
+  - echo "/home/isabelle/isabelle-deps/isabelle_fuzzy_rule-master" >> ~/.isabelle/Isabelle2019/ROOTS
 compile:
   stage: build
   script:
