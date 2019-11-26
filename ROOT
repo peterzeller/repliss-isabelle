@@ -8,6 +8,7 @@ session "repliss" = "HOL" +
   sessions 
     "HOL-Library"
     "Case_Labeling"
+    "fuzzyrule"
  (* theories [document = false]
     "~~/src/HOL/Library/FSet"
     "~~/src/HOL/Eisbach/Eisbach"
