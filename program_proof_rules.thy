@@ -904,7 +904,8 @@ lemma updateHb_restrict:
 
 lemma execution_s_check_dbop:
   assumes progr_wf: "program_wellFormed progr"
-    and query_res_exists: "True"
+    (* might add this to ensure progress:  
+     and query_res_exists: "True"*)
 and cont: "\<And>c res. \<lbrakk>
 querySpec progr op \<lparr>
       calls = s_calls |` (vis \<union> set localCalls), 
@@ -1078,6 +1079,128 @@ proof show_proof_rule
   qed
 qed
 
+
+
+
+lemma execution_s_check_return:
+  assumes progr_wf: "program_wellFormed progr"
+    and query_res_exists: "True"
+and inv: "invariant progr
+  \<lparr>
+        calls = s_calls, 
+        happensBefore = s_happensBefore , 
+        callOrigin  = s_callOrigin,
+        transactionOrigin = s_transactionOrigin,
+        knownIds = s_knownIds  \<union> uniqueIds res,
+        invocationOp = s_invocationOp,
+        invocationRes = s_invocationRes(i \<mapsto> res)
+      \<rparr>"
+shows"execution_s_check
+  progr 
+  i
+  s_calls
+  s_happensBefore 
+  s_callOrigin
+  s_transactionOrigin 
+  s_knownIds
+  s_invocationOp
+  s_invocationRes
+  localGenerated
+  vis
+  []
+  None
+  (return res)
+"
+proof show_proof_rule
+  case (Step trace S1 S_end action S'a Inv trace')
+
+
+  from ` S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
+    `localState S1 i \<triangleq> (return res)`
+    `currentProc S1 i \<triangleq> toImpl`
+    `\<And>proc. action \<noteq> AInvoc proc`
+  have c2: "action = AReturn res"
+   and c3: "currentTransaction S1 i = None"
+   and S'a_def: "S'a = S1 \<lparr>localState := (localState S1)(i := None), currentProc := (currentProc S1)(i := None), visibleCalls := (visibleCalls S1)(i := None), invocationRes := invocationRes S1(i \<mapsto> res), knownIds := knownIds S1 \<union> uniqueIds res\<rparr>"
+   and Inv_def: "Inv \<longleftrightarrow> invariant (prog S1) (invContextH (callOrigin S1) (transactionOrigin S1) (transactionStatus S1) (happensBefore S1) (calls S1) (knownIds S1 \<union> uniqueIds res) (invocationOp S1) (invocationRes S1(i \<mapsto> res)))"
+    by (auto simp add: step_s.simps)
+
+  show "Inv \<and> traceCorrect_s trace'"
+  proof
+
+    from `\<forall>tx'. None \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted`
+    have txStatus1: "transactionStatus S1 tx' \<noteq> Some Uncommitted" for tx'
+      by auto
+
+    have txStatus2: "transactionStatus S1 tx \<triangleq> y
+      \<longleftrightarrow> (transactionStatus S1 tx \<triangleq> Committed \<and> y = Committed)" for tx y
+      apply auto
+      using transactionStatus.exhaust txStatus1 by auto
+
+
+
+    from `\<forall>tx'. None \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted`
+    have txStatus3: "transactionStatus S1 tx \<triangleq> Committed
+      \<longleftrightarrow>transactionStatus S1 tx \<noteq> None" for tx
+      using transactionStatus.exhaust by (auto, blast)
+
+
+    have commmitted: "committedTransactions S1 = dom s_transactionOrigin"
+      apply (auto simp add: `transactionOrigin S1 = s_transactionOrigin`[symmetric] txStatus1)
+      apply (simp add: Step(1) txStatus3 wf_transaction_status_iff_origin)
+      by (simp add: Step(1) state_wellFormed_transactionStatus_transactionOrigin txStatus3)
+
+    have committed2: "committedCalls S1 = dom (calls S1)"
+      using Step(1) committedCalls_allCommitted txStatus1 by blast 
+
+    hence committed3: "committedCallsH s_callOrigin (transactionStatus S1) =  dom s_calls"
+      by (simp add: Step)
+
+
+    show "Inv" 
+      unfolding Inv_def invContextH_def
+    proof (fuzzy_rule inv; (simp add: Step commmitted committed3))
+
+      show "s_callOrigin = s_callOrigin |` dom s_calls"
+      proof (rule restrict_map_noop[symmetric])
+        show "dom s_callOrigin \<subseteq> dom s_calls"
+          using Step(1) Step(2) Step(4) wellFormed_callOrigin_dom by fastforce
+      qed
+
+      show "s_happensBefore = s_happensBefore |r dom s_calls"
+      proof (rule restrict_relation_noop[symmetric])
+        show "Field s_happensBefore \<subseteq> dom s_calls"
+          apply (auto simp add: Field_def)
+          using Step(1) Step(2) Step(3) happensBefore_in_calls_left happensBefore_in_calls_right by fastforce+
+      qed
+    qed
+
+
+    show "traceCorrect_s trace'"
+    proof (cases trace')
+      case Nil
+      then show ?thesis sorry
+    next
+      case (Cons a list)
+
+      obtain action' Inv' where a_def: "a = (action', Inv')"
+        by force
+
+      have no_invoc: "\<And>proc. action' \<noteq> AInvoc proc"
+        using Step(22) Step(25) a_def local.Cons by auto
+
+
+
+      from Cons `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S_end`
+      obtain S'' where "S'a ~~ (i, (action', Inv')) \<leadsto>\<^sub>S S''"
+        using steps_s_cons_simp a_def by blast 
+      hence False
+        using S'a_def no_invoc
+        by (auto simp add: step_s.simps)
+      thus "traceCorrect_s trace'" ..
+    qed
+  qed
+qed
 
 
 
