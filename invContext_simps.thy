@@ -32,7 +32,7 @@ lemma committedCalls_unchanged_callOrigin:
   shows "committedCallsH (co(c \<mapsto> t)) ts = committedCallsH co ts"
   using a1 a2 by (auto simp add: committedCallsH_def isCommittedH_def)
 
-lemma invContextH_update_callOrigin:
+lemma invContextH_map_update_all:
   assumes "co c = None" and "ts t \<triangleq> Uncommitted"
   shows "invContextH (co(c \<mapsto> t)) to ts hb cs ki io ir   =
        invContextH co to ts hb cs ki io ir  "
@@ -61,7 +61,7 @@ lemma invContextH_update_txstatus:
        invContextH co to ts hb cs ki io ir "
   using assms by (auto simp add: invContextH_def restrict_map_def committedCallsH_update_uncommitted)
 
-lemmas invContextH_simps = invContextH_update_calls invContextH_update_callOrigin invContextH_update_txstatus
+lemmas invContextH_simps = invContextH_update_calls invContextH_map_update_all invContextH_update_txstatus
 
 
 

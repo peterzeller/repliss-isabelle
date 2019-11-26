@@ -234,4 +234,139 @@ lemma in_sequence_in2: "in_sequence xs x y \<Longrightarrow> y\<in>set xs"
 lemma domExists_simp: "x \<in> dom f \<longleftrightarrow> (\<exists>y. f x \<triangleq> y)"
   by (auto)
 
+
+definition "before_in_list xs x y \<equiv> \<exists>i j. i < j \<and> j < length xs \<and> xs!i=x \<and> xs!j=y"
+
+lemma before_in_list_def2:
+  "before_in_list xs x y \<longleftrightarrow> (\<exists>xsa xsb. xs = xsa@xsb \<and> x\<in>set xsa \<and> y\<in>set xsb)"
+  unfolding before_in_list_def
+proof (intro iffI  conjI; elim exE conjE)
+
+  show "\<exists>xsa xsb. xs = xsa @ xsb \<and> x \<in> set xsa \<and> y \<in> set xsb"
+    if c0: "i < j"
+      and c1: "j < length xs"
+      and c2: "xs ! i = x"
+      and c3: "xs ! j = y"
+    for  i j
+  proof (intro exI conjI)
+
+    show "xs = take j xs @ drop j xs"
+      by simp
+
+    show "x \<in> set (take j xs)"
+      using c0 c1 c2 in_set_conv_nth by fastforce
+    show " y \<in> set (drop j xs)"
+      by (metis Cons_nth_drop_Suc c1 c3 list.set_intros(1))
+  qed
+
+  show "\<exists>i j. i < j \<and> j < length xs \<and> xs ! i = x \<and> xs ! j = y"
+    if c0: "xs = xsa @ xsb"
+      and c1: "x \<in> set xsa"
+      and c2: "y \<in> set xsb"
+    for  xsa xsb
+  proof -
+    from c1 obtain i where "xsa ! i = x" and "i < length xsa"
+      by (meson in_set_conv_nth)
+    from c2 obtain j where "xsb ! j = y" and "j < length xsb"
+      by (meson in_set_conv_nth)
+    show ?thesis
+    proof (intro exI conjI)
+      show "i < length xsa +j"
+        by (simp add: \<open>i < length xsa\<close> add.commute trans_less_add2)
+      show "length xsa + j < length xs"
+        by (simp add: \<open>j < length xsb\<close> c0)
+      show " xs ! i = x"
+        by (simp add: \<open>i < length xsa\<close> \<open>xsa ! i = x\<close> c0 nth_append_first)
+      show "xs ! (length xsa + j) = y"
+        by (simp add: \<open>xsb ! j = y\<close> c0)
+    qed
+  qed
+qed
+
+
+
+
+lemma before_in_list_cons:
+  "before_in_list (x#xs) a b \<longleftrightarrow> (if x = a then b\<in>set xs else before_in_list xs a b )"
+proof (auto simp add: before_in_list_def2)
+
+  show "b \<in> set xs"
+    if c0: "x = a"
+      and c1: "a # xs = xsa @ xsb"
+      and c2: "a \<in> set xsa"
+      and c3: "b \<in> set xsb"
+    for  xsa xsb
+    using that by (metis Un_iff empty_iff empty_set list.sel(3) set_append tl_append2)
+
+  show "\<exists>xsa xsb. a # xs = xsa @ xsb \<and> a \<in> set xsa \<and> b \<in> set xsb"
+    if c0: "x = a"
+      and c1: "b \<in> set xs"
+  proof (intro exI conjI)
+    show "a # xs = [a] @ xs" by simp
+  qed (auto simp add: c1)
+
+
+  show "\<exists>xsa xsb. xs = xsa @ xsb \<and> a \<in> set xsa \<and> b \<in> set xsb"
+    if c0: "x \<noteq> a"
+      and c1: "x # xs = xsa @ xsb"
+      and c2: "a \<in> set xsa"
+      and c3: "b \<in> set xsb"
+    for  xsa xsb
+  proof (intro exI conjI)
+    show "xs = tl xsa @ xsb"
+      by (metis c1 c2 equals0D list.sel(3) set_empty tl_append2)
+    show "a \<in> set (tl xsa)"
+      by (metis c0 c1 c2 hd_append list.collapse list.sel(1) set_ConsD tl_Nil)
+  qed (simp add: c3)
+
+
+  show "\<exists>xsaa xsba. x # xsa @ xsb = xsaa @ xsba \<and> a \<in> set xsaa \<and> b \<in> set xsba"
+    if c0: "x \<noteq> a"
+      and c1: "xs = xsa @ xsb"
+      and c2: "a \<in> set xsa"
+      and c3: "b \<in> set xsb"
+    for  xsa xsb
+  proof (intro exI conjI)
+    show "x # xsa @ xsb = (x#xsa) @ xsb" by simp
+  qed(auto simp add: that)
+qed
+
+lemma before_in_list_contains_l: "before_in_list cs x y \<Longrightarrow> x\<in>set cs"
+  by (metis before_in_list_def dual_order.strict_trans in_set_conv_nth)
+
+lemma  before_in_list_contains_r: "before_in_list cs x y \<Longrightarrow> y\<in>set cs"
+  by (metis before_in_list_def in_set_conv_nth)
+
+
+lemma before_in_list_empty[simp]: "\<not>before_in_list [] x y"
+  by (simp add: before_in_list_def)
+
+
+definition 
+"map_update_all s_callOrigin localCalls tx \<equiv>  s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c, tx)) localCalls))"
+
+lemma map_update_all_empty[simp]: "map_update_all co [] t = co"
+  by (simp add: map_update_all_def) 
+
+lemma map_update_all_get: 
+"map_update_all co cs tx c = (if c\<in>set cs then Some tx else co c)"
+ using split_list by (auto simp add: map_update_all_def map_add_def  dest: map_of_SomeD split: option.splits, fastforce)
+
+
+lemma map_of_None: "map_of xs x = None \<longleftrightarrow> (\<forall>y. (x,y)\<notin>set xs)"
+  by (induct xs, auto)
+lemma map_of_Some: "\<lbrakk>distinct (map fst xs)\<rbrakk> \<Longrightarrow>  map_of xs x = Some y \<longleftrightarrow> ((x,y)\<in>set xs)"
+  by (induct xs, auto, (metis map_of_eq_None_iff map_of_is_SomeI option.simps(3)))
+
+
+lemma exists_cases1: 
+  shows "(\<exists>x. (x = A \<longrightarrow> P x) \<and> (x \<noteq> A \<longrightarrow> Q x)) 
+    \<longleftrightarrow>  (P A) \<or> (\<exists>x. x \<noteq> A \<and> Q x)"
+  by auto
+
+lemma exists_cases2: 
+  shows "(\<exists>x. (x \<noteq> A \<longrightarrow> Q x) \<and> (x = A \<longrightarrow> P x)) 
+    \<longleftrightarrow>  (P A) \<or> (\<exists>x. x \<noteq> A \<and> Q x)"
+  by auto
+
 end

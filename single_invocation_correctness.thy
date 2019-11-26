@@ -113,6 +113,19 @@ next
 qed
 
 
+lemma updateHb_simp_distinct2:
+  shows "(x,y) \<in> updateHb hb vis cs 
+  \<longleftrightarrow> ((x, y)\<in>hb 
+      \<or> x\<in>vis \<and> y\<in>set cs 
+      \<or> before_in_list cs x y)"
+proof (induct cs arbitrary: hb vis)
+  case Nil
+  then show ?case by auto
+next
+case (Cons a cs)
+  show ?case 
+    by (auto simp add: updateHb_cons before_in_list_cons updateHb_simp2 Cons.hyps before_in_list_contains_r)
+qed
 
 
 \<comment> \<open>TODO remove?\<close>

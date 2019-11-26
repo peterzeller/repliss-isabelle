@@ -11,14 +11,6 @@ theory program_proof_rules
     topological_sort
 begin
 
-thm execution_s_correct_def
-  (*
- execution_s_correct ?progr ?S ?i \<equiv> \<forall>trace S'. ?S ~~ (?i, trace) \<leadsto>\<^sub>S* S' \<longrightarrow> traceCorrect_s ?progr trace
-*)
-
-(* TODO utils*)
-(* List is sorted wrt. a partial order *)
-
 
 definition execution_s_check where
   "execution_s_check 
@@ -42,7 +34,7 @@ definition execution_s_check where
        \<longrightarrow> state_wellFormed S1
        \<longrightarrow> calls S1 = s_calls
        \<longrightarrow> happensBefore S1 = updateHb s_happensBefore vis localCalls
-       \<longrightarrow> callOrigin S1 = s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c, the tx)) localCalls))
+       \<longrightarrow> callOrigin S1 = map_update_all s_callOrigin localCalls (the tx)
        \<longrightarrow> transactionOrigin S1 = s_transactionOrigin
        \<longrightarrow> knownIds S1 = s_knownIds
        \<longrightarrow> invocationOp S1 = s_invocationOp
@@ -145,6 +137,7 @@ proof (auto simp add:  execution_s_correct_def)
 
     show "sorted_by (happensBefore S) []"
       by (simp add: sorted_by_empty)
+
 
   qed
 qed
@@ -447,7 +440,8 @@ lemma execution_s_check_beginAtomic:
       transactionOrigin = s_transactionOrigin', 
       knownIds = s_knownIds',
       invocationOp = s_invocationOp', 
-      invocationRes = s_invocationRes'\<rparr>
+      invocationRes = s_invocationRes'\<rparr>;
+s_transactionOrigin' tx = None
 \<comment> \<open>
 TODO: 
 - no calls in new transaction
@@ -537,7 +531,7 @@ proof show_proof_rule
       show "happensBefore S'a = updateHb (happensBefore S'a) vis'' []"
         by simp
 
-      show "callOrigin S'a = (callOrigin S'a) ++ map_of (map (\<lambda>c. (c, the (Some t))) [])"
+      show "callOrigin S'a = map_update_all (callOrigin S'a) [] (the (Some t))"
         by simp
 
       show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
@@ -584,6 +578,10 @@ proof show_proof_rule
         show "transactionOrigin S'(t \<mapsto> i) = transactionOrigin S'a"
           by (simp add: S'a_def)
 
+        show "transactionOrigin S' t = None"
+          by (simp add: c22)
+
+
         show " invariant progr
      \<lparr>calls = calls S'a, happensBefore = happensBefore S'a, callOrigin = callOrigin S'a,
         transactionOrigin = transactionOrigin S', knownIds = knownIds S'a, invocationOp = invocationOp S'a,
@@ -622,24 +620,23 @@ proof show_proof_rule
   qed
 qed
 
- (* TODO move to utils *) 
-lemma exists_cases1: 
-  shows "(\<exists>x. (x = A \<longrightarrow> P x) \<and> (x \<noteq> A \<longrightarrow> Q x)) 
-    \<longleftrightarrow>  (P A) \<or> (\<exists>x. x \<noteq> A \<and> Q x)"
-  by auto
 
-lemma exists_cases2: 
-  shows "(\<exists>x. (x \<noteq> A \<longrightarrow> Q x) \<and> (x = A \<longrightarrow> P x)) 
-    \<longleftrightarrow>  (P A) \<or> (\<exists>x. x \<noteq> A \<and> Q x)"
-  by auto
 
 lemma execution_s_check_endAtomic:
   assumes "program_wellFormed progr"
-and assert_inv: "invariant progr 
+    and "s_transactionOrigin tx = None"
+and assert_inv: "
+\<lbrakk>invocation_happensBeforeH 
+    (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i))) 
+    (updateHb s_happensBefore vis localCalls)
+= invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore 
+ \<union> {i' | i' c'. i_callOriginI_h s_callOrigin s_transactionOrigin c' \<triangleq> i' \<and> c' \<in> vis} \<times> {i}
+\<rbrakk>
+ \<Longrightarrow> invariant progr
      \<lparr>calls = s_calls, 
       happensBefore = updateHb s_happensBefore vis localCalls,
-      callOrigin = s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c, tx)) localCalls)),
-      transactionOrigin = s_transactionOrigin, 
+      callOrigin = map_update_all s_callOrigin localCalls tx,
+      transactionOrigin = s_transactionOrigin(tx \<mapsto> i), 
       knownIds = s_knownIds,
       invocationOp = s_invocationOp, 
       invocationRes = s_invocationRes\<rparr>"
@@ -647,14 +644,27 @@ and assert_inv: "invariant progr
 \<comment> \<open>
 
 \<close>
-\<lbrakk>True
+\<lbrakk>
+invocation_happensBeforeH 
+    (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i))) 
+    (updateHb s_happensBefore vis localCalls)
+= invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore 
+ \<union> {i' | i' c'. i_callOriginI_h s_callOrigin s_transactionOrigin c' \<triangleq> i' \<and> c' \<in> vis} \<times> {i};
+invariant progr 
+     \<lparr>calls = s_calls, 
+      happensBefore = updateHb s_happensBefore vis localCalls,
+      callOrigin = map_update_all s_callOrigin localCalls tx,
+      transactionOrigin = s_transactionOrigin(tx \<mapsto> i), 
+      knownIds = s_knownIds,
+      invocationOp = s_invocationOp, 
+      invocationRes = s_invocationRes\<rparr>
 \<rbrakk> \<Longrightarrow> execution_s_check
   progr 
   i
   s_calls 
   (updateHb s_happensBefore vis localCalls) 
-  (s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c, tx)) localCalls))) 
-  s_transactionOrigin
+  (map_update_all s_callOrigin localCalls tx) 
+  (s_transactionOrigin(tx \<mapsto> i))
   s_knownIds 
   s_invocationOp
   s_invocationRes
@@ -671,7 +681,7 @@ shows"execution_s_check
   s_calls
   s_happensBefore 
   s_callOrigin
-  s_transactionOrigin 
+  (s_transactionOrigin(tx \<mapsto> i)) 
   s_knownIds
   s_invocationOp
   s_invocationRes
@@ -734,26 +744,37 @@ apply (simp add: Step)
         using Step(1) Step(2) Step(3) happensBefore_in_calls_left happensBefore_in_calls_right by fastforce+
       
 
-      have h3: "s_callOrigin ++ map_of (map (\<lambda>c. (c, tx)) localCalls) = callOrigin S1 |` dom (calls S1)"
+      have h3: "map_update_all s_callOrigin localCalls tx = callOrigin S1 |` dom (calls S1)"
         apply (simp add: Step)
         apply (subst restrict_map_noop)
          apply auto
         using Step(1) Step(2) Step(4) wellFormed_callOrigin_dom by fastforce+
 
 
-      have h4: "s_transactionOrigin =
+
+      have h4: "s_transactionOrigin(tx\<mapsto>i) =
         transactionOrigin S1 |` {t. t \<noteq> tx \<longrightarrow> transactionStatus S1 t \<triangleq> Committed}"
         apply (simp add: Step )
         apply (subst restrict_map_noop)
-         apply auto
-        by (simp add: Step(1) Step(5) allCommitted2 wf_transaction_status_iff_origin)
+        by (auto simp add: `s_transactionOrigin tx = None` Step(1) Step(5) allCommitted2 wf_transaction_status_iff_origin)
 
 
 
+      have  invocation_hb_simp:
+          "invocation_happensBeforeH 
+          (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i))) 
+          (updateHb s_happensBefore vis localCalls)
+      = invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore 
+       \<union> {i' | i' c'. i_callOriginI_h s_callOrigin s_transactionOrigin c' \<triangleq> i' \<and> c' \<in> vis} \<times> {i}"
+        sorry
 
     show "Inv"
       unfolding Inv_def 
-      by (fuzzy_rule assert_inv, auto simp add: invContextH_def committedCallsH_simp h1 h2 h3 h4  del: equalityI; auto simp add: Step)
+      using invocation_hb_simp  `prog S1 = progr`[symmetric]  
+    proof (fuzzy_rule assert_inv)
+    qed (auto simp add:  invContextH_def committedCallsH_simp h1 h2 h3 h4  del: equalityI; auto simp add: Step)
+
+
 
     show "traceCorrect_s trace'"
       using `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S_end`
@@ -771,7 +792,7 @@ apply (simp add: Step)
       show "happensBefore S'a = updateHb (happensBefore S'a) (vis\<union>set localCalls)  []"
         by simp
 
-      show "callOrigin S'a = callOrigin S'a ++ map_of (map (\<lambda>c. (c, the None)) [])"
+      show "callOrigin S'a = map_update_all (callOrigin S'a) [] (the None)"
         by simp
 
       show " localState S'a i \<triangleq> cont ()"
@@ -792,8 +813,14 @@ apply (simp add: Step)
       show "execution_s_check (prog S'a) i (calls S'a) (happensBefore S'a) (callOrigin S'a)
        (transactionOrigin S'a) (knownIds S'a) (invocationOp S'a) (invocationRes S'a)
        {x. generatedIds S'a x \<triangleq> i} (vis \<union> set localCalls) [] None (cont ())"
-        by (fuzzy_rule cont; (simp add: S'a_def Step))
-
+      using invocation_hb_simp proof (fuzzy_rule cont; (simp add: S'a_def Step)?)
+        show "invariant progr
+     \<lparr>calls = s_calls, happensBefore = updateHb s_happensBefore vis localCalls,
+        callOrigin =  map_update_all s_callOrigin localCalls tx,
+        transactionOrigin = s_transactionOrigin(tx \<mapsto> i), knownIds = s_knownIds,
+        invocationOp = s_invocationOp, invocationRes = s_invocationRes\<rparr>"
+          using invocation_hb_simp  by (rule assert_inv)
+      qed
     qed (simp add: S'a_def Step)+
   qed
 qed
@@ -887,11 +914,6 @@ proof show_proof_rule
   qed
 qed
 
-(* TODO utils*)
-lemma map_of_None: "map_of xs x = None \<longleftrightarrow> (\<forall>y. (x,y)\<notin>set xs)"
-  by (induct xs, auto)
-lemma map_of_Some: "\<lbrakk>distinct (map fst xs)\<rbrakk> \<Longrightarrow>  map_of xs x = Some y \<longleftrightarrow> ((x,y)\<in>set xs)"
-  by (induct xs, auto, (metis map_of_eq_None_iff map_of_is_SomeI option.simps(3)))
 
 lemma updateHb_restrict:
  " updateHb hb vis cs |r S =
@@ -998,13 +1020,12 @@ proof show_proof_rule
         by (auto simp add:  map_of_Some comp_def Step)
 
 
-      show "callOrigin S'a = s_callOrigin ++ map_of (map (\<lambda>c. (c, the (Some tx))) (localCalls @ [c]))"
-        by (auto simp add: S'a_def Step map_add_def intro!: ext dest!: map_of_SomeD split: option.splits)
+      show "callOrigin S'a =  map_update_all s_callOrigin (localCalls@[c]) (the (Some tx))"
+        by (auto simp add: map_update_all_get  S'a_def Step map_add_def intro!: ext dest!: map_of_SomeD split: option.splits)
 
       show "case Some tx of None \<Rightarrow> localCalls @ [c] = []
             | Some tx' \<Rightarrow> set (localCalls @ [c]) = {c. callOrigin S'a c \<triangleq> tx'}"
-        apply (auto simp add: s S'a_def Step map_add_def map_of_None split: option.splits)
-        by (smt Step(16) Step(4) domExists_simp domIff map_add_Some_iff map_eq_conv mem_Collect_eq option.case_eq_if option.sel s)
+        using Step(16) Step(4)  by (auto simp add: s S'a_def Step map_add_def map_of_None split: option.splits del: )
 
       have "c \<notin> set localCalls"
         by (meson Step(1) UnCI c3 fresh_c wellFormed_visibleCallsSubsetCalls2)
@@ -1012,8 +1033,13 @@ proof show_proof_rule
       have "c \<notin> vis"
         by (meson Step(1) UnCI c3 fresh_c wellFormed_visibleCallsSubsetCalls2)
 
-      have "s_callOrigin c = None"
-        by (metis Step(1) Step(4) UnCI domIff dom_map_add fresh_c wellFormed_callOrigin_dom)
+
+      have "callOrigin S1 c = None"
+        using wellFormed_callOrigin_dom[OF `state_wellFormed S1`] fresh_c by blast
+
+      hence "s_callOrigin c = None"
+        using `callOrigin S1 = map_update_all s_callOrigin localCalls (the (Some tx))`
+        by (auto simp add: map_update_all_get split: if_splits)
 
 
       show "sorted_by (happensBefore S'a) (localCalls @ [c])"
@@ -1179,7 +1205,8 @@ proof show_proof_rule
     show "traceCorrect_s trace'"
     proof (cases trace')
       case Nil
-      then show ?thesis sorry
+      then show ?thesis
+        using traceCorrect_s_empty by auto 
     next
       case (Cons a list)
 
@@ -1202,6 +1229,51 @@ proof show_proof_rule
   qed
 qed
 
+lemmas repliss_proof_rules = 
+  execution_s_check_newId
+  execution_s_check_beginAtomic
+  execution_s_check_endAtomic
+  execution_s_check_pause
+  execution_s_check_dbop
+  execution_s_check_return
+
+method repliss_vcg_step = (rule repliss_proof_rules; simp?;  repliss_vcg_step?)
+
+method repliss_vcg uses impl = (simp add: atomic_def impl, repliss_vcg_step)
+
+(* TODO maybe start new file *)
+
+lemma i_callOriginI_h_update_simp:
+  assumes "\<And>c. co c \<noteq> Some tx"
+shows "(i_callOriginI_h (map_update_all co cs tx) (to(tx \<mapsto> i)))
+       = map_update_all (i_callOriginI_h co to) cs i"
+  using assms  by (auto simp add: i_callOriginI_h_def map_update_all_get  split: option.splits if_splits)
+
+
+
+
+lemma invocation_happensBeforeH_update_simp:
+  assumes a1: "\<And>c. co c \<noteq> Some tx"
+    and a2: "\<And>c c'. \<lbrakk>c\<in>set cs; c'\<notin>set cs\<rbrakk> \<Longrightarrow> (c,c')\<notin>hb"
+    and a3: "vis \<inter> set cs = {}"
+    and a4: "to tx = None"
+    and a5: "vis \<inter> dom co = {}"
+    and a6: "dom co \<inter> set cs = {}"
+    and a7: "Field hb \<inter> set cs = {}"
+and a8: "distinct cs"
+  shows "invocation_happensBeforeH
+            (i_callOriginI_h (map_update_all co cs tx)
+              (to(tx \<mapsto> i)))
+            (updateHb hb vis cs)
+= (let prevI = {i' | i' c'. i_callOriginI_h co to c' \<triangleq> i' \<and> c' \<in> vis} in
+   let afterI_old = {i'. (i,i') \<notin> invocation_happensBeforeH (i_callOriginI_h co to) hb}
+   in 
+  (invocation_happensBeforeH (i_callOriginI_h co to) hb 
+   \<union> (prevI - afterI_old) \<times> {i})
+    - {i} \<times> (prevI \<inter> afterI_old))"
+  nitpick
+proof -
+  oops
 
 
 end

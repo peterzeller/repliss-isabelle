@@ -193,7 +193,7 @@ definition inv3 :: "(proc, operation, val) invariantContext \<Rightarrow> bool" 
 definition inv :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
   "inv ctxt \<equiv> inv1 ctxt \<and> inv2 ctxt \<and> inv3 ctxt"
 
-lemma show_inv[intro]:
+lemma show_inv[intro, case_names inv1 inv2 inv3]:
   assumes "inv1 S" and "inv2 S" and "inv3 S"
   shows "inv S"
   using assms  by (auto simp add: inv_def)
@@ -309,7 +309,7 @@ qed
 lemma invariant_progr[simp]: "invariant progr = example_userbase.inv"
   by (auto simp add: progr_def)
 
-
+method unfold_invs_p = (((subst(asm) inv_def)+)?; (elim conjE)?)?
 
 theorem userbase_correct: "programCorrect progr"
 proof M_show_programCorrect
@@ -354,15 +354,38 @@ proof M_show_programCorrect
 
           note registerUser_impl_def[simp]
 
-          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes {} {}
-        None (registerUser_impl (String name) (String mail))"
-            for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-            apply (simp add: atomic_def)
-            apply (rule execution_s_check_newId; simp)
-            apply (rule execution_s_check_beginAtomic; simp)
 
-            sorry
-        qed
+          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin
+        s_knownIds s_invocationOp s_invocationRes {} {} [] None
+        (registerUser_impl (String name) (String mail))"
+            for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          proof (repliss_vcg, goal_cases "AtCommit" "AtReturn" )
+            case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
+
+            show ?case
+            proof (standard, goal_cases inv1 inv2 inv3)
+              case inv1
+              show ?case apply (auto simp add: inv1_def AtCommit)
+                sorry
+
+            next
+              case inv2
+              then show ?case sorry
+            next
+              case inv3
+              then show ?case sorry
+            qed
+              
+
+
+          next
+            case (AtReturn v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
+            then show ?case sorry
+          qed
+          
+          qed
+
+
 
       qed
 
