@@ -59,6 +59,7 @@ definition execution_s_check where
        \<longrightarrow> (vis \<inter> set localCalls = {})
        \<longrightarrow> (dom s_callOrigin \<inter> set localCalls = {})
        \<longrightarrow> (Field s_happensBefore \<inter> set localCalls = {})
+       \<longrightarrow> distinct localCalls
        \<longrightarrow> traceCorrect_s  trace)"
 
 lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, rotated]
@@ -407,10 +408,10 @@ proof show_proof_rule
 
 
       show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
-        using Step(21) Step(24) by auto
+        using Step by auto
 
       show "state_wellFormed S'a"
-        using Step(1) Step(22) state_wellFormed_combine_s1 by blast
+        using Step state_wellFormed_combine_s1 by blast
 
       show "case tx of None \<Rightarrow> localCalls = [] | Some tx' \<Rightarrow> set localCalls = {c. callOrigin S'a c \<triangleq> tx'}"
         using Step(16) by (auto simp add: S'a_def  split: option.splits)
@@ -540,7 +541,7 @@ proof show_proof_rule
         by simp
 
       show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
-        using Step(21) Step(24) by auto
+        using Step by auto
 
 
       show " state_wellFormed S'a"
@@ -759,7 +760,7 @@ apply (simp add: Step)
     proof (rule use_execution_s_check)
       thm use_execution_s_check
       show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
-        using Step(21) Step(24) by auto
+        using Step by auto
 
       show "currentTransaction S'a i = None"
         by (simp add: S'a_def)
@@ -796,6 +797,288 @@ apply (simp add: Step)
     qed (simp add: S'a_def Step)+
   qed
 qed
+
+
+
+
+lemma execution_s_check_pause:
+  assumes cont: "
+\<comment> \<open>
+
+\<close>
+ execution_s_check
+  progr 
+  i
+  s_calls
+  s_happensBefore 
+  s_callOrigin
+  s_transactionOrigin 
+  s_knownIds
+  s_invocationOp
+  s_invocationRes
+  localGenerated
+  vis
+  localCalls
+  tx
+  (cont ())"
+
+
+shows"execution_s_check
+  progr 
+  i
+  s_calls
+  s_happensBefore 
+  s_callOrigin
+  s_transactionOrigin 
+  s_knownIds
+  s_invocationOp
+  s_invocationRes
+  localGenerated
+  vis
+  localCalls
+  tx
+  (pause \<bind> cont)
+"
+proof show_proof_rule
+  case (Step trace S1 S_end action S'a Inv trace')
+
+
+  from ` S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
+    `localState S1 i \<triangleq> (pause \<bind> cont)`
+    `currentProc S1 i \<triangleq> toImpl`
+    `\<And>proc. action \<noteq> AInvoc proc`
+  have "action = ALocal"
+    and  Inv
+    and S'a_def: "S'a = S1\<lparr>localState := localState S1(i \<mapsto> cont ())\<rparr>"
+    by (auto simp add: step_s.simps)
+
+
+  show "Inv \<and> traceCorrect_s trace'"
+  proof
+
+    show "Inv" using `Inv` .
+
+    show "traceCorrect_s trace'"
+      using `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S_end`
+    proof (rule use_execution_s_check)
+      thm use_execution_s_check
+      show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
+        using Step by auto
+
+      show "state_wellFormed S'a"
+        using Step state_wellFormed_combine_s1 by blast
+
+      from `case tx of None \<Rightarrow> localCalls = [] | Some tx' \<Rightarrow> set localCalls = {c. callOrigin S1 c \<triangleq> tx'}`
+      show "case tx of None \<Rightarrow> localCalls = [] | Some tx' \<Rightarrow> set localCalls = {c. callOrigin S'a c \<triangleq> tx'}"
+        by (auto simp add: S'a_def split: option.splits)
+
+      show "sorted_by (happensBefore S'a) localCalls"
+        using Step(17) Step(3) by (simp add: S'a_def )
+
+
+      show " execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds
+     s_invocationOp s_invocationRes {x. generatedIds S1 x \<triangleq> i} vis localCalls tx (cont ())"
+      proof (fuzzy_rule cont)
+        show "localGenerated = {x. generatedIds S1 x \<triangleq> i}"
+          by (simp add: Step(10))
+      qed
+
+    qed (simp add: S'a_def Step)+
+  qed
+qed
+
+(* TODO utils*)
+lemma map_of_None: "map_of xs x = None \<longleftrightarrow> (\<forall>y. (x,y)\<notin>set xs)"
+  by (induct xs, auto)
+lemma map_of_Some: "\<lbrakk>distinct (map fst xs)\<rbrakk> \<Longrightarrow>  map_of xs x = Some y \<longleftrightarrow> ((x,y)\<in>set xs)"
+  by (induct xs, auto, (metis map_of_eq_None_iff map_of_is_SomeI option.simps(3)))
+
+lemma updateHb_restrict:
+ " updateHb hb vis cs |r S =
+   updateHb (hb |r S) (vis \<inter> S) (filter (\<lambda>x. x \<in> S) cs)"
+  by (induct cs arbitrary: vis hb,
+   auto simp add: restrict_relation_def updateHb.simps,
+  (metis (no_types, lifting) Int_iff Un_iff mem_Sigma_iff singletonD updateHb_cases)+)
+
+
+
+lemma execution_s_check_dbop:
+  assumes progr_wf: "program_wellFormed progr"
+    and query_res_exists: "True"
+and cont: "\<And>c res. \<lbrakk>
+querySpec progr op \<lparr>
+      calls = s_calls |` (vis \<union> set localCalls), 
+      happensBefore=updateHb (s_happensBefore |r vis) vis localCalls\<rparr> res
+\<comment> \<open>
+
+\<close>
+\<rbrakk> \<Longrightarrow> 
+ execution_s_check
+  progr 
+  i
+  (s_calls(c \<mapsto> Call op res))
+  s_happensBefore 
+  s_callOrigin
+  s_transactionOrigin 
+  s_knownIds
+  s_invocationOp
+  s_invocationRes
+  localGenerated
+  vis
+  (localCalls @ [c])
+  (Some tx)
+  (cont res)"
+
+
+shows"execution_s_check
+  progr 
+  i
+  s_calls
+  s_happensBefore 
+  s_callOrigin
+  s_transactionOrigin 
+  s_knownIds
+  s_invocationOp
+  s_invocationRes
+  localGenerated
+  vis
+  localCalls
+  (Some tx)
+  (call op \<bind> cont)
+"
+proof show_proof_rule
+  case (Step trace S1 S_end action S'a Inv trace')
+
+
+  from ` S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
+    `localState S1 i \<triangleq> (call op \<bind> cont)`
+    `currentProc S1 i \<triangleq> toImpl`
+    `\<And>proc. action \<noteq> AInvoc proc`
+    ` currentTransaction S1 i \<triangleq> tx`
+`visibleCalls S1 i \<triangleq> (vis \<union> set localCalls)`
+  obtain c res
+    where c0: "localState S1 i \<triangleq> (call op \<bind> cont)"
+   and c1: "currentProc S1 i \<triangleq> toImpl"
+   and c2: "currentTransaction S1 i \<triangleq> tx"
+   and c3: "visibleCalls S1 i \<triangleq> (vis \<union> set localCalls)"
+   and c4: "action = ADbOp c op res"
+   and c5: "Inv"
+   and S'a_def: "S'a = S1 \<lparr>localState := localState S1(i \<mapsto> cont res), calls := calls S1(c \<mapsto> Call op res), callOrigin := callOrigin S1(c \<mapsto> tx), visibleCalls := visibleCalls S1(i \<mapsto> insert c (vis \<union> set localCalls)), happensBefore := happensBefore S1 \<union> (vis \<union> set localCalls) \<times> {c}\<rparr>"
+   and fresh_c: "calls S1 c = None"
+   and qry: "querySpec (prog S1) op (getContextH (calls S1) (happensBefore S1) (Some (vis \<union> set localCalls))) res"
+    by (auto simp add: step_s.simps)
+
+
+  show "Inv \<and> traceCorrect_s trace'"
+  proof
+
+    show "Inv" using `Inv` .
+
+    show "traceCorrect_s trace'"
+      using `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S_end`
+    proof (rule use_execution_s_check)
+      thm use_execution_s_check
+      show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
+        using Step by auto
+
+      show "state_wellFormed S'a"
+        using Step state_wellFormed_combine_s1 by blast
+
+      show "calls S'a = s_calls(c \<mapsto> Call op res)"
+        by (simp add: S'a_def Step)
+
+      show "happensBefore S'a = updateHb s_happensBefore vis (localCalls@[c])"
+        by (auto simp add: S'a_def Step
+          updateHb_chain[symmetric, where vis'="set localCalls \<union> vis"]
+          updateHb_single)
+
+      have s: "map_of (map (\<lambda>c. (c, tx)) localCalls) c = Some t
+        \<longleftrightarrow> (c\<in>set localCalls \<and> t = tx) " for c t
+        by (auto simp add:  map_of_Some comp_def Step)
+
+
+      show "callOrigin S'a = s_callOrigin ++ map_of (map (\<lambda>c. (c, the (Some tx))) (localCalls @ [c]))"
+        by (auto simp add: S'a_def Step map_add_def intro!: ext dest!: map_of_SomeD split: option.splits)
+
+      show "case Some tx of None \<Rightarrow> localCalls @ [c] = []
+            | Some tx' \<Rightarrow> set (localCalls @ [c]) = {c. callOrigin S'a c \<triangleq> tx'}"
+        apply (auto simp add: s S'a_def Step map_add_def map_of_None split: option.splits)
+        by (smt Step(16) Step(4) domExists_simp domIff map_add_Some_iff map_eq_conv mem_Collect_eq option.case_eq_if option.sel s)
+
+      have "c \<notin> set localCalls"
+        by (meson Step(1) UnCI c3 fresh_c wellFormed_visibleCallsSubsetCalls2)
+
+      have "c \<notin> vis"
+        by (meson Step(1) UnCI c3 fresh_c wellFormed_visibleCallsSubsetCalls2)
+
+      have "s_callOrigin c = None"
+        by (metis Step(1) Step(4) UnCI domIff dom_map_add fresh_c wellFormed_callOrigin_dom)
+
+
+      show "sorted_by (happensBefore S'a) (localCalls @ [c])"
+      proof (auto simp add: sorted_by_append_iff sorted_by_single)
+        from `sorted_by (happensBefore S1) localCalls`
+        show "sorted_by (happensBefore S'a) localCalls"
+          apply (auto simp add: S'a_def)
+          apply (auto simp add: sorted_by_def)
+          by (metis (mono_tags, lifting) Step(1) Step(16) fresh_c less_trans mem_Collect_eq nth_mem option.distinct(1) option.simps(5) wellFormed_callOrigin_dom2)
+
+        show "\<And>x. \<lbrakk>x \<in> set localCalls; (c, x) \<in> happensBefore S'a\<rbrakk> \<Longrightarrow> False"
+          apply (auto simp add: S'a_def Step)
+          using Step(1) Step(3) fresh_c wellFormed_happensBefore_calls_l apply blast
+          using Step(18) apply auto[1]
+          using \<open>c \<notin> set localCalls\<close> by auto
+      qed
+
+      from `vis \<inter> set (localCalls) = {}`
+      show "vis \<inter> set (localCalls @ [c]) = {}"
+        by (auto simp add: `c \<notin> vis`)
+
+
+      show "dom s_callOrigin \<inter> set (localCalls @ [c]) = {}"
+        apply (auto simp add: `s_callOrigin c = None`)
+        using Step(19) by blast
+
+      have "c \<notin> Field s_happensBefore"
+        by (smt DomainE FieldI2 Field_def RangeE Step(1) Step(20) Step(3) Un_iff disjoint_iff_not_equal fresh_c updateHb_simp2 wellFormed_happensBefore_calls_l wellFormed_happensBefore_calls_r)
+
+      from this and `Field s_happensBefore \<inter> set localCalls = {}`
+      show "Field s_happensBefore \<inter> set (localCalls @ [c]) = {}"
+        by auto
+
+      from `distinct localCalls` and `c\<notin>set localCalls`
+      show "distinct (localCalls @ [c])"
+        by auto
+
+      show " execution_s_check progr i (s_calls(c \<mapsto> Call op res)) s_happensBefore s_callOrigin
+       s_transactionOrigin s_knownIds s_invocationOp s_invocationRes {x. generatedIds S1 x \<triangleq> i} vis
+       (localCalls @ [c]) (Some tx) (cont res)"
+      proof (fuzzy_rule cont)
+        show "querySpec progr op
+             \<lparr>calls = s_calls |` (vis \<union> set localCalls),
+              happensBefore = updateHb (s_happensBefore |r vis) vis localCalls\<rparr>
+             res"
+        proof (fuzzy_rule qry; auto simp add: Step getContextH_def del: equalityI)
+          have [simp]: "s_happensBefore |r (vis \<union> set localCalls) = (s_happensBefore |r vis)"
+            using `Field s_happensBefore \<inter> set localCalls = {}`
+            by (auto simp add: restrict_relation_def Field_def)
+
+
+          show " updateHb s_happensBefore vis localCalls |r (vis \<union> set localCalls) =
+            updateHb (s_happensBefore |r vis) vis localCalls"
+            by (auto simp add: updateHb_restrict)
+        qed
+
+        from `localGenerated = {x. generatedIds S1 x \<triangleq> i}`
+        show "localGenerated = {x. generatedIds S1 x \<triangleq> i}" .
+      qed
+
+
+    qed (simp add: S'a_def Step; fail)+
+  qed
+qed
+
+
 
 
 end

@@ -1863,6 +1863,14 @@ using assms
   by (induct arbitrary: c1 c2 vis t rule: wellFormed_induct,
       auto simp add: initialState_def step_simps_all wellFormed_state_callOrigin_transactionStatus wellFormed_visibleCallsSubsetCalls2  wellFormed_currentTransaction_unique  split: if_splits)
 
+lemma wellFormed_happensBefore_Field:
+assumes wf: "state_wellFormed C"
+    and "calls C c = None"
+  shows "c \<notin> Field (happensBefore C)"   
+  using wellFormed_happensBefore_calls_l[OF wf]
+ wellFormed_happensBefore_calls_r[OF wf]
+assms  by (auto simp add: Field_def, blast+)
+
 
 lemma chooseSnapshot_committed2:
   assumes a1: "chooseSnapshot snapshot vis S"
