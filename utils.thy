@@ -352,6 +352,19 @@ lemma map_update_all_get:
 "map_update_all co cs tx c = (if c\<in>set cs then Some tx else co c)"
  using split_list by (auto simp add: map_update_all_def map_add_def  dest: map_of_SomeD split: option.splits, fastforce)
 
+lemma map_update_all_None:
+"map_update_all m xs y x = None \<longleftrightarrow> (x\<notin>set xs \<and> m x = None)"
+  by (induct xs, auto simp add: map_update_all_def)
+
+lemma map_update_all_Some_same:
+"map_update_all m xs y x \<triangleq> y \<longleftrightarrow> (x\<in>set xs \<or> m x \<triangleq> y)"
+  by (induct xs, auto simp add: map_update_all_def)
+
+lemma map_update_all_Some_other:
+  assumes "y' \<noteq> y"
+  shows "map_update_all m xs y x \<triangleq> y' \<longleftrightarrow> (x\<notin>set xs \<and> m x \<triangleq> y')"
+  using assms  by (induct xs, auto simp add: map_update_all_def)
+
 
 lemma map_of_None: "map_of xs x = None \<longleftrightarrow> (\<forall>y. (x,y)\<notin>set xs)"
   by (induct xs, auto)
@@ -368,5 +381,8 @@ lemma exists_cases2:
   shows "(\<exists>x. (x \<noteq> A \<longrightarrow> Q x) \<and> (x = A \<longrightarrow> P x)) 
     \<longleftrightarrow>  (P A) \<or> (\<exists>x. x \<noteq> A \<and> Q x)"
   by auto
+
+
+
 
 end

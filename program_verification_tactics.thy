@@ -107,18 +107,6 @@ method M_show_procedureCorrect =
    (rule DC_final2 | rule DC_final)), 
    casify)
 
-lemma test:
-  shows "programCorrect progr"
-
-proof M_show_programCorrect
-  case invariant_initial_state
-  then show ?case sorry
-next
-  case procedure_correct
-  show "procedureCorrect progr S i"
-  proof M_show_procedureCorrect
-
-  oops
 
 
 \<comment> \<open>ony unfold definitions, when needed for evaluation:\<close>

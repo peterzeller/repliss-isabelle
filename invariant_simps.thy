@@ -259,14 +259,241 @@ lemma updateHb_cases:
   by (induct cs arbitrary: Hb vis, auto simp add: updateHb_cons in_sequence_cons)
 
 
-(*
 
-  i_visibleCalls :: "callId set"
-  i_callOrigin :: "callId \<rightharpoonup> txid"
-  i_transactionOrigin :: "txid \<rightharpoonup> invocId"
-  i_knownIds :: "'any set"
-  i_invocationOp :: "invocId \<rightharpoonup> (procedureName \<times> 'any list)"
-  i_invocationRes :: "invocId \<rightharpoonup> 'any"
-*)
+lemma i_callOriginI_h_update_simp:
+  assumes "\<And>c. co c \<noteq> Some tx"
+shows "(i_callOriginI_h (map_update_all co cs tx) (to(tx \<mapsto> i)))
+       = map_update_all (i_callOriginI_h co to) cs i"
+  using assms  by (auto simp add: i_callOriginI_h_def map_update_all_get  split: option.splits if_splits)
+
+
+
+lemma invocation_happensBeforeH_update_simp:
+  assumes a1: "\<And>c. co c \<noteq> Some tx"
+    and a2: "\<And>c c'. \<lbrakk>c\<in>set cs; c'\<notin>set cs\<rbrakk> \<Longrightarrow> (c,c')\<notin>hb"
+    and a5: "vis \<inter> dom co = {}"
+    and a6: "dom co \<inter> set cs = {}"
+    and a7: "Field hb \<inter> set cs = {}"
+    and a9: "cs \<noteq> []"
+    and a11: "\<And>c. i_callOriginI_h co to c \<triangleq> i \<Longrightarrow> c \<in> vis"
+  shows "invocation_happensBeforeH
+            (i_callOriginI_h (map_update_all co cs tx)
+              (to(tx \<mapsto> i)))
+            (updateHb hb vis cs)
+= (let prevI = {i' | i' c'. i_callOriginI_h co to c' \<triangleq> i' \<and> c' \<in> vis} in
+   let afterI_old = {i'. (i,i') \<notin> invocation_happensBeforeH (i_callOriginI_h co to) hb}
+   in 
+  (invocation_happensBeforeH (i_callOriginI_h co to) hb 
+   \<union> (prevI - afterI_old) \<times> {i})
+    - {i} \<times> (prevI \<inter> afterI_old))" (is "?left = ?right")
+  text \<open>In this lemma, prevI is the set of invocations that happened before i in the state after the transaction and 
+  afterI_old is the set of invocations that happened after i in the state before this transaction.
+  Now, this relation can change: If the newly executed transaction uses calls from afterI_old, then
+  the two invocations are now considered to be concurrent.
+  Note that this can only occur if there are multiple transactions in invocation i.\<close>
+
+proof -
+
+  text "Some simplifications:"
+
+  define left where "left \<equiv> ?left"
+  define right where "right \<equiv> ?right"
+
+  have i_callOriginI_h_simp:
+    "(i_callOriginI_h (map_update_all co cs tx) (to(tx \<mapsto> i)) c \<triangleq> i1)
+        \<longleftrightarrow> (if i1 = i then c\<in>set cs \<or> i_callOriginI_h co to c \<triangleq> i 
+             else i_callOriginI_h co to c \<triangleq> i1)" for c i1
+    using a6 by (auto simp add: a1 i_callOriginI_h_def map_update_all_None map_update_all_Some_same map_update_all_Some_other split: option.splits)
+
+
+
+  
+  { text "We first prove the case for two invocations that are not i:"
+    fix i1 i2
+    assume b1: "i1\<noteq>i" and b2: "i2\<noteq>i" and b3: "i1 \<noteq> i2"
+  
+    have "(i1,i2)\<in> left
+    \<longleftrightarrow> ((\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
+         (\<exists>c. i_callOriginI_h co to c \<triangleq> i2) \<and>
+         (\<forall>cx cy. i_callOriginI_h co to cx \<triangleq> i1 \<and> i_callOriginI_h co to cy \<triangleq> i2 \<longrightarrow> (cx, cy) \<in> updateHb hb vis cs))"
+      by (simp add: left_def invocation_happensBeforeH_def b1 b2 b3 i_callOriginI_h_simp)
+
+    moreover
+    have "(i1,i2)\<in> right
+    \<longleftrightarrow> ((\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
+         (\<exists>c. i_callOriginI_h co to c \<triangleq> i2) \<and>
+         (\<forall>cx cy. i_callOriginI_h co to cx \<triangleq> i1 \<and> i_callOriginI_h co to cy \<triangleq> i2 \<longrightarrow> (cx, cy) \<in> updateHb hb vis cs))"
+      apply (simp add: right_def invocation_happensBeforeH_def b1 b2 b3 i_callOriginI_h_simp Let_def )
+      by (metis b2 local.i_callOriginI_h_simp option.inject updateHb_simp2)
+
+    ultimately have "(i1,i2) \<in> left \<longleftrightarrow> (i1,i2) \<in> right"
+      by simp
+  }
+  moreover
+  {
+    text "Next we consider an invocation that is before i"
+    fix i1 
+    assume b1: "i1 \<noteq> i"
+
+    have "(i1,i)\<in> left \<longleftrightarrow> 
+      ((\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
+       (\<exists>c. c \<in> set cs \<or> i_callOriginI_h co to c \<triangleq> i) \<and>
+       (\<forall>cx cy.
+           i_callOriginI_h co to cx \<triangleq> i1 \<and> (cy \<in> set cs \<or> i_callOriginI_h co to cy \<triangleq> i) \<longrightarrow>
+           (cx, cy) \<in> updateHb hb vis cs))"
+      by (simp add: left_def invocation_happensBeforeH_def b1 i_callOriginI_h_simp)
+
+    moreover have "(i1,i)\<in> right \<longleftrightarrow> 
+      ((\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
+       (\<exists>c. c \<in> set cs \<or> i_callOriginI_h co to c \<triangleq> i) \<and>
+       (\<forall>cx cy.
+           i_callOriginI_h co to cx \<triangleq> i1 \<and> (cy \<in> set cs \<or> i_callOriginI_h co to cy \<triangleq> i) \<longrightarrow>
+           (cx, cy) \<in> updateHb hb vis cs))"
+      apply (auto simp add: right_def invocation_happensBeforeH_def b1 i_callOriginI_h_simp Let_def)
+                 apply (auto simp add: updateHb_cases)
+    proof goal_cases
+      case (1 c ca cx cy)
+      then show ?case
+        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def)
+    next
+      case (2 c' c ca cx cy)
+      then show ?case 
+        by (metis (no_types, lifting) a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def local.i_callOriginI_h_simp) 
+    next
+      case (3 c' c ca cx cy)
+      then show ?case 
+        by (smt a5 a6 a9 disjoint_iff_not_equal domIff i_callOriginI_h_def inf.idem local.i_callOriginI_h_simp set_empty) 
+    next
+      case (4 c' c ca cx cy)
+      then show ?case
+        by (metis a11 a5 disjoint_iff_not_equal domIff i_callOriginI_h_def)  
+    next
+      case (5 c ca)
+      then show ?case
+        by (metis FieldI2 a7 disjoint_iff_not_equal local.i_callOriginI_h_simp updateHb_cases updateHb_simp1) 
+    next
+      case (6 c ca cx cy)
+      then show ?case 
+        by (metis a6 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def in_sequence_in1 in_sequence_in2 option.inject) 
+    next
+      case (7 c ca)
+      hence "(c, ca) \<in> hb \<or> c \<in> vis \<or> in_sequence cs c ca"
+        by blast
+      thus False
+      proof (elim disjE)
+        show "(c, ca) \<in> hb \<Longrightarrow> False"
+          using "7"(3) FieldI2 a7 by fastforce
+        show "c \<in> vis \<Longrightarrow> False"
+          by (metis "7"(1) "7"(3) "7"(4) a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def local.i_callOriginI_h_simp)
+        show "in_sequence cs c ca \<Longrightarrow> False"
+          by (metis "7"(1) "7"(4) in_sequence_in1 local.i_callOriginI_h_simp)
+      qed
+    next
+      case (8 c ca cx cy)
+      then show ?case 
+        using b1 by blast 
+    next
+      case (9 c ca cx cy cxa cya)
+      then show ?case 
+        by (metis a5 a6 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def in_sequence_in1 option.inject updateHb_cases updateHb_simp2) 
+    next
+      case (10 c ca cx cy)
+      then show ?case 
+        by (metis a6 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def in_sequence_in1 in_sequence_in2 option.inject) 
+    next
+      case (11 c ca cx cy)
+      then show ?case 
+        using b1 by blast 
+    next
+      case (12 c ca cx cy cxa cya)
+      then show ?case 
+        by (metis a5 a6 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def in_sequence_in1 option.inject updateHb_cases updateHb_simp2) 
+    qed
+
+    ultimately have "(i1,i) \<in> left \<longleftrightarrow> (i1,i) \<in> right"
+      by simp
+  }
+  moreover 
+  { text "Now we consider an invocation that is after i"
+    fix i1 
+    assume b1: "i1 \<noteq> i"
+
+    have "(i,i1)\<in> left \<longleftrightarrow> 
+      ((\<exists>c. c \<in> set cs \<or> i_callOriginI_h co to c \<triangleq> i) \<and>
+       (\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
+       (\<forall>cx cy.
+           (cx \<in> set cs \<or> i_callOriginI_h co to cx \<triangleq> i) \<and> i_callOriginI_h co to cy \<triangleq> i1 \<longrightarrow>
+           (cx, cy) \<in> updateHb hb vis cs))"
+      by (simp add: left_def invocation_happensBeforeH_def b1 b1[symmetric] i_callOriginI_h_simp)
+
+    moreover 
+    have "(i,i1)\<in> right \<longleftrightarrow> 
+      ((\<exists>c. c \<in> set cs \<or> i_callOriginI_h co to c \<triangleq> i) \<and>
+       (\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
+       (\<forall>cx cy.
+           (cx \<in> set cs \<or> i_callOriginI_h co to cx \<triangleq> i) \<and> i_callOriginI_h co to cy \<triangleq> i1 \<longrightarrow>
+           (cx, cy) \<in> updateHb hb vis cs))"
+      apply (auto simp add: right_def invocation_happensBeforeH_def b1 b1[symmetric] i_callOriginI_h_simp Let_def updateHb_simp_distinct2)
+
+    proof goal_cases
+      case (1 c ca cx cy)
+      then show ?case
+        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def) 
+    next
+      case (2 c ca cx cy)
+      then show ?case 
+        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def)
+    next
+      case (3 c ca cb cc cx cy)
+      then show ?case 
+        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def) 
+    next
+      case (4 c ca cb cc cx cy)
+      then show ?case 
+        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def) 
+    next
+      case (5 c ca)
+      then show ?case
+        by (metis a2 before_in_list_contains_r local.i_callOriginI_h_simp) 
+    next
+      case (6 c ca cx cy)
+      then show ?case 
+        by (metis a11 a5 a6 b1 before_in_list_contains_r disjoint_iff_not_equal domIff i_callOriginI_h_def option.inject)
+    next
+      case (7 c ca c')
+      then show ?case
+        by (metis a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def local.i_callOriginI_h_simp)
+    next
+      case (8 c ca c' cx cy)
+      then show ?case 
+        by (metis a11 a5 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def option.inject) 
+    next
+      case (9 c ca cx cy)
+      then show ?case 
+        by (metis a11 a5 a6 b1 before_in_list_contains_r disjoint_iff_not_equal domIff i_callOriginI_h_def option.inject)
+    next
+      case (10 c ca c' cx cy)
+      then show ?case
+        by (metis a11 a5 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def option.inject) 
+    qed
+    ultimately have "(i,i1)\<in> left \<longleftrightarrow> (i,i1)\<in> right"
+      by simp
+
+  }
+  moreover
+  {
+    fix i1
+    have "(i1,i1)\<in> left \<longleftrightarrow> (i1,i1)\<in>right"
+      by (auto simp add: left_def right_def invocation_happensBeforeH_def i_callOriginI_h_simp Let_def)
+  }
+
+  ultimately have "(i1,i2)\<in> left \<longleftrightarrow> (i1,i2) \<in> right" for i1 i2
+    by metis
+  thus "?left = ?right"
+    by (auto simp add: left_def right_def)
+qed  
+
+
+
 
 end
