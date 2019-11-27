@@ -356,8 +356,10 @@ proof M_show_programCorrect
 
 
           show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin
-        s_knownIds s_invocationOp s_invocationRes {} {} [] None
+        s_knownIds s_invocationOp s_invocationRes {} {} [] None True
         (registerUser_impl (String name) (String mail))"
+            if "s_invocationOp i = invocationOp S i"
+              and "s_invocationRes i = None"
             for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
           proof (repliss_vcg, goal_cases "AtCommit" "AtReturn" )
             case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
@@ -365,7 +367,20 @@ proof M_show_programCorrect
             show ?case
             proof (standard, goal_cases inv1 inv2 inv3)
               case inv1
+              from AtCommit(8)
+              have old_inv: "\<forall>r g u.
+                    s_invocationOp' r \<triangleq> RemoveUser u \<longrightarrow>
+                    s_invocationOp' g \<triangleq> GetUser u \<longrightarrow>
+                    (r, g) \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore' \<longrightarrow>
+                    (\<forall>g_res. s_invocationRes' g \<triangleq> g_res \<longrightarrow> g_res = NotFound)"
+                by (auto simp add: inv_def inv1_def)
+
               show ?case apply (auto simp add: inv1_def AtCommit)
+                using old_inv apply blast
+
+                find_theorems  s_invocationOp' (* TODO growing predicate at beginAtomic*)
+                find_theorems  s_invocationOp
+
                 sorry
 
             next

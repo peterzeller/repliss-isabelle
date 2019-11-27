@@ -308,22 +308,14 @@ There cannot be any new relations, since the first transaction already establish
 
 lemma invocation_happensBeforeH_more_transactions_simp2:
   assumes cs_nonempty: "cs \<noteq> []"
-    and cs_distinct: "distinct cs"
     and co_none: "\<forall>c\<in>set cs. co c = None"
-    and to_t: "to t = None"
     and i_old: "to old_t \<triangleq> i"
     and t_old: "co old_c \<triangleq> old_t"
     and t_fresh: "\<And>c. co c \<noteq> Some t" 
     and wf_hb1: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c \<triangleq> t"
-    and wf_hb2: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c' \<triangleq> t"
 
-and a1: "\<And>c. co c \<noteq> Some tx"
-    and a4: "vis \<subseteq> dom co"
-    and a6: "dom co \<inter> set cs = {}"
     and a7: "Field hb \<inter> set cs = {}"
-    and a9: "cs \<noteq> []"
     and a11: "\<And>c. i_callOriginI_h co to c \<triangleq> i \<Longrightarrow> c \<in> vis"
-    and a12: "distinct cs"
     and a13: "\<And>c c'. \<lbrakk>c' \<in> vis; (c,c')\<in>hb\<rbrakk> \<Longrightarrow> c \<in> vis "
 
   shows "invocation_happensBeforeH (i_callOriginI_h (map_update_all co cs t) (to(t \<mapsto> i))) (updateHb hb vis cs)
