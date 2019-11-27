@@ -1,5 +1,5 @@
 theory invariant_simps
-  imports single_invocation_correctness
+  imports single_invocation_correctness "fuzzyrule.fuzzyrule"
 begin
 
 section \<open>Invariant simplifications\<close>
@@ -63,7 +63,6 @@ lemma invocation_happensBeforeH_one_transaction_simp:
     and to_t: "to t = None"
     and i_fresh: "\<And>t. to t \<noteq> Some i"
     and t_fresh: "\<And>c. co c \<noteq> Some t"
-    and wf_co_to: "\<And>c t. co c \<triangleq> t \<Longrightarrow> \<exists>i. to t \<triangleq> i"
     and wf_hb1: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c \<triangleq> t"
     and wf_hb2: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c' \<triangleq> t"
   shows "invocation_happensBeforeH (i_callOriginI_h co' (to(t \<mapsto> i))) (updateHb hb vis' cs)
@@ -196,6 +195,39 @@ next
     using co'_same t_fresh by fastforce
 qed
 
+lemma invocation_happensBeforeH_one_transaction_simp2:
+  assumes cs_nonempty: "cs \<noteq> []"
+    and cs_distinct: "distinct cs"
+    and co_none: "\<forall>c\<in>set cs. co c = None"
+    and to_t: "to t = None"
+    and i_fresh: "\<And>t. to t \<noteq> Some i"
+    and t_fresh: "\<And>c. co c \<noteq> Some t"
+    and wf_hb1: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c \<triangleq> t"
+    and wf_hb2: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c' \<triangleq> t"
+  shows "invocation_happensBeforeH (i_callOriginI_h (map_update_all co cs t) (to(t \<mapsto> i))) (updateHb hb vis' cs)
+      = invocation_happensBeforeH (i_callOriginI_h co to) hb 
+        \<union> {i'. \<exists>c'. c' \<in> vis' \<and> i_callOriginI_h co to c' \<triangleq> i' \<and> (\<forall>c''. i_callOriginI_h co to c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis' )} \<times> {i}"
+  using  cs_nonempty cs_distinct co_none to_t  i_fresh t_fresh  
+proof (fuzzy_rule invocation_happensBeforeH_one_transaction_simp)
+  show "\<forall>c\<in>set cs. map_update_all co cs t c \<triangleq> t"
+    by (simp add: map_update_all_get)
+  show "\<And>c. c \<notin> set cs \<Longrightarrow> map_update_all co cs t c = co c"
+    by (simp add: map_update_all_get)
+
+  show "\<And>c c'. (c, c') \<in> hb \<Longrightarrow> \<exists>t. co c \<triangleq> t"
+    using wf_hb1 by auto
+
+  show "\<And>c c'. (c, c') \<in> hb \<Longrightarrow> \<exists>t. co c' \<triangleq> t"
+    using wf_hb2 by auto
+
+  show "(\<lambda>i'. \<exists>t' c'. c' \<in> vis' \<and> co c' \<triangleq> t' \<and> to t' \<triangleq> i' \<and> (\<forall>c'' t''. co c'' \<triangleq> t'' \<and> to t'' \<triangleq> i' \<longrightarrow> c'' \<in> vis')) =
+    (\<lambda>i'. \<exists>c'. c' \<in> vis' \<and> i_callOriginI_h co to c' \<triangleq> i' \<and> (\<forall>c''. i_callOriginI_h co to c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis'))"
+    by (auto simp add: i_callOriginI_h_def intro!:ext split: option.splits, blast)
+
+qed
+
+
+
 lemma i_invocationOp_simps:
   "(invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
    state_calls state_knownIds state_invocationOp state_invocationRes ) r \<triangleq> Op) \<longleftrightarrow> (state_invocationOp r \<triangleq> Op)"
@@ -268,231 +300,102 @@ shows "(i_callOriginI_h (map_update_all co cs tx) (to(tx \<mapsto> i)))
 
 
 
-lemma invocation_happensBeforeH_update_simp:
-  assumes a1: "\<And>c. co c \<noteq> Some tx"
-    and a2: "\<And>c c'. \<lbrakk>c\<in>set cs; c'\<notin>set cs\<rbrakk> \<Longrightarrow> (c,c')\<notin>hb"
-    and a5: "vis \<inter> dom co = {}"
+
+text "If there already are transactions in the current invocation, then adding a new transaction means
+that we have to remove all i' that were previously after the current invocation.
+There cannot be any new relations, since the first transaction already established all possible relations.
+"
+
+lemma invocation_happensBeforeH_more_transactions_simp2:
+  assumes cs_nonempty: "cs \<noteq> []"
+    and cs_distinct: "distinct cs"
+    and co_none: "\<forall>c\<in>set cs. co c = None"
+    and to_t: "to t = None"
+    and i_old: "to old_t \<triangleq> i"
+    and t_old: "co old_c \<triangleq> old_t"
+    and t_fresh: "\<And>c. co c \<noteq> Some t" 
+    and wf_hb1: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c \<triangleq> t"
+    and wf_hb2: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c' \<triangleq> t"
+
+and a1: "\<And>c. co c \<noteq> Some tx"
+    and a4: "vis \<subseteq> dom co"
     and a6: "dom co \<inter> set cs = {}"
     and a7: "Field hb \<inter> set cs = {}"
     and a9: "cs \<noteq> []"
     and a11: "\<And>c. i_callOriginI_h co to c \<triangleq> i \<Longrightarrow> c \<in> vis"
-  shows "invocation_happensBeforeH
-            (i_callOriginI_h (map_update_all co cs tx)
-              (to(tx \<mapsto> i)))
-            (updateHb hb vis cs)
-= (let prevI = {i' | i' c'. i_callOriginI_h co to c' \<triangleq> i' \<and> c' \<in> vis} in
-   let afterI_old = {i'. (i,i') \<notin> invocation_happensBeforeH (i_callOriginI_h co to) hb}
-   in 
-  (invocation_happensBeforeH (i_callOriginI_h co to) hb 
-   \<union> (prevI - afterI_old) \<times> {i})
-    - {i} \<times> (prevI \<inter> afterI_old))" (is "?left = ?right")
-  text \<open>In this lemma, prevI is the set of invocations that happened before i in the state after the transaction and 
-  afterI_old is the set of invocations that happened after i in the state before this transaction.
-  Now, this relation can change: If the newly executed transaction uses calls from afterI_old, then
-  the two invocations are now considered to be concurrent.
-  Note that this can only occur if there are multiple transactions in invocation i.\<close>
+    and a12: "distinct cs"
+    and a13: "\<And>c c'. \<lbrakk>c' \<in> vis; (c,c')\<in>hb\<rbrakk> \<Longrightarrow> c \<in> vis "
 
+  shows "invocation_happensBeforeH (i_callOriginI_h (map_update_all co cs t) (to(t \<mapsto> i))) (updateHb hb vis cs)
+      = invocation_happensBeforeH (i_callOriginI_h co to) hb 
+        - {i} \<times> {i'. (i,i') \<in> invocation_happensBeforeH (i_callOriginI_h co to) hb }" (is "?left = ?right")
 proof -
 
-  text "Some simplifications:"
+  have "old_c \<in> vis"
+    by (simp add: a11 i_callOriginI_h_simp i_old t_old)
 
-  define left where "left \<equiv> ?left"
-  define right where "right \<equiv> ?right"
+  have not_refl_l: "(i1,i1)\<notin>?left" for i1
+    by (auto simp add: invocation_happensBeforeH_def)
 
-  have i_callOriginI_h_simp:
-    "(i_callOriginI_h (map_update_all co cs tx) (to(tx \<mapsto> i)) c \<triangleq> i1)
-        \<longleftrightarrow> (if i1 = i then c\<in>set cs \<or> i_callOriginI_h co to c \<triangleq> i 
-             else i_callOriginI_h co to c \<triangleq> i1)" for c i1
-    using a6 by (auto simp add: a1 i_callOriginI_h_def map_update_all_None map_update_all_Some_same map_update_all_Some_other split: option.splits)
+  have not_refl_r: "(i1,i1)\<notin>?right" for i1
+    by (auto simp add: invocation_happensBeforeH_def)
 
 
+  have h0: "(i1,i2)\<in>?left \<longleftrightarrow> (i1,i1)\<in>?right" if "i1=i2" for i1 i2
+    by (auto simp add: invocation_happensBeforeH_def that)
 
-  
-  { text "We first prove the case for two invocations that are not i:"
-    fix i1 i2
-    assume b1: "i1\<noteq>i" and b2: "i2\<noteq>i" and b3: "i1 \<noteq> i2"
-  
-    have "(i1,i2)\<in> left
-    \<longleftrightarrow> ((\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
-         (\<exists>c. i_callOriginI_h co to c \<triangleq> i2) \<and>
-         (\<forall>cx cy. i_callOriginI_h co to cx \<triangleq> i1 \<and> i_callOriginI_h co to cy \<triangleq> i2 \<longrightarrow> (cx, cy) \<in> updateHb hb vis cs))"
-      by (simp add: left_def invocation_happensBeforeH_def b1 b2 b3 i_callOriginI_h_simp)
+  have ico_simp:
+    "i_callOriginI_h (map_update_all co cs t) (to(t \<mapsto> i)) c
+      = (if c\<in>set cs then Some i else i_callOriginI_h co to c)" for c
+    by (auto simp add: i_callOriginI_h_def map_update_all_None map_update_all_get t_fresh split: option.splits)
 
-    moreover
-    have "(i1,i2)\<in> right
-    \<longleftrightarrow> ((\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
-         (\<exists>c. i_callOriginI_h co to c \<triangleq> i2) \<and>
-         (\<forall>cx cy. i_callOriginI_h co to cx \<triangleq> i1 \<and> i_callOriginI_h co to cy \<triangleq> i2 \<longrightarrow> (cx, cy) \<in> updateHb hb vis cs))"
-      apply (simp add: right_def invocation_happensBeforeH_def b1 b2 b3 i_callOriginI_h_simp Let_def )
-      by (metis b2 local.i_callOriginI_h_simp option.inject updateHb_simp2)
 
-    ultimately have "(i1,i2) \<in> left \<longleftrightarrow> (i1,i2) \<in> right"
-      by simp
-  }
-  moreover
-  {
-    text "Next we consider an invocation that is before i"
-    fix i1 
-    assume b1: "i1 \<noteq> i"
 
-    have "(i1,i)\<in> left \<longleftrightarrow> 
-      ((\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
-       (\<exists>c. c \<in> set cs \<or> i_callOriginI_h co to c \<triangleq> i) \<and>
-       (\<forall>cx cy.
-           i_callOriginI_h co to cx \<triangleq> i1 \<and> (cy \<in> set cs \<or> i_callOriginI_h co to cy \<triangleq> i) \<longrightarrow>
-           (cx, cy) \<in> updateHb hb vis cs))"
-      by (simp add: left_def invocation_happensBeforeH_def b1 i_callOriginI_h_simp)
+  have h1: "(i',i) \<in> ?left \<longleftrightarrow> (i',i) \<in> ?right"
+    if  "i' \<noteq> i"
+    for i'
+    apply (auto simp add: invocation_happensBeforeH_def ico_simp updateHb_cases)
+        apply (metis i_callOriginI_h_simp i_old t_old)
+       apply (auto simp add: i_callOriginI_h_def split: option.splits)
+       apply (metis co_none domI domIff in_sequence_in2)
+      apply (metis co_none domI domIff in_sequence_in2)
+    using co_none apply auto[1]
+    using \<open>old_c \<in> vis\<close> a13 i_old t_old by blast
 
-    moreover have "(i1,i)\<in> right \<longleftrightarrow> 
-      ((\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
-       (\<exists>c. c \<in> set cs \<or> i_callOriginI_h co to c \<triangleq> i) \<and>
-       (\<forall>cx cy.
-           i_callOriginI_h co to cx \<triangleq> i1 \<and> (cy \<in> set cs \<or> i_callOriginI_h co to cy \<triangleq> i) \<longrightarrow>
-           (cx, cy) \<in> updateHb hb vis cs))"
-      apply (auto simp add: right_def invocation_happensBeforeH_def b1 i_callOriginI_h_simp Let_def)
-                 apply (auto simp add: updateHb_cases)
-    proof goal_cases
-      case (1 c ca cx cy)
-      then show ?case
-        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def)
-    next
-      case (2 c' c ca cx cy)
-      then show ?case 
-        by (metis (no_types, lifting) a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def local.i_callOriginI_h_simp) 
-    next
-      case (3 c' c ca cx cy)
-      then show ?case 
-        by (smt a5 a6 a9 disjoint_iff_not_equal domIff i_callOriginI_h_def inf.idem local.i_callOriginI_h_simp set_empty) 
-    next
-      case (4 c' c ca cx cy)
-      then show ?case
-        by (metis a11 a5 disjoint_iff_not_equal domIff i_callOriginI_h_def)  
-    next
-      case (5 c ca)
-      then show ?case
-        by (metis FieldI2 a7 disjoint_iff_not_equal local.i_callOriginI_h_simp updateHb_cases updateHb_simp1) 
-    next
-      case (6 c ca cx cy)
-      then show ?case 
-        by (metis a6 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def in_sequence_in1 in_sequence_in2 option.inject) 
-    next
-      case (7 c ca)
-      hence "(c, ca) \<in> hb \<or> c \<in> vis \<or> in_sequence cs c ca"
-        by blast
-      thus False
-      proof (elim disjE)
-        show "(c, ca) \<in> hb \<Longrightarrow> False"
-          using "7"(3) FieldI2 a7 by fastforce
-        show "c \<in> vis \<Longrightarrow> False"
-          by (metis "7"(1) "7"(3) "7"(4) a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def local.i_callOriginI_h_simp)
-        show "in_sequence cs c ca \<Longrightarrow> False"
-          by (metis "7"(1) "7"(4) in_sequence_in1 local.i_callOriginI_h_simp)
-      qed
-    next
-      case (8 c ca cx cy)
-      then show ?case 
-        using b1 by blast 
-    next
-      case (9 c ca cx cy cxa cya)
-      then show ?case 
-        by (metis a5 a6 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def in_sequence_in1 option.inject updateHb_cases updateHb_simp2) 
-    next
-      case (10 c ca cx cy)
-      then show ?case 
-        by (metis a6 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def in_sequence_in1 in_sequence_in2 option.inject) 
-    next
-      case (11 c ca cx cy)
-      then show ?case 
-        using b1 by blast 
-    next
-      case (12 c ca cx cy cxa cya)
-      then show ?case 
-        by (metis a5 a6 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def in_sequence_in1 option.inject updateHb_cases updateHb_simp2) 
-    qed
+  have h2: "(i,i') \<in> ?left \<longleftrightarrow> (i,i') \<in> ?right"
+    if [simp]: "i' \<noteq> i"
+    for i'
+  proof
+    show "(i,i') \<in> ?right" if "(i,i') \<in> ?left"
+      using that
+      apply (auto simp add: invocation_happensBeforeH_def ico_simp updateHb_cases)
+         apply (metis i_callOriginI_h_simp i_old t_old)
+        apply (auto simp add: i_callOriginI_h_def split: option.splits if_splits)
+         apply (metis co_none domI domIff in_sequence_in2)
+      using co_none in_sequence_in2 wf_hb1 apply fastforce
+       apply (metis FieldI1 a7 disjoint_iff_not_equal in_sequence_in2)
+      by (metis all_not_in_conv co_none cs_nonempty in_sequence_in2 option.simps(3) set_empty wf_hb1)
 
-    ultimately have "(i1,i) \<in> left \<longleftrightarrow> (i1,i) \<in> right"
-      by simp
-  }
-  moreover 
-  { text "Now we consider an invocation that is after i"
-    fix i1 
-    assume b1: "i1 \<noteq> i"
+    show "(i,i') \<in> ?left" if "(i,i') \<in> ?right"
+      using that by (auto)
+  qed
 
-    have "(i,i1)\<in> left \<longleftrightarrow> 
-      ((\<exists>c. c \<in> set cs \<or> i_callOriginI_h co to c \<triangleq> i) \<and>
-       (\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
-       (\<forall>cx cy.
-           (cx \<in> set cs \<or> i_callOriginI_h co to cx \<triangleq> i) \<and> i_callOriginI_h co to cy \<triangleq> i1 \<longrightarrow>
-           (cx, cy) \<in> updateHb hb vis cs))"
-      by (simp add: left_def invocation_happensBeforeH_def b1 b1[symmetric] i_callOriginI_h_simp)
+  have h3: "(i1,i2) \<in> ?left \<longleftrightarrow> (i1,i2) \<in> ?right"
+    if  "i1 \<noteq> i" and "i2 \<noteq> i" and "i1\<noteq>i2"
+    for i1 i2
+    apply (auto simp add: invocation_happensBeforeH_def ico_simp updateHb_cases that that[symmetric])
+      apply (auto simp add: i_callOriginI_h_def split: option.splits)
+    apply (metis co_none domI domIff in_sequence_in2)
+    using co_none in_sequence_in2 wf_hb1 apply fastforce
+    using co_none by auto
 
-    moreover 
-    have "(i,i1)\<in> right \<longleftrightarrow> 
-      ((\<exists>c. c \<in> set cs \<or> i_callOriginI_h co to c \<triangleq> i) \<and>
-       (\<exists>c. i_callOriginI_h co to c \<triangleq> i1) \<and>
-       (\<forall>cx cy.
-           (cx \<in> set cs \<or> i_callOriginI_h co to cx \<triangleq> i) \<and> i_callOriginI_h co to cy \<triangleq> i1 \<longrightarrow>
-           (cx, cy) \<in> updateHb hb vis cs))"
-      apply (auto simp add: right_def invocation_happensBeforeH_def b1 b1[symmetric] i_callOriginI_h_simp Let_def updateHb_simp_distinct2)
+  have  "(i1,i2) \<in> ?left \<longleftrightarrow> (i1,i2) \<in> ?right"    for i1 i2
+    by (cases "i1=i2"; cases "i1=i"; cases "i2=i"; clarify?; rule h0 h1 h2 h3; force)
 
-    proof goal_cases
-      case (1 c ca cx cy)
-      then show ?case
-        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def) 
-    next
-      case (2 c ca cx cy)
-      then show ?case 
-        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def)
-    next
-      case (3 c ca cb cc cx cy)
-      then show ?case 
-        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def) 
-    next
-      case (4 c ca cb cc cx cy)
-      then show ?case 
-        by (metis a11 a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def) 
-    next
-      case (5 c ca)
-      then show ?case
-        by (metis a2 before_in_list_contains_r local.i_callOriginI_h_simp) 
-    next
-      case (6 c ca cx cy)
-      then show ?case 
-        by (metis a11 a5 a6 b1 before_in_list_contains_r disjoint_iff_not_equal domIff i_callOriginI_h_def option.inject)
-    next
-      case (7 c ca c')
-      then show ?case
-        by (metis a5 a6 disjoint_iff_not_equal domIff i_callOriginI_h_def local.i_callOriginI_h_simp)
-    next
-      case (8 c ca c' cx cy)
-      then show ?case 
-        by (metis a11 a5 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def option.inject) 
-    next
-      case (9 c ca cx cy)
-      then show ?case 
-        by (metis a11 a5 a6 b1 before_in_list_contains_r disjoint_iff_not_equal domIff i_callOriginI_h_def option.inject)
-    next
-      case (10 c ca c' cx cy)
-      then show ?case
-        by (metis a11 a5 b1 disjoint_iff_not_equal domIff i_callOriginI_h_def option.inject) 
-    qed
-    ultimately have "(i,i1)\<in> left \<longleftrightarrow> (i,i1)\<in> right"
-      by simp
 
-  }
-  moreover
-  {
-    fix i1
-    have "(i1,i1)\<in> left \<longleftrightarrow> (i1,i1)\<in>right"
-      by (auto simp add: left_def right_def invocation_happensBeforeH_def i_callOriginI_h_simp Let_def)
-  }
-
-  ultimately have "(i1,i2)\<in> left \<longleftrightarrow> (i1,i2) \<in> right" for i1 i2
-    by metis
-  thus "?left = ?right"
-    by (auto simp add: left_def right_def)
-qed  
-
+  thus ?thesis
+    by auto
+qed
 
 
 
