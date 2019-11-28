@@ -36,6 +36,13 @@ lemma i_callOriginI_h_update_to2:
   = (if co c \<triangleq> t then Some i else  i_callOriginI_h co to c)"
   by (auto simp add: i_callOriginI_h_def split: option.splits)
 
+lemma i_callOriginI_h_update_to3:
+  shows "i_callOriginI_h (map_update_all co cs t) (to(t \<mapsto> i)) c
+  = (if c\<in>set cs then Some i else (if co c \<triangleq> t then Some i else i_callOriginI_h co to c))"
+  by (auto simp add: i_callOriginI_h_def map_update_all_None map_update_all_Some_other map_update_all_Some_same split: option.splits)
+
+
+
 lemmas i_callOriginI_h_simps = i_callOriginI_h_simp_update_co i_callOriginI_h_update_to2
 
 abbreviation 

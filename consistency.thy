@@ -9,17 +9,25 @@ definition
   (\<forall>c1 c2. c1\<in>vis \<and> (c2,c1)\<in> hb \<longrightarrow> c2\<in>vis)"
 
 definition
+"transactionConsistent_committed origin txStatus vis \<equiv>
+    (\<forall>c tx. c\<in>vis \<and> origin c \<triangleq> tx \<longrightarrow> txStatus tx \<triangleq> Committed)"
+
+definition
+"transactionConsistent_atomic origin vis \<equiv>
+     (\<forall>c1 c2. c1\<in>vis \<and> origin c1 = origin c2 \<longrightarrow> c2\<in>vis)"
+
+definition
 "transactionConsistent origin txStatus vis \<equiv>
-    (\<forall>c tx. c\<in>vis \<and> origin c \<triangleq> tx \<longrightarrow> txStatus tx \<triangleq> Committed)
-  \<and> (\<forall>c1 c2. c1\<in>vis \<and> origin c1 = origin c2 \<longrightarrow> c2\<in>vis)"
+    transactionConsistent_committed origin txStatus vis
+  \<and> transactionConsistent_atomic origin vis"
 
 lemma transactionConsistent_Committed:
 shows "\<lbrakk>transactionConsistent origin txStatus vis; c\<in>vis; origin c \<triangleq> tx; origin c \<triangleq> tx\<rbrakk> \<Longrightarrow> txStatus tx \<triangleq> Committed"
-by (auto simp add:  transactionConsistent_def) 
+by (auto simp add:  transactionConsistent_def transactionConsistent_committed_def) 
 
 lemma transactionConsistent_all_from_same:
 shows "\<lbrakk>transactionConsistent origin txStatus vis; c1\<in>vis; origin c1 = origin c2\<rbrakk> \<Longrightarrow> c2\<in>vis"
-by (auto simp add:  transactionConsistent_def) 
+by (auto simp add:  transactionConsistent_def transactionConsistent_atomic_def) 
 
 definition consistentSnapshotH where
 "consistentSnapshotH s_calls s_happensBefore s_callOrigin s_transactionStatus vis \<equiv>
@@ -500,7 +508,8 @@ lemma show_transactionConsistent[case_names only_committed[in_vis origin_tx] all
 assumes "\<And>c tx. \<lbrakk>c\<in>vis; origin c \<triangleq> tx\<rbrakk> \<Longrightarrow> txStatus tx \<triangleq> Committed"
     and "\<And>c1 c2. \<lbrakk>c1\<in>vis; origin c1 = origin c2\<rbrakk> \<Longrightarrow> c2\<in>vis"
 shows "transactionConsistent origin txStatus vis"
-using assms by (auto simp add: transactionConsistent_def)
+  using assms by (auto simp add: transactionConsistent_def transactionConsistent_atomic_def transactionConsistent_committed_def)
+
 
 lemma wellFormed_state_consistent_snapshot:
 assumes wf: "state_wellFormed S"

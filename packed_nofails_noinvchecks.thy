@@ -1811,10 +1811,15 @@ lemma chooseSnapshot_transactionConsistent_preserve:
     and a3: "transactionConsistent (callOrigin S) (transactionStatus S) vis"
   shows "transactionConsistent (callOrigin S) (transactionStatus S) snapshot"
   using a1 a3 apply (auto simp add: chooseSnapshot_def downwardsClosure_def transactionConsistent_def callsInTransactionH_contains)
-  apply (auto simp add: split: option.splits)
+   apply (auto simp add: split: option.splits)
+  apply (auto simp add: transactionConsistent_committed_def)[1]
   using all_committed apply blast
-  apply (metis (no_types, lifting) hb_callOrigin option.distinct(1))
-  by (metis (no_types, lifting) hb_tr option.inject)
+  using all_committed apply blast
+  apply (auto simp add: transactionConsistent_atomic_def callsInTransactionH_contains split: option.splits)[1]
+  using hb_callOrigin option.distinct(1) apply force
+  by (metis (no_types, lifting) hb_tr option.distinct(1) option.sel)
+  
+
 
 lemma chooseSnapshot_consistentSnapshot_preserve:
   assumes a1: "chooseSnapshot snapshot vis S"
@@ -1859,8 +1864,7 @@ lemma wf_transactionConsistent_noTx:
 and "visibleCalls S i \<triangleq> vis"
 and "currentTransaction S i = None"
 shows "transactionConsistent (callOrigin S) (transactionStatus S) vis"
-
-proof (auto simp add: transactionConsistent_def)
+proof (rule show_transactionConsistent)
   show "transactionStatus S tx \<triangleq> Committed" if "c \<in> vis" and "callOrigin S c \<triangleq> tx" for c tx
     using assms(2) assms(3) local.wf that(1) that(2) wellFormed_state_transaction_consistent(1) by fastforce
 

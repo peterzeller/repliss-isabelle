@@ -778,7 +778,9 @@ lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or>
 
 
 lemma consistentSnapshot_empty: "consistentSnapshot S {}"
-  by (auto simp add: consistentSnapshotH_def causallyConsistent_def transactionConsistent_def)
+  by (auto simp add: consistentSnapshotH_def causallyConsistent_def transactionConsistent_def  transactionConsistent_committed_def transactionConsistent_atomic_def)
+
+
 
 lemma exists_optionI: "x \<noteq> None \<Longrightarrow> \<exists>y. x \<triangleq> y"
   by auto

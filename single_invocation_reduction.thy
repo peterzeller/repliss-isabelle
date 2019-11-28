@@ -1532,7 +1532,7 @@ proof (rule ccontr)
     show ?thesis 
     proof (auto simp add: consistentSnapshotH_def dbop)
 
-      show "\<exists>y. calls S x \<triangleq> y" 
+      show ex_call: "\<exists>y. calls S x \<triangleq> y" 
         if a1: "vis \<subseteq> insert c (dom (calls S))" 
           and a2: "causallyConsistent (happensBefore S \<union> vis' \<times> {c}) vis" 
           and a3: "transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis"
@@ -1560,23 +1560,51 @@ proof (rule ccontr)
         by (metis domIff local.dbop(7) set_mp)
 
 
-      show "\<lbrakk>vis \<subseteq> insert c (dom (calls S)); causallyConsistent (happensBefore S \<union> vis' \<times> {c}) vis; transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis\<rbrakk>
-    \<Longrightarrow> transactionConsistent (callOrigin S) (transactionStatus S) vis"
-        apply (subst transactionConsistent_def)
-        apply (auto simp add: )
-         apply (metis (mono_tags, lifting) domI domIff local.dbop(7) local.wf map_upd_Some_unfold transactionConsistent_Committed wellFormed_callOrigin_dom2)
-        by (metis \<open>\<And>x. \<lbrakk>vis \<subseteq> insert c (dom (calls S)); causallyConsistent (happensBefore S \<union> vis' \<times> {c}) vis; transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis; x \<in> vis\<rbrakk> \<Longrightarrow> \<exists>y. calls S x \<triangleq> y\<close> fun_upd_same fun_upd_triv fun_upd_twist local.dbop(7) local.wf option.distinct(1) transactionConsistent_all_from_same wellFormed_callOrigin_dom3)
+      show "transactionConsistent (callOrigin S) (transactionStatus S) vis"
+        if c0: "vis \<subseteq> insert c (dom (calls S))"
+          and c1: "causallyConsistent (happensBefore S \<union> vis' \<times> {c}) vis"
+          and c2: "transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis"
+      proof (rule show_transactionConsistent)
 
-      show " \<lbrakk>vis \<subseteq> dom (calls S); causallyConsistent (happensBefore S) vis; transactionConsistent (callOrigin S) (transactionStatus S) vis\<rbrakk>
-    \<Longrightarrow> transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis"
-        apply (subst transactionConsistent_def)
-        apply (auto simp add: )
-            apply (metis domIff in_mono local.dbop(7))
-           apply (metis transactionConsistent_Committed)
-          apply (metis domIff local.dbop(7) subsetD)
-         apply (metis ctx fst_conv local.dbop(1) local.dbop(6) option.inject transactionConsistent_Committed transactionStatus.distinct(1) uncommitted)
-        by (metis transactionConsistent_all_from_same)
+        show "transactionStatus S tx \<triangleq> Committed"
+          if d0: "c \<in> vis"
+            and d1: "callOrigin S c \<triangleq> tx"
+          for  c tx
+          by (metis (mono_tags, lifting) c2 d0 d1 domI domIff local.dbop(7) local.wf map_upd_Some_unfold transactionConsistent_Committed wf_callOrigin_and_calls)
 
+        show "c2 \<in> vis"
+          if d0: "c1 \<in> vis"
+            and d1: "callOrigin S c1 = callOrigin S c2"
+          for  c1 c2
+          by (metis ex_call c0 c1 c2 d0 d1 fun_upd_same fun_upd_triv fun_upd_twist local.dbop(7) local.wf option.distinct(1) transactionConsistent_all_from_same wf_callOrigin_and_calls)
+      qed
+
+  
+
+      show "transactionConsistent (callOrigin S(c \<mapsto> t)) (transactionStatus S) vis"
+        if c0: "vis \<subseteq> dom (calls S)"
+          and c1: "causallyConsistent (happensBefore S) vis"
+          and c2: "transactionConsistent (callOrigin S) (transactionStatus S) vis"
+      proof (rule show_transactionConsistent)
+
+        have "c \<notin> vis"
+          using `calls S c = None`  using c0 by blast
+
+        show g1: "transactionStatus S tx \<triangleq> Committed"
+          if c0: "ca \<in> vis"
+            and c1: "(callOrigin S(c \<mapsto> t)) ca \<triangleq> tx"
+          for  ca tx
+          using c2 that `c \<notin> vis` by (auto simp add: transactionConsistent_def  transactionConsistent_committed_def split: if_splits)
+
+        show "c2 \<in> vis"
+          if c0: "c1 \<in> vis"
+            and c1: "(callOrigin S(c \<mapsto> t)) c1 = (callOrigin S(c \<mapsto> t)) c2"
+          for  c1 c2
+          using that c2
+          apply (auto simp add:transactionConsistent_def transactionConsistent_atomic_def split: if_splits)
+          using g1 ctx local.dbop(1) local.dbop(6) uncommitted apply auto[1]
+          using g1 ctx local.dbop(1) local.dbop(6) uncommitted by auto
+      qed
     qed
 
   next

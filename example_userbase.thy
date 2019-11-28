@@ -169,33 +169,38 @@ definition procedures :: "proc \<Rightarrow> ((val, operation, val) io \<times> 
   | GetUser u  \<Rightarrow>  toImpl2 (getUser_impl (UserId u))
 "
 
-definition inv1 :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
-  "inv1 ctxt \<equiv> \<forall>r g u g_res.
-    invocationOp ctxt r \<triangleq> RemoveUser u
-  \<longrightarrow> invocationOp ctxt g \<triangleq> GetUser u
-  \<longrightarrow> (r,g) \<in> invocation_happensBefore ctxt
-  \<longrightarrow> invocationRes ctxt g \<triangleq> g_res
+definition inv1  where
+  "inv1 op res ihb \<equiv> \<forall>r g u g_res.
+    op r \<triangleq> RemoveUser u
+  \<longrightarrow> op g \<triangleq> GetUser u
+  \<longrightarrow> (r,g) \<in> ihb
+  \<longrightarrow> res g \<triangleq> g_res
   \<longrightarrow> g_res = NotFound"
 
-definition inv2 :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
-  "inv2 ctxt \<equiv> \<forall>u i c.
-    invocationOp ctxt i \<triangleq> RemoveUser u
-  \<longrightarrow> i_callOriginI ctxt c \<triangleq> i
-  \<longrightarrow> calls ctxt c \<triangleq> Call (DeleteKey (UserId u)) Undef"
+definition inv2  where
+  "inv2 op i_origin c_calls \<equiv> \<forall>u i c.
+    op i \<triangleq> RemoveUser u
+  \<longrightarrow> i_origin c \<triangleq> i
+  \<longrightarrow> c_calls c \<triangleq> Call (DeleteKey (UserId u)) Undef"
 
-definition inv3 :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
-  "inv3 ctxt \<equiv> \<not>(\<exists>write delete u upd.
-    (calls ctxt write \<triangleq> Call (NestedOp u upd) Undef)
-  \<and> (calls ctxt delete \<triangleq> Call (DeleteKey u) Undef)
-  \<and> (delete, write) \<in> happensBefore ctxt
+definition inv3  where
+  "inv3 c_calls hb \<equiv> \<not>(\<exists>write delete u upd.
+    (c_calls write \<triangleq> Call (NestedOp u upd) Undef)
+  \<and> (c_calls delete \<triangleq> Call (DeleteKey u) Undef)
+  \<and> (delete, write) \<in> hb
   )"
 
 definition inv :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
-  "inv ctxt \<equiv> inv1 ctxt \<and> inv2 ctxt \<and> inv3 ctxt"
+  "inv ctxt \<equiv> 
+    inv1 (invocationOp ctxt) (invocationRes ctxt) (invocation_happensBefore ctxt) 
+  \<and> inv2 (invocationOp ctxt) (i_callOriginI ctxt) (calls ctxt)
+  \<and> inv3 (calls ctxt) (happensBefore ctxt)"
 
 lemma show_inv[intro, case_names inv1 inv2 inv3]:
-  assumes "inv1 S" and "inv2 S" and "inv3 S"
-  shows "inv S"
+  assumes "inv1 (invocationOp ctxt) (invocationRes ctxt) (invocation_happensBefore ctxt)" 
+    and "inv2 (invocationOp ctxt) (i_callOriginI ctxt) (calls ctxt)" 
+    and "inv3 (calls ctxt) (happensBefore ctxt)"
+  shows "inv ctxt"
   using assms  by (auto simp add: inv_def)
 
 definition userStruct :: "(userDataOp, val) crdtSpec" where
@@ -321,10 +326,20 @@ proof M_show_programCorrect
 
   case (procedure_correct S i)
 
+
+
   show "procedureCorrect progr S i"
   proof (rule Initial_Label, rule show_initial_state_prop[OF procedure_correct], rule DC_final2, casify)
     case (show_P S_pre proc initState impl)
-    
+    have "invocationOp S i \<triangleq> proc"
+      using show_P by auto
+    have "invocationRes S i = None"
+      using show_P apply auto
+      using state_wellFormed_invocation_before_result by blast
+
+    have "uniqueIds proc \<subseteq> knownIds S"
+      using show_P by auto
+
 
     note show_P[simp]
 
@@ -342,9 +357,10 @@ proof M_show_programCorrect
       next
         case execution
         show "execution_s_correct progr S i"
-        proof (rule execution_s_check_sound2)
-          show "S \<in> initialStates progr i"
-            using initialStates'_same procedure_correct.in_initial_state by blast
+          using procedure_correct.in_initial_state
+        proof (fuzzy_rule execution_s_check_sound2)
+
+          
 
           show "currentProc S i \<triangleq> toImpl"
             by (auto simp add: RegisterUser procedures_def )
@@ -355,41 +371,89 @@ proof M_show_programCorrect
           note registerUser_impl_def[simp]
 
 
+          
+
           show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin
-        s_knownIds s_invocationOp s_invocationRes {} {} [] None True
-        (registerUser_impl (String name) (String mail))"
+            s_knownIds s_invocationOp s_invocationRes {} {} [] None True
+            (registerUser_impl (String name) (String mail))"
             if "s_invocationOp i = invocationOp S i"
               and "s_invocationRes i = None"
             for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
           proof (repliss_vcg, goal_cases "AtCommit" "AtReturn" )
             case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
 
+            have my_invoc[simp]: "s_invocationOp' i \<triangleq> RegisterUser name mail"
+              by (simp add: AtCommit(10) that(1) RegisterUser)
+
+            
+            have v_no_op: "to_nat v \<notin> uniqueIds op" if "s_calls c \<triangleq> Call op r" for c op r
+              using new_unique_not_in_calls_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, OF `new_unique_not_in_calls s_calls v` that] .
+
+            have v_no_delete1: False if "s_calls c \<triangleq> Call (DeleteKey v) Undef" for c
+              using v_no_op[OF that] ` uniqueIds v = {to_nat v}`
+              by (auto simp add: uniqueIds_mapOp_def uniqueIds_val_def)
+
+            have v_no_delete2: "s_calls c \<noteq> Some (Call (DeleteKey v) Undef)" for c
+              using v_no_delete1 by blast
+
+            find_theorems state_monotonicGrowth uniqueIds
+
+            have "new_unique_not_in_calls s_calls' v"
+              sorry
+
+
+            from AtCommit
             show ?case
-            proof (standard, goal_cases inv1 inv2 inv3)
+            proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3)
+
               case inv1
-              from AtCommit(8)
-              have old_inv: "\<forall>r g u.
-                    s_invocationOp' r \<triangleq> RemoveUser u \<longrightarrow>
-                    s_invocationOp' g \<triangleq> GetUser u \<longrightarrow>
-                    (r, g) \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore' \<longrightarrow>
-                    (\<forall>g_res. s_invocationRes' g \<triangleq> g_res \<longrightarrow> g_res = NotFound)"
-                by (auto simp add: inv_def inv1_def)
 
-              show ?case apply (auto simp add: inv1_def AtCommit)
-                using old_inv apply blast
-
-                find_theorems  s_invocationOp' (* TODO growing predicate at beginAtomic*)
-                find_theorems  s_invocationOp
-
-                sorry
+              from `inv1 s_invocationOp' s_invocationRes'
+                (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
+              show ?case
+                by (auto simp add: inv1_def)
 
             next
               case inv2
-              then show ?case sorry
-            next
+              from `inv2 s_invocationOp' (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
+              show ?case
+                apply (auto simp add: inv2_def)
+                   apply (auto simp add: map_update_all_get i_callOriginI_h_simp)
+                apply (auto simp add: i_callOriginI_h_update_to3 split: if_splits)
+                done 
+            next 
               case inv3
-              then show ?case sorry
+              from `inv3 s_calls' s_happensBefore'`
+              show ?case
+              proof (auto simp add: inv3_def `c \<noteq> ca` updateHb_cases in_sequence_cons inv3(19))
+
+
+                show "False"
+                  if c0: "\<forall>write delete u. s_calls' delete \<triangleq> Call (DeleteKey u) Undef \<longrightarrow> (\<forall>upd. s_calls' write \<noteq> Some (Call (NestedOp u upd) Undef)) \<or> (delete, write) \<notin> s_happensBefore'"
+                    and c1: "delete \<noteq> c"
+                    and c2: "delete \<noteq> ca"
+                    and c3: "s_calls' delete \<triangleq> Call (DeleteKey v) Undef"
+                    and c4: "res = Undef"
+                    and c5: "delete \<in> vis'"
+                  for  delete
+                  sorry
+
+
+
+                show "False"
+                  if c0: "\<forall>write delete u. s_calls' delete \<triangleq> Call (DeleteKey u) Undef \<longrightarrow> (\<forall>upd. s_calls' write \<noteq> Some (Call (NestedOp u upd) Undef)) \<or> (delete, write) \<notin> s_happensBefore'"
+                    and c1: "ca \<noteq> c"
+                    and c2: "delete \<noteq> c"
+                    and c3: "delete \<noteq> ca"
+                    and c4: "s_calls' delete \<triangleq> Call (DeleteKey v) Undef"
+                    and c5: "resa = Undef"
+                    and c6: "delete \<in> vis'"
+                  for  delete
+                  sorry
+
+              qed
             qed
+
               
 
 
@@ -398,10 +462,10 @@ proof M_show_programCorrect
             then show ?case sorry
           qed
           
-          qed
 
-
-
+          show "initialStates' progr i = initialStates progr i"
+            by (simp add: initialStates'_same)
+        qed
       qed
 
     next
