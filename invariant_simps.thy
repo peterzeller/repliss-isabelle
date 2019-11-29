@@ -41,6 +41,10 @@ lemma i_callOriginI_h_update_to3:
   = (if c\<in>set cs then Some i else (if co c \<triangleq> t then Some i else i_callOriginI_h co to c))"
   by (auto simp add: i_callOriginI_h_def map_update_all_None map_update_all_Some_other map_update_all_Some_same split: option.splits)
 
+lemma i_callOriginI_h_update_to4:
+  "i_callOriginI_h (map_update_all co cs tx) to c = 
+        (if c\<in>set cs then to tx else i_callOriginI_h co to c)" for co cs tx to
+          by (auto simp add: i_callOriginI_h_def map_update_all_get split: option.splits)
 
 
 lemmas i_callOriginI_h_simps = i_callOriginI_h_simp_update_co i_callOriginI_h_update_to2

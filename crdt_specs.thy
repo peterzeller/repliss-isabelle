@@ -32,6 +32,17 @@ definition restrict_ctxt_op :: "('op1 \<rightharpoonup> 'op2) \<Rightarrow>   ('
 definition ctxt_remove_calls :: "callId set \<Rightarrow> ('op, 'r) operationContext \<Rightarrow> ('op, 'r) operationContext"  where
 "ctxt_remove_calls Cs ctxt = \<lparr>calls = calls ctxt |` Cs, happensBefore = happensBefore ctxt |r Cs\<rparr>"
 
+text "To combine CRDT specifications, we need to distinguish updates from queries, which we can do using
+the following typeclass:"
+
+class crdt_op = valueType +
+  fixes is_update :: "'a \<Rightarrow> bool"
+begin
+
+end
+
+abbreviation "is_query x \<equiv> \<not>is_update x"
+
 
 text "To make it easier to simplify composed specifications, we define well-formedness of specifications:
 A spec is well formed if it only uses happens-before information from existing calls."
@@ -89,12 +100,13 @@ datatype 'a registerOp =
 
 instance registerOp :: (countable) countable
   by countable_datatype
-instantiation registerOp :: (valueType) valueType begin
+instantiation registerOp :: (valueType) crdt_op begin
 definition  "uniqueIds_registerOp x \<equiv> 
   case x of 
      Assign x \<Rightarrow> uniqueIds x
    | Read \<Rightarrow> {}"
 definition [simp]: "default_registerOp \<equiv> Read"
+definition [simp]: "is_update_registerOp x \<equiv> x \<noteq> Read"
 
 lemma [simp]: "uniqueIds (Assign x) = uniqueIds x"
   and [simp]: "uniqueIds Read = {}"
@@ -229,13 +241,15 @@ datatype ('k,'v) mapOp =
 
 instance mapOp :: (countable,countable) countable
   by countable_datatype
-instantiation mapOp :: (valueType,valueType) valueType begin
+instantiation mapOp :: (valueType,crdt_op) crdt_op begin
 definition  "uniqueIds_mapOp x \<equiv> 
   case x of 
      NestedOp k v \<Rightarrow> uniqueIds k \<union> uniqueIds v
    | KeyExists k \<Rightarrow> uniqueIds k
    | DeleteKey k \<Rightarrow> uniqueIds k"
 definition [simp]: "default_mapOp \<equiv> KeyExists default"
+definition "is_update_mapOp x \<equiv> case x of NestedOp k v \<Rightarrow> is_update v | DeleteKey _ \<Rightarrow> True | KeyExists _ \<Rightarrow> False"
+
 
 lemma [simp]: "uniqueIds (NestedOp k v) = uniqueIds k \<union> uniqueIds v"
   and "uniqueIds (KeyExists k) = uniqueIds k"
@@ -256,20 +270,20 @@ definition
 "deleted_calls_dw ctxt k \<equiv> {c\<in>dom (calls ctxt). \<exists>c' r. calls ctxt c' \<triangleq> Call (DeleteKey k) r \<and> (c',c)\<notin>happensBefore ctxt}"
 
 
-definition map_spec :: "((('k, 'v) mapOp, 'r::default) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow> (bool \<Rightarrow> 'r) \<Rightarrow>   ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::default) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow> (bool \<Rightarrow> 'r) \<Rightarrow>   ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_spec deleted_calls to_bool nestedSpec oper ctxt res \<equiv>
   case oper of
     DeleteKey k \<Rightarrow> res = default
-  | KeyExists k \<Rightarrow> res = to_bool (\<exists>c\<in>dom (calls ctxt). c \<notin> deleted_calls ctxt k)
+  | KeyExists k \<Rightarrow> res = to_bool (\<exists>c op r. calls ctxt c \<triangleq> Call (NestedOp k op) r \<and> is_update op \<and>  c \<notin> deleted_calls ctxt k)
   | NestedOp k op \<Rightarrow>
      nestedSpec op (restrict_ctxt_op (nested_op_on_key k) 
           (ctxt_remove_calls (deleted_calls ctxt k) ctxt)) res
 "
 
-definition map_uw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v,'r::default) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+definition map_uw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v::crdt_op,'r::default) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_uw_spec \<equiv> map_spec deleted_calls_uw"
 
-definition map_dw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v,'r::default) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+definition map_dw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v::crdt_op,'r::default) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_dw_spec \<equiv> map_spec deleted_calls_dw"
 
 
@@ -315,7 +329,7 @@ lemma map_dw_spec_wf:
   using wf unfolding map_dw_spec_def by (rule map_spec_wf, auto simp add: deleted_calls_dw_def intro!: ext, auto)
 
 
-text "Structs"
+subsection "Structs"
 
 definition struct_field :: "(('i, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool) \<Rightarrow> ('o \<Rightarrow> 'i option) \<Rightarrow> ('o, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool"  where
 "struct_field spec to_op   \<equiv> \<lambda>ctxt r. spec (restrict_ctxt_op to_op ctxt) r"

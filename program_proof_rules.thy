@@ -170,7 +170,7 @@ qed
 
 lemma execution_s_check_sound2:
   assumes a1: "localState S i \<triangleq> ls"
-    and a2: "S \<in> initialStates progr i"
+    and a2': "S \<in> initialStates' progr i"
     and a3: "currentProc S i \<triangleq> toImpl"
     and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
 \<lbrakk>
@@ -198,6 +198,8 @@ s_invocationRes i = None
   using a1
 proof (rule execution_s_check_sound)
 
+  have a2: "S \<in> initialStates progr i"
+    using a2' by (simp add: initialStates'_same) 
 
   show "visibleCalls S i \<triangleq> {}"
     using a2 by (auto simp add: initialStates_def)
@@ -209,6 +211,7 @@ proof (rule execution_s_check_sound)
     using a3 by simp
 
   show wf: "state_wellFormed S"
+
     using a2 initialStates_wellFormed by blast
 
   show "{} = {x. generatedIds S x \<triangleq> i}"
@@ -236,6 +239,32 @@ proof (rule execution_s_check_sound)
 
 qed simp+
 
+
+lemma execution_s_check_sound3:
+  assumes a1: "localState S i \<triangleq> ls"
+    and a2: "S \<in> initialStates' progr i"
+    and a3: "currentProc S i \<triangleq> toImpl"
+    and a4: "invocationOp S i \<triangleq> op"
+    and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
+  execution_s_check 
+  progr 
+  i
+  s_calls
+  s_happensBefore
+  s_callOrigin
+  s_transactionOrigin
+  s_knownIds
+  (s_invocationOp(i\<mapsto>op))
+  (s_invocationRes(i:=None))
+  {}
+  {}
+  {}
+  []
+  None
+  True
+  ls"
+  shows "execution_s_correct progr S i"
+  by (smt a1 a2 a3 a4 c execution_s_check_sound2 fun_upd_triv)
 
 lemma traceCorrect_s_empty: "traceCorrect_s  [] "
   by (simp add: traceCorrect_s_def) 
@@ -586,8 +615,8 @@ TODO:
   s_callOrigin' 
   (s_transactionOrigin'(tx \<mapsto> i))
   s_knownIds' 
-  s_invocationOp'
-  s_invocationRes'
+  (s_invocationOp'(i := s_invocationOp i))
+  (s_invocationRes'(i := None))
   generatedLocal
   generatedLocalPrivate
   vis'
@@ -837,6 +866,19 @@ proof show_proof_rule
           thus "uid_is_private' i (calls S') (invocationOp S') (invocationRes S') (knownIds S') v"
             by (meson uid_is_private'_implies)
         qed
+
+        show "(invocationOp S'a)(i := s_invocationOp i) = invocationOp S'a"
+          apply (auto simp add: S'a_def)
+          apply (rule fun_upd_idem)
+          using Step(7) growth state_monotonicGrowth_invocationOp_i by blast
+
+        show "(invocationRes S'a)(i := None) = invocationRes S'a"
+          apply (auto simp add: S'a_def)
+          apply (rule fun_upd_idem)
+          by (simp add: c13 state_wellFormed_no_result_when_running wf_S')
+
+
+
 
 
       qed
@@ -1703,7 +1745,7 @@ lemmas repliss_proof_rules =
 
 method repliss_vcg_step = (rule repliss_proof_rules; (intro conjI)?; simp?;  repliss_vcg_step?)
 
-method repliss_vcg uses impl = (simp add: atomic_def impl, repliss_vcg_step)
+method repliss_vcg uses impl = (simp add: atomic_def skip_def impl, repliss_vcg_step)
 
 
 
