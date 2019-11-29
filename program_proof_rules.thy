@@ -175,7 +175,8 @@ lemma execution_s_check_sound2:
     and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
 \<lbrakk>
 s_invocationOp i = invocationOp S i;
-s_invocationRes i = None
+s_invocationRes i = None;
+\<And>tx. s_transactionOrigin tx \<noteq> Some i
 \<rbrakk> \<Longrightarrow>
   execution_s_check 
   progr 
@@ -228,6 +229,9 @@ proof (rule execution_s_check_sound)
     show "invocationOp S i = invocationOp S i" by simp
     show "invocationRes S i = None"
       by (simp add: a1 local.wf state_wellFormed_no_result_when_running)
+    show "\<And>tx. transactionOrigin S tx \<noteq> Some i"
+      using a2 by (auto simp add: initialStates_def)
+
   qed
 
   show "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
@@ -246,6 +250,9 @@ lemma execution_s_check_sound3:
     and a3: "currentProc S i \<triangleq> toImpl"
     and a4: "invocationOp S i \<triangleq> op"
     and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
+\<lbrakk>
+\<And>tx. s_transactionOrigin tx \<noteq> Some i
+\<rbrakk> \<Longrightarrow>
   execution_s_check 
   progr 
   i
@@ -539,6 +546,7 @@ s_transactionOrigin' tx = None;
 \<And>c. s_callOrigin' c \<noteq> Some tx;
 vis \<subseteq> vis';
 vis' \<subseteq> dom s_calls';
+firstTx \<Longrightarrow> (\<And>c tx. s_callOrigin' c \<triangleq> tx \<Longrightarrow> s_transactionOrigin' tx \<noteq> Some i);
 \<comment> \<open>consistency: \<close>
 causallyConsistent s_happensBefore' vis';
 transactionConsistent_atomic s_callOrigin' vis';
@@ -877,6 +885,15 @@ proof show_proof_rule
           apply (rule fun_upd_idem)
           by (simp add: c13 state_wellFormed_no_result_when_running wf_S')
 
+
+        show "transactionOrigin S' tx \<noteq> Some i"
+          if c0: "firstTx"
+            and c1: "callOrigin S'a c \<triangleq> tx"
+          for  c tx
+          using `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed)`
+            c0 c1
+          apply (auto simp add: S'a_def )
+          by (smt Step(1) c16 c17 c4 c8 domD domIff growth state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin transactionConsistent_Committed wellFormed_visibleCallsSubsetCalls2 wf_S' wf_callOrigin_and_calls wf_transactionConsistent_noTx)
 
 
 
@@ -1743,9 +1760,9 @@ lemmas repliss_proof_rules =
   execution_s_check_dbop
   execution_s_check_return
 
-method repliss_vcg_step = (rule repliss_proof_rules; (intro conjI)?; simp?;  repliss_vcg_step?)
+method repliss_vcg_step = (rule repliss_proof_rules; (intro impI conjI)?; simp?;  repliss_vcg_step?)
 
-method repliss_vcg uses impl = (simp add: atomic_def skip_def impl, repliss_vcg_step)
+method repliss_vcg uses impl = ((simp add: atomic_def skip_def impl)?, repliss_vcg_step)
 
 
 
