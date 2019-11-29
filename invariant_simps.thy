@@ -68,7 +68,7 @@ lemma invocation_happensBeforeH_one_transaction_simp:
     and co_none: "\<forall>c\<in>set cs. co c = None"
     and co'_same: "\<And>c. c\<notin>set cs \<Longrightarrow> co' c = co c"
     and to_t: "to t = None"
-    and i_fresh: "\<And>t. to t \<noteq> Some i"
+    and i_fresh: "\<And>c t. co c \<triangleq> t \<Longrightarrow>  to t \<noteq> Some i"
     and t_fresh: "\<And>c. co c \<noteq> Some t"
     and wf_hb1: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c \<triangleq> t"
     and wf_hb2: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c' \<triangleq> t"
@@ -100,7 +100,8 @@ proof (standard; standard; case_tac x; auto)
     assume "x = i"
     then have "tx = t"
       using tx
-      by (auto simp add: i_fresh split: if_splits )
+      by (metis co'_same co'_t cx fun_upd_apply i_fresh option.inject)
+
 
     have "y \<noteq> i"
       using \<open>x = i\<close> \<open>x \<noteq> y\<close> by blast
@@ -126,7 +127,7 @@ proof (standard; standard; case_tac x; auto)
   {
     assume "y = i"
     then have "ty = t"
-      by (metis fun_upd_apply i_fresh ty)
+      by (metis co'_same co'_t cy i_fresh map_upd_Some_unfold option.inject ty)
 
     have "x \<noteq> i"
       using \<open>y = i\<close> \<open>x \<noteq> y\<close> by blast
@@ -142,8 +143,8 @@ proof (standard; standard; case_tac x; auto)
 
     moreover have "(\<forall>c''. (\<exists>t''. co c'' \<triangleq> t'' \<and> to t'' \<triangleq> x) \<longrightarrow> c'' \<in> vis')"
       using a0 \<open>y = i\<close>  apply (auto simp add: invocation_happensBeforeH_def i_callOriginI_h_def split: option.splits if_splits)
-      apply (metis co'_same co_none domI domIff t_fresh updateHb_simp1 wf_hb2)
-      using i_fresh by auto
+       apply (metis co'_same co_none domI domIff t_fresh updateHb_simp1 wf_hb2)
+      by (metis co'_same co'_t i_fresh option.sel)
 
     ultimately have " \<exists>t' c'. c' \<in> vis' \<and> co c' \<triangleq> t' \<and> to t' \<triangleq> x \<and> (\<forall>c''. (\<exists>t''. co c'' \<triangleq> t'' \<and> to t'' \<triangleq> x) \<longrightarrow> c'' \<in> vis')" 
       by blast
@@ -198,7 +199,9 @@ next
     apply (metis co'_same co_none domI domIff option.sel t_fresh)
      apply (metis all_not_in_conv co'_t cs_nonempty option.inject set_empty)
     apply (auto simp add:  updateHb_simp_distinct[OF \<open>distinct cs\<close>])
-    apply (metis co'_same co'_t option.inject)
+       apply (metis co'_same co'_t option.inject)
+    using co'_same t_fresh apply fastforce
+    apply (metis co'_same co'_t option.sel)
     using co'_same t_fresh by fastforce
 qed
 
@@ -207,14 +210,14 @@ lemma invocation_happensBeforeH_one_transaction_simp2:
     and cs_distinct: "distinct cs"
     and co_none: "\<forall>c\<in>set cs. co c = None"
     and to_t: "to t = None"
-    and i_fresh: "\<And>t. to t \<noteq> Some i"
+    and i_fresh: "\<And>c t. co c \<triangleq> t \<Longrightarrow>  to t \<noteq> Some i"
     and t_fresh: "\<And>c. co c \<noteq> Some t"
     and wf_hb1: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c \<triangleq> t"
     and wf_hb2: "\<And>c c'. (c,c')\<in>hb \<Longrightarrow> \<exists>t. co c' \<triangleq> t"
   shows "invocation_happensBeforeH (i_callOriginI_h (map_update_all co cs t) (to(t \<mapsto> i))) (updateHb hb vis' cs)
       = invocation_happensBeforeH (i_callOriginI_h co to) hb 
         \<union> {i'. \<exists>c'. c' \<in> vis' \<and> i_callOriginI_h co to c' \<triangleq> i' \<and> (\<forall>c''. i_callOriginI_h co to c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis' )} \<times> {i}"
-  using  cs_nonempty cs_distinct co_none to_t  i_fresh t_fresh  
+  using  cs_nonempty cs_distinct co_none to_t i_fresh  t_fresh  
 proof (fuzzy_rule(noabs) invocation_happensBeforeH_one_transaction_simp)
   show "\<forall>c\<in>set cs. map_update_all co cs t c \<triangleq> t"
     by (simp add: map_update_all_get)
@@ -230,6 +233,10 @@ proof (fuzzy_rule(noabs) invocation_happensBeforeH_one_transaction_simp)
   show "(\<lambda>i'. \<exists>t' c'. c' \<in> vis' \<and> co c' \<triangleq> t' \<and> to t' \<triangleq> i' \<and> (\<forall>c'' t''. co c'' \<triangleq> t'' \<and> to t'' \<triangleq> i' \<longrightarrow> c'' \<in> vis')) =
     (\<lambda>i'. \<exists>c'. c' \<in> vis' \<and> i_callOriginI_h co to c' \<triangleq> i' \<and> (\<forall>c''. i_callOriginI_h co to c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis'))"
     by (auto simp add: i_callOriginI_h_def intro!:ext split: option.splits, blast)
+
+  show "\<And>c t. co c \<triangleq> t \<Longrightarrow> co c \<triangleq> t"
+    by simp
+
 
 qed
 

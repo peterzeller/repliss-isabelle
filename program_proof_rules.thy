@@ -1056,13 +1056,25 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
           using `localCalls \<noteq> []` 
             `distinct localCalls` co_tx_none to_tx_none co_not_tx hb_wf_l hb_wf_r
         proof (fuzzy_rule(noabs) invocation_happensBeforeH_one_transaction_simp2)
-          
-          show "\<And>t. s_transactionOrigin t \<noteq> Some i"
-            using `firstTx`
 
-            sorry (* TODO there could be empty transactions? *)
-          
-  
+          show "s_transactionOrigin t \<noteq> Some i" if "s_callOrigin c \<triangleq> t" for c t
+          proof -
+            from `s_callOrigin c \<triangleq> t`
+            have "c \<notin> set localCalls"
+              using co_tx_none by fastforce
+            then have "c \<notin> set localCalls \<and> s_callOrigin c \<triangleq> t"
+              using that by blast
+            then have f1: "t \<noteq> tx \<longrightarrow> callOrigin S1 c \<triangleq> t"
+              by (simp add: Step(4) map_update_all_Some_other)
+            have "s_callOrigin c \<noteq> Some tx"
+              using co_not_tx by blast
+            then have "t \<noteq> tx"
+              using that by blast
+            then have "s_transactionOrigin(t \<mapsto> i) \<noteq> s_transactionOrigin"
+              using f1 by (metis (no_types) Step(1) Step(22) Step(5) \<open>firstTx\<close> allCommitted2 fun_upd_same fun_upd_twist state_wellFormed_transactionStatus_transactionOrigin)
+            then show "s_transactionOrigin t \<noteq> Some i"
+              by (metis (no_types) fun_upd_triv)
+          qed
 
         qed auto
       next
@@ -1089,8 +1101,7 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
             by (simp add: Step(20))
 
           show "\<And>c. i_callOriginI_h s_callOrigin s_transactionOrigin c \<triangleq> i \<Longrightarrow> c \<in> vis"
-
-            sorry (* TODO wf *)
+            by (simp add: Step(23) i_callOriginI_h_update_to2)
 
           show "\<And>c c'. \<lbrakk>c' \<in> vis; (c, c') \<in> s_happensBefore\<rbrakk> \<Longrightarrow> c \<in> vis"
           proof -
