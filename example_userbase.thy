@@ -457,9 +457,13 @@ proof M_show_programCorrect
 
           next
             case (AtReturn v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
-            then show ?case sorry
+            then show ?case
+              apply (auto simp add: inv_def)
+              apply (auto simp add: inv1_def)
+              apply (metis RegisterUser \<open>invocationOp S i \<triangleq> proc\<close> option.inject proc.distinct(5) that(1))
+              apply (metis RegisterUser \<open>invocationOp S i \<triangleq> proc\<close> option.inject proc.distinct(5) that(1))
+              done
           qed
-
 
           show "initialStates' progr i = initialStates progr i"
             by (simp add: initialStates'_same)

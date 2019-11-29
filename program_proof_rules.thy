@@ -1679,10 +1679,13 @@ proof show_proof_rule
   qed
 qed
 
+lemmas execution_s_check_endAtomic' = execution_s_check_endAtomic[rotated 3, OF context_conjI]
+  
+
 lemmas repliss_proof_rules = 
   execution_s_check_newId
   execution_s_check_beginAtomic
-  execution_s_check_endAtomic
+  execution_s_check_endAtomic'
   execution_s_check_pause
   execution_s_check_dbop
   execution_s_check_return
