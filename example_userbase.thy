@@ -183,7 +183,8 @@ definition inv2  where
   "inv2 op i_origin c_calls \<equiv> \<forall>u i c.
     op i \<triangleq> RemoveUser u
   \<longrightarrow> i_origin c \<triangleq> i
-  \<longrightarrow> c_calls c \<triangleq> Call (DeleteKey (UserId u)) Undef"
+  \<longrightarrow> (c_calls c \<triangleq> Call (DeleteKey (UserId u)) Undef
+        \<or> (\<exists>r. c_calls c \<triangleq> Call (KeyExists (UserId u)) r))"
 
 definition inv3  where
   "inv3 c_calls hb \<equiv> \<not>(\<exists>write delete u upd.
@@ -457,7 +458,7 @@ proof M_show_programCorrect
                 apply (auto simp add: inv2_def)
                    apply (auto simp add: map_update_all_get i_callOriginI_h_simp)
                 apply (auto simp add: i_callOriginI_h_update_to3 split: if_splits)
-                done 
+                by blast
             next 
               case inv3
 
@@ -634,7 +635,105 @@ proof M_show_programCorrect
 
     next
       case (RemoveUser user)
-      then show ?thesis sorry
+      
+      show "procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
+        show ?case 
+          using show_P.invariant_pre RemoveUser
+          apply (auto simp add:  inv_def inv1_def inv2_def inv3_def invContextH2_simps)
+          using new_invocation_cannot_happen_before show_P.i_fresh show_P.wf_pre apply blast
+          using i_callOriginI_notI1 show_P.i_fresh show_P.wf_pre by blast
+
+
+      next
+        case execution
+        show "execution_s_correct progr S i"
+          using procedure_correct.in_initial_state
+        proof (fuzzy_rule execution_s_check_sound3)
+
+
+
+          show "currentProc S i \<triangleq> toImpl"
+            by (auto simp add: RemoveUser procedures_def )
+
+          show "localState S i \<triangleq> removeUser_impl (UserId user)"
+            by (auto simp add: RemoveUser procedures_def )
+
+          note removeUser_impl_def[simp]
+
+          show "invocationOp S i \<triangleq> RemoveUser user"
+            using RemoveUser \<open>invocationOp S i \<triangleq> proc\<close> by blast
+
+
+
+          show " execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds
+        (s_invocationOp(i \<mapsto> RemoveUser user)) (s_invocationRes(i := None)) {} {} {} [] None True (removeUser_impl (UserId user))"
+            for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          proof ((repliss_vcg; intro conjI impI; repliss_vcg?), goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
+            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
+
+            from \<open>crdtSpec (DeleteKey (UserId user))
+               \<lparr>calls = (s_calls' |` (vis' - {c}))(c \<mapsto> Call (KeyExists (UserId user)) (Bool True)),
+                  happensBefore = updateHb (s_happensBefore' |r vis') vis' [c]\<rparr>
+               resa\<close>
+            have [simp]: "resa= Undef"
+              by (auto simp add: crdtSpec_def map_dw_spec_def map_spec_def)
+
+            from Exists_AtCommit
+            show ?case
+            proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3)
+              case inv1
+              from `inv1 s_invocationOp' s_invocationRes'
+       (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
+              show ?case
+                apply (auto simp add: inv1_def)
+                using inv1(16) state_monotonicGrowth_invocationOp_i by fastforce
+
+            next
+              case inv2
+              from `inv2 s_invocationOp' (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
+              show ?case 
+                apply (auto simp add: inv2_def i_callOriginI_h_update_to3 `c \<noteq> ca` `\<And>c. s_callOrigin' c \<noteq> Some tx`)
+                by (metis (no_types, lifting) fun_upd_same inv2(16) invariantContext.select_convs(4) state_monotonicGrowth_invocationOp_i)
+
+            next
+              case inv3
+              from `inv3 s_calls' s_happensBefore'`
+              show ?case
+                by (auto simp add: inv3_def updateHb_cases `c \<noteq> ca` in_sequence_cons  inv3(12))
+            qed
+
+          next
+            case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
+            then show ?case
+              apply (auto simp add: inv_def inv1_def)
+              by presburger
+          next
+            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            then show ?case
+              apply (auto simp add: inv_def )
+              subgoal
+                apply (auto simp add: inv1_def)
+                by (metis (no_types, lifting))
+              subgoal
+                apply (auto simp add: inv2_def i_callOriginI_h_update_to3  map_update_all_get)
+                by smt
+              subgoal
+                apply (auto simp add: inv3_def)
+                by (metis (no_types, lifting) list.set(1) list.simps(15) singletonD updateHb_simp2)
+              done
+            
+
+
+          next
+            case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            then show ?case
+              apply (auto simp add: inv_def inv1_def)
+              by presburger
+          qed
+        qed
+      qed
     next
       case (GetUser user)
       then show ?thesis sorry
