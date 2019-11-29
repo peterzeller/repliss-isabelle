@@ -31,10 +31,10 @@ definition [simp]: "default_val \<equiv> Undef"
 
 lemma uniqueIds_simp[simp]:
   shows "uniqueIds (String x) = {}"
-     "uniqueIds (Bool b) = {}"
-     "uniqueIds Undef = {}"
-     "uniqueIds (Found x y) = {}"
-     "uniqueIds NotFound = {}"
+    "uniqueIds (Bool b) = {}"
+    "uniqueIds Undef = {}"
+    "uniqueIds (Found x y) = {}"
+    "uniqueIds NotFound = {}"
   by (auto simp add: uniqueIds_val_def)
 
 instance by (standard, auto)
@@ -53,8 +53,8 @@ fun stringval where
 | "stringval _ = ''''"
 
 datatype userDataOp =
-    Name "val registerOp"
-    | Mail "val registerOp"
+  Name "val registerOp"
+  | Mail "val registerOp"
 
 
 instance userDataOp :: countable
@@ -81,7 +81,7 @@ type_synonym localState = "(val,operation,val) io"
 
 
 definition registerUser_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operation,val) io" where
- "registerUser_impl name mail \<equiv>  do {
+  "registerUser_impl name mail \<equiv>  do {
   u \<leftarrow> newId isUserId;
   atomic (do {
     call (NestedOp u (Name (Assign name)));
@@ -92,7 +92,7 @@ definition registerUser_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operat
 
 
 definition updateMail_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operation,val) io" where
- "updateMail_impl u mail \<equiv>  do {
+  "updateMail_impl u mail \<equiv>  do {
   atomic (do {
   exists \<leftarrow> call (KeyExists u);  
     (if exists = Bool True then do {
@@ -104,7 +104,7 @@ definition updateMail_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operatio
 
 
 definition removeUser_impl :: "val \<Rightarrow> (val,operation,val) io" where
- "removeUser_impl u \<equiv>  do {
+  "removeUser_impl u \<equiv>  do {
   atomic (do {
     exists \<leftarrow> call (KeyExists u);  
     (if exists = Bool True then do {
@@ -115,7 +115,7 @@ definition removeUser_impl :: "val \<Rightarrow> (val,operation,val) io" where
 }"
 
 definition getUser_impl :: "val \<Rightarrow> (val,operation,val) io" where
- "getUser_impl u \<equiv>  do {
+  "getUser_impl u \<equiv>  do {
   atomic (do {
     exists \<leftarrow> call (KeyExists u);  
     (if exists = Bool True then do {
@@ -131,7 +131,7 @@ term "toImpl (registerUser_impl (String name) (String mail))"
 abbreviation "toImpl2 x \<equiv> (x, toImpl)" 
 
 datatype proc =
-    RegisterUser string string
+  RegisterUser string string
   | UpdateMail int string
   | RemoveUser int
   | GetUser int
@@ -148,10 +148,10 @@ definition "uniqueIds_proc proc \<equiv>
    | RegisterUser _ _ \<Rightarrow> {}"
 
 lemma [simp]:
-"uniqueIds (UpdateMail u x) = {to_nat (UserId u)}"
-"uniqueIds (RemoveUser u ) = {to_nat (UserId u)}"
-"uniqueIds (GetUser u ) = {to_nat (UserId u)}"
-"uniqueIds (RegisterUser x y) = {}"
+  "uniqueIds (UpdateMail u x) = {to_nat (UserId u)}"
+  "uniqueIds (RemoveUser u ) = {to_nat (UserId u)}"
+  "uniqueIds (GetUser u ) = {to_nat (UserId u)}"
+  "uniqueIds (RegisterUser x y) = {}"
   by (auto simp add: uniqueIds_proc_def)
 
 definition [simp]: "default_proc \<equiv> RegisterUser [] []"
@@ -161,7 +161,7 @@ end
 
 
 definition procedures :: "proc \<Rightarrow> ((val, operation, val) io \<times> ((val, operation, val) io, operation, val) procedureImpl)" where
-"procedures invoc \<equiv>
+  "procedures invoc \<equiv>
   case invoc of
     RegisterUser name mail \<Rightarrow> toImpl2 (registerUser_impl (String name) (String mail))
   | UpdateMail u mail \<Rightarrow> toImpl2 (updateMail_impl (UserId u) (String mail))
@@ -204,14 +204,14 @@ lemma show_inv[intro, case_names inv1 inv2 inv3]:
   using assms  by (auto simp add: inv_def)
 
 definition userStruct :: "(userDataOp, val) crdtSpec" where
-"userStruct \<equiv> (\<lambda>oper.
+  "userStruct \<equiv> (\<lambda>oper.
   case oper of
     Name op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Name op \<Rightarrow> Some op | _ \<Rightarrow> None) 
   | Mail op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Mail op \<Rightarrow> Some op | _ \<Rightarrow> None)
 )" 
 
 definition crdtSpec :: "(operation, val) crdtSpec" where
-"crdtSpec \<equiv> map_dw_spec Bool userStruct"
+  "crdtSpec \<equiv> map_dw_spec Bool userStruct"
 
 definition progr :: "(proc, localState, operation, val) prog" where
   "progr \<equiv> \<lparr>
@@ -236,9 +236,9 @@ lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exist
 
 method show_procedures_cannot_guess_ids = 
   (((auto simp add: newId_def bind_def atomic_def beginAtomic_def call_def skip_def endAtomic_def return_def 
-       uniqueIds_mapOp_def uniqueIds_userDataOp_def uniqueIds_registerOp_def uniqueIds_val_def
-      split: if_splits)[1])?;
-      ((rule procedure_cannot_guess_ids.intros, force); show_procedures_cannot_guess_ids?)?)
+        uniqueIds_mapOp_def uniqueIds_userDataOp_def uniqueIds_registerOp_def uniqueIds_val_def
+        split: if_splits)[1])?;
+    ((rule procedure_cannot_guess_ids.intros, force); show_procedures_cannot_guess_ids?)?)
 
 
 lemma progr_wf[simp]: "program_wellFormed progr"
@@ -306,7 +306,7 @@ lemma isUserId_infinite[simp]: "infinite (Collect isUserId)"
 proof (rule infinite_if_mappable_to_nat)
   show "\<exists>x\<in>Collect isUserId. n \<le> (case x of UserId n \<Rightarrow> nat n)" for n
     by (rule bexI[where x="UserId (int n)"],
-         auto simp add: isUserId_def)
+        auto simp add: isUserId_def)
 qed
 
 
@@ -360,7 +360,7 @@ proof M_show_programCorrect
           using procedure_correct.in_initial_state
         proof (fuzzy_rule execution_s_check_sound2)
 
-          
+
 
           show "currentProc S i \<triangleq> toImpl"
             by (auto simp add: RegisterUser procedures_def )
@@ -371,10 +371,10 @@ proof M_show_programCorrect
           note registerUser_impl_def[simp]
 
 
-          
+
 
           show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin
-            s_knownIds s_invocationOp s_invocationRes {} {} [] None True
+            s_knownIds s_invocationOp s_invocationRes {} {} {} [] None True
             (registerUser_impl (String name) (String mail))"
             if "s_invocationOp i = invocationOp S i"
               and "s_invocationRes i = None"
@@ -382,12 +382,21 @@ proof M_show_programCorrect
           proof (repliss_vcg, goal_cases "AtCommit" "AtReturn" )
             case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
 
-            have my_invoc[simp]: "s_invocationOp' i \<triangleq> RegisterUser name mail"
-              by (simp add: AtCommit(10) that(1) RegisterUser)
+            find_theorems uid_is_private
 
-            
+            have my_invoc[simp]: "s_invocationOp' i \<triangleq> RegisterUser name mail"
+              by (simp add: AtCommit that(1) RegisterUser)
+
+
             have v_no_op: "to_nat v \<notin> uniqueIds op" if "s_calls c \<triangleq> Call op r" for c op r
-              using new_unique_not_in_calls_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, OF `new_unique_not_in_calls s_calls v` that] .
+            proof (rule new_unique_not_in_calls_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format])
+              show " new_unique_not_in_calls s_calls (to_nat v)"
+                by (meson AtCommit(4) uid_is_private'_def)
+
+              show "s_calls c \<triangleq> Call op r"
+                using that .
+            qed
+
 
             have v_no_delete1: False if "s_calls c \<triangleq> Call (DeleteKey v) Undef" for c
               using v_no_op[OF that] ` uniqueIds v = {to_nat v}`
@@ -396,10 +405,24 @@ proof M_show_programCorrect
             have v_no_delete2: "s_calls c \<noteq> Some (Call (DeleteKey v) Undef)" for c
               using v_no_delete1 by blast
 
-            find_theorems state_monotonicGrowth uniqueIds
 
-            have "new_unique_not_in_calls s_calls' v"
-              sorry
+            have v_no_op': "to_nat v \<notin> uniqueIds op" if "s_calls' c \<triangleq> Call op r" for c op r
+            proof (rule new_unique_not_in_calls_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format])
+              show " new_unique_not_in_calls s_calls' (to_nat v)"
+                by (meson AtCommit(12) uid_is_private'_def)
+
+              show "s_calls' c \<triangleq> Call op r"
+                using that .
+            qed
+
+
+            have v_no_delete1': False if "s_calls' c \<triangleq> Call (DeleteKey v) Undef" for c
+              using v_no_op'[OF that] ` uniqueIds v = {to_nat v}`
+              by (auto simp add: uniqueIds_mapOp_def uniqueIds_val_def)
+
+            have v_no_delete2': "s_calls' c \<noteq> Some (Call (DeleteKey v) Undef)" for c
+              using v_no_delete1' by blast
+
 
 
             from AtCommit
@@ -425,43 +448,18 @@ proof M_show_programCorrect
               case inv3
               from `inv3 s_calls' s_happensBefore'`
               show ?case
-              proof (auto simp add: inv3_def `c \<noteq> ca` updateHb_cases in_sequence_cons inv3(19))
+                by (auto simp add: inv3_def `c \<noteq> ca` updateHb_cases in_sequence_cons inv3(19) v_no_delete2')
 
-
-                show "False"
-                  if c0: "\<forall>write delete u. s_calls' delete \<triangleq> Call (DeleteKey u) Undef \<longrightarrow> (\<forall>upd. s_calls' write \<noteq> Some (Call (NestedOp u upd) Undef)) \<or> (delete, write) \<notin> s_happensBefore'"
-                    and c1: "delete \<noteq> c"
-                    and c2: "delete \<noteq> ca"
-                    and c3: "s_calls' delete \<triangleq> Call (DeleteKey v) Undef"
-                    and c4: "res = Undef"
-                    and c5: "delete \<in> vis'"
-                  for  delete
-                  sorry
-
-
-
-                show "False"
-                  if c0: "\<forall>write delete u. s_calls' delete \<triangleq> Call (DeleteKey u) Undef \<longrightarrow> (\<forall>upd. s_calls' write \<noteq> Some (Call (NestedOp u upd) Undef)) \<or> (delete, write) \<notin> s_happensBefore'"
-                    and c1: "ca \<noteq> c"
-                    and c2: "delete \<noteq> c"
-                    and c3: "delete \<noteq> ca"
-                    and c4: "s_calls' delete \<triangleq> Call (DeleteKey v) Undef"
-                    and c5: "resa = Undef"
-                    and c6: "delete \<in> vis'"
-                  for  delete
-                  sorry
-
-              qed
             qed
 
-              
+
 
 
           next
             case (AtReturn v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
             then show ?case sorry
           qed
-          
+
 
           show "initialStates' progr i = initialStates progr i"
             by (simp add: initialStates'_same)

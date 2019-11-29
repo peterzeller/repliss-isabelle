@@ -61,13 +61,27 @@ qed
 
 definition uid_is_private where
 "uid_is_private i s_calls s_invocationOp s_invocationRes s_knownIds s_generatedIds s_localState s_currentProc uidv  \<equiv> 
-new_unique_not_in_invocationOp s_invocationOp uidv
+      new_unique_not_in_invocationOp s_invocationOp uidv
     \<and> new_unique_not_in_calls s_calls uidv
     \<and> new_unique_not_in_calls_result s_calls uidv
     \<and> new_unique_not_in_invocationRes s_invocationRes uidv
     \<and> uidv \<notin> s_knownIds
     \<and> s_generatedIds uidv \<triangleq> i
     \<and> new_unique_not_in_other_invocations i s_localState s_currentProc uidv"
+
+
+definition uid_is_private' where
+"uid_is_private' i s_calls s_invocationOp s_invocationRes s_knownIds uidv  \<equiv> 
+      new_unique_not_in_invocationOp s_invocationOp uidv
+    \<and> new_unique_not_in_calls s_calls uidv
+    \<and> new_unique_not_in_calls_result s_calls uidv
+    \<and> new_unique_not_in_invocationRes s_invocationRes uidv
+    \<and> uidv \<notin> s_knownIds
+    "
+lemma uid_is_private'_implies:
+"uid_is_private i s_calls s_invocationOp s_invocationRes s_knownIds s_generatedIds s_localState s_currentProc uidv
+ \<Longrightarrow> uid_is_private' i s_calls s_invocationOp s_invocationRes s_knownIds uidv"
+  by (auto simp add: uid_is_private_def uid_is_private'_def)
 
 
 lemma growth_still_hidden_step_other:
