@@ -30,19 +30,6 @@ lemma pcgi_return_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl l
   by (subst(asm) procedure_cannot_guess_ids.simps, auto)
 
 
-lemma procedure_cannot_guess_ids_mono:
-  assumes "procedure_cannot_guess_ids uids ls impl"
-    and "uids \<subseteq> uids'"
-  shows "procedure_cannot_guess_ids uids' ls impl"
-  using assms apply (induct  arbitrary: uids uids' rule: procedure_cannot_guess_ids.induct)
-       apply (auto simp add: procedure_cannot_guess_ids.intros)
-    apply (meson procedure_cannot_guess_ids.intros(4) sup.cobounded1)
-   apply (rule  procedure_cannot_guess_ids.intros, assumption )
-    apply auto
-    defer
-    apply blast
-
-  oops  
 
 
 

@@ -215,7 +215,7 @@ lemma invocation_happensBeforeH_one_transaction_simp2:
       = invocation_happensBeforeH (i_callOriginI_h co to) hb 
         \<union> {i'. \<exists>c'. c' \<in> vis' \<and> i_callOriginI_h co to c' \<triangleq> i' \<and> (\<forall>c''. i_callOriginI_h co to c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis' )} \<times> {i}"
   using  cs_nonempty cs_distinct co_none to_t  i_fresh t_fresh  
-proof (fuzzy_rule invocation_happensBeforeH_one_transaction_simp)
+proof (fuzzy_rule(noabs) invocation_happensBeforeH_one_transaction_simp)
   show "\<forall>c\<in>set cs. map_update_all co cs t c \<triangleq> t"
     by (simp add: map_update_all_get)
   show "\<And>c. c \<notin> set cs \<Longrightarrow> map_update_all co cs t c = co c"

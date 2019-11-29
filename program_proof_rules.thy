@@ -24,6 +24,7 @@ definition execution_s_check where
   s_invocationOp
   s_invocationRes
   generatedLocal
+  generatedLocalPrivate
   vis
   localCalls
   tx
@@ -55,6 +56,8 @@ definition execution_s_check where
        \<longrightarrow> distinct localCalls
        \<longrightarrow> (firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed ))
        \<longrightarrow> (\<forall>c. i_callOriginI_h s_callOrigin s_transactionOrigin c \<triangleq> i \<longrightarrow> c \<in> vis)
+       \<longrightarrow> (generatedLocalPrivate \<subseteq> generatedLocal)
+       \<longrightarrow> (\<forall>v\<in>generatedLocalPrivate. uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) v)
        \<longrightarrow> traceCorrect_s  trace)"
 
 lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, rotated]
@@ -62,7 +65,7 @@ lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THE
 lemma beforeInvoc_execution_s_check: 
   assumes "s_invocationOp i = None"
   shows "
-execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_transactionOrigin   s_knownIds   s_invocationOp  s_invocationRes  generatedLocal  vis localCalls  tx firstTx ls
+execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_transactionOrigin   s_knownIds   s_invocationOp  s_invocationRes  generatedLocal generatedLocalPrivate  vis localCalls  tx firstTx ls
 "
   using assms 
   by (auto simp add: execution_s_check_def steps_s_cons_simp Let_def wf_localState_to_invocationOp)
@@ -76,12 +79,14 @@ text "It is sufficient to check with @{term execution_s_check} to ensure that th
 
 
 lemma execution_s_check_sound:
-  assumes  "localState S i \<triangleq> ls"
-    and "visibleCalls S i \<triangleq> vis"
-    and "prog S = progr"
-    and "currentProc S i \<triangleq> toImpl"
-    and "generatedLocal = {x. generatedIds S x \<triangleq> i}"
-    and "state_wellFormed S"
+  assumes ls_def: "localState S i \<triangleq> ls"
+    and vis_def: "visibleCalls S i \<triangleq> vis"
+    and progr_def: "prog S = progr"
+    and toImpl: "currentProc S i \<triangleq> toImpl"
+    and generatedLocal: "generatedLocal = {x. generatedIds S x \<triangleq> i}"
+    and generatedLocalPrivate1: "generatedLocalPrivate \<subseteq> generatedLocal"
+    and generatedLocalPrivate2: "\<forall>v\<in>generatedLocalPrivate. uid_is_private i (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S) (localState S) (currentProc S) v"
+    and S_wf: "state_wellFormed S"
     and no_uncommitted: "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
     and no_currentTxn: "currentTransaction S i = None"
     and firstTx_def: "(firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed ))"
@@ -96,6 +101,7 @@ lemma execution_s_check_sound:
   (invocationOp S)
   (invocationRes S)
   generatedLocal
+  generatedLocalPrivate
   vis
   []
   (currentTransaction S i)
@@ -147,7 +153,15 @@ proof (auto simp add:  execution_s_correct_def)
 
     show "\<And>c. i_callOriginI S c \<triangleq> i \<Longrightarrow> c \<in> vis"
       apply (auto simp add: i_callOriginI_h_def split: option.splits)
-      using assms(2) assms(6) state_wellFormed_ls_visibleCalls_callOrigin by blast
+      using S_wf state_wellFormed_ls_visibleCalls_callOrigin vis_def by blast
+
+    show "generatedLocalPrivate \<subseteq> generatedLocal"
+      by (simp add: generatedLocalPrivate1)
+
+    show "\<And>x. x \<in> generatedLocalPrivate \<Longrightarrow>
+         uid_is_private i (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S) (localState S)
+          (currentProc S) x"
+      by (simp add: generatedLocalPrivate2)
 
 
   qed
@@ -173,6 +187,7 @@ s_invocationRes i = None
   s_knownIds
   s_invocationOp
   s_invocationRes
+  {}
   {}
   {}
   []
@@ -204,7 +219,7 @@ proof (rule execution_s_check_sound)
 
 
   show "execution_s_check progr i (calls S) (happensBefore S) (callOrigin S) (transactionOrigin S) (knownIds S) (invocationOp S)
-     (invocationRes S) {} {} [] (currentTransaction S i) True ls "
+     (invocationRes S) {} {} {} [] (currentTransaction S i) True ls "
     unfolding currentTx
   proof (rule c)
     show "invocationOp S i = invocationOp S i" by simp
@@ -218,7 +233,8 @@ proof (rule execution_s_check_sound)
   show "True = (\<nexists>c tx. callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed)"
     by (meson \<open>visibleCalls S i \<triangleq> {}\<close> empty_iff local.wf state_wellFormed_ls_visibleCalls_callOrigin)
 
-qed
+
+qed simp+
 
 
 lemma traceCorrect_s_empty: "traceCorrect_s  [] "
@@ -295,10 +311,6 @@ lemma execution_s_check_newId:
   assumes "infinite (Collect P)"
     and "program_wellFormed progr"
     and cont: "\<And>v. \<lbrakk>P v; 
- new_unique_not_in_calls s_calls v;
-new_unique_not_in_calls_result s_calls v;
-new_unique_not_in_invocationOp s_invocationOp v;
-new_unique_not_in_invocationRes s_invocationRes v;
 to_nat v \<notin> s_knownIds;
 to_nat v \<notin> localGenerated;
 uniqueIds v = {to_nat v}
@@ -313,6 +325,7 @@ uniqueIds v = {to_nat v}
   s_invocationOp
   s_invocationRes
   (localGenerated \<union> {to_nat v})
+  (localGeneratedPrivate \<union> {to_nat v})
   vis
   localCalls
   tx
@@ -330,6 +343,7 @@ shows"execution_s_check
   s_invocationOp
   s_invocationRes
   localGenerated
+  localGeneratedPrivate
   vis
   localCalls
   tx
@@ -364,6 +378,27 @@ proof show_proof_rule
     proof (rule use_execution_s_check)
 
 
+      have h1: "new_unique_not_in_calls s_calls (to_nat uidv)"
+        using Step(1) Step(2) Step(9) assms(2) c5 new_unique_not_in_calls_def wf_onlyGeneratedIdsInCalls by blast
+
+
+      have h2: "new_unique_not_in_calls_result s_calls (to_nat uidv)"
+        using Step(1) Step(2) Step(9) assms(2) c5 new_unique_not_in_calls_result_def wf_onlyGeneratedIdsInCallResults by blast
+
+      have h3: "new_unique_not_in_invocationOp s_invocationOp (to_nat uidv)"
+        using Step(1) Step(7) Step(9) assms(2) c5 new_unique_not_in_invocationOp_def wf_onlyGeneratedIdsInInvocationOps by blast
+
+      have h4: "new_unique_not_in_invocationRes s_invocationRes (to_nat uidv)"
+        using Step(1) Step(8) Step(9) assms(2) c5 new_unique_not_in_invocationRes_def wf_onlyGeneratedIdsInInvocationRes by blast
+
+      have h5: "new_unique_not_in_other_invocations i (localState S1(i \<mapsto> cont uidv)) (currentProc S1) (to_nat uidv)"
+        apply (auto simp add: new_unique_not_in_other_invocations_def)
+        by (metis (mono_tags, lifting) Step(1) Step(9) assms(2) c5 domIff in_mono wf_knownIds_subset_generatedIds_h(1))
+
+      have h6: "to_nat uidv \<notin> s_knownIds"
+        using Step(1) Step(6) Step(9) assms(2) c5 wf_onlyGeneratedIdsInKnownIds by blast
+
+
       show "execution_s_check
             progr 
             i
@@ -375,6 +410,7 @@ proof show_proof_rule
             s_invocationOp
             s_invocationRes
             (localGenerated \<union> {to_nat uidv})
+            (localGeneratedPrivate \<union> {to_nat uidv})
             vis
             localCalls
             tx
@@ -384,21 +420,9 @@ proof show_proof_rule
         show "P uidv"
           by (simp add: c7)
 
-        show "new_unique_not_in_calls s_calls uidv"
-          using Step(1) Step(2) Step(9) assms(2) c5 new_unique_not_in_calls_def wf_onlyGeneratedIdsInCalls by blast
-
-
-        show "new_unique_not_in_calls_result s_calls uidv"
-          using Step(1) Step(2) Step(9) assms(2) c5 new_unique_not_in_calls_result_def wf_onlyGeneratedIdsInCallResults by blast
-
-        show "new_unique_not_in_invocationOp s_invocationOp uidv"
-          using Step(1) Step(7) Step(9) assms(2) c5 new_unique_not_in_invocationOp_def wf_onlyGeneratedIdsInInvocationOps by blast
-
-        show "new_unique_not_in_invocationRes s_invocationRes uidv"
-          using Step(1) Step(8) Step(9) assms(2) c5 new_unique_not_in_invocationRes_def wf_onlyGeneratedIdsInInvocationRes by blast
-
+        
         show "to_nat uidv \<notin> s_knownIds"
-          using Step(1) Step(6) Step(9) assms(2) c5 wf_onlyGeneratedIdsInKnownIds by blast
+          using h6 by auto
 
         show "to_nat uidv \<notin> localGenerated"
           by (simp add: Step(10) c5)
@@ -421,7 +445,33 @@ proof show_proof_rule
       show "sorted_by (happensBefore S'a) localCalls"
         using Step by (auto simp add:S'a_def )
 
-    qed (auto simp add: S'a_def Step)
+      show "localGenerated \<union> {to_nat uidv} = {x. generatedIds S'a x \<triangleq> i}"
+        by (auto simp add: S'a_def Step)
+
+      show "localGeneratedPrivate \<union> {to_nat uidv} \<subseteq> localGenerated \<union> {to_nat uidv}"
+        apply (auto simp add: S'a_def Step)
+        by (meson Step(25) uid_is_private_def)
+
+      
+
+      show "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a)
+          (localState S'a) (currentProc S'a) v" if "v \<in> localGeneratedPrivate \<union> {to_nat uidv}" for v
+        using that proof auto
+
+        show  "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a)
+       (currentProc S'a) (to_nat uidv)"
+          by (auto simp add: uid_is_private_def S'a_def Step h1 h2 h3 h4 h5 h6)
+
+        show "v \<in> localGeneratedPrivate \<Longrightarrow>
+    uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a)
+     (currentProc S'a) v"
+          apply (auto simp add: Step S'a_def)
+          by (smt Step(2) Step(25) Step(6) Step(7) Step(8) map_upd_Some_unfold new_unique_not_in_other_invocations_def uid_is_private_def)
+
+      qed
+        
+
+    qed (simp add: S'a_def Step; fail)+
   qed
 qed
 
@@ -455,8 +505,11 @@ s_transactionOrigin' tx = None;
 \<And>c. s_callOrigin' c \<noteq> Some tx;
 vis \<subseteq> vis';
 vis' \<subseteq> dom s_calls';
+\<comment> \<open>consistency: \<close>
 causallyConsistent s_happensBefore' vis';
 transactionConsistent_atomic s_callOrigin' vis';
+
+\<comment> \<open>generic wellFormed and growth predicates (this is more like a backup, the important facts should be above) : \<close>
 \<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
 state_wellFormed \<lparr>
   calls = s_calls',
@@ -531,6 +584,7 @@ TODO:
   s_invocationOp'
   s_invocationRes'
   localGenerated
+  localGeneratedPrivate
   vis'
   []
   (Some tx)
@@ -549,6 +603,7 @@ shows"execution_s_check
   s_invocationOp
   s_invocationRes
   localGenerated
+  localGeneratedPrivate
   vis
   []
   None
@@ -636,12 +691,10 @@ proof show_proof_rule
         by simp
       show "Field (happensBefore S'a) \<inter> set [] = {}"
         by simp
-      show "execution_s_check (prog S'a) i (calls S'a) (happensBefore S'a) (callOrigin S'a) (transactionOrigin S'a) (knownIds S'a)
-     (invocationOp S'a) (invocationRes S'a) {x. generatedIds S'a x \<triangleq> i} vis'' [] (Some t) firstTx (cont ())"
-      proof (fuzzy_rule cont)
 
-        show "localGenerated = {x. generatedIds S'a x \<triangleq> i}"
-          using `localGenerated = {x. generatedIds S1 x \<triangleq> i}` growth state_monotonicGrowth_generatedIds_same1 by (auto simp add: S'a_def)
+      show "execution_s_check (prog S'a) i (calls S'a) (happensBefore S'a) (callOrigin S'a) (transactionOrigin S'a) (knownIds S'a)
+     (invocationOp S'a) (invocationRes S'a) localGenerated localGeneratedPrivate  vis'' [] (Some t) firstTx (cont ())"
+      proof (fuzzy_rule cont)
 
         show "progr = prog S'a"
           by (simp add: S'a_def `prog S1 = progr` c6)
@@ -774,8 +827,29 @@ proof show_proof_rule
         apply (simp add: S'a_def i_callOriginI_h_def c21 split: option.splits if_splits)
         using c17 c18 chooseSnapshot_def state_wellFormed_ls_visibleCalls_callOrigin wf_S' by fastforce
 
+      from `localGenerated = {x. generatedIds S1 x \<triangleq> i}`
+      show "localGenerated = {x. generatedIds S'a x \<triangleq> i}"
+        using growth state_monotonicGrowth_generatedIds_same1  by (simp add: S'a_def, fastforce)
 
-    qed (auto simp add: S'a_def Step)
+      show "localGeneratedPrivate \<subseteq> localGenerated"
+        by (simp add: Step(24))
+
+      show "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a) (currentProc S'a) x"
+        if c0: "x \<in> localGeneratedPrivate"
+        for  x
+      proof -
+        from c0 have "uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1)      (currentProc S1) x"
+          using Step by blast
+
+        hence "uid_is_private i (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
+         (localState S') (currentProc S') x"
+          using Step(9) assms(1) growth growth_still_hidden by blast
+
+        thus "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a) (currentProc S'a) x"
+          by (auto simp add: S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
+      qed
+
+    qed (simp add: S'a_def Step; fail)+
   qed
 qed
 
@@ -822,6 +896,7 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
   s_invocationOp
   s_invocationRes
   localGenerated
+  localGeneratedPrivate
   (vis \<union> set localCalls)
   []
   None
@@ -841,6 +916,7 @@ shows"execution_s_check
   s_invocationOp
   s_invocationRes
   localGenerated
+  localGeneratedPrivate
   vis
   localCalls
   (Some tx)
@@ -956,7 +1032,7 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
           {i}"
           using `localCalls \<noteq> []` 
             `distinct localCalls` co_tx_none to_tx_none co_not_tx hb_wf_l hb_wf_r
-        proof (fuzzy_rule invocation_happensBeforeH_one_transaction_simp2)
+        proof (fuzzy_rule(noabs) invocation_happensBeforeH_one_transaction_simp2)
           
           show "\<And>t. s_transactionOrigin t \<noteq> Some i"
             using `firstTx`
@@ -1023,7 +1099,7 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
           knownIds = s_knownIds, invocationOp = s_invocationOp, invocationRes = s_invocationRes\<rparr> \<and>
       execution_s_check progr i s_calls (updateHb s_happensBefore vis localCalls)
        (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i)) s_knownIds s_invocationOp s_invocationRes
-     localGenerated (vis \<union> set localCalls) [] None False (cont ())"
+     localGenerated localGeneratedPrivate (vis \<union> set localCalls) [] None False (cont ())"
         using  `distinct localCalls`
       proof (rule inv_cont)
         show h5: "\<And>c. c \<in> set localCalls \<Longrightarrow> s_callOrigin c = None"
@@ -1092,7 +1168,7 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
 
       show "execution_s_check (prog S'a) i (calls S'a) (happensBefore S'a) (callOrigin S'a)
        (transactionOrigin S'a) (knownIds S'a) (invocationOp S'a) (invocationRes S'a)
-       {x. generatedIds S'a x \<triangleq> i} (vis \<union> set localCalls) [] None False (cont ())"
+       {x. generatedIds S'a x \<triangleq> i} localGeneratedPrivate (vis \<union> set localCalls) [] None False (cont ())"
       proof (fuzzy_rule inv_cont2[THEN conjunct2])
       qed (simp add: S'a_def Step)+
 
@@ -1110,8 +1186,23 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
         apply (auto simp add: S'a_def i_callOriginI_h_def split: option.splits)
         using Step(1) Step(13) state_wellFormed_ls_visibleCalls_callOrigin by fastforce
 
+      show "localGeneratedPrivate \<subseteq> {x. generatedIds S'a x \<triangleq> i}"
+        using Step by (simp add: S'a_def)
 
-    qed (simp add: S'a_def Step)+
+      fix x
+      assume c0: "x \<in> localGeneratedPrivate"
+
+      from c0
+      have "uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1)   (currentProc S1) x"
+        by (simp add: Step(25))
+
+      thus "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a) (currentProc S'a) x"
+        by (auto simp add: S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
+
+
+
+
+    qed (simp add: S'a_def Step; fail)+
   qed
 qed
 
@@ -1134,6 +1225,7 @@ lemma execution_s_check_pause:
   s_invocationOp
   s_invocationRes
   localGenerated
+  localGeneratedPrivate
   vis
   localCalls
   tx
@@ -1152,6 +1244,7 @@ shows"execution_s_check
   s_invocationOp
   s_invocationRes
   localGenerated
+  localGeneratedPrivate
   vis
   localCalls
   tx
@@ -1196,13 +1289,26 @@ proof show_proof_rule
 
 
       show " execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds
-     s_invocationOp s_invocationRes {x. generatedIds S1 x \<triangleq> i} vis localCalls tx firstTx (cont ())"
+     s_invocationOp s_invocationRes {x. generatedIds S1 x \<triangleq> i} localGeneratedPrivate vis localCalls tx firstTx (cont ())"
       proof (fuzzy_rule cont)
         show "localGenerated = {x. generatedIds S1 x \<triangleq> i}"
           by (simp add: Step(10))
       qed
 
-    qed (simp add: S'a_def Step)+
+      show "localGeneratedPrivate \<subseteq> {x. generatedIds S1 x \<triangleq> i}"
+        apply auto
+        by (meson Step(25) uid_is_private_def)
+      
+      fix x
+      assume a0: "x \<in> localGeneratedPrivate"
+      hence "uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) x"
+        using Step(25) by blast
+
+      thus "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a)           (localState S'a) (currentProc S'a) x"
+        by (auto simp add:S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
+
+
+    qed (simp add: S'a_def Step; fail)+
   qed
 qed
 
@@ -1239,6 +1345,7 @@ querySpec progr op \<lparr>
   s_invocationOp
   s_invocationRes
   localGenerated
+  (localGeneratedPrivate - uniqueIds op)
   vis
   (localCalls @ [c])
   (Some tx)
@@ -1257,6 +1364,7 @@ shows"execution_s_check
   s_invocationOp
   s_invocationRes
   localGenerated
+  localGeneratedPrivate
   vis
   localCalls
   (Some tx)
@@ -1372,7 +1480,7 @@ proof show_proof_rule
         by auto
 
       show " execution_s_check progr i (s_calls(c \<mapsto> Call op res)) s_happensBefore s_callOrigin
-       s_transactionOrigin s_knownIds s_invocationOp s_invocationRes {x. generatedIds S1 x \<triangleq> i} vis
+       s_transactionOrigin s_knownIds s_invocationOp s_invocationRes {x. generatedIds S1 x \<triangleq> i} (localGeneratedPrivate - uniqueIds op) vis
        (localCalls @ [c]) (Some tx) firstTx (cont res)"
       proof (fuzzy_rule cont)
         show "querySpec progr op
@@ -1401,6 +1509,22 @@ proof show_proof_rule
         using Step(1) c2 not_uncommitted_cases wellFormed_currentTransaction_unique_h(2) apply blast
         using \<open>callOrigin S1 c = None\<close> by force
 
+      show "localGeneratedPrivate - uniqueIds op \<subseteq> {x. generatedIds S1 x \<triangleq> i}"
+        apply auto
+        by (meson Step(25) uid_is_private_def)
+
+      
+      fix x
+      assume a0: "x \<in> localGeneratedPrivate - uniqueIds op"
+      hence "uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) x"
+        using Step(25) by auto
+
+
+      thus "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a)           (localState S'a) (currentProc S'a) x"
+        using a0 apply (auto simp add: S'a_def uid_is_private_def new_unique_not_in_calls_def new_unique_not_in_calls_result_def new_unique_not_in_other_invocations_def)
+
+
+      
 
     qed (simp add: S'a_def Step; fail)+
   qed
