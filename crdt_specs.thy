@@ -295,8 +295,16 @@ definition set_rw_spec2 :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v s
                            \<and> (\<nexists>r. calls ctxt r \<triangleq> Call (Remove v) default \<and> (r,a)\<notin>happensBefore ctxt))"
 
 
+lemma set_aw_spec_cannot_guess_ids[simp,intro]:
+  assumes "\<And>x. uniqueIds (from_bool x) = {}"
+  shows "queries_cannot_guess_ids (set_aw_spec from_bool)"
+  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_aw_spec_def assms split: setOp.splits)
 
 
+lemma set_rw_spec_cannot_guess_ids[simp,intro]:
+  assumes "\<And>x. uniqueIds (from_bool x) = {}"
+  shows "queries_cannot_guess_ids (set_rw_spec from_bool)"
+  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_rw_spec_def assms split: setOp.splits)
 
 
 

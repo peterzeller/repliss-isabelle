@@ -425,4 +425,30 @@ lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or>
 
 
 
+lemma infinite_if_mappable_to_nat:
+  assumes mapping: "\<And>n::nat. \<exists>x\<in>S. f x \<ge> n"
+  shows "infinite S"
+proof auto
+  assume "finite S"
+  hence "finite (f ` S)"
+    by force
+
+  define m where "m \<equiv> Max (f ` S)"
+
+  from mapping[where n="Suc m"] obtain x where
+    "x\<in>S" and "f x \<ge> Suc m"
+    by auto
+
+  have "f x \<in> (f ` S)"
+    using \<open>x \<in> S\<close> by blast
+
+  have "f x > m"
+    using Suc_le_eq \<open>Suc m \<le> f x\<close> by blast
+  hence "f x > Max (f ` S)"
+    using m_def by blast
+  thus False
+    using Max_ge \<open>f x \<in> f ` S\<close> \<open>finite (f ` S)\<close> leD by blast
+qed
+
+
 end

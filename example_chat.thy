@@ -76,6 +76,41 @@ datatype operation =
     | Message "(val, messageDataOp) mapOp"
 
 
+instance operation :: countable
+  by countable_datatype
+instantiation operation :: crdt_op begin
+definition "uniqueIds_operation x \<equiv> 
+  case x of 
+     Chat x \<Rightarrow> uniqueIds x
+   | Message x \<Rightarrow> uniqueIds x"
+
+lemma [simp]: "uniqueIds (Chat x) = uniqueIds x"
+  "uniqueIds (Message y) = uniqueIds y"
+  by (auto simp add: uniqueIds_operation_def)
+
+definition [simp]: "default_operation = Chat default"
+
+definition "is_update_operation x \<equiv> case x of Chat x \<Rightarrow> is_update x | Message x \<Rightarrow> is_update x"
+
+instance by (standard, auto)
+end
+
+
+definition messageStruct :: "(messageDataOp, val) crdtSpec" where
+  "messageStruct \<equiv> (\<lambda>oper.
+  case oper of
+    Author op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Author op \<Rightarrow> Some op | _ \<Rightarrow> None) 
+  | Content op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Content op \<Rightarrow> Some op | _ \<Rightarrow> None)
+)" 
+
+definition crdtSpec :: "(operation, val) crdtSpec" where
+"crdtSpec \<equiv> (\<lambda>oper.
+  case oper of
+    Message op \<Rightarrow> struct_field (map_dw_spec Bool messageStruct op) (\<lambda>oper. case oper of Message op \<Rightarrow> Some op | _ \<Rightarrow> None) 
+  | Chat op \<Rightarrow> struct_field (set_rw_spec Bool op) (\<lambda>oper. case oper of Chat op \<Rightarrow> Some op | _ \<Rightarrow> None)
+)"
+
+
 definition sendMessage_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operation,val) io" where
   "sendMessage_impl from content \<equiv>  do {
   m \<leftarrow> newId isMessageId;
@@ -137,15 +172,15 @@ instantiation proc :: valueType begin
 definition "uniqueIds_proc proc \<equiv> 
   case proc of 
      SendMessage a c \<Rightarrow> {}
-   | EditMessage m s  \<Rightarrow> {to_nat (MessageId m)}
-   | DeleteMessage m  \<Rightarrow> {to_nat (MessageId m)}
-   | GetMessage m  \<Rightarrow> {to_nat (MessageId m)}"
+   | EditMessage m s  \<Rightarrow> uniqueIds (MessageId m)
+   | DeleteMessage m  \<Rightarrow> uniqueIds (MessageId m)
+   | GetMessage m  \<Rightarrow> uniqueIds (MessageId m)"
 
 lemma [simp]:
   "uniqueIds (SendMessage a c) = {}"
-  "uniqueIds (EditMessage m s) = {to_nat (MessageId m)}"
-  "uniqueIds (DeleteMessage m) = {to_nat (MessageId m)}"
-  "uniqueIds (GetMessage m) = {to_nat (MessageId m)}"
+  "uniqueIds (EditMessage m s) = uniqueIds (MessageId m)"
+  "uniqueIds (DeleteMessage m) = uniqueIds (MessageId m)"
+  "uniqueIds (GetMessage m) = uniqueIds (MessageId m)"
   by (auto simp add: uniqueIds_proc_def)
 
 definition [simp]: "default_proc \<equiv> SendMessage [] []"
@@ -164,6 +199,7 @@ definition procedures :: "proc \<Rightarrow> ((val, operation, val) io \<times> 
   | DeleteMessage m \<Rightarrow>  toImpl2 (deleteMessage_impl (MessageId m))
   | GetMessage m  \<Rightarrow>  toImpl2 (getMessage_impl (MessageId m))
 "
+
 
 
 (*
@@ -194,7 +230,7 @@ invariant forall c: callId, m: MessageId, u: UserId ::
 
 definition inv2 where
 "inv2 op cop \<equiv> \<forall>c m u.
-  cop c \<triangleq> Message (NestedOp m (Author (Assign (String u))))
+  cop c \<triangleq> Call (Message (NestedOp m (Author (Assign (String u))))) Undef
   \<longrightarrow> (\<exists>i s. op i \<triangleq> SendMessage u s) "
 
 
@@ -209,9 +245,9 @@ invariant forall c1: callId, m: MessageId, s: String ::
 
 definition inv3 where
 "inv3 cop hb \<equiv> \<forall>c1 m s.
-    cop c1 \<triangleq> Message (NestedOp m (Content (Assign s)))
+    cop c1 \<triangleq> Call (Message (NestedOp m (Content (Assign s)))) Undef
     \<longrightarrow> (\<exists>c2 u. 
-           cop c2 \<triangleq> Message (NestedOp m (Author (Assign u)))
+           cop c2 \<triangleq> Call (Message (NestedOp m (Author (Assign u)))) Undef
            \<and> (c2, c1)\<in>hb) " 
 
 
@@ -228,11 +264,227 @@ invariant !(exists write: callId, delete: callId, m: MessageId ::
 definition inv4 where
 "inv4 cop hb \<equiv>
   \<nexists>write delete m no.
-   cop write \<triangleq> Message (NestedOp m no)
+   cop write \<triangleq> Call (Message (NestedOp m no)) Undef
    \<and> is_update no
-   \<and> cop delete \<triangleq> Message (DeleteKey m)
+   \<and> cop delete \<triangleq> Call (Message (DeleteKey m)) Undef
    \<and> (delete,write)\<in>hb"
 
+definition inv :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
+  "inv ctxt \<equiv> 
+    inv1 (invocationOp ctxt) (invocationRes ctxt) 
+  \<and> inv2 (invocationOp ctxt) (calls ctxt)
+  \<and> inv3 (calls ctxt) (happensBefore ctxt)
+  \<and> inv4 (calls ctxt) (happensBefore ctxt)"
 
+
+type_synonym localState = "(val,operation,val) io"
+
+definition progr :: "(proc, localState, operation, val) prog" where
+  "progr \<equiv> \<lparr>
+  querySpec = crdtSpec,
+  procedure = procedures,
+  invariant = inv
+\<rparr>"
+
+lemma [simp]: "procedure progr = procedures"
+"querySpec progr = crdtSpec"
+"invariant progr = inv"
+  by (auto simp add: progr_def)
+  
+(*
+lemma uniqueId_no_nested: "x \<in> uniqueIds uid \<Longrightarrow> x = (to_nat (uid :: val))"
+  by (auto simp add: uniqueIds_val_def split: val.splits)
+
+lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exists>u. x = to_nat (MessageId u) \<and> uid = MessageId u)"
+  by (auto simp add: uniqueIds_val_def split: val.splits)
+*)
+
+
+
+
+lemma progr_wf[simp]: "program_wellFormed progr"
+proof (auto simp add: program_wellFormed_def)
+  show "procedures_cannot_guess_ids procedures"
+  proof (auto simp add: procedures_cannot_guess_ids_def procedures_def uniqueIds_proc_def split: proc.splits)
+
+    show "\<And>x11 x12 uids. procedure_cannot_guess_ids uids (sendMessage_impl (String x11) (String x12)) toImpl"
+      by (auto simp add: sendMessage_impl_def, show_procedures_cannot_guess_ids  )
+
+    show "\<And>x21 x22 uids. procedure_cannot_guess_ids (insert (to_nat x21) uids) (editMessage_impl (MessageId x21) (String x22)) toImpl"
+     by (auto simp add: editMessage_impl_def, show_procedures_cannot_guess_ids  )
+
+    show "\<And>x3 uids. procedure_cannot_guess_ids (insert (to_nat x3) uids) (deleteMessage_impl (MessageId x3)) toImpl"
+      by (auto simp add: deleteMessage_impl_def, show_procedures_cannot_guess_ids  )
+
+    show "\<And>x4 uids. procedure_cannot_guess_ids (insert (to_nat x4) uids) (getMessage_impl (MessageId x4)) toImpl "
+      by (auto simp add: getMessage_impl_def, show_procedures_cannot_guess_ids  )
+  qed
+
+  show "queries_cannot_guess_ids crdtSpec"
+  proof (auto simp add:  crdtSpec_def queries_cannot_guess_ids_def split: operation.splits)
+
+    show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field (set_rw_spec Bool x1) (case_operation Some Map.empty))"
+      by (standard, auto split: operation.splits)
+
+    show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field (map_dw_spec Bool messageStruct x2) (case_operation Map.empty Some))"
+    proof (standard, auto split: operation.splits)
+
+      show "queries_cannot_guess_ids (map_dw_spec Bool messageStruct)"
+      proof (standard, auto simp add: messageStruct_def queries_cannot_guess_ids_def split: messageDataOp.splits)
+
+        show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field (register_spec Undef x1) (case_messageDataOp Some Map.empty))"
+          by (standard, auto split: messageDataOp.splits)
+
+        show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field (register_spec Undef x2) (case_messageDataOp Map.empty Some))"
+          by (standard, auto split: messageDataOp.splits)
+      qed
+    qed
+  qed
+qed
+
+
+
+lemma isMessageId_infinite[simp]: "infinite (Collect isMessageId)"
+proof (rule infinite_if_mappable_to_nat)
+  show "\<exists>x\<in>Collect isMessageId. n \<le> (case x of MessageId n \<Rightarrow> nat n)" for n
+    by (rule bexI[where x="MessageId (int n)"],
+        auto simp add: isMessageId_def)
+qed
+
+
+
+theorem chat_app_correct: "programCorrect progr"
+proof M_show_programCorrect
+
+  case invariant_initial_state
+  show "invariant_all' (initialState progr)"
+    by (simp add: inv_def initialState_def invContextH2_calls inv1_def inv2_def inv3_def inv4_def invContextH2_happensBefore invContextH2_i_invocationOp progr_def)
+
+
+  case (procedure_correct S i)
+
+
+
+  show "procedureCorrect progr S i"
+  proof (rule Initial_Label, rule show_initial_state_prop[OF procedure_correct], rule DC_final2, casify)
+    case (show_P S_pre proc initState impl)
+    have "invocationOp S i \<triangleq> proc"
+      using show_P by auto
+    have "invocationRes S i = None"
+      using show_P apply auto
+      using state_wellFormed_invocation_before_result by blast
+
+    have "uniqueIds proc \<subseteq> knownIds S"
+      using show_P by auto
+
+
+    note show_P[simp]
+
+    show "procedureCorrect progr S i"
+    proof (cases proc)
+      case (SendMessage author content)
+
+      show "procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
+         show ?case
+           using show_P.invariant_pre SendMessage show_P.i_fresh
+          by (auto simp add:  inv_def inv1_def inv2_def inv3_def inv4_def invContextH2_simps, 
+                metis option.distinct(1) show_P.i_fresh)+
+
+      next
+        case execution
+
+        show "execution_s_correct progr S i"
+          using procedure_correct.in_initial_state
+        proof (fuzzy_rule execution_s_check_sound3)
+          show "currentProc S i \<triangleq> toImpl"
+            by (auto simp add: SendMessage procedures_def )
+
+          show "localState S i \<triangleq> sendMessage_impl (String author) (String content)"
+            by (auto simp add: SendMessage procedures_def )
+
+          show "invocationOp S i \<triangleq> SendMessage author content"
+            using SendMessage \<open>invocationOp S i \<triangleq> proc\<close> by blast
+
+          note sendMessage_impl_def[simp]
+
+
+          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> SendMessage author content)) (s_invocationRes(i := None)) {} {} {} [] None True (sendMessage_impl (String author) (String content))"
+            if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
+            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          proof (repliss_vcg, goal_cases "AtCommit" "AtReturn" )
+            case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
+
+            have [simp]: "res = Undef"
+              using local.AtCommit(16)
+              by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def)
+            have [simp]:"resa = Undef"
+              using local.AtCommit(17)
+              by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def)
+
+            have [simp]:"resb = Undef"
+              using local.AtCommit(18)
+              by (auto simp add: crdtSpec_def struct_field_def set_rw_spec_def)
+
+            have [simp]:  "in_sequence [c, ca, cb] c ca"
+              by (simp add: in_sequence_cons)
+
+            have "new_unique_not_in_calls s_calls' (to_nat v)"
+              by (meson AtCommit(13) uid_is_private'_def)
+
+
+            hence no_v: "to_nat v \<notin> uniqueIds opr" if "s_calls' c \<triangleq> Call opr r" for c opr r
+              by (meson new_unique_not_in_calls_def that)
+
+            have [simp]: "s_calls' delete \<noteq> Some (Call (Message (DeleteKey v)) Undef)" for delete
+              apply auto
+              apply (drule no_v)
+             using `uniqueIds_val_r v = {to_nat v}` by auto
+
+            from AtCommit
+            show ?case
+            proof (auto simp add: inv_def, goal_cases  inv2 inv3 inv4)
+              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case
+                by (auto simp add: inv2_def exists_cases1)
+
+            next
+              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              
+              from inv3 show ?case 
+                by (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong, meson)
+            next
+              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv4_def is_update_operation_def in_sequence_cons updateHb_cases)
+            qed
+              
+              
+          next
+            case (AtReturn v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
+            then show ?case
+              apply (auto simp add: inv_def)
+              apply (auto simp add: inv1_def)
+              by (smt map_upd_Some_unfold proc.inject(1))
+
+          qed
+
+        qed
+      qed
+
+    next
+      case (EditMessage m newContent)
+      then show ?thesis sorry
+    next
+      case (DeleteMessage m)
+      then show ?thesis sorry
+    next
+      case (GetMessage m)
+      then show ?thesis sorry
+    qed
+
+  qed
+qed
 
 end

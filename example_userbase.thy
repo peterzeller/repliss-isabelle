@@ -125,9 +125,8 @@ definition getUser_impl :: "val \<Rightarrow> (val,operation,val) io" where
   })
 }"
 
-term "toImpl (registerUser_impl (String name) (String mail))"
 
-abbreviation "toImpl2 x \<equiv> (x, toImpl)" 
+
 
 datatype proc =
   RegisterUser string string
@@ -141,15 +140,15 @@ instance proc :: countable
 instantiation proc :: valueType begin
 definition "uniqueIds_proc proc \<equiv> 
   case proc of 
-     UpdateMail u _ \<Rightarrow> {to_nat (UserId u)}
-   | RemoveUser u  \<Rightarrow> {to_nat (UserId u)}
-   | GetUser u  \<Rightarrow> {to_nat (UserId u)}
+     UpdateMail u _ \<Rightarrow> uniqueIds (UserId u)
+   | RemoveUser u  \<Rightarrow> uniqueIds (UserId u)
+   | GetUser u  \<Rightarrow> uniqueIds (UserId u)
    | RegisterUser _ _ \<Rightarrow> {}"
 
 lemma [simp]:
-  "uniqueIds (UpdateMail u x) = {to_nat (UserId u)}"
-  "uniqueIds (RemoveUser u ) = {to_nat (UserId u)}"
-  "uniqueIds (GetUser u ) = {to_nat (UserId u)}"
+  "uniqueIds (UpdateMail u x) = uniqueIds (UserId u)"
+  "uniqueIds (RemoveUser u ) = uniqueIds (UserId u)"
+  "uniqueIds (GetUser u ) = uniqueIds (UserId u)"
   "uniqueIds (RegisterUser x y) = {}"
   by (auto simp add: uniqueIds_proc_def)
 
@@ -158,6 +157,8 @@ definition [simp]: "default_proc \<equiv> RegisterUser [] []"
 instance by (standard, auto)
 end
 
+
+abbreviation "toImpl2 x \<equiv> (x, toImpl)" 
 
 definition procedures :: "proc \<Rightarrow> ((val, operation, val) io \<times> ((val, operation, val) io, operation, val) procedureImpl)" where
   "procedures invoc \<equiv>
@@ -247,18 +248,6 @@ lemma querySpec_progr[simp]: "querySpec progr = crdtSpec"
 
 
 
-lemma uniqueId_no_nested: "x \<in> uniqueIds uid \<Longrightarrow> x = (to_nat (uid :: val))"
-  by (auto simp add: uniqueIds_val_def split: val.splits)
-
-lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exists>u. x = to_nat (UserId u) \<and> uid = UserId u)"
-  by (auto simp add: uniqueIds_val_def split: val.splits)
-
-method show_procedures_cannot_guess_ids = 
-  (((auto simp add: newId_def bind_def atomic_def beginAtomic_def call_def skip_def endAtomic_def return_def 
-        uniqueIds_mapOp_def uniqueIds_userDataOp_def uniqueIds_registerOp_def uniqueIds_val_def
-        split: if_splits)[1])?;
-    ((rule procedure_cannot_guess_ids.intros, force); show_procedures_cannot_guess_ids?)?)
-
 
 lemma progr_wf[simp]: "program_wellFormed progr"
 proof (auto simp add: program_wellFormed_def)
@@ -267,12 +256,13 @@ proof (auto simp add: program_wellFormed_def)
     show "\<And>n m uids. procedure_cannot_guess_ids uids (registerUser_impl (String n) (String m)) toImpl"
       by (auto simp add: registerUser_impl_def, show_procedures_cannot_guess_ids  )
 
-    show "\<And>u m uids. procedure_cannot_guess_ids (insert (to_nat (UserId u)) uids) (updateMail_impl (UserId u) (String m)) toImpl"
+    show "\<And>x21 x22 uids. procedure_cannot_guess_ids (uids \<union> uniqueIds (UserId x21)) (updateMail_impl (UserId x21) (String x22)) toImpl"
       by (auto simp add: updateMail_impl_def, show_procedures_cannot_guess_ids  )
 
-    show "\<And>u uids. procedure_cannot_guess_ids (insert (to_nat (UserId u)) uids) (removeUser_impl (UserId u)) toImpl"
+    show "\<And>x3 uids. procedure_cannot_guess_ids (uids \<union> uniqueIds (UserId x3)) (removeUser_impl (UserId x3)) toImpl"
       by (auto simp add: removeUser_impl_def, show_procedures_cannot_guess_ids  )
-    show "\<And>u uids. procedure_cannot_guess_ids (insert (to_nat (UserId u)) uids) (getUser_impl (UserId u)) toImpl"
+  
+    show " \<And>x4 uids. procedure_cannot_guess_ids (uids \<union> uniqueIds (UserId x4)) (getUser_impl (UserId x4)) toImpl"
       by (auto simp add: getUser_impl_def, show_procedures_cannot_guess_ids  )
   qed
 
@@ -292,31 +282,6 @@ proof (auto simp add: program_wellFormed_def)
   qed (simp)
 qed
 
-lemma infinite_if_mappable_to_nat:
-  assumes mapping: "\<And>n::nat. \<exists>x\<in>S. f x \<ge> n"
-  shows "infinite S"
-proof auto
-  assume "finite S"
-  hence "finite (f ` S)"
-    by force
-
-  define m where "m \<equiv> Max (f ` S)"
-
-  from mapping[where n="Suc m"] obtain x where
-    "x\<in>S" and "f x \<ge> Suc m"
-    by auto
-
-  have "f x \<in> (f ` S)"
-    using \<open>x \<in> S\<close> by blast
-
-  have "f x > m"
-    using Suc_le_eq \<open>Suc m \<le> f x\<close> by blast
-  hence "f x > Max (f ` S)"
-    using m_def by blast
-  thus False
-    using Max_ge \<open>f x \<in> f ` S\<close> \<open>finite (f ` S)\<close> leD by blast
-qed
-
 
 
 
@@ -333,11 +298,11 @@ qed
 lemma invariant_progr[simp]: "invariant progr = example_userbase.inv"
   by (auto simp add: progr_def)
 
-method unfold_invs_p = (((subst(asm) inv_def)+)?; (elim conjE)?)?
+lemma if_distrib_eq: "(if c then x else y) = z \<longleftrightarrow> (if c then x = z else y = z)"
+  by (rule if_distrib)
 
 theorem userbase_correct: "programCorrect progr"
 proof M_show_programCorrect
-  print_nested_cases
 
   case invariant_initial_state
   show "invariant_all' (initialState progr)"
@@ -448,15 +413,15 @@ proof M_show_programCorrect
 
               case inv1
 
-              from `inv1 s_invocationOp' s_invocationRes'
-                (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
+              from `inv1 (s_invocationOp'(i \<mapsto> RegisterUser name mail)) (s_invocationRes'(i := None))
+                  (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
               show ?case
                 by (auto simp add: inv1_def)
 
 
             next
               case inv2
-              from `inv2 s_invocationOp' (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
+              from `inv2 (s_invocationOp'(i \<mapsto> RegisterUser name mail)) (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
               show ?case
                 apply (auto simp add: inv2_def)
                    apply (auto simp add: map_update_all_get i_callOriginI_h_simp)
@@ -490,8 +455,8 @@ proof M_show_programCorrect
             case (AtReturn v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
             then show ?case
               apply (auto simp add: inv_def)
-              apply (auto simp add: inv1_def)
-              done
+              apply (auto simp add: inv1_def )
+              by presburger
           qed
 
         qed
@@ -540,15 +505,17 @@ proof M_show_programCorrect
             proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3)
               case inv1
               
-              from `inv1 s_invocationOp' s_invocationRes'(invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
+              from `inv1 (s_invocationOp'(i \<mapsto> UpdateMail user mail)) (s_invocationRes'(i := None))
+               (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
               show ?case
                 by (auto simp add: inv1_def) 
 
             next
               case inv2
-              from `inv2 s_invocationOp' (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
+              from `inv2 (s_invocationOp'(i \<mapsto> UpdateMail user mail)) (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
               show ?case
-               using `c \<noteq> ca` by (auto simp add: inv2_def i_callOriginI_h_update_to3)
+                using `c \<noteq> ca` by (auto simp add: inv2_def i_callOriginI_h_update_to3, meson)
+
             next
               case inv3
 
@@ -615,7 +582,7 @@ proof M_show_programCorrect
             next
               case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
               then show ?case
-                by (auto simp add: inv_def inv1_def) 
+                by (auto simp add: inv_def inv1_def, presburger) 
             next
               case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
 
@@ -626,12 +593,13 @@ proof M_show_programCorrect
               from NotExists_AtCommit
               show ?case 
                 by (auto simp add: inv_def inv1_def inv2_def inv3_def 
-                      i_callOriginI_h_update_to3 map_update_all_get updateHb_single)
+                      i_callOriginI_h_update_to3 map_update_all_get updateHb_single, meson)
+
 
             next
               case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
               then show ?case 
-                by (auto simp add: inv_def inv1_def) 
+                by (auto simp add: inv_def inv1_def, presburger) 
             qed
           qed
         qed
@@ -684,18 +652,17 @@ proof M_show_programCorrect
             show ?case
             proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3)
               case inv1
-              from `inv1 s_invocationOp' s_invocationRes'
-       (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
+              from `inv1 (s_invocationOp'(i \<mapsto> RemoveUser user)) (s_invocationRes'(i := None))
+                   (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
               show ?case
-                apply (auto simp add: inv1_def)
-                using inv1(14) state_monotonicGrowth_invocationOp_i by fastforce
+                by (auto simp add: inv1_def)
               
             next
               case inv2
-              from `inv2 s_invocationOp' (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
+              from `inv2 (s_invocationOp'(i \<mapsto> RemoveUser user)) (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
               show ?case 
                 apply (auto simp add: inv2_def i_callOriginI_h_update_to3   `\<And>c. s_callOrigin' c \<noteq> Some tx`)
-                using inv2(2) by force
+                using inv2(2) by force+
 
             next
               case inv3
@@ -708,7 +675,7 @@ proof M_show_programCorrect
              case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
             then show ?case
               apply (auto simp add: inv_def inv1_def)
-              by presburger
+              by presburger+
           qed
         qed
       qed
@@ -802,7 +769,11 @@ proof M_show_programCorrect
                     and c3: "i_callOriginI_h s_callOrigin' s_transactionOrigin' c' \<triangleq> r"
                     and c4: "c' \<in> vis'"
                   for  r c'
-                  by (meson \<open>\<And>thesis. (\<And>upd_c upd_op upd_r. \<lbrakk>upd_c \<in> vis'; is_update upd_op; s_calls' upd_c \<triangleq> Call (NestedOp (UserId user) upd_op) upd_r; \<forall>c'. c' \<in> vis' \<longrightarrow> (\<forall>r. s_calls' c' \<noteq> Some (Call (DeleteKey (UserId user)) r)) \<or> (c', upd_c) \<in> s_happensBefore'\<rbrakk> \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> c1 c3 inv1(21) inv1(22) inv2_def use_inv3')
+                  using c0 c1 c3 state_monotonicGrowth_invocationOp_i[OF inv1(17)]
+                    ` inv2 (s_invocationOp'(i \<mapsto> GetUser user)) (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
+                    use_inv3'[OF `inv3 s_calls' s_happensBefore'`]
+                     upd_c1 upd_c2 upd_c3
+                  by (auto simp add: inv2_def fun_upd_same  if_distrib_eq split: if_splits, blast)
 
                 show "g_res = NotFound"
                   if c0: "r \<noteq> i"
@@ -812,9 +783,10 @@ proof M_show_programCorrect
                     and r_g_hb: "(r, g) \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore'"
                     and c5: "s_invocationRes' g \<triangleq> g_res"
                   for  r g u g_res
-                  using \<open>inv1 s_invocationOp' s_invocationRes'
+                  using \<open>inv1 (s_invocationOp'(i \<mapsto> GetUser user)) (s_invocationRes'(i := None))
                          (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')\<close>
-                  using that  by (auto simp add: inv1_def)
+                  using that  by (auto simp add: inv1_def split: if_splits)
+
 
 
 
@@ -823,11 +795,11 @@ proof M_show_programCorrect
           next
             case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
             then show ?case 
-              by (auto simp add: inv_def inv1_def inv2_def inv3_def i_callOriginI_h_update_to3 map_update_all_get updateHb_cases in_sequence_cons)
+              by (auto simp add: inv_def inv1_def inv2_def inv3_def i_callOriginI_h_update_to3 map_update_all_get updateHb_cases in_sequence_cons split: if_splits, meson)
           next
             case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
             then show ?case 
-              by  (auto simp add: inv_def inv1_def     )
+              by  (auto simp add: inv_def inv1_def, presburger)
           qed
         qed
       qed

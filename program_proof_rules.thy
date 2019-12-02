@@ -530,8 +530,8 @@ lemma execution_s_check_beginAtomic:
       callOrigin = s_callOrigin',
       transactionOrigin = s_transactionOrigin', 
       knownIds = s_knownIds',
-      invocationOp = s_invocationOp', 
-      invocationRes = s_invocationRes'\<rparr>;
+      invocationOp = (s_invocationOp'(i := s_invocationOp i)), 
+      invocationRes = s_invocationRes'(i := None)\<rparr>;
 s_transactionOrigin' tx = None;
 \<And>i op. s_invocationOp i \<triangleq> op \<Longrightarrow> s_invocationOp' i \<triangleq> op;
 \<And>c. s_callOrigin' c \<noteq> Some tx;
@@ -726,8 +726,8 @@ proof show_proof_rule
 
         show " invariant progr
      \<lparr>calls = calls S'a, happensBefore = happensBefore S'a, callOrigin = callOrigin S'a,
-        transactionOrigin = transactionOrigin S', knownIds = knownIds S'a, invocationOp = invocationOp S'a,
-        invocationRes = invocationRes S'a\<rparr>"
+        transactionOrigin = transactionOrigin S', knownIds = knownIds S'a, invocationOp = (invocationOp S'a)(i := s_invocationOp i),
+        invocationRes = (invocationRes S'a)(i := None)\<rparr>"
         proof (fuzzy_rule inv)
           show "prog S1 = progr"
             by (simp add: Step)
@@ -744,8 +744,8 @@ proof show_proof_rule
 
           show "invContext S' =
            \<lparr>calls = calls S'a, happensBefore = happensBefore S'a, callOrigin = callOrigin S'a,
-            transactionOrigin = transactionOrigin S', knownIds = knownIds S'a, invocationOp = invocationOp S'a,
-           invocationRes = invocationRes S'a\<rparr>"
+            transactionOrigin = transactionOrigin S', knownIds = knownIds S'a, invocationOp = (invocationOp S'a)(i := s_invocationOp i),
+           invocationRes = (invocationRes S'a)(i := None)\<rparr>"
           proof (auto simp add: invContextH_def S'a_def cCalls allTransactionsCommitted)
             show "\<And>a b. (a, b) \<in> happensBefore S' |r dom (calls S') \<Longrightarrow> (a, b) \<in> happensBefore S'"
               by (simp add: restrict_relation_def)
@@ -753,6 +753,10 @@ proof show_proof_rule
               by (simp add: wf_S' happensBefore_in_calls_left happensBefore_in_calls_right restrict_relation_def)
             show " callOrigin S' |` dom (calls S') = callOrigin S'"
               by (metis wf_S' restrict_map_noop2 wellFormed_callOrigin_dom)
+            show "invocationOp S' = (invocationOp S')(i := s_invocationOp i)"
+              using Step(7) growth state_monotonicGrowth_invocationOp_i by fastforce
+            show "invocationRes S' = (invocationRes S')(i := None)"
+              by (simp add: c13 fun_upd_idem wf_S' wf_localState_noReturn)
           qed
         qed
 
