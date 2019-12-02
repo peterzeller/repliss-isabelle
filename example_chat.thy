@@ -407,22 +407,6 @@ lemma [simp]: "querySpec progr = crdtSpec" by (simp add: progr_def)
 lemma [simp]: "procedure progr = procedures" by (simp add: progr_def)
 lemma [simp]: "invariant progr = inv" by (simp add: progr_def)
 
-(*
-definition initialStates :: "('proc, 'ls, 'operation, 'any) prog \<Rightarrow> invocId \<Rightarrow> ('proc, 'ls, 'operation, 'any) state set"  where
-"initialStates progr i \<equiv> {
-    (S\<lparr>localState := (localState S)(i \<mapsto> initState),
-       currentProc := (currentProc S)(i \<mapsto> impl),
-       visibleCalls := (visibleCalls S)(i \<mapsto> {}),
-       invocationOp := (invocationOp S)(i \<mapsto> (procName, args))\<rparr>) 
- | S procName args initState impl.
-    prog S = progr
-  \<and> procedure progr procName args \<triangleq> (initState, impl)  
-  \<and> uniqueIdsInList args \<subseteq> knownIds S
-  \<and> invariant_all S
-  \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
-  \<and> invocationOp S i = None
-}"
-*)
 
 lemma initialStates_impl:
   assumes "S \<in> initialStates program i"

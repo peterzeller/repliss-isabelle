@@ -283,25 +283,9 @@ and "\<And>x y. S\<lparr>currentTransaction := y, visibleCalls := x\<rparr> = S\
 
 
 
-definition restrict_relation :: "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a rel" (infixl "|r"  110)
-  where "r |r A \<equiv> r \<inter> (A \<times> A)"
 
 
 abbreviation "committedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Committed }"
-
-find_consts "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a set"
-
-definition downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100)  where 
-  "S \<down> R \<equiv> S \<union> {x | x y . (x,y)\<in>R \<and> y\<in>S}"
-
-lemma downwardsClosure_in:
-  "x \<in> S \<down> R \<longleftrightarrow> (x\<in>S \<or> (\<exists>y\<in>S. (x,y)\<in>R))"
-  by (auto simp add: downwardsClosure_def)
-
-lemma downwardsClosure_subset:
-  "S \<down> R \<subseteq> S \<union> fst ` R"
-  by (auto simp add: downwardsClosure_in Domain.DomainI fst_eq_Domain)
-
 
 
 
@@ -638,7 +622,7 @@ inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<
                 happensBefore := happensBefore S \<union> vis \<times> {c}  \<rparr>)"              
 
 | invocation:
-  "\<lbrakk>localState S i = None; \<comment> \<open>  TODO this might not be necessary  \<close>
+  "\<lbrakk>localState S i = None;
    procedure (prog S) proc = (initialState, impl);
    uniqueIds proc \<subseteq> knownIds S;
    invocationOp S i = None

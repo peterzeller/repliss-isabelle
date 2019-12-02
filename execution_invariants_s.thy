@@ -21,7 +21,7 @@ definition initialStates :: "('proc::valueType, 'ls, 'operation, 'any::valueType
   \<and> procedure progr proc = (initState, impl)  
   \<and> uniqueIds proc \<subseteq> knownIds S
   \<and> invariant_all S
-  \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
+  \<and> state_wellFormed S 
   \<and> invocationOp S i = None
   \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted)
   \<and> (\<forall>tx. transactionOrigin S tx \<noteq> Some i)
@@ -159,19 +159,10 @@ next
   qed
 qed
 
-(*TODO could use lemma state_wellFormed_s_to_wf above to simplify lemmas below*)
 
 lemma wf_s_localState_to_invocationOp:
   "\<lbrakk>state_wellFormed_s S i; localState S i \<noteq> None\<rbrakk> \<Longrightarrow> invocationOp S i \<noteq> None"
-proof (induct rule: state_wellFormed_s_induct)
-  case (initial progr)
-  then show ?case by (auto simp add: initialStates_def wf_localState_to_invocationOp state_wellFormed_init )
-
-next
-  case (step tr S a S' progr)
-  then show ?case 
-    by (auto simp add: step_s.simps wf_localState_to_invocationOp dest!: wf_localState_to_invocationOp)
-qed
+  by (meson state_wellFormed_s_to_wf wellFormed_invoc_notStarted(2))
 
 lemma wf_s_localState_to_invocationOp2:
   "\<lbrakk>state_wellFormed_s S i; localState S i \<triangleq> x\<rbrakk> \<Longrightarrow> \<exists>p. invocationOp S i \<triangleq> p"
@@ -180,29 +171,16 @@ lemma wf_s_localState_to_invocationOp2:
 lemma wellFormed_s_invoc_notStarted1:
   assumes "state_wellFormed_s S i"
     and "invocationOp S i = None"
-  shows "currentTransaction S i = None"      
-  using assms proof (induct rule: state_wellFormed_s_induct)
-  case (initial progr)
-  then show ?case by (auto simp add: initialState_def)
-next
-  case (step tr S a S' progr)
-  then show ?case 
-    by (auto simp add: step_s.simps wf_localState_to_invocationOp)
-qed
+  shows "currentTransaction S i = None"
+  using assms state_wellFormed_s_to_wf wellFormed_invoc_notStarted(1) by auto     
 
 
 lemma wellFormed_s_invoc_notStarted2:
   assumes "state_wellFormed_s S i"
     and "invocationOp S i = None"
   shows  "localState S i = None"
-  using assms proof (induct rule: state_wellFormed_s_induct)
-  case (initial progr)
-  then show ?case by (auto simp add: initialState_def)
-next
-  case (step tr S a S' progr)
-  then show ?case 
-    by (auto simp add: step_s.simps wf_localState_to_invocationOp)
-qed
+  using assms wf_s_localState_to_invocationOp by blast
+
 
 
 lemma unchangedProg:

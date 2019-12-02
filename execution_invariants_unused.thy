@@ -203,7 +203,6 @@ lemma i_callOriginI_notI2:
 text \<open>
 Updating the invocId happens-before in the first transaction of an invocId.
 
-TODO Problem: second transaction could remove HB. Maybe just consider HB with finished invocations on the left (and on the right?)
 \<close>
 lemma invocation_happensBeforeH_update:
   assumes  Orig'_def: "\<And>c. Orig' c = (case Orig c of Some i \<Rightarrow> Some i | None \<Rightarrow> if c\<in>set cs then Some i else None)"

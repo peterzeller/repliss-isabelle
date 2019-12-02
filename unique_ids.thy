@@ -45,6 +45,10 @@ definition query_cannot_guess_ids :: "uniqueId set \<Rightarrow> (('operation::v
   \<forall>ctxt res. 
    spec ctxt res \<longrightarrow> uniqueIds res \<subseteq> oprUids \<union> \<Union>{uniqueIds (call_operation c) | cId c. calls ctxt cId \<triangleq> c}"
 
+lemma exists_call_expand:
+"(\<exists>c. P c) \<longleftrightarrow> (\<exists>op r. P (Call op r))"
+  by (auto, metis call.collapse)
+
 lemma query_cannot_guess_ids_def2:
   "query_cannot_guess_ids oprUids spec =
   (\<forall>ctxt res x. 
@@ -52,12 +56,7 @@ lemma query_cannot_guess_ids_def2:
  \<longrightarrow> x \<in> uniqueIds res 
  \<longrightarrow> x \<notin> oprUids
  \<longrightarrow> (\<exists>cId opr res. calls ctxt cId \<triangleq> Call opr res \<and> x \<in> uniqueIds opr))"
-  apply (auto simp add: query_cannot_guess_ids_def)
-   apply ((drule spec)+,drule(1) mp) 
-   apply (drule(1) subsetD)
-   apply auto
-   apply (metis call.collapse)
-  by (metis call.sel(1))
+  by (auto simp add: query_cannot_guess_ids_def subset_iff exists_call_expand, blast+)
 
 definition queries_cannot_guess_ids :: "('operation \<Rightarrow> ('operation::valueType, 'any::valueType) operationContext \<Rightarrow> 'any \<Rightarrow> bool) \<Rightarrow> bool"  where
   "queries_cannot_guess_ids spec \<equiv> 
@@ -157,10 +156,9 @@ proof -
     proof (intro allI conjI impI, elim conjE)
 
       show "knownIds S2 \<subseteq> dom (generatedIds S2)"
-        using `S1 ~~ a \<leadsto> S2` inv2
-        apply (auto simp add: step.simps)
-         apply blast
-        by (meson in_dom inv1 pcgi_return_case subsetD) 
+        using `S1 ~~ a \<leadsto> S2` inv2 
+        by (auto simp add: step.simps dest!: pcgi_return_case inv1 split: if_splits, blast+ )
+
 
 
 
@@ -172,30 +170,27 @@ proof -
         case (local i ls f ls')
         then show ?thesis
           using c0 c1
-          apply (auto simp add: inv1 split: if_splits)
-          apply (meson inv1 pcgi_local_case)
-          done
+          by (auto simp add: inv1 split: if_splits, meson inv1 pcgi_local_case)
       next
         case (newId i ls f ls' uid uidv ls'')
         then show ?thesis using c0 c1
-          apply (auto simp add: inv1 split: if_splits)
-           apply (smt Un_insert_right insertI1 insert_subset inv1 pcgi_newId_case subset_insertI2 sup_bot.right_neutral)
-          by (meson inv1 subset_insertI2)
+          by (auto simp add: inv1 split: if_splits,
+           smt Un_insert_right insertI1 insert_subset inv1 pcgi_newId_case subset_insertI2 sup_bot.right_neutral,
+           meson inv1 subset_insertI2)
       next
         case (beginAtomic i ls f ls' t vis snapshot)
         then show ?thesis using c0 c1
-          apply (auto simp add: inv1 split: if_splits)
-          by (meson inv1 pcgi_beginAtomic_case)
+          by (auto simp add: inv1 split: if_splits, 
+              meson inv1 pcgi_beginAtomic_case)
       next
         case (endAtomic i ls f ls' t)
         then show ?thesis using c0 c1
-          apply (auto simp add: inv1 split: if_splits)
-          by (meson inv1 pcgi_endAtomic_case)
+          by (auto simp add: inv1 split: if_splits,
+             meson inv1 pcgi_endAtomic_case)
       next
         case (dbop i'' ls1 f Op ls2 t c res vis)
         then show ?thesis using c0 c1
-          apply (auto simp add: inv1 a_def split: if_splits)
-        proof -
+        proof (auto simp add: inv1 a_def split: if_splits)
 
           show "\<exists>uids\<subseteq>dom (generatedIds S1). procedure_cannot_guess_ids uids (ls2 res) impl'"
             if c0: "f = impl'"
@@ -251,22 +246,20 @@ proof -
                     and c1: "calls (getContextH (calls S1) (happensBefore S1) (Some vis)) cId \<triangleq> Call opr res"
                   for  cId opr res
                   using that
-                  apply (auto simp add: getContextH_def restrict_map_def split: if_splits)
-                  by (meson domD in_mono inv3)
+                  by (auto simp add: getContextH_def restrict_map_def split: if_splits,
+                      meson domD in_mono inv3)
               qed
 
               with this
               show "uids \<union> uniqueIds res \<subseteq> dom (generatedIds S1)"
-                apply auto
-                using \<open>uids \<subseteq> dom (generatedIds S1)\<close> by blast
+                using \<open>uids \<subseteq> dom (generatedIds S1)\<close> by auto
             qed
           qed
         qed
       next
         case (invocation i proc initialState impl)
         then show ?thesis using c0 c1
-          apply (auto simp add: inv1 split: if_splits)
-          by (metis (no_types, lifting) \<open>procedures_cannot_guess_ids (procedure progr)\<close> inv2 show_procedures_cannot_guess_ids subset_Un_eq subset_refl subset_trans)
+          by (auto simp add: inv1 split: if_splits, metis (no_types, lifting) \<open>procedures_cannot_guess_ids (procedure progr)\<close> inv2 show_procedures_cannot_guess_ids subset_Un_eq subset_refl subset_trans)
       next
         case (return i ls f res)
         then show ?thesis using c0 c1
@@ -441,8 +434,7 @@ lemma wf_onlyGeneratedIdsInInvocationOps:
 next
   case (step t a s)
   then show ?case 
-    apply (auto simp add: step.simps split: if_splits, goal_cases "new_invoc")
-    using wf_onlyGeneratedIdsInKnownIds by blast
+    using wf_onlyGeneratedIdsInKnownIds by (auto simp add: step.simps split: if_splits, goal_cases "new_invoc", blast)
 qed
 
 lemma wf_onlyGeneratedIdsInInvocationRes:
@@ -459,8 +451,8 @@ lemma wf_onlyGeneratedIdsInInvocationRes:
 next
   case (step t a s)
   then show ?case 
-    apply (auto simp add: step.simps split: if_splits, goal_cases "new_invoc")
-    by (smt domIff pcgi_return_case subset_iff wf_knownIds_subset_generatedIds_h(1))
+    by (auto simp add: step.simps split: if_splits, goal_cases "new_invoc",
+       smt domIff pcgi_return_case subset_iff wf_knownIds_subset_generatedIds_h(1))
 
 qed
 

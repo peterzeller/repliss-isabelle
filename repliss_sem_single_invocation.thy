@@ -13,48 +13,6 @@ definition
 definition state_monotonicGrowth :: "invocId \<Rightarrow> ('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
 "state_monotonicGrowth i S S' \<equiv> state_wellFormed S \<and> (\<exists>tr. (S ~~ tr \<leadsto>* S') \<and> (\<forall>(i',a)\<in>set tr. i' \<noteq> i) \<and> (\<forall>i. (i, AFail) \<notin> set tr))"
 
-\<comment> \<open>TODO add definitions\<close>
-   \<comment> \<open>monotonic growth of visible calls\<close>
-   \<comment> \<open>monotonic growth of callops\<close>
-   \<comment> \<open>monotonic growth of happens-before\<close>
-   \<comment> \<open>--> no new calls can be added before\<close>
-   \<comment> \<open>monotonic growth of sameTransaction\<close>
-   \<comment> \<open>monotonic growth of origin\<close>
-   \<comment> \<open>monotonic growth of invocations\<close>
-   \<comment> \<open>monotonic growth of invocId result\<close>
-   \<comment> \<open>monotonic growth of invocId happens-before\<close>
-   \<comment> \<open>--> no new calls can be added before\<close>
-(*
-definition state_monotonicGrowth :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
-"state_monotonicGrowth S' S \<equiv> 
-      \<comment> \<open> monotonic growth of i calls \<close>
-      \<and>  (\<forall>c i. calls S' c \<triangleq> i \<longrightarrow> calls S c \<triangleq> i)
-      (*monotonic growth of happensBefore 
-         --> no new calls can be added before existing calls *)
-      \<and> (\<forall>c1 c2. c2\<in>dom (calls S') \<longrightarrow> ((c1,c2)\<in>happensBefore S \<longleftrightarrow> (c1,c2)\<in>happensBefore S'))
-      \<comment> \<open>  monotonic growth of callOrigin  \<close>
-      \<and> (\<forall>c t. callOrigin S' c \<triangleq> t \<longrightarrow> callOrigin S c \<triangleq> t)
-      \<comment> \<open>  monotonic growth of generatedIds  \<close>
-      \<and> (\<forall>uid i. generatedIds S' uid \<triangleq> i \<longrightarrow> generatedIds S uid \<triangleq> i)
-      \<comment> \<open>  growth of known ids  \<close>
-      \<and> knownIds S' \<subseteq> knownIds S
-      \<comment> \<open>  monotonic growth of invocationOp  \<close>
-      \<and> (\<forall>s i. invocationOp S' s \<triangleq> i \<longrightarrow> invocationOp S s \<triangleq> i)
-      \<comment> \<open>  monotonic growth of invocationRes  \<close>
-      \<and> (\<forall>s i. invocationRes S' s \<triangleq> i \<longrightarrow> invocationRes S s \<triangleq> i)
-      \<comment> \<open>  transactionStatus ??? may change, irrelevant  \<close>
-      \<and> (\<forall>tx. transactionStatus S' tx \<le> transactionStatus S tx )
-      \<comment> \<open>  no new calls are added to committed transactions  \<close>
-      \<and> state_monotonicGrowth_txStable (callOrigin S) (callOrigin S') (transactionStatus S')
-      \<comment> \<open>  monotonic growth of transaction origin   \<close>
-      \<and> (\<forall>t i . transactionOrigin S' t \<triangleq> i \<longrightarrow> transactionOrigin S t \<triangleq> i)
-      \<comment> \<open>  no new calls are added before existing calls  \<close>
-      \<and> (\<forall>c c' x y. calls S' c = None \<and> calls S c \<triangleq> x \<and> calls S' c' \<triangleq> y  \<longrightarrow> (c,c') \<notin> happensBefore S')
-      \<comment> \<open>  no new calls are added to committed transactions  \<close>
-      \<and> (\<forall>c tx. callOrigin S c \<triangleq> tx \<and> calls S' c = None  \<longrightarrow> transactionStatus S' tx \<noteq> Some Committed)
-      \<comment> \<open>  Program unchanged  \<close>
-      \<and> prog S = prog S'"
-*)
 
 lemma state_monotonicGrowth_refl: "state_wellFormed S \<Longrightarrow> state_monotonicGrowth i S S"
   by (auto simp add: state_monotonicGrowth_def exI[where x="[]"] steps_empty)
@@ -251,7 +209,6 @@ state_monotonicGrowth_no_new_calls_in_committed_transactions
 state_monotonicGrowth_transactionOrigin
 
 
-\<comment> \<open>TODO remove definition\<close>
 text \<open>Invariant holds for state\<close>
 abbreviation invariant_all :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
 "invariant_all state \<equiv>  invariant (prog state) (invContext state)"
@@ -313,7 +270,7 @@ inductive step_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state 
    f ls = BeginAtomic ls';
    currentTransaction S i = None;
    transactionStatus S t = None;
-   \<comment> \<open> we assume a nondeterministic state change to C' here TODO add more restrictions \<close>
+   \<comment> \<open> we assume a nondeterministic state change to C' here \<close>
    prog S' = prog S;
    state_monotonicGrowth i S S';
    \<And>t. transactionOrigin S t \<triangleq> i \<longleftrightarrow> transactionOrigin S' t \<triangleq> i; \<comment> \<open>No new transactions are added to current invocId.\<close>
@@ -371,25 +328,23 @@ inductive step_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state 
    invocationOp S i = None;
    procedure (prog S) proc = (initState, impl);
    uniqueIds proc \<subseteq> knownIds S';
-   \<comment> \<open>   TODO add welformedness?  \<close>
    state_wellFormed S';
    \<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted;
    invariant_all S';
    invocationOp S' i = None;
    prog S' = prog S;
-   \<comment> \<open>  TODO some connection between C and C' or allow anything that preserves invariant? maybe C is not needed at all?  \<close>
    S'' = (S'\<lparr>localState := (localState S')(i \<mapsto> initState),
                  currentProc := (currentProc S')(i \<mapsto> impl),
                  visibleCalls := (visibleCalls S')(i \<mapsto> {}),
                  invocationOp := (invocationOp S')(i \<mapsto> proc) \<rparr>);
-   valid = invariant_all S'';  \<comment> \<open>  TODO check invariant in C ?  \<close>            
+   valid = invariant_all S''; 
    \<And>tx. transactionOrigin S'' tx \<noteq> Some i
    \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc proc, valid) \<leadsto>\<^sub>S S''"        
 | return:
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
    f ls = Return res;
-   currentTransaction S i = None; \<comment> \<open>  TODO maybe we can assume invariant-all for C?  \<close>
+   currentTransaction S i = None; 
    S' = (S\<lparr>localState := (localState S)(i := None),
                  currentProc := (currentProc S)(i := None),
                  visibleCalls := (visibleCalls S)(i := None),

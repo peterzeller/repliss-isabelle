@@ -517,16 +517,7 @@ proof show_proof_rule
 qed
 
 
-(* TODO utils *)
-lemma restrict_map_noop: "dom m \<subseteq> S \<Longrightarrow> m |` S = m"
-   using domIff by (auto simp add: restrict_map_def intro!: ext, force)
 
-
-lemma restrict_map_noop2[simp]: "m |` dom m = m"
-  by (simp add: restrict_map_noop)
-
-lemma restrict_relation_noop: "Field r \<subseteq> S \<Longrightarrow> r |r S = r"
-  by (auto simp add: restrict_relation_def FieldI1 FieldI2 subset_h1)
 
 
 lemma execution_s_check_beginAtomic:
@@ -600,21 +591,6 @@ state_monotonicGrowth i \<lparr>
   currentProc = some_currentProc2,
   visibleCalls =  some_visibleCalls2,
   currentTransaction = some_currentTransaction2\<rparr>
-
-
-
-\<comment> \<open>
-
-
-
-TODO: 
-- no calls in new transaction
-- state-growing predicates
-- vis growing
-- valid snapshot (causally + transactionally + session guarantees)
-- nothing happens on invocation i
-\<close>
-
 \<rbrakk> \<Longrightarrow> execution_s_check
   progr 
   i

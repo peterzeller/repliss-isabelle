@@ -384,5 +384,45 @@ lemma exists_cases2:
 
 
 
+definition restrict_relation :: "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a rel" (infixl "|r"  110)
+  where "r |r A \<equiv> Restr r A" \<comment> \<open>This is a definition because Restr is just an abbreviation 
+                                 and does not behave well when using methods like auto.\<close>
+
+definition downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100)  where 
+  "S \<down> R \<equiv> S \<union> {x | x y . (x,y)\<in>R \<and> y\<in>S}"
+
+lemma downwardsClosure_in:
+  "x \<in> S \<down> R \<longleftrightarrow> (x\<in>S \<or> (\<exists>y\<in>S. (x,y)\<in>R))"
+  by (auto simp add: downwardsClosure_def)
+
+lemma downwardsClosure_subset:
+  "S \<down> R \<subseteq> S \<union> fst ` R"
+  by (auto simp add: downwardsClosure_in Domain.DomainI fst_eq_Domain)
+
+
+
+lemma restrict_map_noop: "dom m \<subseteq> S \<Longrightarrow> m |` S = m"
+   using domIff by (auto simp add: restrict_map_def intro!: ext, force)
+
+
+lemma restrict_map_noop2[simp]: "m |` dom m = m"
+  by (simp add: restrict_map_noop)
+
+lemma restrict_relation_noop: "Field r \<subseteq> S \<Longrightarrow> r |r S = r"
+  by (auto simp add: restrict_relation_def FieldI1 FieldI2 subset_h1)
+
+
+text "A definition that is not automatically expanded:" 
+definition Def (infix "::=" 50) where
+"x ::= y \<equiv> x = y"
+
+definition DefSome (infix "::\<triangleq>" 50) where
+"x ::\<triangleq> y \<equiv> y = Some x"
+
+
+lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or> (\<exists>n. P (Suc n)))"
+  using zero_induct by blast
+
+
 
 end

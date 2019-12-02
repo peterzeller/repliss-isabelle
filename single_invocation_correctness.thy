@@ -128,260 +128,10 @@ case (Cons a cs)
 qed
 
 
-\<comment> \<open>TODO remove?\<close>
 abbreviation invariant_all' :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
 "invariant_all' state \<equiv>  invariant (prog state) (invContext' state)"
 
 
-(*
-\<comment> \<open>check program (with a given start-state, bound by a number of steps)\<close>
-definition checkCorrectF :: "(('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) prog \<times> ('proc, 'ls, 'operation, 'any) state \<times> invocId \<Rightarrow> bool) 
-                           \<Rightarrow> ('proc, 'ls, 'operation, 'any) prog \<times> ('proc, 'ls, 'operation, 'any) state \<times> invocId \<Rightarrow> bool" where
-"checkCorrectF \<equiv> (\<lambda>checkCorrect' (progr, S, i).
-(case currentProc S i of
-    None \<Rightarrow> True
-  | Some impl \<Rightarrow>
-      (case impl (the (localState S i)) of
-          LocalStep ls \<Rightarrow> 
-            checkCorrect' (progr, (S\<lparr>localState := (localState S)(i \<mapsto> ls)\<rparr>), i)
-        | BeginAtomic ls' \<Rightarrow> 
-            currentTransaction S i = None
-            \<and> (\<forall>t S' vis newTxns S'' vis' ls.
-               localState S i \<triangleq> ls
-              \<and> currentTransaction S i = None
-              \<and> transactionStatus S t = None
-              \<and> prog S' = prog S
-              \<and> invariant_all' S'
-              \<and> (\<forall>tx. transactionStatus S' tx \<noteq> Some Uncommitted)
-              \<and> state_wellFormed S'
-              \<and> state_wellFormed S''
-              \<and> state_monotonicGrowth i S S'
-              \<and> (\<forall>t. transactionOrigin S' t \<triangleq> i \<longleftrightarrow> transactionOrigin S t \<triangleq> i)
-              \<and> localState S' i \<triangleq> ls
-              \<and> currentProc S' i \<triangleq> impl
-              \<and> currentTransaction S' i = None
-              \<and> visibleCalls S i \<triangleq> vis
-              \<and> visibleCalls S' i \<triangleq> vis
-              \<and> vis' = (vis \<union> callsInTransaction S' newTxns \<down> happensBefore S')
-              \<and> newTxns \<subseteq> dom (transactionStatus S')
-              \<and> consistentSnapshot S' vis'
-              \<and> transactionStatus S' t = None
-              \<and> (\<forall>c. callOrigin S' c \<noteq> Some t)
-              \<and> transactionOrigin S' t = None
-              \<and> (S'' = S'\<lparr>transactionStatus := (transactionStatus S')(t \<mapsto> Uncommitted),
-                          transactionOrigin := (transactionOrigin S')(t \<mapsto> i),
-                          currentTransaction := (currentTransaction S')(i \<mapsto> t),
-                          localState := (localState S')(i \<mapsto> ls'),
-                          visibleCalls := (visibleCalls S')(i \<mapsto> vis')
-                \<rparr>)
-              \<longrightarrow> checkCorrect' (progr, S'' , i))
-        | EndAtomic ls \<Rightarrow> 
-            (case currentTransaction S i of
-                None \<Rightarrow> False
-              | Some t \<Rightarrow>
-                let S' = (S\<lparr>
-                  localState := (localState S)(i \<mapsto> ls), 
-                  currentTransaction := (currentTransaction S)(i := None),
-                  transactionStatus := (transactionStatus S)(t \<mapsto> Committed) \<rparr>) in
-                  (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) 
-                  \<and> state_wellFormed S'
-                    \<longrightarrow> (invariant_all' S'
-                         \<and> (invariant_all' S' \<longrightarrow> checkCorrect' (progr, S', i)))
-            )
-        | NewId ls \<Rightarrow> 
-          (\<forall>uid ls'.
-            generatedIds S uid = None
-           \<and> ls uid \<triangleq> ls'
-           \<and> uniqueIds uid = {uid}
-            \<longrightarrow> checkCorrect' (progr, (S\<lparr>localState := (localState S)(i \<mapsto> ls'), generatedIds := (generatedIds S)(uid \<mapsto> i) \<rparr>), i)
-          )
-        | DbOperation Op args ls \<Rightarrow> 
-           (case currentTransaction S i of
-                None \<Rightarrow> False
-              | Some t \<Rightarrow>
-                  (\<exists>res. querySpec progr Op args (getContext S i) res)
-                  \<and>
-                  (\<forall>c res vis. 
-                      calls S c = None
-                    \<and> querySpec progr Op args (getContext S i) res
-                    \<and> visibleCalls S i \<triangleq> vis
-                    \<longrightarrow> checkCorrect' (progr, (S\<lparr>
-                          localState := (localState S)(i \<mapsto> ls res), 
-                          calls := (calls S)(c \<mapsto> Call Op args res ),
-                          callOrigin := (callOrigin S)(c \<mapsto> t),
-                          visibleCalls := (visibleCalls S)(i \<mapsto> vis \<union> {c}),
-                          happensBefore := updateHb (happensBefore S) vis [c]  \<rparr>), i)
-                  )
-           )
-        | Return res \<Rightarrow> 
-            currentTransaction S i = None
-            \<and> (let S' = (S\<lparr>
-                 localState := (localState S)(i := None),
-                 currentProc := (currentProc S)(i := None),
-                 visibleCalls := (visibleCalls S)(i := None),
-                 invocationRes := (invocationRes S)(i \<mapsto> res),
-                 knownIds := knownIds S \<union> uniqueIds res\<rparr>) in
-               (\<forall>t. transactionStatus S' t \<noteq> Some Uncommitted) \<longrightarrow> invariant_all' S'    
-            )
-        )))
-"
-
-
-
-lemma checkCorrectF_mono:
-"mono checkCorrectF"
-proof (rule monoI)
-  show "checkCorrectF x \<le> checkCorrectF y" if c0: "x \<le> y"  for  x :: "(('ls, 'any::valueType) prog \<times> ('proc, 'ls, 'operation, 'any) state \<times> invocId \<Rightarrow> bool)" and y
-    by (auto simp add: checkCorrectF_def Let_def intro: predicate1D[OF \<open>x \<le> y\<close>] split: option.splits localAction.splits)
-
-qed
-
-
-definition checkCorrect :: "('ls, 'any::valueType) prog \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> invocId \<Rightarrow> bool" where
- "checkCorrect progr S i \<equiv> lfp checkCorrectF (progr, S, i)"
-
-
-
-schematic_goal checkCorrect_simps:
-  "checkCorrect progr S i = ?F"
-  apply (subst checkCorrect_def)
-  apply (subst lfp_unfold)
-  apply (simp add: checkCorrectF_mono)
-  apply (subst checkCorrectF_def)
-  apply (fold checkCorrect_def)
-  apply (rule refl)
-  done
-
-
-lemma checkCorrect_noProc:
-  assumes "currentProc S i = None"
-  shows "checkCorrect progr S i"
-  using assms by (auto simp add: checkCorrect_simps)
-
-
-
-lemma prog_invariant:
-  assumes steps: "S_start ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
-  shows "prog S_fin = prog S_start"
-  using steps proof (induct rule: step_s_induct)
-  case initial
-  then show ?case by auto
-next
-  case (step tr S a S')
-  then show ?case 
-    by (auto simp add: step_s.simps)
-qed
-*)
-(*
-
-lemma checkCorrect_traceCorrect:
-  assumes check: "checkCorrect program S_start i bound"
-    and steps: "S_start ~~ (i, trace) \<leadsto>\<^sub>S* S_fin"
-    and trace_len: "length trace < bound"
-    and prog: "prog S_start = program"
-    and noInvocation: "\<And>a c. (a,c)\<in>set trace \<Longrightarrow> \<not> isAInvoc a"
-  shows "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
-  using steps check trace_len noInvocation proof (induct "length trace" arbitrary: S_fin trace)
-  case 0
-  hence [simp]: "trace = []" by simp
-  with `S_start ~~ (i, trace) \<leadsto>\<^sub>S* S_fin` 
-  have [simp]: "S_fin = S_start"
-    by (simp add: steps_s_empty) 
-
-  from `checkCorrect program S_start i bound` 
-  show ?case
-    by (auto simp add: traceCorrect_s_def )
-next
-  case (Suc n)
-
-  from `Suc n = length trace`
-  obtain tr a where trace_split: "trace = tr@[a]"
-    by (metis Zero_not_Suc list.size(3) rev_exhaust)
-
-  with `S_start ~~ (i, trace) \<leadsto>\<^sub>S* S_fin`  
-  obtain S where steps_tr: "S_start ~~ (i, tr) \<leadsto>\<^sub>S* S" and step_a: "S ~~ (i, a) \<leadsto>\<^sub>S S_fin"
-    using steps_s_append_simp steps_s_single by blast
-
-
-  have IH: "traceCorrect_s program tr \<and> checkCorrect program S i (bound - length tr)"
-  proof (rule Suc.hyps)
-    show "n = length tr"
-      using Suc.hyps(2) trace_split by auto
-    show "S_start ~~ (i, tr) \<leadsto>\<^sub>S* S" using steps_tr .
-    show "checkCorrect program S_start i bound" using `checkCorrect program S_start i bound` .
-    show "length tr < bound"
-      using Suc.hyps(2) Suc.prems(3) \<open>n = length tr\<close> by linarith 
-    show "\<And>a c. (a, c) \<in> set tr \<Longrightarrow> \<not> isAInvoc a"
-      using Suc.prems(4) trace_split by auto
-  qed
-  hence "traceCorrect_s program tr" and "checkCorrect program S i (bound - length tr)" by auto
-
-  obtain bound' where bound'_def: "bound - length tr = Suc bound'"
-    by (metis Suc.prems(3) Suc_diff_Suc Suc_lessD length_append_singleton trace_split) 
-
-  hence checkCorrect_S: "checkCorrect program S i (Suc bound')"
-    using `checkCorrect program S i (bound - length tr)` by simp
-
-  have [simp]: "bound - length trace = bound'"
-    by (metis Suc_diff_Suc Suc_inject bound'_def length_append_singleton trace_split zero_less_Suc zero_less_diff)  
-
-  have [simp]: "prog S = program"
-    using prog prog_invariant steps_tr by blast
-
-  have a_not_invoc: "\<not> isAInvoc (fst a)"
-    by (metis Suc.prems(4) list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1 trace_split)
-
-
-  from step_a
-  have "snd a \<and> checkCorrect program S_fin i (bound - length trace)" 
-  proof (cases rule: step_s.cases)
-    case (local ls f ls')
-    then show ?thesis 
-      using checkCorrect_S by auto
-
-
-  next
-    case (newId ls f ls' uid)
-    then show ?thesis using checkCorrect_S by auto
-  next
-    case (beginAtomic ls f ls' t txns)
-    then show ?thesis 
-      using checkCorrect_S apply auto
-      by (metis local.beginAtomic(15))
-
-  next
-    case (endAtomic ls f ls' t valid)
-    then show ?thesis 
-      using checkCorrect_S apply auto
-        apply (auto simp add: split: if_splits)
-
-
-  next
-    case (dbop ls f Op args ls' t c res vis)
-    then show ?thesis 
-      using checkCorrect_S by auto
-  next
-    case (invocation procName args initState impl C' valid)
-    then show ?thesis 
-      using a_not_invoc by (case_tac a, auto simp add: isAInvoc_def)
-  next
-    case (return ls f res valid)
-    then show ?thesis using checkCorrect_S 
-      apply (case_tac bound', auto)
-      apply (metis Suc.prems(3) \<open>bound - length trace = bound'\<close> less_numeral_extra(3) zero_less_diff)
-
-  qed
-  thus "traceCorrect_s program trace \<and> checkCorrect program S_fin i (bound - length trace)"
-    apply auto
-    by (metis IH Pair_inject Un_insert_right append_Nil2 insert_iff list.set(2) prod.collapse set_append traceCorrect_s_def trace_split)
-
-qed  
-
-
-*)
-(*
-now we have it without invocations, so we have to prove that invocations can only be at the beginning, then we are in initial states ...
-*)
 
 lemma use_map_le:
   assumes "m x \<triangleq> y" and "m  \<subseteq>\<^sub>m m'"
@@ -431,21 +181,13 @@ next
 
 qed
 
-(*
-lemma wf_localState_has_invocationOp:
-assumes wf: "state_wellFormed S"
-    and ls: "localState S i \<triangleq> ls"
-shows "invocationOp S i \<noteq> None"  
-using assms
-  using wellFormed_invoc_notStarted(2) by fastforce 
-*)
 
 lemma has_invocationOp_afterOneStep:
   assumes step: "S ~~ (i, a) \<leadsto>\<^sub>S S'"
     and wf: "state_wellFormed_s S i"
   shows "invocationOp S' i \<noteq> None"   
-  using step wf apply (auto simp add: step_s.simps wf_s_localState_to_invocationOp2)
-  by (meson state_monotonicGrowth_invocationOp wf_s_localState_to_invocationOp2)
+  using step wf by (auto simp add: step_s.simps wf_s_localState_to_invocationOp2,
+    meson state_monotonicGrowth_invocationOp wf_s_localState_to_invocationOp2)
 
 
 
@@ -537,8 +279,8 @@ lemma initialState_noTxns1:
 lemma initialState_noTxns2:
   assumes initS: "S \<in> initialStates program i"
   shows "currentTransaction S i' = None"
-  using initS apply (auto simp add: initialStates_def)
-  by (meson option.exhaust wellFormed_currentTransaction_unique_h(2))
+  using initS by (auto simp add: initialStates_def,
+      meson option.exhaust wellFormed_currentTransaction_unique_h(2))
 
 
 lemma steps_s_noOtherTx:
@@ -558,8 +300,8 @@ next
 
   from \<open>S ~~ (i, a) \<leadsto>\<^sub>S S'\<close> 
   show ?case 
-    using \<open>i' \<noteq> i\<close> apply (auto simp add: step_s.simps \<open>currentTransaction S i' = None\<close>)
-    by (meson option.exhaust wellFormed_currentTransaction_unique_h(2))+
+    using \<open>i' \<noteq> i\<close> by (auto simp add: step_s.simps \<open>currentTransaction S i' = None\<close>,
+        (meson option.exhaust wellFormed_currentTransaction_unique_h(2))+)
 qed
 
 lemma state_wellFormed_combine1:
@@ -614,8 +356,8 @@ from \<open>S ~~ (i, a) \<leadsto>\<^sub>S S'\<close>
   next
     case (invocation C s proc initState impl C' C'' valid)
     then have "C' ~~ (i, AInvoc proc) \<leadsto> C''"
-      apply (auto simp add: step.simps)
-      using wf_localState_to_invocationOp by blast+
+      by (auto simp add: step.simps,
+        insert wf_localState_to_invocationOp, blast+)
 
     then show ?case
       using \<open>state_wellFormed C'\<close> \<open>S' = C''\<close> state_wellFormed_combine1 by blast
@@ -632,13 +374,33 @@ lemma committedCalls_allCommitted:
   assumes wf: "state_wellFormed S"
     and noUncommitted: "\<And>t. transactionStatus S t \<noteq> Some Uncommitted"
   shows "committedCalls S = dom (calls S)"
-  apply (auto simp add: committedCallsH_def isCommittedH_def )
-   apply (simp add: domD domIff local.wf wellFormed_callOrigin_dom3)
-  apply (case_tac "callOrigin S x", auto)
-  apply (metis local.wf option.distinct(1) wellFormed_callOrigin_dom3)
-  by (metis (full_types) domD domIff local.wf noUncommitted transactionStatus.exhaust wellFormed_state_callOrigin_transactionStatus)
+proof (auto simp add: committedCallsH_def isCommittedH_def )
+
+  
+
+  show "\<exists>y. calls S x \<triangleq> y"
+    if c0: "callOrigin S x \<triangleq> tx"
+      and c1: "transactionStatus S tx \<triangleq> Committed"
+    for  x tx
+    using that  by (simp add: domD domIff local.wf wellFormed_callOrigin_dom3)
+
+  
+
+  show "\<exists>tx. callOrigin S x \<triangleq> tx \<and> transactionStatus S tx \<triangleq> Committed"
+    if c0: "calls S x \<triangleq> y"
+    for  x y
+  proof - 
+    obtain tx where "callOrigin S x \<triangleq> tx"
+      by (metis c0 domD domI local.wf wellFormed_callOrigin_dom)
+
+    moreover have "transactionStatus S tx \<triangleq> Committed"
+      by (metis (full_types) \<open>callOrigin S x \<triangleq> tx\<close> domD domIff local.wf noUncommitted transactionStatus.exhaust wf_no_transactionStatus_origin_for_nothing)
 
 
+    ultimately show "\<exists>tx. callOrigin S x \<triangleq> tx \<and> transactionStatus S tx \<triangleq> Committed"
+      by blast
+  qed
+qed
 
 lemma invContextH_same_allCommitted:
   assumes  wf1: "\<And>c. (state_calls c = None) \<longleftrightarrow> (state_callOrigin c = None)"
@@ -649,13 +411,21 @@ lemma invContextH_same_allCommitted:
     and noUncommitted: "\<And>t. state_transactionStatus t \<noteq> Some Uncommitted"
   shows "invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore state_calls state_knownIds state_invocationOp state_invocationRes
        = invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore state_calls state_knownIds state_invocationOp state_invocationRes"
-  apply (auto simp add: invContextH_def invContextH2_def intro!: ext)
-      apply (auto simp add: committedCallsH_def isCommittedH_def restrict_map_def restrict_relation_def)
-      apply (metis (full_types) noUncommitted option.exhaust_sel transactionStatus.exhaust wf1 wf2)
-     apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf3)
-    apply (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf4)
-   apply (metis (full_types) noUncommitted option.exhaust_sel transactionStatus.exhaust wf2)
-  by (metis noUncommitted option.exhaust_sel transactionStatus.exhaust wf5)
+proof (auto simp add: invContextH_def invContextH2_def
+  committedCallsH_def isCommittedH_def restrict_map_def restrict_relation_def
+   intro!: ext)
+  show "\<And>x. \<forall>tx. state_callOrigin x \<triangleq> tx \<longrightarrow> state_transactionStatus tx \<noteq> Some Committed \<Longrightarrow> None = state_calls x"
+    by (metis (full_types) noUncommitted option.exhaust_sel transactionStatus.exhaust wf1 wf2)
+  show "\<And>a b. (a, b) \<in> state_happensBefore \<Longrightarrow> \<exists>tx. state_callOrigin a \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Committed"
+    by (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf3)
+  show "\<And>a b. (a, b) \<in> state_happensBefore \<Longrightarrow> \<exists>tx. state_callOrigin b \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Committed"
+    by (metis (full_types) noUncommitted option.exhaust transactionStatus.exhaust wf1 wf2 wf4)
+  show "\<And>x. \<forall>tx. state_callOrigin x \<triangleq> tx \<longrightarrow> state_transactionStatus tx \<noteq> Some Committed \<Longrightarrow> None = state_callOrigin x"
+    by (metis (full_types) noUncommitted option.exhaust_sel transactionStatus.exhaust wf2)
+  show "\<And>x. state_transactionStatus x \<noteq> Some Committed \<Longrightarrow> None = state_transactionOrigin x"
+    by (metis noUncommitted option.exhaust_sel transactionStatus.exhaust wf5)
+qed
+
 
 lemma invContext_same_allCommitted:
   assumes  wf: "state_wellFormed S"
@@ -767,10 +537,7 @@ definition DefSome (infix "::\<triangleq>" 50) where
 
 
 lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or> (\<exists>n. P (Suc n)))"
-  apply auto
-  apply (case_tac n)
-   apply auto
-  done
+  using zero_induct by blast
 
 
 
@@ -804,7 +571,7 @@ definition initialStates' :: "('proc::valueType, 'ls, 'operation::valueType, 'an
   \<and> procedure progr proc = (initState, impl)  
   \<and> uniqueIds proc \<subseteq> knownIds S
   \<and> invariant_all' S
-  \<and> state_wellFormed S \<comment> \<open>   TODO add wellformed?  \<close>
+  \<and> state_wellFormed S
   \<and> invocationOp S i = None
   \<and> (\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted)
   \<and> (\<forall>tx. transactionOrigin S tx \<noteq> Some i)

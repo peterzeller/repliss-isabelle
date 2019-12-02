@@ -73,7 +73,6 @@ lemma convert_to_single_session_trace:
   shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<forall>a. (a, False)\<notin>set tr')
         \<and> (state_coupling S' S2 s (tr = [] \<or> fst (last tr) = s))"
-    \<comment> \<open>TODO special case for fail, pull (and others?)\<close>
   using steps S_wellformed packed inv noFails noUncommitted noCtxtSwitchInTx proof (induct rule: steps.induct)
   case (steps_refl S)
 
