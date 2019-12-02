@@ -231,6 +231,74 @@ definition mv_register_spec :: "('a::default \<Rightarrow> 'a set \<Rightarrow> 
 lemma mv_register_spec_wf: "crdt_spec_wf (mv_register_spec f)"
   by (auto simp add: crdt_spec_wf_def mv_register_spec_def latestValues_def latest_assignments_wf2 split: registerOp.splits)
 
+subsection "Sets"
+
+datatype 'v setOp =
+    Add 'v
+  | Remove 'v
+  | Contains 'v
+ 
+instance setOp :: (countable) countable
+  by countable_datatype
+instantiation setOp :: (valueType) crdt_op begin
+definition  "uniqueIds_setOp x \<equiv> 
+  case x of 
+     Add v \<Rightarrow> uniqueIds v
+   | Remove v \<Rightarrow> uniqueIds v
+   | Contains v \<Rightarrow> uniqueIds v"
+definition [simp]: "default_setOp \<equiv> Add default"
+definition "is_update_setOp x \<equiv> case x of Add _ \<Rightarrow> True | Remove _ \<Rightarrow> True | Contains _ \<Rightarrow> False"
+
+lemma [simp]: "uniqueIds (Add v) = uniqueIds v"
+  and [simp]:"uniqueIds (Remove v) = uniqueIds v"
+  and [simp]:"uniqueIds (Contains v) = uniqueIds v"
+  by (auto simp add: uniqueIds_setOp_def)
+
+lemma [simp]: "is_update (Add v) = True"
+  and [simp]:"is_update (Remove v) = True"
+  and [simp]:"is_update (Contains v) = False"
+  by (auto simp add: is_update_setOp_def)
+
+instance by (standard, auto simp add: uniqueIds_setOp_def)
+end
+
+definition set_aw_spec :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v setOp, 'r) crdtSpec" where
+"set_aw_spec from_bool op ctxt res \<equiv> 
+  case op of
+    Add _ => res = default
+  | Remove _ \<Rightarrow> res = default
+  | Contains v \<Rightarrow> res = from_bool (\<exists>a. calls ctxt a \<triangleq> Call (Add v) default 
+                           \<and> (\<nexists>r. calls ctxt r \<triangleq> Call (Remove v) default \<and> (a,r)\<in>happensBefore ctxt))"
+
+
+
+definition set_rw_spec :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v setOp, 'r) crdtSpec" where
+"set_rw_spec from_bool op ctxt res \<equiv> 
+  case op of
+    Add _ => res = default
+  | Remove _ \<Rightarrow> res = default
+  | Contains v \<Rightarrow> res = from_bool (\<exists>a. calls ctxt a \<triangleq> Call (Add v) default 
+                           \<and> (\<forall>r. calls ctxt r \<triangleq> Call (Remove v) default 
+                               \<longrightarrow> (\<exists>a'. calls ctxt a' \<triangleq> Call (Add v) default \<and> (r,a)\<in>happensBefore ctxt)))"
+
+
+
+text "Alternative definition: 
+The following definition is closer to the @{term set_aw_spec} in the structure of the formula.
+However, the semantic is strange in the sense that an add-operation does not overwrite the removes that came before it." 
+definition set_rw_spec2 :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v setOp, 'r) crdtSpec" where
+"set_rw_spec2 from_bool op ctxt res \<equiv> 
+  case op of
+    Add _ => res = default
+  | Remove _ \<Rightarrow> res = default
+  | Contains v \<Rightarrow> res = from_bool (\<exists>a. calls ctxt a \<triangleq> Call (Add v) default 
+                           \<and> (\<nexists>r. calls ctxt r \<triangleq> Call (Remove v) default \<and> (r,a)\<notin>happensBefore ctxt))"
+
+
+
+
+
+
 
 subsection "Maps"
 
@@ -252,9 +320,15 @@ definition "is_update_mapOp x \<equiv> case x of NestedOp k v \<Rightarrow> is_u
 
 
 lemma [simp]: "uniqueIds (NestedOp k v) = uniqueIds k \<union> uniqueIds v"
-  and "uniqueIds (KeyExists k) = uniqueIds k"
-  and "uniqueIds (DeleteKey k) = uniqueIds k"
+  and [simp]: "uniqueIds (KeyExists k) = uniqueIds k"
+  and [simp]: "uniqueIds (DeleteKey k) = uniqueIds k"
   by (auto simp add: uniqueIds_mapOp_def)
+
+lemma [simp]: "is_update (NestedOp k v) = is_update v"
+  and [simp]: "is_update (KeyExists k) = False"
+  and [simp]: "is_update (DeleteKey k) = True"
+  by (auto simp add: is_update_mapOp_def)
+
 
 instance by (standard, auto simp add: uniqueIds_mapOp_def)
 end
@@ -271,10 +345,10 @@ definition
 
 
 definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::default) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow> (bool \<Rightarrow> 'r) \<Rightarrow>   ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
-"map_spec deleted_calls to_bool nestedSpec oper ctxt res \<equiv>
+"map_spec deleted_calls from_bool nestedSpec oper ctxt res \<equiv>
   case oper of
     DeleteKey k \<Rightarrow> res = default
-  | KeyExists k \<Rightarrow> res = to_bool (\<exists>c op r. calls ctxt c \<triangleq> Call (NestedOp k op) r \<and> is_update op \<and>  c \<notin> deleted_calls ctxt k)
+  | KeyExists k \<Rightarrow> res = from_bool (\<exists>c op r. calls ctxt c \<triangleq> Call (NestedOp k op) r \<and> is_update op \<and>  c \<notin> deleted_calls ctxt k)
   | NestedOp k op \<Rightarrow>
      nestedSpec op (restrict_ctxt_op (nested_op_on_key k) 
           (ctxt_remove_calls (deleted_calls ctxt k) ctxt)) res
@@ -310,7 +384,7 @@ lemma happensBefore_ctxt_remove_calls: "(c, c') \<in> happensBefore (ctxt_remove
 lemma map_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
     and deleted_calls_wf: "\<And>ctxt. deleted_calls (ctxt\<lparr>happensBefore := Restr (happensBefore ctxt) (dom (calls ctxt))\<rparr>) = deleted_calls ctxt"
-  shows "crdt_spec_wf (map_spec deleted_calls to_bool nested)"
+  shows "crdt_spec_wf (map_spec deleted_calls from_bool nested)"
   by (auto simp add: crdt_spec_wf_def map_spec_def  
       deleted_calls_wf calls_ctxt_remove_calls calls_restrict_ctxt_op restrict_map_def restrict_relation_def deleted_calls_uw_def 
       happensBefore_restrict_ctxt_op happensBefore_ctxt_remove_calls 
@@ -320,12 +394,12 @@ lemma map_spec_wf:
 
 lemma map_uw_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
-  shows "crdt_spec_wf (map_uw_spec to_bool nested)"
+  shows "crdt_spec_wf (map_uw_spec from_bool nested)"
   using wf unfolding map_uw_spec_def by (rule map_spec_wf, auto simp add: deleted_calls_uw_def intro!: ext, auto)
 
 lemma map_dw_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
-  shows "crdt_spec_wf (map_dw_spec to_bool  nested)"
+  shows "crdt_spec_wf (map_dw_spec from_bool  nested)"
   using wf unfolding map_dw_spec_def by (rule map_spec_wf, auto simp add: deleted_calls_dw_def intro!: ext, auto)
 
 
@@ -351,8 +425,8 @@ lemmas use_queries_cannot_guess_ids = queries_cannot_guess_ids_def2[THEN iffD1, 
 
 lemma map_spec_queries_cannot_guess_ids[intro]:
   assumes nested: "queries_cannot_guess_ids n"
-    and bools_no_uids[simp]: "\<And>b. uniqueIds (to_bool b) = {}"
-  shows"queries_cannot_guess_ids (map_spec r to_bool n) "
+    and bools_no_uids[simp]: "\<And>b. uniqueIds (from_bool b) = {}"
+  shows"queries_cannot_guess_ids (map_spec r from_bool n) "
 proof (auto simp add: queries_cannot_guess_ids_def2 map_spec_def  split: mapOp.splits)
   fix ctxt res key op x
   assume a0: "n op (restrict_ctxt_op (nested_op_on_key key) (ctxt_remove_calls (r ctxt key) ctxt)) res"
@@ -384,14 +458,14 @@ qed
 
 lemma map_uw_spec_queries_cannot_guess_ids[intro]:
   assumes nested: "queries_cannot_guess_ids n"
-    and bools_no_uids[simp]: "\<And>b. uniqueIds (to_bool b) = {}"
-  shows"queries_cannot_guess_ids (map_uw_spec to_bool n) "
+    and bools_no_uids[simp]: "\<And>b. uniqueIds (from_bool b) = {}"
+  shows"queries_cannot_guess_ids (map_uw_spec from_bool n) "
   by (simp add: map_spec_queries_cannot_guess_ids map_uw_spec_def nested)
 
 lemma map_dw_spec_queries_cannot_guess_ids[intro]:
   assumes nested: "queries_cannot_guess_ids n"
-    and bools_no_uids[simp]: "\<And>b. uniqueIds (to_bool b) = {}"
-  shows"queries_cannot_guess_ids (map_dw_spec to_bool n) "
+    and bools_no_uids[simp]: "\<And>b. uniqueIds (from_bool b) = {}"
+  shows"queries_cannot_guess_ids (map_dw_spec from_bool n) "
   by (simp add: map_spec_queries_cannot_guess_ids map_dw_spec_def nested)
 
 

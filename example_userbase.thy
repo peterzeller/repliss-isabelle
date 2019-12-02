@@ -7,7 +7,7 @@ theory example_userbase
     program_proof_rules
 begin
 
-
+section "Example: User database"
 
 
 datatype val =
