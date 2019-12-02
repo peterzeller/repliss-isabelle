@@ -816,68 +816,6 @@ proof M_show_programCorrect
                          (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')\<close>
                   using that  by (auto simp add: inv1_def)
 
-(*
-                proof -
-
-                  text "from happens before get a call in r"
-
-                  from r_g_hb
-                  obtain rem_c 
-                    where rem_c_orig: "i_callOriginI_h s_callOrigin' s_transactionOrigin' rem_c \<triangleq> r"
-                    by (auto simp add: invocation_happensBeforeH_def)
-
-                  from r_g_hb
-                  have "(rem_c, c) \<in> s_happensBefore'"
-                    apply (auto simp add: invocation_happensBeforeH_def)
-        
-
-
-                text "From the RemoveUser call and invariant2 we get that rem_c is a delete call."
-
-                from `inv2 s_invocationOp' (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
-                have rem_c_call: "s_calls' rem_c \<triangleq> Call (DeleteKey (UserId user)) Undef" 
-                  apply (auto simp add: inv2_def)
-                  using rem_c_orig c1 by blast
-
-                text "From inv3 we get that the update call cannot be after our remove."
-
-                from `inv3 s_calls' s_happensBefore'` upd_c2 upd_c1 rem_c_call
-                have "(rem_c, upd_c) \<notin> s_happensBefore'"
-                  by (rule use_inv3')
-
-                have "rem_c \<in> vis'"
-
-
-                from upd_c3[rule_format, where c'=rem_c]
-
-                text "A wild contradictamon appears."
-
-                show "False"
-
-
-
-                from \<open>inv2 (s_invocationOp'(i \<mapsto> GetUser user))
-                     (i_callOriginI_h (map_update_all s_callOrigin' [c, ca, cb] tx) (s_transactionOrigin'(tx \<mapsto> i)))
-                     (s_calls'(c \<mapsto> Call (KeyExists (UserId user)) (Bool True), ca \<mapsto> Call (NestedOp (UserId user) (Name Read)) resa, cb \<mapsto>
-                      Call (NestedOp (UserId user) (Mail Read)) resb))\<close>
-                have "???" if "s_invocationOp' r \<triangleq> RemoveUser user" for r
-                  apply (auto simp add: inv2_def)
-
-(*
-definition inv2  where
-  "inv2 op i_origin c_calls \<equiv> \<forall>u i c.
-    op i \<triangleq> RemoveUser u
-  \<longrightarrow> i_origin c \<triangleq> i
-  \<longrightarrow> (c_calls c \<triangleq> Call (DeleteKey (UserId u)) Undef
-        \<or> (\<exists>r. c_calls c \<triangleq> Call (KeyExists (UserId u)) r))"
-*)
-
-                show "False"
-                  if c0: "r \<noteq> i"
-                    and c1: "s_invocationOp' r \<triangleq> RemoveUser user"
-                    and c2: "(r, i) \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore'"
-                  for  r
-*)
 
 
               qed

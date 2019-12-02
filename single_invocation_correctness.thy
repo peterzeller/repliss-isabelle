@@ -527,18 +527,6 @@ lemma prog_initial: "prog (initialState program) = program"
 
 
 
-definition Def (infix "::=" 50) where
-"x ::= y \<equiv> x = y"
-
-definition DefSome (infix "::\<triangleq>" 50) where
-"x ::\<triangleq> y \<equiv> y = Some x"
-
-
-
-
-lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or> (\<exists>n. P (Suc n)))"
-  using zero_induct by blast
-
 
 
 
