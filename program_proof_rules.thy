@@ -1740,9 +1740,9 @@ lemmas repliss_proof_rules =
   execution_s_check_dbop
   execution_s_check_return
 
-method repliss_vcg_step = (rule repliss_proof_rules; (intro impI conjI)?; simp?;  repliss_vcg_step?)
+method repliss_vcg_step = (rule repliss_proof_rules; (intro impI conjI)?; simp?; (intro impI conjI)?;  repliss_vcg_step?)
 
-method repliss_vcg uses impl = ((simp add: atomic_def skip_def impl)?, repliss_vcg_step)
+method repliss_vcg uses impl = ((simp add: impl)?, (unfold atomic_def skip_def)?, simp? , repliss_vcg_step)
 
 
 

@@ -126,7 +126,11 @@ definition sendMessage_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operati
 definition editMessage_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operation,val) io" where
   "editMessage_impl m newContent \<equiv>  do {
   atomic (do {
-    call (Message (NestedOp m (Content (Assign newContent))))
+    exists \<leftarrow> call (Message (KeyExists m));
+    if exists = Bool True then
+      call (Message (NestedOp m (Content (Assign newContent))))
+    else
+      skip
   });
   return Undef
 }"
@@ -351,7 +355,47 @@ proof (rule infinite_if_mappable_to_nat)
         auto simp add: isMessageId_def)
 qed
 
+(* TODO utils *)
+lemma ran_empty_iff[simp] :"(ran F = {}) \<longleftrightarrow> F = Map.empty"
+  by (metis  empty_iff option.exhaust_sel ranI ran_empty)
 
+lemma eq_map_empty[simp] :"(M = Map.empty) \<longleftrightarrow> (\<forall>x. M x = None)"
+  by (rule fun_eq_iff)
+
+
+(* TODO move to crdt_specs *)
+lemma crdt_spec_wf_restrict_ctxt:
+  assumes "crdt_spec_wf spec"
+  shows "spec op (restrict_ctxt f ctxt) = spec op (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>)"
+proof 
+  fix r
+
+  have h: "spec op ctxt r 
+     = spec op (ctxt\<lparr>happensBefore := happensBefore ctxt |r dom (calls ctxt)\<rparr>) r" for ctxt
+    using assms use_crdt_spec_wf
+    by (metis restrict_hb_def) 
+    
+  have a: "spec op (restrict_ctxt f ctxt) r 
+   = spec op ((restrict_ctxt f ctxt)\<lparr>happensBefore := happensBefore (restrict_ctxt f ctxt) |r dom (calls (restrict_ctxt f ctxt))\<rparr>) r "
+    by (subst h, rule refl)
+
+
+
+  have b: "spec op (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>) r
+    = spec op ((ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>)\<lparr>happensBefore := happensBefore  (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>) |r dom (calls  (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>))\<rparr>) r "
+    by (subst h, rule refl)
+
+  have c: "((restrict_ctxt f ctxt)\<lparr>happensBefore := happensBefore (restrict_ctxt f ctxt) |r dom (calls (restrict_ctxt f ctxt))\<rparr>)
+       =   ((ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>)\<lparr>happensBefore := happensBefore  (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>) |r dom (calls  (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>))\<rparr>)"
+    by (auto simp add: restrict_ctxt_def restrict_relation_def fmap_map_values_def intro!: operationContext.equality split: option.splits)   
+
+  show "spec op (restrict_ctxt f ctxt) r = spec op (ctxt\<lparr>calls := fmap_map_values f (calls ctxt)\<rparr>) r"
+    by (simp add: a b c)
+qed
+
+
+lemma "calls (restrict_ctxt_op x y) = ???"
+  oops
 
 theorem chat_app_correct: "programCorrect progr"
 proof M_show_programCorrect
@@ -475,16 +519,487 @@ proof M_show_programCorrect
 
     next
       case (EditMessage m newContent)
-      then show ?thesis sorry
+      show "procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
+        show ?case
+          using show_P.invariant_pre EditMessage show_P.i_fresh
+          by (auto simp add:  inv_def inv1_def inv2_def inv3_def inv4_def invContextH2_simps, 
+              metis option.distinct(1) show_P.i_fresh)+
+
+      next
+        case execution
+
+        show "execution_s_correct progr S i"
+          using procedure_correct.in_initial_state
+        proof (fuzzy_rule execution_s_check_sound3)
+          show "currentProc S i \<triangleq> toImpl"
+            by (auto simp add: EditMessage procedures_def )
+
+          show "localState S i \<triangleq> editMessage_impl (MessageId m) (String newContent)"
+            by (auto simp add: EditMessage procedures_def )
+
+          show "invocationOp S i \<triangleq> EditMessage m newContent"
+            using EditMessage \<open>invocationOp S i \<triangleq> proc\<close> by blast
+
+          note editMessage_impl_def[simp]
+
+          
+
+          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> EditMessage m newContent)) (s_invocationRes(i := None)) {} {} {} [] None True (editMessage_impl (MessageId m) (String newContent))"
+            if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
+            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
+            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
+
+            note `c \<noteq> ca`[simp]
+
+            from `example_chat.inv
+             \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin', transactionOrigin = s_transactionOrigin',
+                knownIds = s_knownIds', invocationOp = s_invocationOp'(i \<mapsto> EditMessage m newContent),
+                invocationRes = s_invocationRes'(i := None)\<rparr>`
+            have  i1: "inv1 (s_invocationOp'(i \<mapsto> EditMessage m newContent)) (s_invocationRes'(i := None))"
+              and i2: "inv2 (s_invocationOp'(i \<mapsto> EditMessage m newContent)) s_calls'"
+              and i3: "inv3 s_calls' s_happensBefore'"
+              and i4: "inv4 s_calls' s_happensBefore'"
+              by (auto simp add: inv_def)
+
+            from \<open>crdtSpec (Message (KeyExists (MessageId m))) \<lparr>calls = s_calls' |` vis', happensBefore = s_happensBefore' |r vis'\<rparr> (Bool True)\<close>
+            obtain upd_c upd_op upd_r
+              where upd_vis: "upd_c \<in> vis'"
+                and upd_call: "s_calls' upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
+                and upd_is_update: "is_update upd_op"
+                and ipd_not_deleted: "\<forall>c'. c' \<in> vis' \<longrightarrow> (\<forall>x2. s_calls' c' \<triangleq> x2 \<longrightarrow> (\<forall>x2a. x2 \<noteq> Call (Message (DeleteKey (MessageId m))) x2a) \<or> (c', upd_c) \<in> s_happensBefore')"
+              by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def'
+                      restrict_map_def deleted_calls_dw_def restrict_relation_def
+                   split: option.splits if_splits operation.splits call.splits)
+
+
+            have "upd_r = Undef"
+              sorry (* by crdt spec invariant *)
+
+            have "upd_c \<noteq> c"
+              by (smt Exists_AtCommit(15) Exists_AtCommit(5) Exists_AtCommit(9) basic_trans_rules(31) domIff invariantContext.simps(1) operationContext.select_convs(1) upd_vis wellFormed_callOrigin_dom3)
+
+            have "upd_c \<noteq> ca"
+              by (smt Exists_AtCommit(15) Exists_AtCommit(5) Exists_AtCommit(9) basic_trans_rules(31) domIff invariantContext.simps(1) operationContext.select_convs(1) upd_vis wellFormed_callOrigin_dom)
+
+            obtain upda_c upda_val
+              where upda_call: "s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef"
+                and upda_before_upd: "(upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c"
+            proof (atomize_elim, cases upd_op)
+              case (Author a)
+              obtain x where "a = Assign x"
+                using upd_is_update Author 
+                by (cases a, auto simp add: is_update_messageDataOp_def)
+
+              show "\<exists>upda_c upda_val.
+                   s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef \<and>
+                   ((upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c)"
+                using Author \<open>a = Assign x\<close> upd_call \<open>upd_r = Undef\<close> by blast
+
+            next
+              case (Content a)
+              obtain x where "a = Assign x"
+                using upd_is_update Content 
+                by (cases a, auto simp add: is_update_messageDataOp_def)
+
+              show "\<exists>upda_c upda_val.
+                 s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef \<and>
+                 ((upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c)"
+                using i3 Content \<open>a = Assign x\<close> \<open>upd_r = Undef\<close> upd_call 
+                by (auto simp add: inv3_def, blast)
+            qed
+
+
+
+            have "upda_c \<noteq> c"
+              using Exists_AtCommit(16) \<open>upd_c \<noteq> c\<close> upda_before_upd by blast
+
+            have "upda_c \<noteq> ca"
+              using Exists_AtCommit(16) \<open>upd_c \<noteq> ca\<close> upda_before_upd by blast
+
+
+
+
+
+            from Exists_AtCommit
+            show ?case
+            proof (auto simp add: inv_def, goal_cases "inv2" "inv3" "inv4" )
+              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv2_def)
+            next
+              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              show ?case 
+                apply (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong)
+                 apply (rule_tac x=upda_c in exI)
+                 apply (auto simp add: \<open>upda_c \<noteq> c\<close> \<open>upda_c \<noteq> ca\<close> upda_call)
+                using causallyConsistent_def inv3(6) upd_vis upda_before_upd apply fastforce
+                by (metis i3 inv3(12) inv3_def)
+            next
+              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                apply (auto simp add: inv4_def updateHb_cases in_sequence_cons)
+                by (metis (no_types, lifting) \<open>upd_r = Undef\<close> ipd_not_deleted upd_call upd_is_update)
+            qed
+              
+          next
+            case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
+            then show ?case 
+              apply (auto simp add: inv_def )
+              apply (auto simp add: inv1_def cong: conj_cong)
+              by (smt map_upd_Some_unfold proc.distinct(1))
+          next
+            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            then show ?case 
+            proof (auto simp add: inv_def, goal_cases inv2 inv3 inv4)
+              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case by (auto simp add: inv2_def)
+            next
+              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case by (auto simp add: inv3_def updateHb_single cong: conj_cong, fastforce)
+            next
+              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv4_def updateHb_single)
+            qed
+          next
+            case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            then show ?case 
+              apply (auto simp add: inv_def inv1_def cong: conj_cong)
+              by (meson option.inject proc.simps(6))
+          qed
+        qed
+      qed
     next
       case (DeleteMessage m)
-      then show ?thesis sorry
+
+
+      show "procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
+        show ?case
+          using show_P.invariant_pre DeleteMessage show_P.i_fresh
+          by (auto simp add:  inv_def inv1_def inv2_def inv3_def inv4_def invContextH2_simps, 
+              metis option.distinct(1) show_P.i_fresh)+
+
+      next
+        case execution
+
+        show "execution_s_correct progr S i"
+          using procedure_correct.in_initial_state
+        proof (fuzzy_rule execution_s_check_sound3)
+          show "currentProc S i \<triangleq> toImpl"
+            by (auto simp add: DeleteMessage procedures_def )
+
+          show "localState S i \<triangleq> deleteMessage_impl (MessageId m)"
+            by (auto simp add: DeleteMessage procedures_def )
+
+          show "invocationOp S i \<triangleq> DeleteMessage m"
+            using DeleteMessage \<open>invocationOp S i \<triangleq> proc\<close> by blast
+
+          note deleteMessage_impl_def[simp]
+
+          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> DeleteMessage m)) (s_invocationRes(i := None)) {} {} {} [] None True (deleteMessage_impl (MessageId m))"
+            if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
+            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
+            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
+
+            from `c \<noteq> ca \<and> c \<noteq> cb \<and> ca \<noteq> cb`
+            have [simp]: "c \<noteq> ca" "c \<noteq> cb" "ca \<noteq> cb"
+              by auto
+
+
+            from `example_chat.inv
+               \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin', transactionOrigin = s_transactionOrigin',
+                  knownIds = s_knownIds', invocationOp = s_invocationOp'(i \<mapsto> DeleteMessage m), invocationRes = s_invocationRes'(i := None)\<rparr>`
+            have  i1: "inv1 (s_invocationOp'(i \<mapsto> DeleteMessage m)) (s_invocationRes'(i := None))"
+              and i2: "inv2 (s_invocationOp'(i \<mapsto> DeleteMessage m)) s_calls'"
+              and i3: "inv3 s_calls' s_happensBefore'"
+              and i4: "inv4 s_calls' s_happensBefore'"
+              by (auto simp add: inv_def)
+
+            show ?case
+            proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3 inv4)
+              case inv1
+              from i1
+              show ?case by auto
+            next
+              case inv2
+              from i2
+              show ?case
+                by (auto simp add: inv2_def)
+            next
+              case inv3
+              from i3
+              show ?case 
+                apply (auto simp add: inv3_def updateHb_cases cong: conj_cong)
+                by (metis Exists_AtCommit(17)) 
+
+            next
+              case inv4
+              then show ?case
+                apply (auto simp add: inv4_def updateHb_cases in_sequence_cons)
+                using Exists_AtCommit(17) apply blast
+                by (meson i4 inv4_def)
+            qed
+              
+          next
+            case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
+            then show ?case
+              apply (auto simp add: inv_def inv1_def)
+              by (metis (no_types, lifting) option.inject proc.distinct(3))
+          next
+            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            then show ?case
+            proof (auto simp add: inv_def, goal_cases inv2 inv3 inv4)
+              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case
+                by (auto simp add: inv2_def)
+            next
+              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv3_def updateHb_cases in_sequence_cons, fastforce)
+
+            next
+              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv4_def updateHb_cases in_sequence_cons)
+            qed
+          next
+            case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            then show ?case 
+              apply (auto simp add: inv_def inv1_def)
+              by (metis (no_types, lifting) option.inject proc.distinct(3)) 
+          qed
+        qed
+      qed
     next
       case (GetMessage m)
-      then show ?thesis sorry
-    qed
 
+
+      show "procedureCorrect progr S i"
+      proof M_show_procedureCorrect
+        case after_invocation
+        show ?case
+          using show_P.invariant_pre GetMessage show_P.i_fresh
+        proof (auto simp add:  inv_def invContextH2_simps, goal_cases inv1 inv2)
+          case inv1
+          then show ?case
+            apply (auto simp add: inv1_def state_wellFormed_invocation_before_result)
+            by (metis option.simps(3) show_P.i_fresh)
+        next
+          case inv2
+          then show ?case
+            apply (auto simp add: inv2_def)
+            by (metis option.distinct(1) show_P.i_fresh)
+        qed
+
+      next
+        case execution
+
+        show "execution_s_correct progr S i"
+          using procedure_correct.in_initial_state
+        proof (fuzzy_rule execution_s_check_sound3)
+          show "currentProc S i \<triangleq> toImpl"
+            by (auto simp add: GetMessage procedures_def )
+
+          show "localState S i \<triangleq> getMessage_impl (MessageId m)"
+            by (auto simp add: GetMessage procedures_def )
+
+          show "invocationOp S i \<triangleq> GetMessage m"
+            using GetMessage \<open>invocationOp S i \<triangleq> proc\<close> by blast
+
+          note getMessage_impl_def[simp]
+
+          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> GetMessage m)) (s_invocationRes(i := None)) {} {} {} [] None True (getMessage_impl (MessageId m))"
+            if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
+            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
+            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
+            then show ?case 
+            proof (auto simp add: inv_def, goal_cases inv2 inv3 inv4)
+              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv2_def)
+            next
+              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv3_def  updateHb_cons cong: conj_cong, meson)
+            next
+              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv4_def updateHb_cons is_update_messageDataOp_def)
+            qed  
+          next
+            case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
+            
+            from \<open>example_chat.inv
+             \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
+                transactionOrigin = s_transactionOrigin', knownIds = s_knownIds',
+                invocationOp = s_invocationOp'(i \<mapsto> GetMessage m), invocationRes = s_invocationRes'(i := None)\<rparr>\<close>
+            have i1: "inv1 (s_invocationOp'(i \<mapsto> GetMessage m)) (s_invocationRes'(i := None))"
+              and i2: "inv2 (s_invocationOp'(i \<mapsto> GetMessage m)) s_calls'"
+              and i3: "inv3 s_calls' s_happensBefore'"
+              and i4: "inv4 s_calls' s_happensBefore'"
+              by (auto simp add: inv_def)
+            
+            from Exists_AtReturn show ?case
+            proof (auto simp add: inv_def, goal_cases inv1)
+              case (inv1 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+
+              
+
+              show ?case
+              proof (auto simp add: inv1_def cong: conj_cong)
+
+                show "\<exists>s. s \<noteq> i \<and> (\<exists>content2. s_invocationOp' s \<triangleq> SendMessage author content2)"
+                  if c0: "g \<noteq> i"
+                    and c1: "s_invocationOp' g \<triangleq> GetMessage m'"
+                    and c2: "s_invocationRes' g \<triangleq> Found (String author) content"
+                  for  g m' author content
+                  using \<open>inv1 (s_invocationOp'(i \<mapsto> GetMessage m)) (s_invocationRes'(i := None))\<close>
+                  using that apply (auto simp add: inv1_def)
+                  by (metis option.inject proc.distinct(5))
+
+
+                show "\<exists>s. s \<noteq> i \<and> (\<exists>content2. s_invocationOp' s \<triangleq> SendMessage author content2)"
+                  if c0: "resa = String author"
+                  for  author
+                proof -
+
+                  from \<open>crdtSpec (Message (KeyExists (MessageId m)))
+                     \<lparr>calls = s_calls' |` vis', happensBefore = s_happensBefore' |r vis'\<rparr> (Bool True)\<close>
+                  obtain upd_c upd_op upd_r
+                    where upd_vis: "upd_c \<in> vis'"
+                      and upd_call: "s_calls' upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
+                      and upd_is_update: "is_update upd_op"
+                      and ud_not_deleted: "\<forall>c'. c' \<in> vis' \<longrightarrow> (\<forall>x2. s_calls' c' \<triangleq> x2 \<longrightarrow> (\<forall>x2a. x2 \<noteq> Call (Message (DeleteKey (MessageId m))) x2a) \<or> (c', upd_c) \<in> s_happensBefore')"
+                    by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def
+                      restrict_map_def deleted_calls_dw_def restrict_relation_def
+                   split: option.splits if_splits operation.splits call.splits)
+
+                  have "upd_r = Undef"
+                    sorry (* by crdt spec invariant *)
+
+
+                  obtain upda_c upda_val
+                    where upda_call: "s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef"
+                      and upda_before_upd: "(upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c"
+                  proof (atomize_elim, cases upd_op)
+                    case (Author a)
+                    obtain x where "a = Assign x"
+                      using upd_is_update Author 
+                      by (cases a, auto simp add: is_update_messageDataOp_def)
+
+                    show "\<exists>upda_c upda_val.
+                   s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef \<and>
+                   ((upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c)"
+                      using Author \<open>a = Assign x\<close> upd_call \<open>upd_r = Undef\<close> by blast
+
+                  next
+                    case (Content a)
+                    obtain x where "a = Assign x"
+                      using upd_is_update Content 
+                      by (cases a, auto simp add: is_update_messageDataOp_def)
+
+                    show "\<exists>upda_c upda_val.
+                 s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef \<and>
+                 ((upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c)"
+                      using i3 Content \<open>a = Assign x\<close> \<open>upd_r = Undef\<close> upd_call 
+                      by (auto simp add: inv3_def, blast)
+                  qed
+
+                  from \<open>crdtSpec (Message (NestedOp (MessageId m) (Author Read)))
+                   \<lparr>calls = (s_calls' |` (vis' - {c}))(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True)),
+                      happensBefore = updateHb (s_happensBefore' |r vis') vis' [c]\<rparr>
+                   resa\<close>
+                  have "crdtSpec (Message (NestedOp (MessageId m) (Author Read)))
+                   \<lparr>calls = (s_calls' |` vis'),
+                      happensBefore = s_happensBefore' |r vis'\<rparr>
+                   resa"
+                    apply (auto simp add: crdtSpec_def)
+                    apply (auto simp add: struct_field_def)
+                    apply (auto simp add:  map_dw_spec_def)
+                    apply (auto simp add: map_spec_def)
+                    apply (auto simp add: messageStruct_def)
+                    apply (auto simp add: struct_field_def)
+                    apply (auto simp add: calls_ctxt_remove_calls calls_restrict_ctxt_op2)
+
+                    apply (auto simp add: register_spec_def)
+                     apply (auto simp add: latestValues_def latestAssignments_def)
+                    apply (auto simp add: latestAssignments_h_def split: if_splits)
+
+
+
+                  have ???
+                    apply (auto simp add: crdtSpec_def)
+                    apply (auto simp add: struct_field_def)
+                    apply (auto simp add:  map_dw_spec_def)
+                    apply (auto simp add: map_spec_def)
+                    apply (auto simp add: messageStruct_def)
+                    apply (auto simp add: struct_field_def)
+                    apply (auto simp add: register_spec_def)
+                    apply (auto simp add: latestValues_def latestAssignments_def)
+                    
+                    apply (auto simp add: calls_restrict_ctxt_op2)
+                    apply (auto simp add: calls_ctxt_remove_calls calls_restrict_ctxt_op2)
+
+                    apply (auto simp add: calls_restrict_ctxt_op calls_ctxt_remove_calls eq_map_empty)
+                    find_theorems "(\<lambda>x. ?f x) = Map.empty"        
+apply (auto simp add: latestAssignments_h_def split: if_splits intro!: ext)
+
+
+                    apply (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def
+                          messageStruct_def register_spec_def latestValues_def ) 
+                    apply (auto simp add: latestValues_def split: if_splits)
+
+
+                    apply (auto simp add: crdt_spec_wf_restrict_ctxt)
+
+
+               (*     apply (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def
+                      restrict_map_def deleted_calls_dw_def restrict_relation_def updateHb_cons
+                      messageStruct_def register_spec_def ctxt_remove_calls_def
+                      split: option.splits if_splits operation.splits call.splits
+                      cong: disj_cong conj_cong)
+*)
+
+
+                  sorry
+              qed
+
+            qed
+          next
+            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            then show ?case
+            proof (auto simp add: inv_def, goal_cases inv2 inv3 inv4)
+              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv2_def)
+            next
+              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong, fastforce)
+            next
+              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              then show ?case 
+                by (auto simp add: inv4_def updateHb_cases in_sequence_cons)
+            qed
+          next
+            case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            then show ?case
+              apply (auto simp add: inv_def)
+              apply (auto simp add: inv1_def)
+              by (metis (no_types, lifting) option.inject proc.distinct(5))
+          qed
+        qed
+      qed
+    qed
   qed
 qed
+
 
 end

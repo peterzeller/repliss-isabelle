@@ -1,6 +1,7 @@
 theory crdt_specs
   imports repliss_sem
  unique_ids
+ "~~/src/HOL/Library/Monad_Syntax"
 begin
 
 section "Composable CRDT specifications"
@@ -14,14 +15,38 @@ text "Some helper functions for defining the specs:"
 definition map_map_values :: "('x \<Rightarrow> 'y) \<Rightarrow> ('k \<rightharpoonup> 'x) \<Rightarrow> ('k \<rightharpoonup> 'y)" where
 "map_map_values f m \<equiv> \<lambda>x. case m x of Some a \<Rightarrow> Some (f a) | None \<Rightarrow> None"
 
+
+
 definition fmap_map_values :: "('x \<rightharpoonup> 'y) \<Rightarrow> ('k \<rightharpoonup> 'x) \<Rightarrow> ('k \<rightharpoonup> 'y)" where
-"fmap_map_values f m \<equiv> \<lambda>x. case m x of Some a \<Rightarrow> f a | None \<Rightarrow> None"
+"fmap_map_values f m \<equiv> \<lambda>x. m x \<bind> f"
+
+lemma fmap_map_values_def':
+"fmap_map_values f m = (\<lambda>x. case m x of Some a \<Rightarrow> f a | None \<Rightarrow> None)"
+  by (auto simp add: fmap_map_values_def split: option.splits)
+
+
+lemma fmap_map_values_eq_some:
+"(fmap_map_values f g x \<triangleq> y) \<longleftrightarrow> (\<exists>a. g x \<triangleq> a \<and> f a \<triangleq> y) "
+  by (auto simp add: fmap_map_values_def' split: option.splits)
 
 definition 
 "map_ctxt f c \<equiv> c\<lparr>calls := map_map_values f (calls c)\<rparr>"
 
+definition restrict_hb :: "('op, 'res) operationContext \<Rightarrow> ('op, 'res) operationContext" where
+"restrict_hb ctxt \<equiv> ctxt\<lparr>happensBefore := happensBefore ctxt |r dom (calls ctxt)\<rparr>"
+
+lemma calls_restrict_hb[simp]: "calls (restrict_hb c) = calls c"
+  by (simp add: restrict_hb_def) 
+
+lemma happensBefore_restrict_hb[simp]: "happensBefore (restrict_hb c) = happensBefore c |r dom (calls c)"
+  by (simp add: restrict_hb_def) 
+
 definition 
-"restrict_ctxt f ctxt \<equiv> \<lparr>calls = fmap_map_values f (calls ctxt), happensBefore = happensBefore ctxt |r {c | c x. calls ctxt c \<triangleq> x \<and> f x \<noteq> None } \<rparr>"
+"restrict_ctxt f ctxt \<equiv> restrict_hb \<lparr>calls = fmap_map_values f (calls ctxt), happensBefore = happensBefore ctxt\<rparr>"
+
+
+definition 
+"map_Call f c \<equiv> case c of Call op r \<Rightarrow> (case f op of None \<Rightarrow> None | Some op' \<Rightarrow> Some (Call op' r))"
 
 definition restrict_ctxt_op :: "('op1 \<rightharpoonup> 'op2) \<Rightarrow>   ('op1, 'r) operationContext \<Rightarrow>   ('op2, 'r) operationContext" where
 "restrict_ctxt_op f \<equiv> 
@@ -29,8 +54,15 @@ definition restrict_ctxt_op :: "('op1 \<rightharpoonup> 'op2) \<Rightarrow>   ('
     case c of Call op r \<Rightarrow> (case f op of Some op' \<Rightarrow> Some (Call op' r) | None \<Rightarrow> None))
 "
 
+
+lemma calls_restrict_ctxt_op1:
+"calls (restrict_ctxt_op f ctxt) c = (case calls ctxt c of None \<Rightarrow> None | Some call \<Rightarrow> map_Call f call)"
+  by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def map_Call_def intro!: ext split: option.splits call.splits)
+
+
 definition ctxt_remove_calls :: "callId set \<Rightarrow> ('op, 'r) operationContext \<Rightarrow> ('op, 'r) operationContext"  where
 "ctxt_remove_calls Cs ctxt = \<lparr>calls = calls ctxt |` Cs, happensBefore = happensBefore ctxt |r Cs\<rparr>"
+
 
 text "To combine CRDT specifications, we need to distinguish updates from queries, which we can do using
 the following typeclass:"
@@ -47,49 +79,16 @@ abbreviation "is_query x \<equiv> \<not>is_update x"
 text "To make it easier to simplify composed specifications, we define well-formedness of specifications:
 A spec is well formed if it only uses happens-before information from existing calls."
 
+
+
 definition crdt_spec_wf :: "('op, 'res) crdtSpec \<Rightarrow> bool" where
 "crdt_spec_wf spec \<equiv>
-  \<forall>op ctxt r. spec op ctxt r \<longleftrightarrow> spec op (ctxt\<lparr>happensBefore := happensBefore ctxt |r dom (calls ctxt)\<rparr>) r"
+   \<forall>op c r. spec op (restrict_hb c) r = spec op c r"
 
 lemma use_crdt_spec_wf:
   assumes "crdt_spec_wf spec"
-shows "spec op ctxt res \<longleftrightarrow> spec op (ctxt\<lparr>happensBefore := happensBefore ctxt |r dom (calls ctxt)\<rparr>) res"
-  using assms by (auto simp add: crdt_spec_wf_def)
-
-
-lemma use_crdt_spec_wf2:
-  assumes wf: "crdt_spec_wf spec"
-and c: "calls ctxt = calls ctxt'"
-and h: "happensBefore ctxt |r dom (calls ctxt) = happensBefore ctxt' |r dom (calls ctxt)"
-shows "spec op ctxt res \<longleftrightarrow> spec op ctxt' res"
-  using assms 
-proof -
-  have 1: "spec op ctxt res = spec op (ctxt\<lparr>happensBefore := happensBefore ctxt |r dom (calls ctxt)\<rparr>) res"
-    by (rule use_crdt_spec_wf[OF wf])
-
-  have 2: "spec op ctxt' res = spec op (ctxt'\<lparr>happensBefore := happensBefore ctxt' |r dom (calls ctxt')\<rparr>) res"
-    by (rule use_crdt_spec_wf[OF wf])
-
-
-  have 3: "ctxt'\<lparr>happensBefore := happensBefore ctxt' |r dom (calls ctxt')\<rparr>
-      = ctxt\<lparr>happensBefore := happensBefore ctxt |r dom (calls ctxt)\<rparr>"
-    using c h by auto
-
-  show "spec op ctxt res = spec op ctxt' res"
-    by (simp add: "1" "2" "3")
-qed
-
-
-lemma use_crdt_spec_wf3:
-  assumes wf: "crdt_spec_wf spec"
-and 1: "spec op ctxt res"
-and c: "calls ctxt = calls ctxt'"
-and h: "happensBefore ctxt |r dom (calls ctxt) = happensBefore ctxt' |r dom (calls ctxt)"
-shows "spec op ctxt' res"
-  by (meson "1" c h local.wf use_crdt_spec_wf2)
-
-
-
+  shows "spec op (restrict_hb c) = spec op c"
+  using assms  by (auto simp add: crdt_spec_wf_def)
 
 
 subsection "Register"
@@ -118,11 +117,25 @@ end
 text "The latest values are all assigned values that have not been overridden by another call to assign."
 
 definition 
-"latestAssignments ctxt \<equiv> 
-   \<lambda>c. case calls ctxt c of 
+"latestAssignments_h c_calls s_happensBefore \<equiv> 
+   \<lambda>c. case c_calls c of 
     Some (Call (Assign v) r) \<Rightarrow> 
-        if \<exists>c' v' r'. calls ctxt c' \<triangleq> Call (Assign v') r' \<and> (c,c')\<in>happensBefore ctxt then None else Some v
+        if \<exists>c' v' r'. c_calls c' \<triangleq> Call (Assign v') r' \<and> (c,c')\<in>s_happensBefore then None else Some v
   | _ \<Rightarrow> None"
+
+definition latestAssignments :: "('a registerOp, 'r) operationContext \<Rightarrow> callId \<rightharpoonup> 'a"  where
+"latestAssignments ctxt \<equiv> latestAssignments_h (calls ctxt) (happensBefore ctxt)"
+
+
+lemma ctxt_spec_wf_latestAssignments[simp]:
+"latestAssignments (restrict_hb c) = latestAssignments c"
+  by (auto simp add: restrict_hb_def latestAssignments_h_def
+      restrict_relation_def latestAssignments_def
+      intro!: ext 
+      split: option.splits if_splits registerOp.splits call.splits,
+      blast+)
+
+
 
 definition 
 "latestValues ctxt \<equiv> Map.ran (latestAssignments ctxt)" 
@@ -131,13 +144,16 @@ lemma latestValues_def2:
 "latestValues ctxt =
   {v | c v r . calls ctxt c \<triangleq> Call (Assign v) r  
         \<and> (\<nexists>c' v' r'. calls ctxt c' \<triangleq> Call (Assign v') r' \<and> (c,c')\<in>happensBefore ctxt)}" 
-  apply (auto simp add: latestValues_def latestAssignments_def image_def ran_def split: option.splits call.splits )
+  apply (auto simp add: latestValues_def latestAssignments_def latestAssignments_h_def image_def ran_def split: option.splits call.splits if_splits )
+
   apply (case_tac y, auto)
   apply (case_tac x1, auto split: if_splits)
   done
 
 
-
+lemma ctxt_spec_wf_latestValues[simp]:
+"latestValues (restrict_hb c) = latestValues c"
+  by (auto simp add: latestValues_def)
 
 
 
@@ -149,26 +165,31 @@ definition register_spec :: "'a::default \<Rightarrow> ('a registerOp, 'a) crdtS
 
 
 lemma latest_assignments_wf:
-"latestAssignments (ctxt\<lparr>happensBefore := Restr (happensBefore ctxt) (dom (calls ctxt))\<rparr>)
-= latestAssignments ctxt"
-  by (auto simp add: latestAssignments_def intro!: ext split: call.splits option.splits registerOp.splits, auto)
+"latestAssignments_h c_calls (Restr c_happensBefore (dom c_calls))
+= latestAssignments_h c_calls c_happensBefore"
+  by (auto simp add: latestAssignments_h_def intro!: ext split: call.splits option.splits registerOp.splits, auto)
+
+lemma latest_assignments_wf2[simp]:
+  assumes "c_calls \<subseteq>\<^sub>m calls c"
+  shows "latestAssignments_h c_calls (happensBefore (restrict_hb c))
+= latestAssignments_h c_calls (happensBefore c)"
+  using assms  by (auto simp add: map_le_def latestAssignments_h_def restrict_hb_def restrict_relation_def intro!: ext split: call.splits option.splits registerOp.splits,
+ (metis domI)+)
 
 
-
-lemma latest_assignments_wf2:
-"latestAssignments (ctxt\<lparr>happensBefore := happensBefore ctxt |r dom (calls ctxt)\<rparr>)
-= latestAssignments ctxt"
-  by (simp add: latest_assignments_wf restrict_relation_def)
-
+lemma register_spec_restrict_hb[simp]:
+"register_spec i op (restrict_hb c) r 
+ \<longleftrightarrow> register_spec i op c r"
+  by (auto simp add: register_spec_def split: registerOp.splits)
 
 lemma register_spec_wf: "crdt_spec_wf (register_spec i)"
-  by (auto simp add:  crdt_spec_wf_def register_spec_def latest_assignments_wf2 latestValues_def split: registerOp.splits)
+  by (auto simp add: crdt_spec_wf_def )
 
 
 text "To define LWW-registers, we use some arbitrary order on calls.
 First we show that this exists:"
 
-
+(* TODO move to utils *)
 definition some_well_order :: "'a rel" where
  "some_well_order \<equiv> (SOME ord. well_order ord)"
 
@@ -214,8 +235,13 @@ definition lww_register_spec :: "'a::default \<Rightarrow> ('a registerOp, 'a) c
     Assign x \<Rightarrow> res = default
   | Read \<Rightarrow> res = firstValue initial (latestAssignments ctxt)"
 
+lemma lwwregister_restrict_hb[simp]: 
+"lww_register_spec i op (restrict_hb c) r
+\<longleftrightarrow> lww_register_spec i op c r"
+  by (auto simp add: lww_register_spec_def split: registerOp.splits )
+
 lemma lwwregister_spec_wf: "crdt_spec_wf (lww_register_spec i)"
-  by (auto simp add:  crdt_spec_wf_def lww_register_spec_def latest_assignments_wf2 latestValues_def split: registerOp.splits)
+  by (simp add: crdt_spec_wf_def) 
 
 
 
@@ -228,8 +254,15 @@ definition mv_register_spec :: "('a::default \<Rightarrow> 'a set \<Rightarrow> 
     Assign x \<Rightarrow> res = default
   | Read \<Rightarrow> is_set res (latestValues ctxt)"
 
+
+lemma mv_register_spec_restrict_hb[simp]: 
+"mv_register_spec is op (restrict_hb c) r
+= mv_register_spec is op c r"
+  by (auto simp add: mv_register_spec_def split: registerOp.splits)
+
+
 lemma mv_register_spec_wf: "crdt_spec_wf (mv_register_spec f)"
-  by (auto simp add: crdt_spec_wf_def mv_register_spec_def latestValues_def latest_assignments_wf2 split: registerOp.splits)
+  by (simp add: crdt_spec_wf_def)
 
 subsection "Sets"
 
@@ -307,6 +340,20 @@ lemma set_rw_spec_cannot_guess_ids[simp,intro]:
   by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_rw_spec_def assms split: setOp.splits)
 
 
+lemma set_aw_spec_restrict_hb[simp]:
+"set_aw_spec b op (restrict_hb c) r 
+\<longleftrightarrow> set_aw_spec b op c r"
+  apply (auto simp add: set_aw_spec_def restrict_hb_def restrict_relation_def split: setOp.splits)
+  apply (metis (no_types, lifting)  domI  )+
+  done
+
+lemma set_rw_spec_restrict_hb[simp]:
+"set_rw_spec b op (restrict_hb c) r 
+\<longleftrightarrow> set_rw_spec b op c r"
+  apply (auto simp add: set_rw_spec_def restrict_hb_def restrict_relation_def split: setOp.splits)
+  apply (metis (no_types, lifting)  domI  )+
+  done
+
 
 subsection "Maps"
 
@@ -374,41 +421,101 @@ lemma calls_ctxt_remove_calls: "calls (ctxt_remove_calls S ctxt) c = (calls ctxt
 
 lemma calls_restrict_ctxt_op: "calls (restrict_ctxt_op f ctxt) c
   = (case calls ctxt c of None \<Rightarrow> None | Some (Call op r) \<Rightarrow> (case f op of None \<Rightarrow> None | Some op' \<Rightarrow> Some (Call op' r)))"
-  by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def)
+  by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def')
+
+lemma calls_restrict_ctxt_op2: "calls (restrict_ctxt_op f ctxt)
+  = (\<lambda>c. calls ctxt c \<bind> (\<lambda>call. f (call_operation call) \<bind> (\<lambda>op'. Some (Call op' (call_res call)))))"
+  by (auto simp add: calls_restrict_ctxt_op split: option.splits call.splits)
+
 
 lemma happensBefore_restrict_ctxt_op:  "(c, c') \<in> happensBefore (restrict_ctxt_op f ctxt) \<longleftrightarrow> 
 (\<exists>op r op' r'. (c, c') \<in> happensBefore ctxt 
   \<and> calls ctxt c \<triangleq> Call op r \<and> f op \<noteq> None 
   \<and> calls ctxt c' \<triangleq> Call op' r' \<and> f op' \<noteq> None)"
-  apply (auto simp add: restrict_ctxt_op_def restrict_ctxt_def restrict_relation_def split: call.splits option.splits)
+  apply (auto simp add: restrict_ctxt_op_def restrict_ctxt_def restrict_relation_def  fmap_map_values_eq_some split: call.splits option.splits)
     apply (meson call.exhaust option.exhaust)
-  apply force
-  apply force
   done
 
 lemma happensBefore_ctxt_remove_calls: "(c, c') \<in> happensBefore (ctxt_remove_calls S ctxt) \<longleftrightarrow> (c, c') \<in> happensBefore ctxt |r S"
   by (auto simp add: ctxt_remove_calls_def)
 
-lemma map_spec_wf: 
+lemma restrict_simp1:
+"(restrict_ctxt_op (nested_op_on_key x11)
+           (ctxt_remove_calls (deleted_calls_uw (restrict_hb c) x) (restrict_hb c)))
+= (restrict_hb (restrict_ctxt_op (nested_op_on_key x11) (ctxt_remove_calls (deleted_calls_uw c x) c)))"
+  apply (auto simp add: fmap_map_values_def restrict_map_def restrict_relation_def restrict_ctxt_op_def
+      restrict_hb_def restrict_ctxt_def ctxt_remove_calls_def intro!: ext split: option.splits call.splits)
+           apply (auto simp add:  deleted_calls_uw_def)
+  done 
+
+lemma map_spec_restrict_hb[simp]:
+  assumes a1: "dc (restrict_hb c) = dc c"
+    and  wf: "crdt_spec_wf nested"
+  shows "map_spec dc fb nested op (restrict_hb c) r 
+\<longleftrightarrow> map_spec dc fb nested op c r"
+proof (auto simp add: map_spec_def a1  split: mapOp.splits)
+
+  have h1: "restrict_hb (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) c))
+     = (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) (restrict_hb c)))" for x
+    by (auto simp add: fmap_map_values_def' restrict_map_def restrict_relation_def restrict_ctxt_op_def
+      restrict_hb_def restrict_ctxt_def ctxt_remove_calls_def intro!: ext split: option.splits call.splits)
+
+
+  show "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) c)) r"
+    if c0: "op = NestedOp x y"
+      and c1: "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) (restrict_hb c))) r"
+    for  x y
+    using h1 by (metis c1 local.wf use_crdt_spec_wf) 
+
+  have h2: "restrict_hb (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) c))
+           =  (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) (restrict_hb c)))" for x
+    by (auto simp add: fmap_map_values_def' restrict_map_def restrict_relation_def restrict_ctxt_op_def
+      restrict_hb_def restrict_ctxt_def ctxt_remove_calls_def intro!: ext split: option.splits call.splits)
+
+
+
+  show "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) (restrict_hb c))) r"
+    if c0: "op = NestedOp x y"
+      and c1: "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) c)) r"
+    for  x y
+    by (metis c1 h2 local.wf use_crdt_spec_wf)
+qed
+
+
+lemma deleted_calls_uw_restrict_hb[simp]:
+ "deleted_calls_uw (restrict_hb c) = deleted_calls_uw c"
+  by (auto simp add: deleted_calls_uw_def restrict_relation_def intro!: ext, auto)
+
+
+lemma deleted_calls_dw_restrict_hb[simp]:
+ "deleted_calls_dw (restrict_hb c) = deleted_calls_dw c"
+  by (auto simp add: deleted_calls_dw_def restrict_relation_def intro!: ext, auto)
+
+
+lemma map_uw_spec_wf_restrict_hb[simp]:
   assumes wf: "crdt_spec_wf nested"
-    and deleted_calls_wf: "\<And>ctxt. deleted_calls (ctxt\<lparr>happensBefore := Restr (happensBefore ctxt) (dom (calls ctxt))\<rparr>) = deleted_calls ctxt"
-  shows "crdt_spec_wf (map_spec deleted_calls from_bool nested)"
-  by (auto simp add: crdt_spec_wf_def map_spec_def  
-      deleted_calls_wf calls_ctxt_remove_calls calls_restrict_ctxt_op restrict_map_def restrict_relation_def deleted_calls_uw_def 
-      happensBefore_restrict_ctxt_op happensBefore_ctxt_remove_calls 
-      intro!: ext 
-      split: option.splits call.splits mapOp.splits if_splits
-      elim!: use_crdt_spec_wf3[OF wf])
+  shows
+"map_uw_spec from_bool nested op (restrict_hb c) r
+\<longleftrightarrow> map_uw_spec from_bool nested op c r"
+  by (simp add: map_uw_spec_def wf)
+
+lemma map_dw_spec_wf_restrict_hb[simp]:
+  assumes wf: "crdt_spec_wf nested"
+  shows
+"map_dw_spec from_bool nested op (restrict_hb c) r
+\<longleftrightarrow> map_dw_spec from_bool nested op c r"
+  by (simp add: map_dw_spec_def wf)
+
 
 lemma map_uw_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
   shows "crdt_spec_wf (map_uw_spec from_bool nested)"
-  using wf unfolding map_uw_spec_def by (rule map_spec_wf, auto simp add: deleted_calls_uw_def intro!: ext, auto)
+  using crdt_spec_wf_def local.wf map_uw_spec_wf_restrict_hb by blast
 
 lemma map_dw_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
   shows "crdt_spec_wf (map_dw_spec from_bool  nested)"
-  using wf unfolding map_dw_spec_def by (rule map_spec_wf, auto simp add: deleted_calls_dw_def intro!: ext, auto)
+  using crdt_spec_wf_def local.wf map_dw_spec_wf_restrict_hb by blast
 
 
 subsection "Structs"
@@ -480,8 +587,8 @@ lemma map_dw_spec_queries_cannot_guess_ids[intro]:
 lemma register_spec_queries_cannot_guess_ids[intro]:
   assumes i_no: "uniqueIds i = {}"
   shows "queries_cannot_guess_ids (register_spec i)"
-  apply (auto simp add: queries_cannot_guess_ids_def2 register_spec_def latestValues_def i_no
-      latestAssignments_def ran_def uniqueIds_registerOp_def split: registerOp.splits option.splits if_splits)
+  apply (auto simp add: latestAssignments_def queries_cannot_guess_ids_def2 register_spec_def latestValues_def i_no
+      latestAssignments_h_def ran_def uniqueIds_registerOp_def split: registerOp.splits option.splits if_splits)
   apply (auto split: call.splits if_splits registerOp.splits)
   by (metis call.sel(1) registerOp.distinct(1) registerOp.inject)
 
@@ -512,7 +619,7 @@ lemma query_cannot_guess_ids_struct_field:
   from this obtain opr'
     where "calls ctxt cId \<triangleq> Call opr' res'"
       and "f opr' \<triangleq> opr"
-    by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def split: option.splits call.splits)
+    by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def' split: option.splits call.splits)
 
   have "x \<in> uniqueIds opr'"
     using \<open>f opr' \<triangleq> opr\<close> \<open>x \<in> uniqueIds opr\<close> assms(2) by blast
