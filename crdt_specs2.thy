@@ -34,8 +34,8 @@ lemma option_bind_def:
 
 definition is_reverse :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<Rightarrow> 'a) \<Rightarrow> bool" where
 "is_reverse f_in f_out \<equiv> 
-  (\<forall>x y. f_in x \<triangleq> y \<longrightarrow> f_out y = x)
-  \<and> (\<forall>x.  f_in (f_out x) \<triangleq> x)"
+  (\<forall>x y. ((f_in x) \<triangleq> y) \<longrightarrow> (f_out y = x))
+  \<and> (\<forall>x.  (f_in (f_out x)) \<triangleq> x)"
 
 lemma is_reverse_1:
   assumes "is_reverse f_in f_out"
@@ -57,6 +57,18 @@ left through transforming the context, right through C directly
 
 best to prove equivalence for the map first and see what is required
  *)
+
+(* TODO utils *)
+definition map_chain ::  "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c" (infixr "\<ggreater>" 54) where
+"(f \<ggreater> g) \<equiv> \<lambda>x. f x \<bind> g"
+
+definition map_map ::  "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<Rightarrow> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c" where
+"(map_map f g) \<equiv> \<lambda>x. map_option g (f x)"
+
+
+
+find_consts "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c"
+
 definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 'res) ccrdtSpec \<Rightarrow> bool" where
 "crdt_spec_rel spec cspec \<equiv>
 \<forall>C_in::'op \<rightharpoonup> 'opn. \<forall>C_out::'opn \<Rightarrow> 'op.
@@ -66,7 +78,7 @@ definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 're
    C_in outer_op \<triangleq> op
     \<longrightarrow>
        (spec op (sub_context C_in Cs ctxt) r
-    \<longleftrightarrow> cspec (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt))  (happensBefore ctxt) C_out op r))
+    \<longleftrightarrow> cspec (dom ((map_map (calls ctxt) call_operation) \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt))  (happensBefore ctxt) C_out op r))
 
 "
 
@@ -111,7 +123,8 @@ lemma
   unfolding crdt_spec_rel_def
 proof (intro allI impI)
 
-  show "lww_register_spec initial op (sub_context C_in Cs ctxt) r = lww_register_spec' initial (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out op r"
+  show "lww_register_spec initial op (sub_context C_in Cs ctxt) r 
+    = lww_register_spec' initial (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out op r"
     if c0: "is_reverse C_in C_out"
       and c1: "C_in outer_op \<triangleq> op"
     for  C_in C_out ctxt outer_op op r Cs
@@ -136,8 +149,8 @@ proof (intro allI impI)
 *)
 
 
-    show " lww_register_spec initial op (sub_context C_in Cs ctxt) r =
-    lww_register_spec' initial (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out op r"
+    show "lww_register_spec initial op (sub_context C_in Cs ctxt) r =
+    lww_register_spec' initial (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out op r"
       apply (auto simp add: lww_register_spec_def lww_register_spec'_def split: registerOp.splits)
       sorry
   qed
@@ -163,8 +176,8 @@ definition set_rw_spec' where
 subsection "Maps"
 
 
-definition
-"deleted_calls_dw' vis op hb C k \<equiv> {c. \<exists>d\<in>vis. op d \<triangleq> C (DeleteKey k) \<and> (d,c)\<notin>hb}"
+definition deleted_calls_dw' :: "callId set \<Rightarrow> (callId \<Rightarrow>'op) \<Rightarrow> callId rel \<Rightarrow> (('k, 'opn) mapOp \<Rightarrow> 'op) \<Rightarrow> 'k \<Rightarrow> callId set" where
+"deleted_calls_dw' vis op hb C k \<equiv> {c\<in>vis. \<exists>d\<in>vis. op d = C (DeleteKey k) \<and> (d,c)\<notin>hb}"
 
 definition 
 "restrict_calls vis op C k \<equiv>
@@ -203,7 +216,23 @@ lemma subcontext_of_subcontext_collapse:
       restrict_relation_def
       intro!: ext split: option.splits call.splits)
 
-  
+
+lemma 
+  assumes "is_reverse C_in C_out"
+  assumes "L = deleted_calls_dw (sub_context C_in Cs ctxt) k"
+and "R = deleted_calls_dw' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
+shows "L = R"
+  apply (auto simp add: deleted_calls_dw_def deleted_calls_dw'_def sub_context_def assms restrict_ctxt_op_def restrict_ctxt_def
+      fmap_map_values_def option_bind_def ctxt_restrict_calls_def restrict_map_def
+      restrict_relation_def extract_op_def split: option.splits call.splits if_splits)
+      apply (rule_tac x=c' in bexI)
+       apply auto
+  apply (metis (no_types, lifting) assms(1) is_reverse_def option.exhaust)
+  apply (meson call.exhaust option.exhaust)
+
+
+
+
 
 
 lemma map_spec_rel:
@@ -219,11 +248,12 @@ shows "crdt_spec_rel (map_spec deleted_calls from_bool nestedSpec) (map_spec' de
   unfolding crdt_spec_rel_def
 proof (intro allI impI)
 
-  show "map_spec deleted_calls from_bool nestedSpec op (sub_context C_in Cs ctxt) r = map_spec' deleted_calls' from_bool nestedSpec' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out op r" (is "?l = ?r")
+  show "map_spec deleted_calls from_bool nestedSpec op (sub_context C_in Cs ctxt) r 
+     = map_spec' deleted_calls' from_bool nestedSpec' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out op r"
+      (is "?l = ?r")
     if is_rev: "is_reverse C_in C_out"
-      and op_def: "C_in outer_op \<triangleq> op"
+      and in_out: "C_in outer_op \<triangleq> op"
     for  C_in C_out ctxt outer_op op r Cs
-
   proof -
 
 
@@ -232,8 +262,10 @@ proof (intro allI impI)
       case (NestedOp k nestedOp)
 
 
-       have h1: "(restrict_calls (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) C_out k - deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k) = 
-            {c \<in> dom (calls ctxt). c \<in> Cs \<and> (\<exists>u. extract_op (calls ctxt) c = C_out (NestedOp k u)) \<and> c \<notin> deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k}
+      have h1: "((restrict_calls (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) C_out k)
+                   - deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k) = 
+            {c \<in> dom (calls ctxt). c \<in> Cs \<and> (\<exists>u. extract_op (calls ctxt) c = C_out (NestedOp k u)) 
+               \<and> c \<notin> deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k}
               " 
          by (auto simp add: restrict_calls_def)
 
@@ -252,14 +284,11 @@ proof (intro allI impI)
       show ?thesis 
       proof (simp add: NestedOp h1 map_spec_def map_spec'_def subcontext_calls[OF is_rev] deletedCalls_rel subcontext_of_subcontext_collapse)
 
-        show " nestedSpec nestedOp
-         (sub_context (\<lambda>x. C_in x \<bind> nested_op_on_key k) (- deleted_calls (sub_context C_in Cs ctxt) k \<inter> Cs) ctxt) r =
-        nestedSpec'
-         {c \<in> dom (calls ctxt).
-          c \<in> Cs \<and>
-          (\<exists>u. extract_op (calls ctxt) c = C_out (NestedOp k u)) \<and>
-          c \<notin> deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k}
-         (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) nestedOp r"
+        show "nestedSpec nestedOp (sub_context (\<lambda>x. C_in x \<bind> nested_op_on_key k) (- deleted_calls (sub_context C_in Cs ctxt) k \<inter> Cs) ctxt) r =
+            nestedSpec'
+             (restrict_calls (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) C_out k -
+              deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)
+             (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) nestedOp r"
         proof (subst use_crdt_spec_rel[OF nested_rel])        
 
           show is_rev_combined: "is_reverse (\<lambda>x. C_in x \<bind> nested_op_on_key k) (\<lambda>x. C_out (NestedOp k x))"
@@ -272,28 +301,29 @@ proof (intro allI impI)
           have h1: "deleted_calls (sub_context C_in Cs ctxt) k
               = deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
             by (rule deletedCalls_rel)
-            thm deletedCalls_rel
 
-          have "(dom (calls ctxt) \<inter> (- deleted_calls (sub_context C_in Cs ctxt) k \<inter> Cs)) 
-          = {c \<in> dom (calls ctxt). c \<in> Cs \<and> (\<exists>u. extract_op (calls ctxt) c = C_out (NestedOp k u)) \<and>
-                      c \<notin> deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k}"
-            apply (auto simp add: h1)
-            apply (auto simp add: extract_op_def split: call.splits)
+          have h3: "(dom (map_map (calls ctxt) call_operation \<ggreater> (\<lambda>x. C_in x \<bind> nested_op_on_key k)) \<inter>
+                 (- deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k \<inter> Cs))
+              = (restrict_calls (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) C_out k -
+                    deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)"
+            apply (auto simp add: 
+                  restrict_calls_def extract_op_def nested_op_on_key_def
+                  map_chain_def option_bind_def map_map_def split: option.splits call.splits mapOp.splits if_splits)
+            using is_rev is_reverse_1 apply fastforce
+
+
+
             sorry
 
-
-          show "nestedSpec' 
-                  (dom (calls ctxt) \<inter> (- deleted_calls (sub_context C_in Cs ctxt) k \<inter> Cs)) 
-                  (extract_op (calls ctxt))
-                  (happensBefore ctxt) 
-                  (\<lambda>x. C_out (NestedOp k x)) 
-                  nestedOp 
-                  r =
-                  nestedSpec'
-                   {c \<in> dom (calls ctxt). c \<in> Cs \<and> (\<exists>u. extract_op (calls ctxt) c = C_out (NestedOp k u)) \<and>
-                      c \<notin> deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k}
-                   (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) nestedOp r"
-
+          show "nestedSpec'
+               (dom (map_map (calls ctxt) call_operation \<ggreater> (\<lambda>x. C_in x \<bind> nested_op_on_key k)) \<inter>
+                (- deleted_calls (sub_context C_in Cs ctxt) k \<inter> Cs))
+               (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) nestedOp r =
+              nestedSpec'
+               (restrict_calls (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) C_out k -
+                deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)
+               (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) nestedOp r"
+            apply (simp add: h1 restrict_calls_def)
 
           have "nestedSpec' (dom (calls ?ctxt) \<inter> ?Cs) (extract_op (calls ?ctxt)) (happensBefore ?ctxt) ?C_out ?op ?r"
 

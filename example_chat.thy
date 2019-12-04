@@ -2,7 +2,7 @@ theory example_chat
   imports 
     program_verification_tactics
     impl_language
-    crdt_specs
+    crdt_specs2
     unique_ids
     program_proof_rules
 begin
