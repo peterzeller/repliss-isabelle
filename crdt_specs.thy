@@ -312,7 +312,7 @@ definition set_rw_spec :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v se
   | Remove _ \<Rightarrow> res = default
   | Contains v \<Rightarrow> res = from_bool (\<exists>a. calls ctxt a \<triangleq> Call (Add v) default 
                            \<and> (\<forall>r. calls ctxt r \<triangleq> Call (Remove v) default 
-                               \<longrightarrow> (\<exists>a'. calls ctxt a' \<triangleq> Call (Add v) default \<and> (r,a)\<in>happensBefore ctxt)))"
+                               \<longrightarrow> (\<exists>a'. calls ctxt a' \<triangleq> Call (Add v) default \<and> (r,a')\<in>happensBefore ctxt)))"
 
 
 
