@@ -60,8 +60,8 @@ lemma calls_restrict_ctxt_op1:
   by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def map_Call_def intro!: ext split: option.splits call.splits)
 
 
-definition ctxt_remove_calls :: "callId set \<Rightarrow> ('op, 'r) operationContext \<Rightarrow> ('op, 'r) operationContext"  where
-"ctxt_remove_calls Cs ctxt = \<lparr>calls = calls ctxt |` Cs, happensBefore = happensBefore ctxt |r Cs\<rparr>"
+definition ctxt_restrict_calls :: "callId set \<Rightarrow> ('op, 'r) operationContext \<Rightarrow> ('op, 'r) operationContext"  where
+"ctxt_restrict_calls Cs ctxt = \<lparr>calls = calls ctxt |` Cs, happensBefore = happensBefore ctxt |r Cs\<rparr>"
 
 
 text "To combine CRDT specifications, we need to distinguish updates from queries, which we can do using
@@ -399,14 +399,18 @@ definition
 "deleted_calls_dw ctxt k \<equiv> {c\<in>dom (calls ctxt). \<exists>c' r. calls ctxt c' \<triangleq> Call (DeleteKey k) r \<and> (c',c)\<notin>happensBefore ctxt}"
 
 
+definition 
+"sub_context C_in Cs ctxt \<equiv>
+  (restrict_ctxt_op C_in (ctxt_restrict_calls Cs ctxt))"
+
+
 definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::default) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow> (bool \<Rightarrow> 'r) \<Rightarrow>   ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_spec deleted_calls from_bool nestedSpec oper ctxt res \<equiv>
   case oper of
     DeleteKey k \<Rightarrow> res = default
   | KeyExists k \<Rightarrow> res = from_bool (\<exists>c op r. calls ctxt c \<triangleq> Call (NestedOp k op) r \<and> is_update op \<and>  c \<notin> deleted_calls ctxt k)
   | NestedOp k op \<Rightarrow>
-     nestedSpec op (restrict_ctxt_op (nested_op_on_key k) 
-          (ctxt_remove_calls (deleted_calls ctxt k) ctxt)) res
+     nestedSpec op (sub_context (nested_op_on_key k) (- deleted_calls ctxt k) ctxt) res
 "
 
 definition map_uw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v::crdt_op,'r::default) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
@@ -416,8 +420,8 @@ definition map_dw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v::crdt_op,'r
 "map_dw_spec \<equiv> map_spec deleted_calls_dw"
 
 
-lemma calls_ctxt_remove_calls: "calls (ctxt_remove_calls S ctxt) c = (calls ctxt |` S) c"
-  by (auto simp add: ctxt_remove_calls_def)
+lemma calls_ctxt_restrict_calls: "calls (ctxt_restrict_calls S ctxt) c = (calls ctxt |` S) c"
+  by (auto simp add: ctxt_restrict_calls_def)
 
 lemma calls_restrict_ctxt_op: "calls (restrict_ctxt_op f ctxt) c
   = (case calls ctxt c of None \<Rightarrow> None | Some (Call op r) \<Rightarrow> (case f op of None \<Rightarrow> None | Some op' \<Rightarrow> Some (Call op' r)))"
@@ -436,15 +440,15 @@ lemma happensBefore_restrict_ctxt_op:  "(c, c') \<in> happensBefore (restrict_ct
     apply (meson call.exhaust option.exhaust)
   done
 
-lemma happensBefore_ctxt_remove_calls: "(c, c') \<in> happensBefore (ctxt_remove_calls S ctxt) \<longleftrightarrow> (c, c') \<in> happensBefore ctxt |r S"
-  by (auto simp add: ctxt_remove_calls_def)
+lemma happensBefore_ctxt_restrict_calls: "(c, c') \<in> happensBefore (ctxt_restrict_calls S ctxt) \<longleftrightarrow> (c, c') \<in> happensBefore ctxt |r S"
+  by (auto simp add: ctxt_restrict_calls_def)
 
 lemma restrict_simp1:
 "(restrict_ctxt_op (nested_op_on_key x11)
-           (ctxt_remove_calls (deleted_calls_uw (restrict_hb c) x) (restrict_hb c)))
-= (restrict_hb (restrict_ctxt_op (nested_op_on_key x11) (ctxt_remove_calls (deleted_calls_uw c x) c)))"
+           (ctxt_restrict_calls (deleted_calls_uw (restrict_hb c) x) (restrict_hb c)))
+= (restrict_hb (restrict_ctxt_op (nested_op_on_key x11) (ctxt_restrict_calls (deleted_calls_uw c x) c)))"
   apply (auto simp add: fmap_map_values_def restrict_map_def restrict_relation_def restrict_ctxt_op_def
-      restrict_hb_def restrict_ctxt_def ctxt_remove_calls_def intro!: ext split: option.splits call.splits)
+      restrict_hb_def restrict_ctxt_def ctxt_restrict_calls_def intro!: ext split: option.splits call.splits)
            apply (auto simp add:  deleted_calls_uw_def)
   done 
 
@@ -453,30 +457,31 @@ lemma map_spec_restrict_hb[simp]:
     and  wf: "crdt_spec_wf nested"
   shows "map_spec dc fb nested op (restrict_hb c) r 
 \<longleftrightarrow> map_spec dc fb nested op c r"
-proof (auto simp add: map_spec_def a1  split: mapOp.splits)
+proof (auto simp add: map_spec_def a1 sub_context_def  split: mapOp.splits)
 
-  have h1: "restrict_hb (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) c))
-     = (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) (restrict_hb c)))" for x
-    by (auto simp add: fmap_map_values_def' restrict_map_def restrict_relation_def restrict_ctxt_op_def
-      restrict_hb_def restrict_ctxt_def ctxt_remove_calls_def intro!: ext split: option.splits call.splits)
+  have h1: "restrict_hb (restrict_ctxt_op (nested_op_on_key x) (ctxt_restrict_calls (- dc c x) c))
+     = (restrict_ctxt_op (nested_op_on_key x) (ctxt_restrict_calls (- dc c x) (restrict_hb c)))" for x
+    by (auto simp add:  fmap_map_values_def' restrict_map_def restrict_relation_def restrict_ctxt_op_def
+      restrict_hb_def restrict_ctxt_def ctxt_restrict_calls_def intro!: ext split: option.splits call.splits)
 
 
-  show "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) c)) r"
+  show "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_restrict_calls (- dc c x) c)) r"
     if c0: "op = NestedOp x y"
-      and c1: "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) (restrict_hb c))) r"
+      and c1: "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_restrict_calls (- dc c x) (restrict_hb c))) r"
     for  x y
-    using h1 by (metis c1 local.wf use_crdt_spec_wf) 
+    by (metis c1 h1 local.wf use_crdt_spec_wf)
 
-  have h2: "restrict_hb (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) c))
-           =  (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) (restrict_hb c)))" for x
+
+  have h2: "restrict_hb (restrict_ctxt_op (nested_op_on_key x) (ctxt_restrict_calls (- dc c x) c))
+           =  (restrict_ctxt_op (nested_op_on_key x) (ctxt_restrict_calls (- dc c x) (restrict_hb c)))" for x
     by (auto simp add: fmap_map_values_def' restrict_map_def restrict_relation_def restrict_ctxt_op_def
-      restrict_hb_def restrict_ctxt_def ctxt_remove_calls_def intro!: ext split: option.splits call.splits)
+      restrict_hb_def restrict_ctxt_def ctxt_restrict_calls_def intro!: ext split: option.splits call.splits)
 
 
 
-  show "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) (restrict_hb c))) r"
+  show "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_restrict_calls (- dc c x) (restrict_hb c))) r"
     if c0: "op = NestedOp x y"
-      and c1: "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_remove_calls (dc c x) c)) r"
+      and c1: "nested y (restrict_ctxt_op (nested_op_on_key x) (ctxt_restrict_calls (- dc c x) c)) r"
     for  x y
     by (metis c1 h2 local.wf use_crdt_spec_wf)
 qed
@@ -542,9 +547,9 @@ lemma map_spec_queries_cannot_guess_ids[intro]:
   assumes nested: "queries_cannot_guess_ids n"
     and bools_no_uids[simp]: "\<And>b. uniqueIds (from_bool b) = {}"
   shows"queries_cannot_guess_ids (map_spec r from_bool n) "
-proof (auto simp add: queries_cannot_guess_ids_def2 map_spec_def  split: mapOp.splits)
+proof (auto simp add: sub_context_def queries_cannot_guess_ids_def2 map_spec_def  split: mapOp.splits)
   fix ctxt res key op x
-  assume a0: "n op (restrict_ctxt_op (nested_op_on_key key) (ctxt_remove_calls (r ctxt key) ctxt)) res"
+  assume a0: "n op (restrict_ctxt_op (nested_op_on_key key) (ctxt_restrict_calls (- r ctxt key) ctxt)) res"
     and a1: "x \<in> uniqueIds res"
     and a2: "x \<notin> uniqueIds key"
 and a3: "x \<notin> uniqueIds op"
@@ -552,7 +557,7 @@ and a3: "x \<notin> uniqueIds op"
 
 
   obtain cId opr res
-    where cId1: "calls (restrict_ctxt_op (nested_op_on_key key) (ctxt_remove_calls (r ctxt key) ctxt)) cId \<triangleq> Call opr res"
+    where cId1: "calls (restrict_ctxt_op (nested_op_on_key key) (ctxt_restrict_calls (- r ctxt key) ctxt)) cId \<triangleq> Call opr res"
       and cId2: "x \<in> uniqueIds opr"
     using use_queries_cannot_guess_ids[OF nested a0 a1 a3] by blast
 
@@ -562,7 +567,7 @@ and a3: "x \<notin> uniqueIds op"
   proof (intro exI conjI)
     from cId1
     show  "calls ctxt cId \<triangleq> Call (NestedOp key opr) res"
-      by (auto simp add: calls_restrict_ctxt_op calls_ctxt_remove_calls restrict_map_def nested_op_on_key_def split: option.splits call.splits if_splits mapOp.splits)
+      by (auto simp add: calls_restrict_ctxt_op calls_ctxt_restrict_calls restrict_map_def nested_op_on_key_def split: option.splits call.splits if_splits mapOp.splits)
 
     from `x \<in> uniqueIds opr`
     show "x \<in> uniqueIds (NestedOp key opr)"
