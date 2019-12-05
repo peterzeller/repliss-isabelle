@@ -65,6 +65,44 @@ definition map_chain ::  "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<righthar
 definition map_map ::  "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<Rightarrow> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c" where
 "(map_map f g) \<equiv> \<lambda>x. map_option g (f x)"
 
+lemma dom_map_chain: 
+"dom (f \<ggreater> g) = {x | x y z. f x \<triangleq> y \<and> g y \<triangleq> z}"
+  by (auto simp add: map_chain_def option_bind_def split: option.splits)
+
+lemma dom_map_map[simp]: 
+"dom (map_map f g) = dom f"
+  by (auto simp add: map_map_def)
+
+lemma map_map_apply_eq_some[simp]:
+"(map_map f g x \<triangleq> z) \<longleftrightarrow> (\<exists>y. f x \<triangleq> y \<and> g y = z)"
+  by (auto simp add: map_map_def split: option.splits)
+
+lemma map_map_apply_eq_none[simp]:
+"(map_map f g x = None) \<longleftrightarrow> (f x = None)"
+  by (auto simp add: map_map_def split: option.splits)
+
+
+lemma map_map_apply:
+"map_map f g x = (case f x of None \<Rightarrow> None | Some y \<Rightarrow> Some (g y))"
+  by (auto simp add: map_map_def split: option.splits)
+
+
+lemma calls_sub_context:
+  "calls (sub_context C_in Cs ctxt) = 
+(\<lambda>c. (calls ctxt |` Cs) c \<bind> (\<lambda>call. case C_in (call_operation call) of None \<Rightarrow> None | Some op' \<Rightarrow> Some (Call op' (call_res call))))
+"
+  by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def ctxt_restrict_calls_def 
+      option_bind_def 
+      split: option.splits call.splits)
+
+lemma happens_before_sub_context:
+  "(x,y) \<in> happensBefore (sub_context C_in Cs ctxt) 
+\<longleftrightarrow> ((x,y) \<in> happensBefore ctxt \<and> x\<in>dom (calls (sub_context  C_in Cs ctxt)) \<and> y\<in>dom (calls (sub_context  C_in Cs ctxt)))
+"
+  by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def
+ ctxt_restrict_calls_def restrict_map_def restrict_relation_def option_bind_def 
+ split: if_splits option.splits call.splits)
+
 
 
 find_consts "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c"
@@ -110,6 +148,27 @@ definition firstValue' :: "'a \<Rightarrow> ('b \<times> 'a) set \<Rightarrow> '
   wo_rel.minim some_well_order {y. (maxK,y)\<in>m}
   "
 
+lemma firstValue'_to_firstValue:
+  shows
+    "firstValue' initial {(x, y). f x \<triangleq> y}
+     = firstValue initial f"
+proof (auto simp add: firstValue'_def firstValue_def)
+
+  fix a y
+  assume c0: "f a \<triangleq> y"
+    and c1: "f \<noteq> Map.empty"
+  have h1: "(fst ` {(x, y). f x \<triangleq> y}) =  (dom f)"
+    by (auto simp add: image_iff)
+
+
+  show "wo_rel.minim some_well_order {y. f (wo_rel.minim some_well_order (fst ` {(x, y). f x \<triangleq> y})) \<triangleq> y} 
+      = the (f (wo_rel.minim some_well_order (dom f)))"
+    apply (auto simp add: h1)
+    by (smt c1 domIff dom_eq_empty_conv mem_Collect_eq option.exhaust_sel option.sel some_well_order_includes_all some_well_order_is_wo_rel wo_rel.minim_in)
+
+qed
+
+
 
 definition lww_register_spec' :: "('v::default) \<Rightarrow> ('op, 'v registerOp, 'v) ccrdtSpec" where
 "lww_register_spec' initial vis op hb C oper res \<equiv> 
@@ -118,45 +177,73 @@ definition lww_register_spec' :: "('v::default) \<Rightarrow> ('op, 'v registerO
   | Read \<Rightarrow> res = firstValue' initial (latest_assignments' vis op hb C)"
 
 
-lemma 
-"crdt_spec_rel (lww_register_spec initial) (lww_register_spec' initial) "
-  unfolding crdt_spec_rel_def
-proof (intro allI impI)
+lemma wo_rel_minim_singleton:
+  assumes "S = {y}"
+  shows "wo_rel.minim some_well_order S = y"
+  by (metis assms insert_not_empty singletonD some_well_order_includes_all some_well_order_is_wo_rel wo_rel.minim_in)
 
-  show "lww_register_spec initial op (sub_context C_in Cs ctxt) r 
-    = lww_register_spec' initial (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out op r"
-    if c0: "is_reverse C_in C_out"
-      and c1: "C_in outer_op \<triangleq> op"
-    for  C_in C_out ctxt outer_op op r Cs
-  proof -
+lemma wo_rel_minim_singleton2:
+  assumes "f \<triangleq> y"
+  shows "wo_rel.minim some_well_order {y. f \<triangleq> y} = y"
+  by (metis (mono_tags, lifting) assms emptyE mem_Collect_eq option.sel some_well_order_includes_all some_well_order_is_wo_rel wo_rel.minim_in)
 
-(*
-    have h1: "(latest_assignments' (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id)
-    = {(x,y). latestAssignments ctxt x \<triangleq> y}"
-      apply (auto simp add: latest_assignments'_def extract_op_def latestAssignments_def latestAssignments_h_def split: call.splits)
-         apply (auto split: option.splits call.splits registerOp.splits if_splits)
-      done
-
-    have h2: "(fst ` {(x, y). latestAssignments ctxt x \<triangleq> y}) =
-              (dom (latestAssignments ctxt))"
-      by (auto simp add: in_img_simp)
+lemma map_chain_eq_some: 
+  "((f \<ggreater> g) x \<triangleq> z) \<longleftrightarrow> (\<exists>y. f x \<triangleq> y \<and> g y \<triangleq> z)"
+  by (simp add: bind_eq_Some_conv map_chain_def)
 
 
-    have h3: "firstValue' initial {(x, y). latestAssignments ctxt x \<triangleq> y}
-          = firstValue initial (latestAssignments ctxt)"
-      apply (auto simp add: firstValue'_def firstValue_def h2)
-      by (smt dom_def emptyE mem_Collect_eq option.exhaust option.sel some_well_order_includes_all some_well_order_is_wo_rel wo_rel.minim_in)
-*)
 
+lemma  latest_assignments_rel: 
+  assumes is_rev: "is_reverse C_in C_out"
+  shows "(latest_assignments' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out)
+      = {(x,y) | x y. latestAssignments (sub_context C_in Cs ctxt) x \<triangleq> y}"
+proof (auto simp add: latest_assignments'_def latestAssignments_def  latestAssignments_h_def 
+    map_chain_eq_some dom_def
+    split: option.splits registerOp.splits call.splits, 
+    goal_cases A B C D E F G H)
+  case (A a b y)
+  then show ?case
+    by (simp add: calls_sub_context)
+next
+  case (B a b y x1a c' v' r' x2)
+  then show ?case 
+    apply (auto simp add: calls_sub_context option_bind_def restrict_map_def happens_before_sub_context split: if_splits option.splits)
+    by (metis (mono_tags, lifting) call_operation_def extract_op_def is_rev is_reverse_1 option.simps(5))
+next
+  case (C a b y x1a x2)
+  then show ?case 
+    by (auto simp add: calls_sub_context option_bind_def restrict_map_def  call_operation_def extract_op_def is_rev is_reverse_2 split: if_splits option.splits)
 
-    show "lww_register_spec initial op (sub_context C_in Cs ctxt) r =
-    lww_register_spec' initial (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out op r"
-      apply (auto simp add: lww_register_spec_def lww_register_spec'_def split: registerOp.splits)
-      sorry
-  qed
+next
+  case (D a b y x2)
+  then show ?case 
+    by (auto simp add: calls_sub_context option_bind_def restrict_map_def  call_operation_def extract_op_def is_rev is_reverse_2 split: if_splits option.splits)
+next
+  case (E a b x2a x1a)
+  then show ?case
+    by (auto simp add: calls_sub_context option_bind_def restrict_map_def  call_operation_def extract_op_def is_rev is_reverse_2 split: if_splits option.splits)
+next
+  case (F a b x2a x1a)
+  then show ?case 
+    by (auto simp add: calls_sub_context option_bind_def restrict_map_def  call_operation_def extract_op_def is_rev is_reverse_2 split: if_splits option.splits)
+next
+  case (G a b x2a x1a)
+  then show ?case 
+    apply (auto simp add: calls_sub_context option_bind_def restrict_map_def  call_operation_def extract_op_def is_rev is_reverse_2 split: if_splits option.splits call.splits)
+    using is_rev is_reverse_1 by fastforce
+
+next
+  case (H a b c' y v' x2a x1a)
+  then show ?case 
+    apply (auto simp add: calls_sub_context option_bind_def restrict_map_def  call_operation_def extract_op_def is_rev is_reverse_2  split: if_splits option.splits call.splits)
+    by (metis (mono_tags, lifting) H(5) bind.bind_lunit call.sel(1) calls_sub_context domI happens_before_sub_context option.simps(5) restrict_map_def)
 qed
 
-
+lemma lww_register_spec_rel:
+"crdt_spec_rel (lww_register_spec initial) (lww_register_spec' initial) "
+  unfolding crdt_spec_rel_def
+  by (auto simp add: lww_register_spec_def lww_register_spec'_def 
+          latest_assignments_rel firstValue'_to_firstValue split: registerOp.splits)
 
 
 subsection "Sets"
@@ -195,8 +282,13 @@ definition map_spec' :: "
   | NestedOp k nested_op \<Rightarrow>
      nestedSpec (restrict_calls vis op C k - deleted_calls vis op hb C k) op hb (\<lambda>x. C (NestedOp k x)) nested_op res
 "
-(* Needed for example: structs, set_rw, map_rw *)
 
+
+definition map_dw_spec' :: "
+       (bool \<Rightarrow> 'r)
+    \<Rightarrow> ('op, 'opn::crdt_op, 'r) ccrdtSpec
+    \<Rightarrow> ('op, ('k, 'opn) mapOp, ('r::default)) ccrdtSpec" where
+"map_dw_spec' \<equiv>  map_spec' deleted_calls_dw'"
 
 
 
@@ -217,18 +309,18 @@ lemma subcontext_of_subcontext_collapse:
       intro!: ext split: option.splits call.splits)
 
 
-lemma 
+lemma deleted_calls_dw_rel:
   assumes "is_reverse C_in C_out"
   assumes "L = deleted_calls_dw (sub_context C_in Cs ctxt) k"
-and "R = deleted_calls_dw' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
+and "R = deleted_calls_dw' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
 shows "L = R"
-  apply (auto simp add: deleted_calls_dw_def deleted_calls_dw'_def sub_context_def assms restrict_ctxt_op_def restrict_ctxt_def
+  by (auto simp add: deleted_calls_dw_def deleted_calls_dw'_def sub_context_def assms restrict_ctxt_op_def restrict_ctxt_def
       fmap_map_values_def option_bind_def ctxt_restrict_calls_def restrict_map_def
-      restrict_relation_def extract_op_def split: option.splits call.splits if_splits)
-      apply (rule_tac x=c' in bexI)
-       apply auto
-  apply (metis (no_types, lifting) assms(1) is_reverse_def option.exhaust)
-  apply (meson call.exhaust option.exhaust)
+      restrict_relation_def extract_op_def  map_map_def map_chain_def
+      split: option.splits call.splits if_splits,
+   (smt IntI assms(1) call.collapse call.sel(1) domExists_simp domIff is_reverse_def o_apply option.case_eq_if option.sel),
+   (metis assms(1) is_reverse_2 option.distinct(1) option.inject),
+   (metis assms(1) is_reverse_2 option.distinct(1) option.sel))
 
 
 
@@ -242,8 +334,9 @@ lemma map_spec_rel:
     and deletedCalls' :: "callId set \<Rightarrow> (callId \<Rightarrow> 'op) \<Rightarrow> (callId \<times> callId) set \<Rightarrow> (('k, 'opn) mapOp \<Rightarrow> 'op) \<Rightarrow> 'k \<Rightarrow> callId set"
   assumes nested_rel: "crdt_spec_rel nestedSpec nestedSpec'"
 and deletedCalls_rel: 
-    "\<And>ctxt C_in C_out Cs k. deleted_calls (sub_context C_in Cs ctxt) k
-        = deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
+    "\<And>ctxt C_in C_out Cs k. is_reverse C_in C_out \<Longrightarrow>
+          deleted_calls (sub_context C_in Cs ctxt) k
+        = deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
 shows "crdt_spec_rel (map_spec deleted_calls from_bool nestedSpec) (map_spec' deleted_calls' from_bool nestedSpec') "
   unfolding crdt_spec_rel_def
 proof (intro allI impI)
@@ -269,16 +362,7 @@ proof (intro allI impI)
               " 
          by (auto simp add: restrict_calls_def)
 
-       have h2: "nestedSpec nestedOp
-         (sub_context (nested_op_on_key k) (- deleted_calls (sub_context C_in Cs ctxt) k) (sub_context C_in Cs ctxt))
-         r 
-          = ???"
-         thm use_crdt_spec_rel[OF nested_rel, 
-             where op=nestedOp 
-               and r=r
-               and C_in="\<lambda>x. C_in x \<bind> nested_op_on_key k"
-               and C_out="\<lambda>x. C_out (NestedOp k x)"]
-         sorry
+
 
 
       show ?thesis 
@@ -299,21 +383,25 @@ proof (intro allI impI)
             using is_rev_combined is_reverse_def by fastforce
 
           have h1: "deleted_calls (sub_context C_in Cs ctxt) k
-              = deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
-            by (rule deletedCalls_rel)
-
-          have h3: "(dom (map_map (calls ctxt) call_operation \<ggreater> (\<lambda>x. C_in x \<bind> nested_op_on_key k)) \<inter>
-                 (- deleted_calls' (dom (calls ctxt) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k \<inter> Cs))
-              = (restrict_calls (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) C_out k -
-                    deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)"
-            apply (auto simp add: 
-                  restrict_calls_def extract_op_def nested_op_on_key_def
-                  map_chain_def option_bind_def map_map_def split: option.splits call.splits mapOp.splits if_splits)
-            using is_rev is_reverse_1 apply fastforce
+              = deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
+            by (rule deletedCalls_rel[OF is_rev])
 
 
 
-            sorry
+
+          have h4: "
+             (dom (map_map (calls ctxt) call_operation \<ggreater> (\<lambda>x. C_in x \<bind> nested_op_on_key k)) \<inter> (- DC  \<inter> Cs) )
+             =
+             ({c \<in> dom (map_map (calls ctxt) call_operation \<ggreater> C_in).
+               c \<in> Cs \<and> (\<exists>u. extract_op (calls ctxt) c = C_out (NestedOp k u))} - DC)"
+            if "DC = deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
+            for DC
+            apply (auto simp add: map_map_def map_chain_def option_bind_def split: option.splits)
+             apply (auto simp add: nested_op_on_key_def extract_op_def split: option.splits mapOp.splits if_splits call.splits)
+               apply (auto simp add: is_reverse_2[OF is_rev])
+            using is_rev is_reverse_1 by fastforce
+
+
 
           show "nestedSpec'
                (dom (map_map (calls ctxt) call_operation \<ggreater> (\<lambda>x. C_in x \<bind> nested_op_on_key k)) \<inter>
@@ -323,24 +411,63 @@ proof (intro allI impI)
                (restrict_calls (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) C_out k -
                 deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)
                (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) nestedOp r"
-            apply (simp add: h1 restrict_calls_def)
+            by (simp add: h1 h4 restrict_calls_def)
+        qed
+      qed
 
-          have "nestedSpec' (dom (calls ?ctxt) \<inter> ?Cs) (extract_op (calls ?ctxt)) (happensBefore ?ctxt) ?C_out ?op ?r"
-
-
-          thm use_crdt_spec_rel1[OF nested_rel]
-         apply (fuzzy_rule(noabs) use_crdt_spec_rel1)
-
-        sorry
     next
       case (KeyExists k)
-      then show ?thesis 
-        apply (auto simp add: map_spec_def map_spec'_def subcontext_calls[OF is_rev] deletedCalls_rel intro!: arg_cong[where f=from_bool])
-           apply (auto simp add:  extract_op_def split: option.splits call.splits)
-           apply (metis (no_types, lifting) Int_iff call.inject deletedCalls_rel domI domIff option.sel)
-          apply (meson deletedCalls_rel is_rev is_reverse_2)
-         apply (meson deletedCalls_rel is_rev is_reverse_2)
-        by (metis (no_types, lifting) Int_iff call.inject deletedCalls_rel domI domIff option.sel)
+      show ?thesis 
+      proof (simp add: KeyExists map_spec_def map_spec'_def, 
+              subst deletedCalls_rel[OF is_rev],
+              rule arg_cong[where f="\<lambda>x. r = from_bool x"])
+
+        show "(\<exists>c op.
+                (\<exists>r. calls (sub_context C_in Cs ctxt) c \<triangleq> Call (NestedOp k op) r) \<and>
+                is_update op \<and>
+                c \<notin> deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt))
+                      (happensBefore ctxt) C_out k) =
+            (\<exists>c\<in>dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs.
+                \<exists>upd_op.
+                   extract_op (calls ctxt) c = C_out (NestedOp k upd_op) \<and>
+                   is_update upd_op \<and>
+                   c \<notin> deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt))
+                         (happensBefore ctxt) C_out k)"
+        proof (auto simp add: Bex_def calls_sub_context option_bind_def dom_map_chain restrict_map_def split: option.splits, goal_cases A B)
+          case (A c y)
+          show ?case
+            apply (auto intro!: exI[where x=c])
+            using A(1) A(2) apply auto[1]
+            using A(1) apply blast
+          proof -
+            obtain zz :: "('a, 'opn) mapOp \<Rightarrow> 'opn" where
+              f1: "C_in (call_operation y) \<noteq> None \<and> (\<forall>m. C_in (call_operation y) \<noteq> Some m \<or> (c \<notin> Cs \<or> m = NestedOp k (zz m) \<and> is_update (zz m) \<and> c \<notin> deleted_calls' ({c. \<exists>z. (\<exists>ca. calls ctxt c \<triangleq> ca \<and> call_operation ca = z) \<and> (\<exists>m. C_in z \<triangleq> m)} \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k) \<and> c \<in> Cs)"
+              using A(1) by moura
+            then obtain mm :: "('a, 'opn) mapOp option \<Rightarrow> ('a, 'opn) mapOp" and zza :: "('a, 'opn) mapOp \<Rightarrow> 'opn" where
+              f2: "mm (C_in (call_operation y)) = NestedOp k (zza (mm (C_in (call_operation y)))) \<and> is_update (zza (mm (C_in (call_operation y)))) \<and> c \<notin> deleted_calls' ({c. \<exists>z. (\<exists>ca. calls ctxt c \<triangleq> ca \<and> call_operation ca = z) \<and> (\<exists>m. C_in z \<triangleq> m)} \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
+              by auto
+            have f3: "\<forall>f fa. is_reverse f fa = ((\<forall>z m. f (z::'op) \<noteq> Some (m::('a, 'opn) mapOp) \<or> fa m = z) \<and> (\<forall>m. f (fa m) \<triangleq> m))"
+              by (simp add: is_reverse_def)
+            have f4: "(case calls ctxt c of None \<Rightarrow> ??? | Some (Call z r) \<Rightarrow> z) = call_operation y"
+              by (simp add: A(2) call_operation_def)
+            obtain mma :: "('a, 'opn) mapOp option \<Rightarrow> ('a, 'opn) mapOp" where
+              f5: "C_in (call_operation y) \<triangleq> mma (C_in (call_operation y))"
+              using f1 by (meson option.exhaust)
+            then have "extract_op (calls ctxt) c = C_out (mma (C_in (call_operation y)))"
+              using f4 f3 by (metis (no_types) extract_op_def is_rev)
+            then show "\<exists>z. extract_op (calls ctxt) c = C_out (NestedOp k z) \<and> is_update z \<and> c \<notin> deleted_calls' ({c. \<exists>z. (\<exists>ca. calls ctxt c \<triangleq> ca \<and> call_operation ca = z) \<and> (\<exists>m. C_in z \<triangleq> m)} \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
+              using f5 f1 by force
+          qed
+
+        next
+          case (B c upd_op ya z)
+          show ?case
+            apply (rule exI[where x=c], auto)
+            using B apply auto
+            by (metis call_operation_def extract_op_def is_rev is_reverse_2 option.inject option.simps(5))
+
+        qed
+      qed
     next
       case (DeleteKey k)
       then show ?thesis
@@ -349,5 +476,14 @@ proof (intro allI impI)
 
 
   qed
+qed
+
+
+
+lemma map_dw_spec_rel:
+  assumes nested_rel: "crdt_spec_rel nestedSpec nestedSpec'"
+shows "crdt_spec_rel (map_dw_spec from_bool nestedSpec) (map_dw_spec' from_bool nestedSpec') "
+  by (smt deleted_calls_dw_rel map_dw_spec'_def map_dw_spec_def map_spec_rel nested_rel)
+
 
 end
