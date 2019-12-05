@@ -310,9 +310,9 @@ definition set_rw_spec :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v se
   case op of
     Add _ => res = default
   | Remove _ \<Rightarrow> res = default
-  | Contains v \<Rightarrow> res = from_bool (\<exists>a. calls ctxt a \<triangleq> Call (Add v) default 
-                           \<and> (\<forall>r. calls ctxt r \<triangleq> Call (Remove v) default 
-                               \<longrightarrow> (\<exists>a'. calls ctxt a' \<triangleq> Call (Add v) default \<and> (r,a')\<in>happensBefore ctxt)))"
+  | Contains v \<Rightarrow> res = from_bool (\<exists>a a_res. calls ctxt a \<triangleq> Call (Add v) a_res 
+                           \<and> (\<forall>r r_res. calls ctxt r \<triangleq> Call (Remove v) r_res 
+                               \<longrightarrow> (\<exists>a' a'_res. calls ctxt a' \<triangleq> Call (Add v) a'_res \<and> (r,a')\<in>happensBefore ctxt)))"
 
 
 

@@ -104,6 +104,40 @@ lemma happens_before_sub_context:
  split: if_splits option.splits call.splits)
 
 
+lemma dom_calls_sub_context_rewrite: "(dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs)
+  = (dom (calls (sub_context C_in Cs ctxt)))"
+  by (auto simp add: calls_sub_context option_bind_def map_chain_def restrict_map_def  split: option.splits if_splits)
+
+
+
+lemma extract_op_to_call:
+  assumes "is_reverse C_in C_out"
+and "c\<in>dom (calls (sub_context C_in Cs ctxt))"
+shows "extract_op (calls ctxt) c = C_out op
+\<longleftrightarrow> (\<exists>r. calls ctxt c \<triangleq> Call (C_out op) r)"
+  by (smt IntD2 assms(2) call.collapse call.sel(1) call_operation_def calls_sub_context domD domIff dom_calls_sub_context_rewrite extract_op_def is_none_bind is_none_simps(1) is_none_simps(2) option.simps(5) restrict_in)
+
+lemma extract_op_into_sub_context:
+  assumes is_rev: "is_reverse C_in C_out"
+and in_dom: "c\<in>dom (calls (sub_context C_in Cs ctxt))"
+shows "extract_op (calls ctxt) c = C_out op
+\<longleftrightarrow> (\<exists>r. calls (sub_context C_in Cs ctxt) c \<triangleq> Call op r)"
+  using in_dom  apply (auto simp add: calls_sub_context restrict_map_def option_bind_def
+ call_operation_def extract_op_def is_rev is_reverse_2
+      split: option.splits if_splits call.splits)
+  using is_rev is_reverse_1 by fastforce
+
+lemma happens_before_into_sub_context:
+  assumes is_rev: "is_reverse C_in C_out"
+and in_dom_x: "x\<in>dom (calls (sub_context C_in Cs ctxt))"
+and in_dom_y: "y\<in>dom (calls (sub_context C_in Cs ctxt))"
+shows "(x,y) \<in> happensBefore ctxt
+\<longleftrightarrow> (x,y) \<in> happensBefore (sub_context C_in Cs ctxt)"
+  using in_dom_x in_dom_y  by (auto simp add:  restrict_map_def option_bind_def
+ call_operation_def extract_op_def is_rev is_reverse_2
+ happens_before_sub_context
+      split: option.splits if_splits call.splits)
+
 
 find_consts "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c"
 
@@ -123,6 +157,49 @@ definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 're
 lemmas use_crdt_spec_rel = crdt_spec_rel_def[unfolded atomize_eq, THEN iffD1, rule_format]
 lemmas use_crdt_spec_rel1 = crdt_spec_rel_def[unfolded atomize_eq, THEN iffD1, rule_format, THEN iffD1]
 lemmas use_crdt_spec_rel2 = crdt_spec_rel_def[unfolded atomize_eq, THEN iffD1, rule_format, THEN iffD2]
+
+lemma use_crdt_spec_rel_toplevel:
+  assumes rel: "crdt_spec_rel spec cspec"
+    and hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+  shows "spec op ctxt r 
+ =  cspec (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id op r"
+proof (fuzzy_rule use_crdt_spec_rel[OF rel])
+  show "is_reverse Some id"
+    by (simp add: is_reverse_def)
+
+  show "Some op \<triangleq> op"
+    by simp
+
+  show "dom (map_map (calls ctxt) call_operation \<ggreater> Some) \<inter> UNIV = dom (calls ctxt)"
+    by (auto simp add: dom_map_map dom_map_chain)
+
+  have h1: "calls (sub_context Some UNIV ctxt) =  calls ctxt "
+    by (auto simp add: calls_sub_context)
+
+  have h2: "happensBefore (sub_context Some UNIV ctxt) =  happensBefore ctxt "
+    apply (auto simp add: happens_before_sub_context calls_sub_context)
+     apply (meson FieldI1 domD hb_wf subsetD)
+    by (meson FieldI2 domD hb_wf in_mono)
+
+
+  from h1 h2
+  show "sub_context Some UNIV ctxt = ctxt "
+    by auto
+qed
+
+
+
+lemma show_crdt_spec_rel:
+  assumes
+  a: "\<And>C_in C_out  ctxt outer_op op r Cs.
+\<lbrakk>is_reverse C_in C_out; 
+ C_in outer_op \<triangleq> op\<rbrakk> \<Longrightarrow>
+     spec op (sub_context C_in Cs ctxt) r
+ \<longleftrightarrow> cspec (dom (calls (sub_context C_in Cs ctxt))) (extract_op (calls ctxt))  (happensBefore ctxt) C_out op r 
+"
+shows "crdt_spec_rel spec cspec"
+  by (simp add: a crdt_spec_rel_def dom_calls_sub_context_rewrite)
+
 
 
 subsection "Register"
@@ -248,15 +325,24 @@ lemma lww_register_spec_rel:
 
 subsection "Sets"
 
-definition set_rw_spec' where
+definition set_rw_spec' :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('op, 'v setOp, ('r::default)) ccrdtSpec" where
 "set_rw_spec' from_bool vis op hb C oper res \<equiv> 
   case oper of
     Add _ => res = default
   | Remove _ \<Rightarrow> res = default
   | Contains v \<Rightarrow> res = from_bool 
-        (\<exists>a\<in>vis. a \<triangleq> Add v 
-           \<and> (\<forall>r\<in>vis. op r \<triangleq> Remove v
-                 \<longrightarrow> (\<exists>a'\<in>vis. op a' \<triangleq> Add v \<and> (r,a')\<in>hb)))"
+        (\<exists>a\<in>vis. op a = C (Add v)
+           \<and> (\<forall>r\<in>vis. op r = C (Remove v)
+                 \<longrightarrow> (\<exists>a'\<in>vis. op a' = C (Add v) \<and> (r,a')\<in>hb)))"
+
+
+lemma set_rw_spec_rel:
+  shows "crdt_spec_rel (set_rw_spec from_bool) (set_rw_spec' from_bool) "
+  apply (rule show_crdt_spec_rel)
+  by (auto simp add: set_rw_spec_def set_rw_spec'_def 
+      extract_op_into_sub_context happens_before_into_sub_context
+      split: setOp.splits intro!: arg_cong[where f="from_bool"])
+
 
 
 
