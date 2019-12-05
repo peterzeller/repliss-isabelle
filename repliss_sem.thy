@@ -93,6 +93,10 @@ record ('proc, 'ls, 'operation, 'any) state = "('proc, 'ls, 'operation, 'any) di
   visibleCalls :: "invocId \<rightharpoonup> callId set"
   currentTransaction :: "invocId \<rightharpoonup> txid"
 
+lemma operationContext_ext: "((x::('operation, 'any) operationContext) = y) \<longleftrightarrow> (
+    calls x = calls y
+  \<and> happensBefore x = happensBefore y)"
+  by auto
 
 lemma state_ext: "((x::('proc, 'ls, 'operation, 'any) state) = y) \<longleftrightarrow> (
     calls x = calls y

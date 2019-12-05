@@ -13,14 +13,16 @@ calls from the calls in an embedded context.
 Therefore, we now use a different composition technique, where the mapping is explicitly passed down
 into nested CRDTs."
 
-type_synonym ('op, 'opn, 'res) ccrdtSpec = 
+type_synonym ('op, 'opn, 'res) cOperationResultSpec = 
         "callId set                  \<comment> \<open>visible calls\<close>
       \<Rightarrow> (callId \<Rightarrow>'op)              \<comment> \<open>call information\<close> 
       \<Rightarrow> callId rel                  \<comment> \<open>happens-before\<close>
       \<Rightarrow> ('opn \<Rightarrow> 'op)               \<comment> \<open>mapping back\<close>
-      \<Rightarrow> 'opn 
       \<Rightarrow> 'res
       \<Rightarrow> bool"
+
+type_synonym ('op, 'opn, 'res) ccrdtSpec = 
+        "'opn \<Rightarrow> ('op, 'opn, 'res) cOperationResultSpec"
 
 text "There is a mapping between the composable CRDT specs above and the original specifications:"
 
@@ -31,24 +33,6 @@ definition
 lemma option_bind_def:
 "(x \<bind> f) = (case x of None \<Rightarrow> None | Some a \<Rightarrow> f a)"
   by (metis bind.bind_lunit bind_eq_None_conv option.case_eq_if option.exhaust_sel)
-
-definition is_reverse :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<Rightarrow> 'a) \<Rightarrow> bool" where
-"is_reverse f_in f_out \<equiv> 
-  (\<forall>x y. ((f_in x) \<triangleq> y) \<longrightarrow> (f_out y = x))
-  \<and> (\<forall>x.  (f_in (f_out x)) \<triangleq> x)"
-
-lemma is_reverse_1:
-  assumes "is_reverse f_in f_out"
-    and "f_in x \<triangleq> y"
-  shows "f_out y = x"
-  by (meson assms is_reverse_def)
-
-
-lemma is_reverse_2:
-  assumes "is_reverse f_in f_out"
-  shows "f_in (f_out x) \<triangleq> x"
-  by (meson assms is_reverse_def)
-
 
 (* TODO
 so far the relation is only without nesting (for identity mapping.
@@ -85,6 +69,34 @@ lemma map_map_apply_eq_none[simp]:
 lemma map_map_apply:
 "map_map f g x = (case f x of None \<Rightarrow> None | Some y \<Rightarrow> Some (g y))"
   by (auto simp add: map_map_def split: option.splits)
+
+
+
+definition is_reverse :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<Rightarrow> 'a) \<Rightarrow> bool" where
+"is_reverse f_in f_out \<equiv> 
+  (\<forall>x y. ((f_in x) \<triangleq> y) \<longrightarrow> (f_out y = x))
+  \<and> (\<forall>x.  (f_in (f_out x)) \<triangleq> x)"
+
+lemma is_reverse_1:
+  assumes "is_reverse f_in f_out"
+    and "f_in x \<triangleq> y"
+  shows "f_out y = x"
+  by (meson assms is_reverse_def)
+
+
+lemma is_reverse_2:
+  assumes "is_reverse f_in f_out"
+  shows "f_in (f_out x) \<triangleq> x"
+  by (meson assms is_reverse_def)
+
+
+lemma is_reverse_combine:
+  assumes is_rev: "is_reverse C_in C_out"
+    and is_rev': "is_reverse C_in' C_out'"
+    shows "is_reverse (C_in' \<ggreater> C_in) (C_out' \<circ> C_out)"
+  by (smt bind_eq_Some_conv comp_apply is_rev is_rev' is_reverse_def map_chain_def)
+
+
 
 
 lemma calls_sub_context:
@@ -139,7 +151,6 @@ shows "(x,y) \<in> happensBefore ctxt
       split: option.splits if_splits call.splits)
 
 
-find_consts "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c"
 
 definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 'res) ccrdtSpec \<Rightarrow> bool" where
 "crdt_spec_rel spec cspec \<equiv>
@@ -150,7 +161,7 @@ definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 're
    C_in outer_op \<triangleq> op
     \<longrightarrow>
        (spec op (sub_context C_in Cs ctxt) r
-    \<longleftrightarrow> cspec (dom ((map_map (calls ctxt) call_operation) \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt))  (happensBefore ctxt) C_out op r))
+    \<longleftrightarrow> cspec op (dom ((map_map (calls ctxt) call_operation) \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt))  (happensBefore ctxt) C_out r))
 
 "
 
@@ -162,7 +173,7 @@ lemma use_crdt_spec_rel_toplevel:
   assumes rel: "crdt_spec_rel spec cspec"
     and hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
   shows "spec op ctxt r 
- =  cspec (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id op r"
+ =  cspec op (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id  r"
 proof (fuzzy_rule use_crdt_spec_rel[OF rel])
   show "is_reverse Some id"
     by (simp add: is_reverse_def)
@@ -195,10 +206,43 @@ lemma show_crdt_spec_rel:
 \<lbrakk>is_reverse C_in C_out; 
  C_in outer_op \<triangleq> op\<rbrakk> \<Longrightarrow>
      spec op (sub_context C_in Cs ctxt) r
- \<longleftrightarrow> cspec (dom (calls (sub_context C_in Cs ctxt))) (extract_op (calls ctxt))  (happensBefore ctxt) C_out op r 
+ \<longleftrightarrow> cspec op (dom (calls (sub_context C_in Cs ctxt))) (extract_op (calls ctxt))  (happensBefore ctxt) C_out  r 
 "
 shows "crdt_spec_rel spec cspec"
   by (simp add: a crdt_spec_rel_def dom_calls_sub_context_rewrite)
+
+
+definition convert_spec ::  "('op, 'op, 'res) ccrdtSpec \<Rightarrow> ('op, 'res) crdtSpec" where
+"convert_spec cspec op ctxt res \<equiv> 
+  cspec op (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id  res"
+
+
+lemma crdt_spec_rel_convert:
+  assumes rel: "crdt_spec_rel spec cspec"
+    and field: "Field (happensBefore ctxt) \<subseteq> dom (calls (ctxt))"
+  shows "spec op ctxt r = convert_spec cspec op ctxt r"
+  unfolding convert_spec_def
+proof -
+  show "spec op ctxt r = cspec op (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id  r" 
+  proof (fuzzy_rule use_crdt_spec_rel[OF rel])
+    show "is_reverse Some id"
+      by (simp add: is_reverse_def)
+    show "Some op \<triangleq> op"
+      by simp
+    show "dom (map_map (calls ctxt) call_operation \<ggreater> Some) \<inter> UNIV = dom (calls ctxt)"
+      by (auto simp add: map_chain_def map_map_apply_eq_some)
+    have h1: "calls (sub_context Some UNIV ctxt) = calls ctxt "
+      by (auto simp add: calls_sub_context)
+
+    have h2: "happensBefore (sub_context Some UNIV ctxt) = happensBefore ctxt "
+      using field by (auto simp add: happens_before_sub_context
+          FieldI1 FieldI2 h1 domD subset_h1)
+
+    from h1 h2
+    show "sub_context Some UNIV ctxt = ctxt "
+      by auto
+  qed
+qed
 
 
 
@@ -211,8 +255,8 @@ definition latest_assignments' :: "callId set \<Rightarrow> (callId \<Rightarrow
 definition
 "latest_values' vis op hb C \<equiv> snd ` (latest_assignments' vis op hb C)"
 
-definition
-"register_spec' initial vis op hb C oper res \<equiv>
+definition register_spec' :: "('res::default) \<Rightarrow> ('op, 'res registerOp, 'res) ccrdtSpec" where
+"register_spec' initial oper vis op hb C  res \<equiv>
   case oper of
     Assign _ \<Rightarrow> res = default
   | Read \<Rightarrow>
@@ -248,7 +292,7 @@ qed
 
 
 definition lww_register_spec' :: "('v::default) \<Rightarrow> ('op, 'v registerOp, 'v) ccrdtSpec" where
-"lww_register_spec' initial vis op hb C oper res \<equiv> 
+"lww_register_spec' initial oper vis op hb C  res \<equiv> 
   case oper of
     Assign x \<Rightarrow> res = default
   | Read \<Rightarrow> res = firstValue' initial (latest_assignments' vis op hb C)"
@@ -326,7 +370,7 @@ lemma lww_register_spec_rel:
 subsection "Sets"
 
 definition set_rw_spec' :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('op, 'v setOp, ('r::default)) ccrdtSpec" where
-"set_rw_spec' from_bool vis op hb C oper res \<equiv> 
+"set_rw_spec' from_bool oper vis op hb C  res \<equiv> 
   case oper of
     Add _ => res = default
   | Remove _ \<Rightarrow> res = default
@@ -361,12 +405,12 @@ definition map_spec' :: "
     \<Rightarrow> (bool \<Rightarrow> 'r)
     \<Rightarrow> ('op, 'opn::crdt_op, 'r) ccrdtSpec
     \<Rightarrow> ('op, ('k, 'opn) mapOp, ('r::default)) ccrdtSpec" where
-"map_spec' deleted_calls from_bool nestedSpec vis op hb C oper res \<equiv>
+"map_spec' deleted_calls from_bool nestedSpec oper vis op hb C res \<equiv>
   case oper of
     DeleteKey k \<Rightarrow> res = default
   | KeyExists k \<Rightarrow> res = from_bool (\<exists>c\<in>vis. \<exists>upd_op. op c = C (NestedOp k upd_op) \<and> is_update upd_op \<and>  c \<notin> deleted_calls vis op hb C k)
   | NestedOp k nested_op \<Rightarrow>
-     nestedSpec (restrict_calls vis op C k - deleted_calls vis op hb C k) op hb (\<lambda>x. C (NestedOp k x)) nested_op res
+     nestedSpec nested_op (restrict_calls vis op C k - deleted_calls vis op hb C k) op hb (\<lambda>x. C (NestedOp k x))  res
 "
 
 
@@ -428,7 +472,7 @@ shows "crdt_spec_rel (map_spec deleted_calls from_bool nestedSpec) (map_spec' de
 proof (intro allI impI)
 
   show "map_spec deleted_calls from_bool nestedSpec op (sub_context C_in Cs ctxt) r 
-     = map_spec' deleted_calls' from_bool nestedSpec' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out op r"
+     = map_spec' deleted_calls' from_bool nestedSpec' op (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out  r"
       (is "?l = ?r")
     if is_rev: "is_reverse C_in C_out"
       and in_out: "C_in outer_op \<triangleq> op"
@@ -455,10 +499,10 @@ proof (intro allI impI)
       proof (simp add: NestedOp h1 map_spec_def map_spec'_def subcontext_calls[OF is_rev] deletedCalls_rel subcontext_of_subcontext_collapse)
 
         show "nestedSpec nestedOp (sub_context (\<lambda>x. C_in x \<bind> nested_op_on_key k) (- deleted_calls (sub_context C_in Cs ctxt) k \<inter> Cs) ctxt) r =
-            nestedSpec'
+            nestedSpec' nestedOp
              (restrict_calls (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) C_out k -
               deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)
-             (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) nestedOp r"
+             (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x))  r"
         proof (subst use_crdt_spec_rel[OF nested_rel])        
 
           show is_rev_combined: "is_reverse (\<lambda>x. C_in x \<bind> nested_op_on_key k) (\<lambda>x. C_out (NestedOp k x))"
@@ -489,14 +533,14 @@ proof (intro allI impI)
 
 
 
-          show "nestedSpec'
+          show "nestedSpec' nestedOp
                (dom (map_map (calls ctxt) call_operation \<ggreater> (\<lambda>x. C_in x \<bind> nested_op_on_key k)) \<inter>
                 (- deleted_calls (sub_context C_in Cs ctxt) k \<inter> Cs))
-               (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) nestedOp r =
-              nestedSpec'
+               (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x))  r =
+              nestedSpec' nestedOp
                (restrict_calls (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) C_out k -
                 deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)
-               (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) nestedOp r"
+               (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x))  r"
             by (simp add: h1 h4 restrict_calls_def)
         qed
       qed
@@ -570,6 +614,71 @@ lemma map_dw_spec_rel:
   assumes nested_rel: "crdt_spec_rel nestedSpec nestedSpec'"
 shows "crdt_spec_rel (map_dw_spec from_bool nestedSpec) (map_dw_spec' from_bool nestedSpec') "
   by (smt deleted_calls_dw_rel map_dw_spec'_def map_dw_spec_def map_spec_rel nested_rel)
+
+
+subsection "Structs"
+
+definition struct_field' :: "('opn \<Rightarrow> 'a) \<Rightarrow> ('op, 'opn, 'res) cOperationResultSpec \<Rightarrow> ('op, 'a, 'res) cOperationResultSpec "  where
+"struct_field' C_out spec  \<equiv> 
+  \<lambda> vis op hb x_C_out res.
+    spec {c\<in>vis. \<exists>x. op c = x_C_out (C_out x)} op hb (x_C_out \<circ> C_out)  res"
+
+
+lemma struct_field_eq:
+  assumes rel: "crdt_spec_rel nspec nspec'"
+    and is_rev: "is_reverse C_in C_out"
+    and is_rev': "is_reverse C_in' C_out'"
+
+shows "struct_field (nspec n_op) C_in ctxt res 
+      =  struct_field' C_out (nspec' n_op) c_calls op hb C_out' res"
+proof (simp add: struct_field_def struct_field'_def)
+  show "nspec n_op (restrict_ctxt_op C_in ctxt) res =
+    nspec' n_op {c \<in> c_calls. \<exists>x. op c = C_out' (C_out x)} op hb (C_out' \<circ> C_out) res"
+  proof (fuzzy_rule use_crdt_spec_rel[OF rel])
+
+
+    show "is_reverse (C_in' \<ggreater> C_in) (C_out' \<circ> C_out)"
+      by (simp add: is_rev is_rev' is_reverse_combine)
+
+    define complete_ctxt where "complete_ctxt =  \<lparr>calls = (\<lambda>c. if c\<in>c_calls then Some (Call (op c) (call_res (the (calls ctxt c)))) else None), happensBefore = hb\<rparr> "
+
+    show "happensBefore complete_ctxt = hb"
+      by (auto simp add: complete_ctxt_def)
+
+    show "extract_op (calls complete_ctxt) = op"
+      apply (auto simp add: complete_ctxt_def extract_op_def intro!: ext)
+\<comment> \<open>TODO should be sufficient is op is equal on the relevant data, i.e. the given set c_Calls\<close>
+      sorry
+
+    show "(C_in' \<ggreater> C_in) (C_out' (C_out n_op)) \<triangleq> n_op"
+      by (simp add: is_rev is_rev' is_reverse_2 map_chain_def)
+
+\<comment> \<open>Restrict ctxt to be a subcontext?\<close>
+    show " sub_context (C_in' \<ggreater> C_in) c_calls complete_ctxt  = restrict_ctxt_op C_in ctxt"
+      apply (auto simp add: operationContext_ext calls_sub_context happens_before_sub_context complete_ctxt_def)
+          apply (auto simp add: option_bind_def restrict_ctxt_op_def restrict_map_def 
+          map_chain_def restrict_ctxt_def fmap_map_values_def
+          intro!: ext split: if_splits option.splits call.splits)
+
+      sorry
+
+    show "dom (map_map
+          (calls
+            complete_ctxt)
+          call_operation \<ggreater>
+         C_in' \<ggreater> C_in) \<inter>
+    c_calls =
+    {c \<in> c_calls. \<exists>x. op c = C_out' (C_out x)}"
+      apply (auto simp add: map_map_def map_chain_def option_bind_def complete_ctxt_def split: option.splits)
+        apply (metis is_rev is_rev' is_reverse_1)
+       apply (meson is_rev' is_reverse_def)
+      by (metis is_rev is_rev' is_reverse_2 option.sel)
+
+
+  qed 
+qed
+
+
 
 
 end

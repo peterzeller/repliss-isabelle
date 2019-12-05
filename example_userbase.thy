@@ -497,7 +497,7 @@ proof M_show_programCorrect
               (s_invocationOp(i \<mapsto> UpdateMail user mail)) (s_invocationRes(i := None)) {} {} {} [] None True
               (updateMail_impl (UserId user) (String mail))"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof ((repliss_vcg; intro conjI impI; repliss_vcg?), goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
+          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
             
             from Exists_AtCommit
@@ -714,7 +714,7 @@ proof M_show_programCorrect
           show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> GetUser user))
         (s_invocationRes(i := None)) {} {} {} [] None True (getUser_impl (UserId user))"
             for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof ((repliss_vcg; intro conjI impI; repliss_vcg?), goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
+          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
             then show ?case
             proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3)

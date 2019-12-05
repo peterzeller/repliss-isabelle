@@ -95,7 +95,6 @@ definition "is_update_operation x \<equiv> case x of Chat x \<Rightarrow> is_upd
 instance by (standard, auto)
 end
 
-
 definition messageStruct :: "(messageDataOp, val) crdtSpec" where
   "messageStruct \<equiv> (\<lambda>oper.
   case oper of
@@ -109,6 +108,37 @@ definition crdtSpec :: "(operation, val) crdtSpec" where
     Message op \<Rightarrow> struct_field (map_dw_spec Bool messageStruct op) (\<lambda>oper. case oper of Message op \<Rightarrow> Some op | _ \<Rightarrow> None) 
   | Chat op \<Rightarrow> struct_field (set_rw_spec Bool op) (\<lambda>oper. case oper of Chat op \<Rightarrow> Some op | _ \<Rightarrow> None)
 )"
+
+
+definition messageStruct'  :: "('a, messageDataOp, val) ccrdtSpec"  where
+  "messageStruct' \<equiv> (\<lambda>oper.
+  case oper of
+    Author op \<Rightarrow> struct_field' Author (register_spec' Undef op) 
+  | Content op \<Rightarrow> struct_field' Content (register_spec' Undef op) 
+)" 
+
+definition crdtSpec' :: "(operation, operation, val) ccrdtSpec" where
+"crdtSpec' \<equiv> (\<lambda>oper.
+  case oper of
+    Message op \<Rightarrow> struct_field' Message (map_dw_spec' Bool messageStruct' op) 
+  | Chat op \<Rightarrow> struct_field'  Chat (set_rw_spec' Bool op) 
+)"
+
+lemma crdtSpec'_alt:
+"crdtSpec oper ctxt res
+\<longleftrightarrow> crdtSpec' oper (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id res "
+proof (cases oper)
+  case (Chat n_op)
+  then show ?thesis
+  proof (simp add: crdtSpec_def crdtSpec'_def)
+    show "struct_field (set_rw_spec Bool n_op) (case_operation Some Map.empty) ctxt res 
+      =  struct_field' Chat (set_rw_spec' Bool n_op) (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id res"
+
+    sorry
+next
+  case (Message n_op)
+  then show ?thesis sorry
+qed
 
 
 definition sendMessage_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operation,val) io" where
@@ -285,16 +315,18 @@ type_synonym localState = "(val,operation,val) io"
 
 definition progr :: "(proc, localState, operation, val) prog" where
   "progr \<equiv> \<lparr>
-  querySpec = crdtSpec,
+  querySpec = convert_spec crdtSpec,
   procedure = procedures,
   invariant = inv
 \<rparr>"
 
 lemma [simp]: "procedure progr = procedures"
-"querySpec progr = crdtSpec"
+"querySpec progr = convert_spec crdtSpec"
 "invariant progr = inv"
   by (auto simp add: progr_def)
-  
+
+declare convert_spec_def[simp]
+
 (*
 lemma uniqueId_no_nested: "x \<in> uniqueIds uid \<Longrightarrow> x = (to_nat (uid :: val))"
   by (auto simp add: uniqueIds_val_def split: val.splits)
@@ -916,6 +948,10 @@ proof M_show_programCorrect
                    \<lparr>calls = (s_calls' |` (vis' - {c}))(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True)),
                       happensBefore = updateHb (s_happensBefore' |r vis') vis' [c]\<rparr>
                    resa\<close>
+                  have ???
+                    apply (simp add: crdtSpec_def)
+
+
                   have "crdtSpec (Message (NestedOp (MessageId m) (Author Read)))
                    \<lparr>calls = (s_calls' |` vis'),
                       happensBefore = s_happensBefore' |r vis'\<rparr>
