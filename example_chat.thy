@@ -66,6 +66,11 @@ definition [simp]: "default_messageDataOp = Author default"
 
 definition "is_update_messageDataOp x \<equiv> case x of Author x \<Rightarrow> is_update x | Content x \<Rightarrow> is_update x"
 
+lemma is_update_messageDataOp_simp[simp]:
+  "is_update (Author x) = is_update x"
+  "is_update (Content y) = is_update y"
+  by (auto simp add: is_update_messageDataOp_def)
+
 instance by (standard, auto)
 end
 
@@ -125,7 +130,8 @@ definition crdtSpec' :: "(operation, operation, val) ccrdtSpec" where
 )"
 
 lemma crdtSpec'_alt:
-"crdtSpec oper ctxt res
+  assumes hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+  shows "crdtSpec oper ctxt res
 \<longleftrightarrow> crdtSpec' oper (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id res "
 proof (cases oper)
   case (Chat n_op)
@@ -133,12 +139,135 @@ proof (cases oper)
   proof (simp add: crdtSpec_def crdtSpec'_def)
     show "struct_field (set_rw_spec Bool n_op) (case_operation Some Map.empty) ctxt res 
       =  struct_field' Chat (set_rw_spec' Bool n_op) (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id res"
+    proof (fuzzy_rule struct_field_eq)
+      show "sub_context Some (dom (calls ctxt)) ctxt = ctxt"
+        using hb_wf sub_context_id2 by blast
+      show "is_reverse Some id"
+        by (simp add: is_reverse_trivial)
+      show " is_reverse (\<lambda>a. case a of Chat x \<Rightarrow> Some x | Message x \<Rightarrow> Map.empty x) Chat"
+        by (auto simp add: is_reverse_def split: operation.splits)
 
-    sorry
+      show "dom (calls ctxt) \<subseteq> dom (calls ctxt)"
+        by simp
+
+      show "crdt_spec_rel (set_rw_spec Bool) (set_rw_spec' Bool)"
+        by (rule set_rw_spec_rel)
+    qed
+  qed
 next
   case (Message n_op)
-  then show ?thesis sorry
+  then show ?thesis
+  proof (simp add: crdtSpec_def crdtSpec'_def)
+    show "struct_field (map_dw_spec Bool messageStruct n_op) (case_operation Map.empty Some) ctxt res =
+    struct_field' Message (map_dw_spec' Bool messageStruct' n_op) (dom (calls ctxt)) (extract_op (calls ctxt))
+     (happensBefore ctxt) id res"
+    proof (fuzzy_rule struct_field_eq)
+      show "sub_context Some (dom (calls ctxt)) ctxt = ctxt"
+        using hb_wf sub_context_id2 by blast
+      show "is_reverse Some id"
+        by (simp add: is_reverse_trivial)
+      show "is_reverse (\<lambda>a. case a of Chat x \<Rightarrow> Map.empty x | Message x \<Rightarrow> Some x) Message"
+        by (auto simp add: is_reverse_def split: operation.splits)
+      show "dom (calls ctxt) \<subseteq> dom (calls ctxt)"
+        by simp
+
+      show "crdt_spec_rel (map_dw_spec Bool messageStruct) (map_dw_spec' Bool messageStruct')"
+      proof (rule map_dw_spec_rel)
+        show "crdt_spec_rel messageStruct messageStruct'"
+        proof (simp add: crdt_spec_rel_def; intro allI impI)
+
+          show "messageStruct op (sub_context C_in Cs ctxt) r = messageStruct' op Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+            if c0: "is_reverse C_in C_out"
+              and c1: "C_in outer_op \<triangleq> op"
+              and c2: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
+            for  C_in C_out ctxt outer_op op r Cs
+          proof (cases op)
+            case (Author author)
+            show ?thesis
+              unfolding messageStruct_def messageStruct'_def Author
+            proof simp
+              show "struct_field (register_spec Undef author) (case_messageDataOp Some Map.empty) (sub_context C_in Cs ctxt) r 
+                 = struct_field' Author (register_spec' Undef author) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+              proof (fuzzy_rule struct_field_eq)
+
+                show "is_reverse (case_messageDataOp Some Map.empty) Author"
+                  by (auto simp add: is_reverse_def split: messageDataOp.splits)
+
+                show "is_reverse C_in C_out"
+                  by (simp add: c0)
+
+                show "Cs \<subseteq> dom (calls ctxt)"
+                  by (smt c2 domI in_dom map_chain_eq_some map_map_apply_eq_some subsetI)
+
+
+                show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
+                  by (rule register_spec_rel)
+              qed
+            qed
+          next
+            case (Content content)
+            show ?thesis
+              unfolding messageStruct_def messageStruct'_def Content
+            proof simp
+              show "struct_field (register_spec Undef content) (case_messageDataOp Map.empty Some) (sub_context C_in Cs ctxt) r 
+                 =  struct_field' Content (register_spec' Undef content) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+              proof (fuzzy_rule struct_field_eq)
+
+                show "is_reverse (\<lambda>a. case a of Author x \<Rightarrow> Map.empty x | Content x \<Rightarrow> Some x) Content"
+                  by (auto simp add: is_reverse_def split: messageDataOp.splits)
+
+                show "is_reverse C_in C_out"
+                  by (simp add: c0)
+
+                show "Cs \<subseteq> dom (calls ctxt)"
+                  by (smt c2 domI in_dom map_chain_eq_some map_map_apply_eq_some subsetI)
+
+                show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
+                  by (rule register_spec_rel)
+              qed
+            qed
+          qed
+        qed
+      qed
+    qed
+  qed
 qed
+
+
+lemma crdtSpec'_wf:
+"ccrdtSpec_wf (crdtSpec' oper)"
+  unfolding crdtSpec'_def
+proof (auto  split: operation.splits)
+
+  show "ccrdtSpec_wf (struct_field' Message (map_dw_spec' Bool messageStruct' x))"
+    if c0: "oper = Message x"
+    for  x
+  proof (rule struct_field_wf)
+    show "ccrdtSpec_wf (map_dw_spec' Bool messageStruct' x)"
+    proof (rule map_dw_spec_wf)
+      show "ccrdtSpec_wf (messageStruct' oper)" for oper
+        unfolding messageStruct'_def by (auto split: messageDataOp.splits)
+    qed
+  qed
+qed
+
+lemma crdtSpec'_simp_op:
+  assumes "Cs \<subseteq> vis"
+  shows 
+  "crdtSpec' oper Cs (extract_op (s_calls |` vis)) s_happensBefore id r
+ = crdtSpec' oper Cs (extract_op (s_calls)) s_happensBefore id r"
+  apply (rule use_ccrdtSpec_wf[OF crdtSpec'_wf])
+  using assms by (auto simp add: map_same_on_def restrict_map_def extract_op_def split: option.splits call.splits)
+
+lemma crdtSpec'_simp_hb:
+  assumes "Cs \<subseteq> vis"
+  shows "
+   crdtSpec' oper Cs op (s_happensBefore |r vis) id r
+ = crdtSpec' oper Cs op s_happensBefore id r"
+apply (rule use_ccrdtSpec_wf[OF crdtSpec'_wf])
+  using assms by (auto simp add: rel_same_on_def restrict_relation_def split: option.splits call.splits)
+
+
 
 
 definition sendMessage_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operation,val) io" where
@@ -315,13 +444,13 @@ type_synonym localState = "(val,operation,val) io"
 
 definition progr :: "(proc, localState, operation, val) prog" where
   "progr \<equiv> \<lparr>
-  querySpec = convert_spec crdtSpec,
+  querySpec = crdtSpec,
   procedure = procedures,
   invariant = inv
 \<rparr>"
 
 lemma [simp]: "procedure progr = procedures"
-"querySpec progr = convert_spec crdtSpec"
+"querySpec progr = crdtSpec"
 "invariant progr = inv"
   by (auto simp add: progr_def)
 
@@ -428,6 +557,141 @@ qed
 
 lemma "calls (restrict_ctxt_op x y) = ???"
   oops
+
+
+(* TODO move *)
+lemma use_some_wellFormed:
+  assumes e: "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
+       state_wellFormed
+        \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
+           transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
+           invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+           generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
+           visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+and R: "\<And>S. state_wellFormed S \<Longrightarrow> P S"
+shows "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus. 
+  P \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
+           transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
+           invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+           generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
+           visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+proof -
+  from e obtain some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus
+    where "state_wellFormed
+        \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
+           transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
+           invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+           generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
+           visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+    by blast
+  hence "P \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
+           transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
+           invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+           generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
+           visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+    by (rule R)
+  thus ?thesis
+    by blast
+qed
+
+lemma get_query_spec:
+  assumes wf: "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
+     state_wellFormed
+      \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
+         transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
+         invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+         generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
+         visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+    and upd_call: "s_calls' upd_c \<triangleq> Call oper upd_r"
+  shows "\<exists>ctxt. querySpec progr oper ctxt upd_r"
+proof -
+  from wf
+  obtain some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus
+    where state_wf: "state_wellFormed
+                  \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
+                     transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
+                     invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+                     generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
+                     visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+    by blast
+
+  from wf_queryspec[OF state_wf] upd_call
+  obtain ctxt where "querySpec progr oper ctxt upd_r"
+    apply atomize_elim
+    apply auto
+    by blast
+  thus ?thesis
+    by blast
+qed
+
+
+lemma query_result_undef:
+  assumes wf: "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
+     state_wellFormed
+      \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
+         transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
+         invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+         generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
+         visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+    and upd_call: "s_calls' upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
+    and upd_is_update: "is_update upd_op"
+  shows "upd_r = Undef"
+proof -
+
+  obtain ctxt where "querySpec progr (Message (NestedOp (MessageId m) upd_op)) ctxt upd_r"
+    using assms(1) get_query_spec upd_call by blast
+
+  thus "upd_r = Undef"
+    using upd_is_update
+    by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
+
+qed
+
+
+lemma C_out_calls_remove_unaffected:
+  assumes "\<And>y. C_out y \<noteq> x"
+  shows "C_out_calls C_out (m(c := x)) vis
+  = C_out_calls C_out m vis - {c}"
+  using assms  by (auto simp add: C_out_calls_def)
+
+lemma C_out_nesting_simp:
+  assumes "C_out1 = C_out2 \<circ> f"
+  shows
+  "C_out_calls C_out1 op (C_out_calls C_out2 op vis)
+= C_out_calls C_out1 op vis" 
+  by (auto simp add: assms C_out_calls_def)
+
+lemma C_out_nesting_simp2[simp]:
+  shows
+  "C_out_calls (C_out \<circ> f) op (C_out_calls C_out op vis)
+= C_out_calls (C_out \<circ> f) op vis" 
+  by (auto simp add:  C_out_calls_def)
+
+lemma C_out_calls_empty[simp]: "C_out_calls C_out op {} = {}"
+  by (auto simp add: C_out_calls_def)
+
+lemma C_out_union: 
+"C_out_calls C_out op (A \<union> B) = C_out_calls C_out op A \<union> C_out_calls C_out op B"
+  by (auto simp add: C_out_calls_def)
+
+lemma C_out_insert: 
+"C_out_calls C_out op (insert c A) = (if \<exists>x. op c = C_out x then {c} else {}) \<union> C_out_calls C_out op A"
+  by (auto simp add: C_out_calls_def)
+
+lemma C_out_intersection: 
+"C_out_calls C_out op (A \<inter> B) = C_out_calls C_out op A \<inter> C_out_calls C_out op B"
+  by (auto simp add: C_out_calls_def)
+
+lemma C_out_minus: 
+"C_out_calls C_out op (A - B) = C_out_calls C_out op A - C_out_calls C_out op B"
+  by (auto simp add: C_out_calls_def)
+
+lemma in_C_out:
+"x \<in> C_out_calls C_out op vis
+\<longleftrightarrow> x\<in> vis \<and> (\<exists>y. op x = C_out y)"
+  by (auto simp add: C_out_calls_def)
+
+lemmas C_out_distrib = C_out_union  C_out_insert C_out_intersection C_out_minus
 
 theorem chat_app_correct: "programCorrect progr"
 proof M_show_programCorrect
@@ -607,8 +871,12 @@ proof M_show_programCorrect
                    split: option.splits if_splits operation.splits call.splits)
 
 
-            have "upd_r = Undef"
-              sorry (* by crdt spec invariant *)
+
+
+
+            hence "upd_r = Undef"
+              using Exists_AtCommit(9) query_result_undef by auto
+
 
             have "upd_c \<noteq> c"
               by (smt Exists_AtCommit(15) Exists_AtCommit(5) Exists_AtCommit(9) basic_trans_rules(31) domIff invariantContext.simps(1) operationContext.select_convs(1) upd_vis wellFormed_callOrigin_dom3)
@@ -902,19 +1170,38 @@ proof M_show_programCorrect
                   for  author
                 proof -
 
+                  have [simp]: "x \<in> Field (s_happensBefore' |r vis') \<Longrightarrow> x \<in> vis'" for x
+                    by (auto simp add: Field_def restrict_relation_def)
+
+                  hence [simp]: " x \<in> Field (s_happensBefore' |r vis') \<Longrightarrow> \<exists>y. s_calls' x \<triangleq> y" for x
+                    by (meson  in_dom `vis' \<subseteq> dom s_calls'`)
+
                   from \<open>crdtSpec (Message (KeyExists (MessageId m)))
                      \<lparr>calls = s_calls' |` vis', happensBefore = s_happensBefore' |r vis'\<rparr> (Bool True)\<close>
-                  obtain upd_c upd_op upd_r
-                    where upd_vis: "upd_c \<in> vis'"
-                      and upd_call: "s_calls' upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
+                  have "crdtSpec' (Message (KeyExists (MessageId m))) (dom s_calls' \<inter> vis') (extract_op s_calls') s_happensBefore' id (Bool True)"
+                    apply (subst(asm) crdtSpec'_alt)
+                    by (auto simp add: crdtSpec'_alt crdtSpec'_simp_op crdtSpec'_simp_hb)
+
+
+
+                  from this
+                  obtain upd_c upd_call upd_op
+                    where upd_call1: "s_calls' upd_c \<triangleq> upd_call"
+                      and upd_vis: "upd_c \<in> vis'"
+                      and upd_c_op: "extract_op s_calls' upd_c = Message (NestedOp (MessageId m) upd_op)"
                       and upd_is_update: "is_update upd_op"
-                      and ud_not_deleted: "\<forall>c'. c' \<in> vis' \<longrightarrow> (\<forall>x2. s_calls' c' \<triangleq> x2 \<longrightarrow> (\<forall>x2a. x2 \<noteq> Call (Message (DeleteKey (MessageId m))) x2a) \<or> (c', upd_c) \<in> s_happensBefore')"
-                    by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def
-                      restrict_map_def deleted_calls_dw_def restrict_relation_def
-                   split: option.splits if_splits operation.splits call.splits)
+                      and ud_not_deleted: "\<forall>d. extract_op s_calls' d = Message (DeleteKey (MessageId m)) \<longrightarrow> d \<in> dom s_calls' \<and> d \<in> vis' \<longrightarrow> (d, upd_c) \<in> s_happensBefore'"
+                    by (auto simp add: C_out_calls_def crdtSpec'_def struct_field'_def map_dw_spec'_def map_spec'_def deleted_calls_dw'_def)
+
+                  obtain upd_r where 
+                    upd_call: "s_calls' upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
+                    using upd_call1 upd_c_op
+                    by (auto simp add: extract_op_def split: call.splits)
+
 
                   have "upd_r = Undef"
-                    sorry (* by crdt spec invariant *)
+                    using local.Exists_AtReturn(9) upd_call upd_is_update
+                    by (rule query_result_undef)
 
 
                   obtain upda_c upda_val
@@ -948,9 +1235,96 @@ proof M_show_programCorrect
                    \<lparr>calls = (s_calls' |` (vis' - {c}))(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True)),
                       happensBefore = updateHb (s_happensBefore' |r vis') vis' [c]\<rparr>
                    resa\<close>
-                  have ???
-                    apply (simp add: crdtSpec_def)
+                  have spec1: "crdtSpec' (Message (NestedOp (MessageId m) (Author Read))) (insert c (dom s_calls' \<inter> (vis' - {c})))
+                       (extract_op ((s_calls' |` (vis' - {c}))(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True))))
+                       (updateHb (s_happensBefore' |r vis') vis' [c]) id resa"
+                    apply (subst(asm) crdtSpec'_alt)
+                  proof (auto simp add: crdtSpec'_alt crdtSpec'_simp_op crdtSpec'_simp_hb  )
 
+                    show "\<exists>y. s_calls' x \<triangleq> y"
+                      if c0: "x \<in> Field (updateHb (s_happensBefore' |r vis') vis' [c])"
+                        and c1: "x \<noteq> c"
+                      for  x
+                      using that `vis' \<subseteq> dom s_calls'` by (auto simp add: in_sequence_cons Field_def restrict_relation_def updateHb_cases)
+
+
+                    show "x \<in> vis'"
+                      if c0: "x \<in> Field (updateHb (s_happensBefore' |r vis') vis' [c])"
+                        and c1: "x \<noteq> c"
+                      for  x
+                      using that `vis' \<subseteq> dom s_calls'` by (auto simp add: in_sequence_cons Field_def restrict_relation_def updateHb_cases)
+                  qed
+
+                  have spec2: "crdtSpec' (Message (NestedOp (MessageId m) (Author Read))) 
+                       (insert c (dom s_calls' \<inter> (vis' - {c})))
+                       ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                       (updateHb s_happensBefore' vis' [c]) id resa"
+                    thm use_ccrdtSpec_wf1[OF crdtSpec'_wf ]
+                  proof (rule use_ccrdtSpec_wf1[OF crdtSpec'_wf, rotated -1, OF spec1])
+
+                    show " map_same_on (insert c (dom s_calls' \<inter> (vis' - {c})))
+                       (extract_op ((s_calls' |` (vis' - {c}))(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True))))
+                       ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))"
+                      by (auto simp add: map_same_on_def extract_op_def)
+
+                    show " rel_same_on (insert c (dom s_calls' \<inter> (vis' - {c}))) (updateHb (s_happensBefore' |r vis') vis' [c])
+                           (updateHb s_happensBefore' vis' [c])"
+                      using inv1(13) by (auto simp add: rel_same_on_def updateHb_cons restrict_relation_def)
+                  qed
+
+                  have [simp]: "(\<lambda>x. Message (NestedOp (MessageId m) x)) \<circ> Author
+                      = Message \<circ> (NestedOp (MessageId m)) \<circ> Author"
+                    by auto
+
+
+                  from spec2
+                  have ???
+                    apply (auto simp add: crdtSpec'_def )
+                    apply (auto simp add:  struct_field'_def)
+                    apply (auto simp add:  map_dw_spec'_def)
+                    apply (auto simp add: map_spec'_def )
+
+                    apply (auto simp add: restrict_calls_def2)
+
+                    apply (auto simp add:  messageStruct'_def)
+                    apply (auto simp add:  struct_field'_def)
+                    apply (auto simp add: register_spec'_def )
+                    apply (auto simp add:  C_out_distrib)
+                    apply (auto simp add: `resa = String author` split: if_splits)
+                    apply (auto simp add: latest_values'_def latest_assignments'_def  split: if_splits)
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: )
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: )
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: )
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
+                    apply (subst(asm) in_C_out)
+                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
+
+
+
+
+                    find_theorems resa
+                    apply (auto simp add: deleted_calls_dw'_def)
+
+                    apply (subst(asm) C_out_nesting_simp)
+                    apply (auto simp add: C_out_nesting_simp)
+                    apply (auto simp add: C_out_calls_remove_unaffected)
+                    find_theorems "(\<circ>)" C_out_calls
+
+                    sorry
 
                   have "crdtSpec (Message (NestedOp (MessageId m) (Author Read)))
                    \<lparr>calls = (s_calls' |` vis'),
@@ -963,6 +1337,7 @@ proof M_show_programCorrect
                     apply (auto simp add: messageStruct_def)
                     apply (auto simp add: struct_field_def)
                     apply (auto simp add: calls_ctxt_remove_calls calls_restrict_ctxt_op2)
+
 
                     apply (auto simp add: register_spec_def)
                      apply (auto simp add: latestValues_def latestAssignments_def)
