@@ -1,7 +1,7 @@
 theory crdt_specs
   imports repliss_sem
  unique_ids
- "~~/src/HOL/Library/Monad_Syntax"
+ "HOL-Library.Monad_Syntax"
 begin
 
 section "Composable CRDT specifications"
@@ -189,44 +189,6 @@ lemma register_spec_wf: "crdt_spec_wf (register_spec i)"
 text "To define LWW-registers, we use some arbitrary order on calls.
 First we show that this exists:"
 
-(* TODO move to utils *)
-definition some_well_order :: "'a rel" where
- "some_well_order \<equiv> (SOME ord. well_order ord)"
-
-lemma some_well_order_is_well_order: "well_order some_well_order"
-  by (metis someI_ex some_well_order_def well_ordering)
-
-lemma some_well_order_is_linear_order: "linear_order some_well_order"
-  using some_well_order_is_well_order well_order_on_def by blast
-
-lemma some_well_order_is_wo_rel: "wo_rel some_well_order"
-  using some_well_order_is_well_order well_order_on_Well_order wo_rel_def by blast
-
-lemma some_well_order_includes_all: "S \<subseteq> Field some_well_order"
-  using some_well_order_is_well_order well_order_on_Field by fastforce
-
-
-definition firstValue :: "'a \<Rightarrow> ('b \<Rightarrow> 'a option) \<Rightarrow> 'a" where
-"firstValue d m \<equiv> if m = Map.empty then d else 
-  let maxK = wo_rel.minim some_well_order (dom m) in
-  the (m maxK)
-  "
-
-
-lemma firstValue_in_ran:
-  assumes "finite (dom m)"
-and not_default: "firstValue d m \<noteq> d"
-shows "firstValue d m \<in> Map.ran m"
-  using not_default proof (auto simp add: firstValue_def )
-  assume "m \<noteq> Map.empty"
-  have "(wo_rel.minim some_well_order (dom m)) \<in> dom m"
-    by (simp add: \<open>m \<noteq> Map.empty\<close> some_well_order_includes_all some_well_order_is_wo_rel wo_rel.minim_in)
-
-
-  from this
-  show "the (m (wo_rel.minim some_well_order (dom m))) \<in> ran m"
-    by (meson domIff option.exhaust_sel ranI)
-qed
 
 
 definition lww_register_spec :: "'a::default \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
@@ -640,6 +602,39 @@ lemma query_cannot_guess_ids_struct_field2[intro]:
   shows "query_cannot_guess_ids (uniqueIds op) (struct_field (spec op) f)"
   using a1 a2 queries_cannot_guess_ids_def query_cannot_guess_ids_struct_field by blast
 
+
+
+subsection "Rewriting of Specs"
+
+
+lemma crdt_spec_wf_restrict_ctxt:
+  assumes "crdt_spec_wf spec"
+  shows "spec op (restrict_ctxt f ctxt) = spec op (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>)"
+proof 
+  fix r
+
+  have h: "spec op ctxt r 
+     = spec op (ctxt\<lparr>happensBefore := happensBefore ctxt |r dom (calls ctxt)\<rparr>) r" for ctxt
+    using assms use_crdt_spec_wf
+    by (metis restrict_hb_def) 
+    
+  have a: "spec op (restrict_ctxt f ctxt) r 
+   = spec op ((restrict_ctxt f ctxt)\<lparr>happensBefore := happensBefore (restrict_ctxt f ctxt) |r dom (calls (restrict_ctxt f ctxt))\<rparr>) r "
+    by (subst h, rule refl)
+
+
+
+  have b: "spec op (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>) r
+    = spec op ((ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>)\<lparr>happensBefore := happensBefore  (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>) |r dom (calls  (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>))\<rparr>) r "
+    by (subst h, rule refl)
+
+  have c: "((restrict_ctxt f ctxt)\<lparr>happensBefore := happensBefore (restrict_ctxt f ctxt) |r dom (calls (restrict_ctxt f ctxt))\<rparr>)
+       =   ((ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>)\<lparr>happensBefore := happensBefore  (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>) |r dom (calls  (ctxt\<lparr>calls := fmap_map_values f (calls ctxt) \<rparr>))\<rparr>)"
+    by (auto simp add: restrict_ctxt_def restrict_relation_def fmap_map_values_def intro!: operationContext.equality split: option.splits)   
+
+  show "spec op (restrict_ctxt f ctxt) r = spec op (ctxt\<lparr>calls := fmap_map_values f (calls ctxt)\<rparr>) r"
+    by (simp add: a b c)
+qed
 
 
 

@@ -41,67 +41,6 @@ lemma extract_op_eq:
   using assms by (auto simp add: extract_op_def' split: option.splits call.splits)
 
 
-(* TODO utils *)
-lemma option_bind_def:
-"(x \<bind> f) = (case x of None \<Rightarrow> None | Some a \<Rightarrow> f a)"
-  by (metis bind.bind_lunit bind_eq_None_conv option.case_eq_if option.exhaust_sel)
-
-(* TODO utils *)
-definition map_chain ::  "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c" (infixr "\<ggreater>" 54) where
-"(f \<ggreater> g) \<equiv> \<lambda>x. f x \<bind> g"
-
-definition map_map ::  "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<Rightarrow> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c" where
-"(map_map f g) \<equiv> \<lambda>x. map_option g (f x)"
-
-lemma dom_map_chain: 
-"dom (f \<ggreater> g) = {x | x y z. f x \<triangleq> y \<and> g y \<triangleq> z}"
-  by (auto simp add: map_chain_def option_bind_def split: option.splits)
-
-lemma dom_map_map[simp]: 
-"dom (map_map f g) = dom f"
-  by (auto simp add: map_map_def)
-
-lemma map_map_apply_eq_some[simp]:
-"(map_map f g x \<triangleq> z) \<longleftrightarrow> (\<exists>y. f x \<triangleq> y \<and> g y = z)"
-  by (auto simp add: map_map_def split: option.splits)
-
-lemma map_map_apply_eq_none[simp]:
-"(map_map f g x = None) \<longleftrightarrow> (f x = None)"
-  by (auto simp add: map_map_def split: option.splits)
-
-
-lemma map_map_apply:
-"map_map f g x = (case f x of None \<Rightarrow> None | Some y \<Rightarrow> Some (g y))"
-  by (auto simp add: map_map_def split: option.splits)
-
-
-
-definition is_reverse :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<Rightarrow> 'a) \<Rightarrow> bool" where
-"is_reverse f_in f_out \<equiv> 
-  (\<forall>x y. ((f_in x) \<triangleq> y) \<longrightarrow> (f_out y = x))
-  \<and> (\<forall>x.  (f_in (f_out x)) \<triangleq> x)"
-
-lemma is_reverse_1:
-  assumes "is_reverse f_in f_out"
-    and "f_in x \<triangleq> y"
-  shows "f_out y = x"
-  by (meson assms is_reverse_def)
-
-
-lemma is_reverse_2:
-  assumes "is_reverse f_in f_out"
-  shows "f_in (f_out x) \<triangleq> x"
-  by (meson assms is_reverse_def)
-
-
-lemma is_reverse_combine:
-  assumes is_rev: "is_reverse C_in C_out"
-    and is_rev': "is_reverse C_in' C_out'"
-    shows "is_reverse (C_in' \<ggreater> C_in) (C_out' \<circ> C_out)"
-  by (smt bind_eq_Some_conv comp_apply is_rev is_rev' is_reverse_def map_chain_def)
-
-lemma is_reverse_trivial: "is_reverse Some id"
-  by (simp add: is_reverse_def)
 
 
 lemma calls_sub_context:
@@ -250,17 +189,7 @@ proof -
   qed
 qed
 
-(* TODO utils *)
-definition "map_same_on Cs op op' \<equiv> \<forall>c\<in>Cs. op c = op' c"
-definition "rel_same_on Cs hb hb' \<equiv> \<forall>x\<in>Cs.\<forall>y\<in>Cs. (x,y)\<in>hb \<longleftrightarrow> (x,y)\<in>hb'"
 
-lemma map_same_on_trivial[simp]:
-"map_same_on Cs x x"
-  by (simp add: map_same_on_def)
-
-lemma rel_same_on_trivial[simp]:
-"rel_same_on Cs x x"
-  by (simp add: rel_same_on_def)
 
 definition ccrdtSpec_wf :: "('op, 'opn, 'res) cOperationResultSpec \<Rightarrow> bool" where
 "ccrdtSpec_wf spec  \<equiv> 
@@ -291,51 +220,6 @@ definition latest_assignments' :: "callId set \<Rightarrow> (callId \<Rightarrow
 
 definition
 "latest_values' vis op hb C \<equiv> snd ` (latest_assignments' vis op hb C)"
-
-definition
-"is_from x initial S \<equiv> if S = {} then x = initial else x \<in> S"
-
-lemma is_from_exists:
-  assumes "\<exists>x. x\<in>S"
-  shows "is_from x initial S \<longleftrightarrow> x \<in> S"
-  by (metis assms empty_iff is_from_def)
-
-
-(* TODO utils*)
-lemma exists_min:
-  assumes fin: "finite S"
-    and nonempty: "x\<in>S"
-    and acyclic: "acyclic r"
-  shows "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(y,x)\<in>r)"
-proof -
-  have "wf (Restr r S)"
-  proof (rule finite_acyclic_wf)
-    show "finite (Restr r S)"
-      using fin by simp 
-    show "acyclic (Restr r S)"
-      using acyclic by (meson Int_lower1 acyclic_subset) 
-  qed
-
-  show ?thesis
-    by (smt IntI \<open>wf (Restr r S)\<close> mem_Sigma_iff nonempty wfE_min)
-qed
-
-lemma exists_max:
-  assumes fin: "finite S"
-    and nonempty: "x\<in>S"
-    and acyclic: "acyclic r"
-  shows "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(x,y)\<in>r)"
-proof -
-
-  have "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(y,x)\<in>r\<inverse>)"
-    using fin nonempty
-  proof (rule exists_min)
-    show "acyclic (r\<inverse>)"
-      by (simp add: acyclic)
-  qed
-  thus ?thesis
-    by simp
-qed
 
 
 lemma latest_assignments'_exists:
@@ -982,7 +866,6 @@ lemma sub_context_id2:
   assumes  hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
   shows "(sub_context Some (dom (calls ctxt)) ctxt) = ctxt"
   by (simp add: hb_wf sub_context_id)
-
 
 
 

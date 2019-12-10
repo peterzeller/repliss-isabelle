@@ -1,7 +1,12 @@
 theory utils
   imports Main
+    "HOL-Library.Monad_Syntax"
 begin
 
+
+section "Various Utilities"
+
+text "This theory contains definition and Lemmas that could be in the standard library."
 
 abbreviation todo ("???") where "??? \<equiv> undefined"
 
@@ -449,6 +454,457 @@ proof auto
   thus False
     using Max_ge \<open>f x \<in> f ` S\<close> \<open>finite (f ` S)\<close> leD by blast
 qed
+
+
+subsection "Well orders"
+
+text "All types have an implicit well order that can be used when deterministically picking an 
+arbitrary element from a set."
+
+definition some_well_order :: "'a rel" where
+ "some_well_order \<equiv> (SOME ord. well_order ord)"
+
+lemma some_well_order_is_well_order: "well_order some_well_order"
+  by (metis someI_ex some_well_order_def well_ordering)
+
+lemma some_well_order_is_linear_order: "linear_order some_well_order"
+  using some_well_order_is_well_order well_order_on_def by blast
+
+lemma some_well_order_is_wo_rel: "wo_rel some_well_order"
+  using some_well_order_is_well_order well_order_on_Well_order wo_rel_def by blast
+
+lemma some_well_order_includes_all: "S \<subseteq> Field some_well_order"
+  using some_well_order_is_well_order well_order_on_Field by fastforce
+
+
+definition firstValue :: "'a \<Rightarrow> ('b \<Rightarrow> 'a option) \<Rightarrow> 'a" where
+"firstValue d m \<equiv> if m = Map.empty then d else 
+  let maxK = wo_rel.minim some_well_order (dom m) in
+  the (m maxK)
+  "
+
+
+lemma firstValue_in_ran:
+  assumes "finite (dom m)"
+and not_default: "firstValue d m \<noteq> d"
+shows "firstValue d m \<in> Map.ran m"
+  using not_default proof (auto simp add: firstValue_def )
+  assume "m \<noteq> Map.empty"
+  have "(wo_rel.minim some_well_order (dom m)) \<in> dom m"
+    by (simp add: \<open>m \<noteq> Map.empty\<close> some_well_order_includes_all some_well_order_is_wo_rel wo_rel.minim_in)
+
+
+  from this
+  show "the (m (wo_rel.minim some_well_order (dom m))) \<in> ran m"
+    by (meson domIff option.exhaust_sel ranI)
+qed
+
+
+subsection "Option Type"
+
+text "We define some nicer syntax for working with options and maps."
+
+lemma option_bind_def:
+"(x \<bind> f) = (case x of None \<Rightarrow> None | Some a \<Rightarrow> f a)"
+  by (metis bind.bind_lunit bind_eq_None_conv option.case_eq_if option.exhaust_sel)
+
+definition map_chain ::  "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<rightharpoonup> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c" (infixr "\<ggreater>" 54) where
+"(f \<ggreater> g) \<equiv> \<lambda>x. f x \<bind> g"
+
+definition map_map ::  "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<Rightarrow> 'c) \<Rightarrow> 'a \<rightharpoonup> 'c" where
+"(map_map f g) \<equiv> \<lambda>x. map_option g (f x)"
+
+lemma dom_map_chain: 
+"dom (f \<ggreater> g) = {x | x y z. f x \<triangleq> y \<and> g y \<triangleq> z}"
+  by (auto simp add: map_chain_def option_bind_def split: option.splits)
+
+lemma dom_map_map[simp]: 
+"dom (map_map f g) = dom f"
+  by (auto simp add: map_map_def)
+
+lemma map_map_apply_eq_some[simp]:
+"(map_map f g x \<triangleq> z) \<longleftrightarrow> (\<exists>y. f x \<triangleq> y \<and> g y = z)"
+  by (auto simp add: map_map_def split: option.splits)
+
+lemma map_map_apply_eq_none[simp]:
+"(map_map f g x = None) \<longleftrightarrow> (f x = None)"
+  by (auto simp add: map_map_def split: option.splits)
+
+
+lemma map_map_apply:
+"map_map f g x = (case f x of None \<Rightarrow> None | Some y \<Rightarrow> Some (g y))"
+  by (auto simp add: map_map_def split: option.splits)
+
+
+
+definition is_reverse :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('b \<Rightarrow> 'a) \<Rightarrow> bool" where
+"is_reverse f_in f_out \<equiv> 
+  (\<forall>x y. ((f_in x) \<triangleq> y) \<longrightarrow> (f_out y = x))
+  \<and> (\<forall>x.  (f_in (f_out x)) \<triangleq> x)"
+
+lemma is_reverse_1:
+  assumes "is_reverse f_in f_out"
+    and "f_in x \<triangleq> y"
+  shows "f_out y = x"
+  by (meson assms is_reverse_def)
+
+
+lemma is_reverse_2:
+  assumes "is_reverse f_in f_out"
+  shows "f_in (f_out x) \<triangleq> x"
+  by (meson assms is_reverse_def)
+
+
+lemma is_reverse_combine:
+  assumes is_rev: "is_reverse C_in C_out"
+    and is_rev': "is_reverse C_in' C_out'"
+    shows "is_reverse (C_in' \<ggreater> C_in) (C_out' \<circ> C_out)"
+  by (smt bind_eq_Some_conv comp_apply is_rev is_rev' is_reverse_def map_chain_def)
+
+lemma is_reverse_trivial: "is_reverse Some id"
+  by (simp add: is_reverse_def)
+
+
+subsection "Almost the Same"
+
+text "Sometimes we want to express that two maps or relations are almost
+the same (just on a subset)."
+
+definition "map_same_on Cs op op' \<equiv> \<forall>c\<in>Cs. op c = op' c"
+definition "rel_same_on Cs hb hb' \<equiv> \<forall>x\<in>Cs.\<forall>y\<in>Cs. (x,y)\<in>hb \<longleftrightarrow> (x,y)\<in>hb'"
+
+lemma map_same_on_trivial[simp]:
+"map_same_on Cs x x"
+  by (simp add: map_same_on_def)
+
+lemma rel_same_on_trivial[simp]:
+"rel_same_on Cs x x"
+  by (simp add: rel_same_on_def)
+
+
+
+
+
+definition
+"is_from x initial S \<equiv> if S = {} then x = initial else x \<in> S"
+
+lemma is_from_exists:
+  assumes "\<exists>x. x\<in>S"
+  shows "is_from x initial S \<longleftrightarrow> x \<in> S"
+  by (metis assms empty_iff is_from_def)
+
+subsection "Minimums and Maximums"
+
+text "A finite set with an acyclic order has minimal elements."
+
+lemma exists_min:
+  assumes fin: "finite S"
+    and nonempty: "x\<in>S"
+    and acyclic: "acyclic r"
+  shows "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(y,x)\<in>r)"
+proof -
+  have "wf (Restr r S)"
+  proof (rule finite_acyclic_wf)
+    show "finite (Restr r S)"
+      using fin by simp 
+    show "acyclic (Restr r S)"
+      using acyclic by (meson Int_lower1 acyclic_subset) 
+  qed
+
+  show ?thesis
+    by (smt IntI \<open>wf (Restr r S)\<close> mem_Sigma_iff nonempty wfE_min)
+qed
+
+text "A finite set with an acyclic order has maximal elements."
+
+lemma exists_max:
+  assumes fin: "finite S"
+    and nonempty: "x\<in>S"
+    and acyclic: "acyclic r"
+  shows "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(x,y)\<in>r)"
+proof -
+
+  have "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(y,x)\<in>r\<inverse>)"
+    using fin nonempty
+  proof (rule exists_min)
+    show "acyclic (r\<inverse>)"
+      by (simp add: acyclic)
+  qed
+  thus ?thesis
+    by simp
+qed
+
+subsection "Maps"
+
+lemma ran_empty_iff[simp] :"(ran F = {}) \<longleftrightarrow> F = Map.empty"
+  by (metis  empty_iff option.exhaust_sel ranI ran_empty)
+
+lemma eq_map_empty[simp] :"(M = Map.empty) \<longleftrightarrow> (\<forall>x. M x = None)"
+  by (rule fun_eq_iff)
+
+
+subsection "Paths in Relations"
+
+text "A list can be a path in a relation where subsequent elements are in relation."
+
+definition is_path
+  where "is_path path r \<equiv> (\<forall>i<length path - 1. (path!i, path!(Suc i))\<in>r)"
+
+lemma is_path_empty[simp]:
+  shows "is_path [] r"
+  by (auto simp add: is_path_def)
+
+lemma is_path_single[simp]:
+  shows "is_path [x] r"
+  by (auto simp add: is_path_def)
+
+lemma is_path_cons:
+  shows "is_path (x#y#xs) r \<longleftrightarrow> (x,y)\<in>r \<and> is_path (y#xs) r"
+  using less_Suc_eq_0_disj by (auto simp add: is_path_def)
+
+lemma is_path_cons2:
+  shows "is_path (x#xs) r \<longleftrightarrow> (xs = [] \<or> (x,hd xs)\<in>r \<and> is_path xs r)"
+  by (metis is_path_cons is_path_single list.collapse)
+
+
+
+lemma is_path_append:
+  assumes "xs \<noteq> []" and "ys \<noteq> []"
+  shows
+"is_path (xs@ys) r \<longleftrightarrow> is_path xs r \<and> (last xs, hd ys)\<in>r \<and> is_path ys r"
+  using assms by (induct xs, auto simp add: is_path_cons2)
+
+
+
+
+lemma is_path_trans_cl:
+  shows "(x,y)\<in>r\<^sup>+ \<longleftrightarrow> (\<exists>path. length path > 1 \<and> is_path path r \<and> hd path = x \<and> last path = y)"
+proof
+  show "\<exists>path. 1 < length path \<and> is_path path r \<and> hd path = x \<and> last path = y" if "(x, y) \<in> r\<^sup>+"
+    using that
+  proof (induct)
+    case (base y)
+    show ?case 
+    proof (intro conjI exI)
+      show "hd [x,y] = x" by simp
+      show "last [x, y] = y" by simp
+      show "1 < length [x, y]" by simp
+      show "is_path [x, y] r" by (auto simp add: is_path_def base)
+    qed
+  next
+    case (step y z)
+    from this
+    obtain path 
+      where "1 < length path"
+        and "is_path path r"
+        and "hd path = x"
+        and "last path = y"
+      by blast
+
+    have "path \<noteq> []"
+      using \<open>1 < length path\<close> by auto
+
+
+    show ?case
+    proof (intro conjI exI)
+      show "hd (path @ [z]) = x" using `hd path = x` `path \<noteq> []` by simp
+      show "1 < length (path @ [z])"  using \<open>1 < length path\<close> by auto 
+      show "is_path (path @ [z]) r" using `is_path path r` `(y, z) \<in> r` apply (auto simp add: is_path_def nth_append)
+        by (metis Suc_lessI \<open>last path = y\<close> \<open>path \<noteq> []\<close> diff_Suc_1 last_conv_nth)
+
+      show "last (path @ [z]) = z" by simp
+    qed
+  qed
+
+next
+  assume "\<exists>path. 1 < length path \<and> is_path path r \<and> hd path = x \<and> last path = y"
+  from this obtain path
+    where "1 < length path"
+      and "is_path path r"
+      and "hd path = x"
+      and "last path = y"
+    by blast
+
+  thus "(x, y) \<in> r\<^sup>+"
+  proof (induct path arbitrary: x y rule: rev_induct)
+    case Nil
+    then show ?case by simp
+  next
+    case (snoc e path x y)
+    show ?case
+    proof (cases "1 < length path")
+      case True
+      have "(x, last path) \<in> r\<^sup>+"
+        using `1 < length path`
+      proof (rule snoc.hyps)
+        show "is_path path r"
+          by (metis True is_path_append less_numeral_extra(2) list.size(3) not_Cons_self2 snoc.prems(2))
+        show "hd path = x"
+          using True dual_order.strict_trans snoc.prems(3) by fastforce
+        show "last path = last path" ..
+      qed
+
+      from `is_path (path @ [e]) r`
+      have "(last path, e) \<in> r"
+        by (metis One_nat_def True is_path_append length_greater_0_conv list.sel(1) not_Cons_self2 order.strict_trans zero_less_Suc)
+
+
+      show "(x, y) \<in> r\<^sup>+"
+        using \<open>(last path, e) \<in> r\<close> \<open>(x, last path) \<in> r\<^sup>+\<close> `last (path @ [e]) = y` by auto
+    next
+      assume "\<not> 1 < length path"
+      hence "length path \<le> 1" by simp
+      hence "length path = 1"
+        using less_Suc_eq snoc.prems(1) by auto
+
+      hence "(x,y)\<in>r"
+        by (metis One_nat_def append_is_Nil_conv diff_Suc_1 hd_conv_nth is_path_def last_snoc length_append_singleton less_Suc_eq not_Cons_self nth_append_length snoc.prems(2) snoc.prems(3) snoc.prems(4))
+
+
+      thus "(x, y) \<in> r\<^sup>+"
+        by simp
+    qed
+  qed
+qed
+
+
+
+lemma acyclic_path:
+"acyclic r \<longleftrightarrow> (\<nexists>path. length path > 1 \<and> is_path path r \<and> hd path = last path)"
+  by (auto simp add: acyclic_def is_path_trans_cl)
+
+
+
+lemma acyclic_union_disjoint:
+  assumes "acyclic r"
+    and "acyclic s"
+    and "snd ` s \<inter> fst ` r = {}"
+  shows "acyclic (r \<union> s)"
+proof (auto simp add:  acyclic_path)
+  fix path
+  assume a0: "is_path path (r \<union> s)"
+    and a1: "Suc 0 < length path"
+    and a2: "hd path = last path"
+
+ 
+
+  have all_following_in_s: 
+    "(path!j, path!Suc j)\<in>s"
+    if "(path!i, path!Suc i)\<in>s"
+      and "j\<ge>i" 
+      and "j < length path - 1"
+      and "i < length path - 1"
+    for i j
+    using that
+  proof (induct "j-i" arbitrary: j)
+    case 0
+    then show ?case 
+      using `(path!i, path!Suc i)\<in>s`
+      by auto
+  next
+    case (Suc n)
+    have [simp]: "Suc (j - 1) = j"
+      using Suc.hyps(2) by auto
+
+    have [simp]: "Suc (j - Suc 0) = j"
+      using Suc.hyps(2) by auto
+
+    have "(path ! (j - 1), path ! Suc (j - 1)) \<in> s" 
+    proof (rule Suc.hyps)
+      show "n = j - 1 - i"
+        using Suc.hyps(2) by auto
+      show "i \<le> j - 1"
+        using Suc.hyps(2) by linarith
+      show "j - 1 < length path - 1"
+        using Suc.prems less_imp_diff_less by blast
+      show " i < length path - 1"
+        using that by blast
+      show " (path ! i, path ! Suc i) \<in> s"
+        by (simp add: that)
+    qed
+    hence "path ! j \<in> snd ` s"
+      by (simp add: rev_image_eqI)
+
+
+    have "(path ! j, path ! Suc j) \<notin> r"
+    proof (rule ccontr, simp)
+      assume "(path ! j, path ! Suc j) \<in> r"
+      hence "path ! j \<in> fst ` r"
+        using image_iff by fastforce
+
+      with \<open>snd ` s \<inter> fst ` r = {}\<close> \<open>path ! j \<in> snd ` s\<close>
+      show False  by auto
+    qed
+
+
+    thus "(path ! j, path ! Suc j) \<in> s"
+      by (meson Suc.prems Un_iff a0 is_path_def)
+  qed
+
+  have "(path!0, path!1)\<in>r"
+  proof (rule ccontr)
+    assume "(path ! 0, path ! 1) \<notin> r "
+    hence "(path ! 0, path ! 1) \<in> s"
+      by (metis One_nat_def Un_iff a0 a1 is_path_def zero_less_diff)
+    have "is_path path s"
+      apply (auto simp add: is_path_def)
+      by (metis One_nat_def \<open>(path ! 0, path ! 1) \<in> s\<close> a1 all_following_in_s less_Suc0 not_le_imp_less not_less_iff_gr_or_eq zero_less_diff)
+    thus False
+      using `acyclic s`
+      by (metis One_nat_def a1 a2 acyclic_path)
+  qed
+
+
+  obtain i 
+    where "i < length path - 1"
+      and "(path!i, path!Suc i)\<notin>r"
+    apply (atomize_elim, rule ccontr)
+    using `acyclic r` apply (auto simp add: acyclic_path)
+    by (metis One_nat_def a1 a2 is_path_def)
+
+  hence "(path!i, path!Suc i)\<in>s"
+    by (meson Un_iff a0 is_path_def)
+
+  hence "(path!(length path - 2),path!(Suc ((length path - 2))))\<in>s" 
+  proof (rule all_following_in_s)
+    show " i \<le> length path - 2"
+      using \<open>i < length path - 1\<close> by linarith
+    show "length path - 2 < length path - 1"
+      by (simp add: a1 diff_less_mono2)
+    show "i < length path - 1"
+      using \<open>i < length path - 1\<close> by blast
+  qed
+
+  have "hd path \<in> fst ` r"
+    by (metis One_nat_def \<open>(path ! 0, path ! 1) \<in> r\<close> a1 fst_conv hd_conv_nth image_iff list.size(3) not_one_less_zero)
+
+  have "last path \<in> snd ` s"
+    by (metis One_nat_def Suc_diff_Suc \<open>(path ! (length path - 2), path ! Suc (length path - 2)) \<in> s\<close> a1 image_iff last_conv_nth list.size(3) not_one_less_zero numeral_2_eq_2 snd_conv)
+
+
+  from `hd path = last path` \<open>snd ` s \<inter> fst ` r = {}\<close>
+  show "False"
+    using \<open>hd path \<in> fst ` r\<close> \<open>last path \<in> snd ` s\<close>  by auto
+qed
+
+lemma acyclic_empty[simp]: "acyclic {}"
+  by (simp add: wf_acyclic)
+
+lemma acyclic_prod: "acyclic (A \<times> B) \<longleftrightarrow> A \<inter> B = {}"
+  apply (auto simp add: acyclic_def)
+  by (metis (no_types, lifting) SigmaD1 SigmaD2 disjoint_iff_not_equal tranclE)
+
+
+
+  
+lemma imp_assoc:
+  shows "(a \<longrightarrow> (b \<longrightarrow> c)) \<longleftrightarrow> (b \<longrightarrow> (a \<longrightarrow> c))"
+  by auto
+
+lemma imp_assoc_elem:
+  shows "(a \<longrightarrow> (x \<in> S \<longrightarrow> c)) \<longleftrightarrow> (x \<in> S \<longrightarrow> (a \<longrightarrow> c))"
+  by auto
+
 
 
 end

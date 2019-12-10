@@ -1,6 +1,6 @@
 theory impl_language
   imports Main 
-    "~~/src/HOL/Library/Monad_Syntax"
+    "HOL-Library.Monad_Syntax"
   repliss_sem
 begin
 

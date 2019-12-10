@@ -2,7 +2,7 @@ theory repliss_sem
   imports Main
     "HOL-Library.Multiset"
     "HOL-Library.Option_ord"
-    "~~/src/HOL/Eisbach/Eisbach"
+    "HOL-Eisbach.Eisbach"
     "HOL-Library.Countable"
     utils
 begin
