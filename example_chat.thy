@@ -521,6 +521,28 @@ qed
 
 
 
+lemma query_result_undef:
+  assumes wf: "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
+     state_wellFormed
+      \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
+         transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
+         invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+         generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
+         visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+    and upd_call: "s_calls' upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
+    and upd_is_update: "is_update upd_op"
+  shows "upd_r = Undef"
+proof -
+
+  obtain ctxt where "querySpec progr (Message (NestedOp (MessageId m) upd_op)) ctxt upd_r"
+    by (meson get_query_spec local.wf upd_call)
+
+
+  thus "upd_r = Undef"
+    using upd_is_update
+    by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
+
+qed
 
 
 theorem chat_app_correct: "programCorrect progr"
@@ -1192,7 +1214,7 @@ proof M_show_programCorrect
 
 
                       obtain d_ctxt where "querySpec progr (Message (DeleteKey (MessageId m))) d_ctxt x2"
-                        using Exists_AtReturn(9) d_call get_query_spec by blast
+                        by (meson d_call get_query_spec inv1(17))
 
                       hence [simp]: "x2 = Undef"
                         by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def) 
@@ -1281,7 +1303,7 @@ proof M_show_programCorrect
                   find_theorems querySpec state_wellFormed
                   from updb_c_call
                   have "\<exists>ctxt. querySpec progr (Message (NestedOp (MessageId m) (Author (Assign (String author))))) ctxt updb_res"
-                    using get_query_spec inv1(17) by blast
+                    by (meson get_query_spec inv1(17))
 
                   hence [simp]: " updb_res = Undef"
                     by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def)

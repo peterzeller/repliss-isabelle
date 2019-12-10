@@ -74,27 +74,6 @@ proof -
 qed
 
 
-lemma query_result_undef:
-  assumes wf: "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
-     state_wellFormed
-      \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
-         transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
-         invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
-         generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
-         visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
-    and upd_call: "s_calls' upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
-    and upd_is_update: "is_update upd_op"
-  shows "upd_r = Undef"
-proof -
-
-  obtain ctxt where "querySpec progr (Message (NestedOp (MessageId m) upd_op)) ctxt upd_r"
-    using assms(1) get_query_spec upd_call by blast
-
-  thus "upd_r = Undef"
-    using upd_is_update
-    by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
-
-qed
 
 
 lemma C_out_calls_remove_unaffected:
