@@ -769,7 +769,7 @@ proof M_show_programCorrect
                     and c3: "i_callOriginI_h s_callOrigin' s_transactionOrigin' c' \<triangleq> r"
                     and c4: "c' \<in> vis'"
                   for  r c'
-                  using c0 c1 c3 state_monotonicGrowth_invocationOp_i[OF inv1(17)]
+                  using c0 c1 c3 state_monotonicGrowth_invocationOp_i[OF inv1(18)]
                     ` inv2 (s_invocationOp'(i \<mapsto> GetUser user)) (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
                     use_inv3'[OF `inv3 s_calls' s_happensBefore'`]
                      upd_c1 upd_c2 upd_c3

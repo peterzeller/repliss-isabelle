@@ -1,6 +1,6 @@
 theory commutativity
   imports repliss_sem prefix
-    "~~/src/HOL/Eisbach/Eisbach"
+    "HOL-Eisbach.Eisbach"
     execution_invariants
     invContext_simps
 begin

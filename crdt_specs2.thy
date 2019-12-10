@@ -281,16 +281,23 @@ proof (auto simp add: firstValue'_def firstValue_def)
 
   fix a y
   assume c0: "f a \<triangleq> y"
-    and c1: "f \<noteq> Map.empty"
+
   have h1: "(fst ` {(x, y). f x \<triangleq> y}) =  (dom f)"
     by (auto simp add: image_iff)
 
 
   show "wo_rel.minim some_well_order {y. f (wo_rel.minim some_well_order (fst ` {(x, y). f x \<triangleq> y})) \<triangleq> y} 
       = the (f (wo_rel.minim some_well_order (dom f)))"
-    apply (auto simp add: h1)
-    by (smt c1 domIff dom_eq_empty_conv mem_Collect_eq option.exhaust_sel option.sel some_well_order_includes_all some_well_order_is_wo_rel wo_rel.minim_in)
 
+  proof (cases "f = Map.empty")
+    case True
+    then show ?thesis
+      using c0 by (auto simp add: h1)
+  next
+    case False
+    then show ?thesis 
+      by (auto simp add: h1, smt False domIff dom_eq_empty_conv mem_Collect_eq option.exhaust_sel option.sel some_well_order_includes_all some_well_order_is_wo_rel wo_rel.minim_in)
+  qed
 qed
 
 

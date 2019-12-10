@@ -7,6 +7,7 @@ session "repliss" = "HOL" +
   options [document = pdf, document_output = "output"]
   sessions 
     "HOL-Library"
+    "HOL-Eisbach"
     "Case_Labeling"
     "fuzzyrule"
  (* theories [document = false]
@@ -20,6 +21,7 @@ session "repliss" = "HOL" +
   theories [show_question_marks = false, names_short]
     invariant_simps
     example_userbase
+    example_chat
   document_files
     "root.tex"
     "mathpartir.sty"

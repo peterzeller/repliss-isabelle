@@ -1,6 +1,6 @@
 theory doc
-imports "replissSem1"
-  "~~/src/HOL/Library/LaTeXsugar"
+imports "repliss_sem"
+  "HOL-Libary.LaTeXsugar"
 begin
 
 text_raw "\\begin{comment} -- just some new notations"
@@ -20,5 +20,6 @@ text \<open>@{thm[mode=Rule] step.intros}
 
 
 \<close>
+
 
 end
