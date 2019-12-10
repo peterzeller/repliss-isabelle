@@ -27,7 +27,19 @@ type_synonym ('op, 'opn, 'res) ccrdtSpec =
 text "There is a mapping between the composable CRDT specs above and the original specifications:"
 
 definition 
-"extract_op c_calls c \<equiv>  case c_calls c of Some (Call op r) \<Rightarrow> op"
+"extract_op c_calls c \<equiv> call_operation (the (c_calls c))"
+
+lemma extract_op_def':
+"extract_op (c_calls::('b \<Rightarrow> ('a, 'c) call option)) c 
+  = ( case c_calls c of Some (Call op r) \<Rightarrow> op | _ \<Rightarrow> call_operation (the (None :: ('a, 'c) call option)))"
+  by (auto simp add: extract_op_def split: option.splits call.splits) 
+
+
+lemma extract_op_eq:
+  assumes "c\<in>dom c_calls"
+  shows "extract_op c_calls c = oper \<longleftrightarrow> (\<exists>res. c_calls c \<triangleq> Call oper res)"
+  using assms by (auto simp add: extract_op_def' split: option.splits call.splits)
+
 
 (* TODO utils *)
 lemma option_bind_def:
@@ -120,7 +132,7 @@ lemma extract_op_to_call:
 and "c\<in>dom (calls (sub_context C_in Cs ctxt))"
 shows "extract_op (calls ctxt) c = C_out op
 \<longleftrightarrow> (\<exists>r. calls ctxt c \<triangleq> Call (C_out op) r)"
-  by (smt IntD2 assms(2) call.collapse call.sel(1) call_operation_def calls_sub_context domD domIff dom_calls_sub_context_rewrite extract_op_def is_none_bind is_none_simps(1) is_none_simps(2) option.simps(5) restrict_in)
+  by (smt IntD2 assms(2) call.collapse call.sel(1) calls_sub_context domExists_simp domIff dom_calls_sub_context_rewrite extract_op_def is_none_bind is_none_simps(1) is_none_simps(2) option.sel restrict_in)
 
 lemma extract_op_into_sub_context:
   assumes is_rev: "is_reverse C_in C_out"
@@ -437,7 +449,7 @@ next
   case (B a b y x1a c' v' r' x2)
   then show ?case 
     apply (auto simp add: calls_sub_context option_bind_def restrict_map_def happens_before_sub_context split: if_splits option.splits)
-    by (metis (mono_tags, lifting) call_operation_def extract_op_def is_rev is_reverse_1 option.simps(5))
+    by (metis (mono_tags, lifting) call_operation_def extract_op_def' is_rev is_reverse_1 option.simps(5))
 next
   case (C a b y x1a x2)
   then show ?case 
@@ -559,6 +571,10 @@ subsection "Maps"
 definition deleted_calls_dw' :: "callId set \<Rightarrow> (callId \<Rightarrow>'op) \<Rightarrow> callId rel \<Rightarrow> (('k, 'opn) mapOp \<Rightarrow> 'op) \<Rightarrow> 'k \<Rightarrow> callId set" where
 "deleted_calls_dw' vis op hb C k \<equiv> {c\<in>vis. \<exists>d\<in>vis. op d = C (DeleteKey k) \<and> (d,c)\<notin>hb}"
 
+lemma in_deleted_calls_dw':
+"c\<in>deleted_calls_dw' vis op hb C k \<longleftrightarrow> c\<in>vis \<and> (\<exists>d\<in>vis. op d = C (DeleteKey k) \<and> (d,c)\<notin>hb)"
+  by (auto simp add: deleted_calls_dw'_def)
+
 definition "C_out_calls C_out op vis \<equiv> {c\<in>vis. \<exists>x. op c = C_out x}"
 
 definition 
@@ -615,7 +631,7 @@ and "R = deleted_calls_dw' (dom (map_map (calls ctxt) call_operation \<ggreater>
 shows "L = R"
   by (auto simp add: deleted_calls_dw_def deleted_calls_dw'_def sub_context_def assms restrict_ctxt_op_def restrict_ctxt_def
       fmap_map_values_def option_bind_def ctxt_restrict_calls_def restrict_map_def
-      restrict_relation_def extract_op_def  map_map_def map_chain_def
+      restrict_relation_def extract_op_def'  map_map_def map_chain_def
       split: option.splits call.splits if_splits,
    (smt IntI assms(1) call.collapse call.sel(1) domExists_simp domIff is_reverse_def o_apply option.case_eq_if option.sel),
    (metis assms(1) is_reverse_2 option.distinct(1) option.inject),
@@ -717,7 +733,7 @@ proof (intro allI impI)
             if "DC = deleted_calls' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
             for DC
             apply (auto simp add: map_map_def map_chain_def option_bind_def split: option.splits)
-             apply (auto simp add: nested_op_on_key_def extract_op_def split: option.splits mapOp.splits if_splits call.splits)
+             apply (auto simp add: nested_op_on_key_def extract_op_def' split: option.splits mapOp.splits if_splits call.splits)
                apply (auto simp add: is_reverse_2[OF is_rev])
             using is_rev is_reverse_1 by fastforce
 
@@ -732,7 +748,7 @@ proof (intro allI impI)
                {c \<in> Cs. \<exists>x. (\<exists>y. calls ctxt c \<triangleq> Call x y) \<and> (\<exists>z. C_in x \<triangleq> z \<and> (\<exists>y. nested_op_on_key k z \<triangleq> y))})
             = (restrict_calls Cs (extract_op (calls ctxt)) C_out k - deleted_calls' Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)"
             apply (auto simp add: restrict_calls_def )
-            using Cs_sub' apply (auto simp add: extract_op_def  is_reverse_2[OF is_rev]  split: option.splits call.splits)
+            using Cs_sub' apply (auto simp add: extract_op_def'  is_reverse_2[OF is_rev]  split: option.splits call.splits)
             using is_reverse_1[OF is_rev]  by (auto simp add: nested_op_on_key_def  split: mapOp.splits if_splits)
 
 
@@ -767,7 +783,7 @@ proof (intro allI impI)
           show ?case
             apply (auto intro!: exI[where x=c])
             using A(1) A(2) apply auto[1]
-            using A  apply (auto simp add: extract_op_def split: option.splits call.splits )
+            using A  apply (auto simp add: extract_op_def' split: option.splits call.splits )
           proof -
             fix x1 :: 'op and x2 :: 'res
             assume a1: "y = Call x1 x2"
@@ -782,7 +798,7 @@ proof (intro allI impI)
           show ?case
             apply (rule exI[where x=c], auto)
             using B apply auto
-            using B  Cs_sub' apply (auto simp add: extract_op_def split: option.splits call.splits )
+            using B  Cs_sub' apply (auto simp add: extract_op_def' split: option.splits call.splits )
             using is_rev is_reverse_2 by fastforce
 
         qed

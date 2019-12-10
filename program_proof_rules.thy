@@ -925,6 +925,7 @@ and inv_cont: "
 \<lbrakk>
 distinct localCalls;
 \<And>c. c\<in>set localCalls \<Longrightarrow> s_callOrigin c = None;
+\<And>c. c\<in>set localCalls \<Longrightarrow> c \<notin> vis;
 \<And>c c'. c\<in>set localCalls \<Longrightarrow> (c,c') \<notin> s_happensBefore;
 \<And>c c'. c\<in>set localCalls \<Longrightarrow> (c',c) \<notin> s_happensBefore;
 invocation_happensBeforeH
@@ -1181,6 +1182,8 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
           using co_tx_none hb_wf_l by fastforce
         show h7: "\<And>c c'. c \<in> set localCalls \<Longrightarrow> (c', c) \<notin> s_happensBefore"
           using co_tx_none hb_wf_r by fastforce
+        show "\<And>c. c \<in> set localCalls \<Longrightarrow> c \<notin> vis"
+          using Step(18) by blast
 
         show "invocation_happensBeforeH (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i)))
          (updateHb s_happensBefore vis localCalls) =
