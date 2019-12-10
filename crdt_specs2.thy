@@ -280,12 +280,95 @@ definition latest_assignments' :: "callId set \<Rightarrow> (callId \<Rightarrow
 definition
 "latest_values' vis op hb C \<equiv> snd ` (latest_assignments' vis op hb C)"
 
+definition
+"is_from x initial S \<equiv> if S = {} then x = initial else x \<in> S"
+
+lemma is_from_exists:
+  assumes "\<exists>x. x\<in>S"
+  shows "is_from x initial S \<longleftrightarrow> x \<in> S"
+  by (metis assms empty_iff is_from_def)
+
+
+(* TODO utils*)
+lemma exists_min:
+  assumes fin: "finite S"
+    and nonempty: "x\<in>S"
+    and acyclic: "acyclic r"
+  shows "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(y,x)\<in>r)"
+proof -
+  have "wf (Restr r S)"
+  proof (rule finite_acyclic_wf)
+    show "finite (Restr r S)"
+      using fin by simp 
+    show "acyclic (Restr r S)"
+      using acyclic by (meson Int_lower1 acyclic_subset) 
+  qed
+
+  show ?thesis
+    by (smt IntI \<open>wf (Restr r S)\<close> mem_Sigma_iff nonempty wfE_min)
+qed
+
+lemma exists_max:
+  assumes fin: "finite S"
+    and nonempty: "x\<in>S"
+    and acyclic: "acyclic r"
+  shows "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(x,y)\<in>r)"
+proof -
+
+  have "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(y,x)\<in>r\<inverse>)"
+    using fin nonempty
+  proof (rule exists_min)
+    show "acyclic (r\<inverse>)"
+      by (simp add: acyclic)
+  qed
+  thus ?thesis
+    by simp
+qed
+
+
+lemma latest_assignments'_exists:
+  assumes fin: "finite vis"
+    and acyclic: "acyclic hb"
+    and a: "\<exists>c y. c\<in>vis \<and> op c = C (Assign y)"
+  shows "\<exists>x. x\<in> latest_assignments' vis op hb C"
+proof (auto simp add: latest_assignments'_def)
+
+  define all_assignments where "all_assignments \<equiv> {c\<in>vis. \<exists>y. op c = C (Assign y)}"
+
+  have "all_assignments \<noteq> {}"
+    using a by (auto simp add: all_assignments_def)
+
+  have "finite all_assignments"
+    by (rule finite_subset[rotated, OF fin], auto simp add: all_assignments_def)
+
+  obtain c 
+    where c_in: "c \<in> all_assignments"
+      and c_max: "\<forall>c'\<in>all_assignments. \<not>(c,c')\<in>hb"
+    by (metis (mono_tags, lifting) \<open>finite all_assignments\<close> a acyclic all_assignments_def exists_max mem_Collect_eq)
+
+  hence "c \<in> vis \<and> (\<exists>b. op c = C (Assign b)) \<and> (\<forall>c'. c' \<in> vis \<longrightarrow> (\<forall>v'. op c' \<noteq> C (Assign v')) \<or> (c, c') \<notin> hb)"
+    by (auto simp add: all_assignments_def)
+
+  thus "\<exists>a. a \<in> vis \<and> (\<exists>b. op a = C (Assign b)) \<and> (\<forall>c'. c' \<in> vis \<longrightarrow> (\<forall>v'. op c' \<noteq> C (Assign v')) \<or> (a, c') \<notin> hb)" ..
+qed
+
+
+lemma latest_values'_exists:
+  assumes fin: "finite vis"
+    and acyclic: "acyclic hb"
+    and a: "\<exists>c y. c\<in>vis \<and> op c = C (Assign y)"
+  shows "\<exists>x. x\<in> latest_values' vis op hb C"
+  unfolding latest_values'_def
+  using a acyclic fin latest_assignments'_exists by fastforce
+
+
+
 definition register_spec' :: "('res::default) \<Rightarrow> ('op, 'res registerOp, 'res) ccrdtSpec" where
 "register_spec' initial oper vis op hb C  res \<equiv>
   case oper of
     Assign _ \<Rightarrow> res = default
   | Read \<Rightarrow>
-      if latest_values' vis op hb C = {} then res = initial else res \<in> latest_values' vis op hb C"
+      is_from res initial (latest_values' vis op hb C)"
 
 
 definition firstValue' :: "'a \<Rightarrow> ('b \<times> 'a) set \<Rightarrow> 'a" where
@@ -411,7 +494,7 @@ shows "latestValues (sub_context C_in Cs ctxt)
 lemma register_spec_rel:
 "crdt_spec_rel (register_spec initial) (register_spec' initial) "
   unfolding crdt_spec_rel_def
-  by (auto simp add: register_spec_def register_spec'_def 
+  by (auto simp add: register_spec_def register_spec'_def is_from_def
           latestValues_rel firstValue'_to_firstValue split: registerOp.splits)
 
 

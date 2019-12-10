@@ -558,6 +558,11 @@ using assms  apply (induct rule: wellFormed_induct)
   apply (auto simp add: initialState_def step_simps_all irreflI)
   by (smt Un_iff irrefl_def mem_Sigma_iff singletonD wellFormed_visibleCallsSubsetCalls2)
 
+lemma happensBefore_acyclic:
+assumes wf: "state_wellFormed S"
+shows "acyclic (happensBefore S)"
+  by (auto simp add: acyclic_irrefl trancl_id[OF happensBefore_transitive[OF wf]] happensBefore_irrefl[OF wf])
+
 
 
 lemma causallyConsistent_downwards:

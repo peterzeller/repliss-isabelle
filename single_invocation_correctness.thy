@@ -128,6 +128,38 @@ case (Cons a cs)
 qed
 
 
+lemma updateHb_simp_split:
+"updateHb hb vis cs = hb \<union> updateHb {} vis cs"
+proof (induct cs arbitrary: hb vis)
+  case Nil
+  then show ?case 
+    by simp
+next
+  case (Cons a cs)
+
+  have "updateHb hb vis (a # cs) 
+      = updateHb (hb \<union> vis \<times> {a}) (insert a vis) cs"
+    by (simp add: updateHb_cons)
+  also have "... = (hb \<union> vis \<times> {a}) \<union> updateHb {} (insert a vis) cs"
+    by (meson Cons.hyps)
+  also have "... = hb \<union> updateHb (vis \<times> {a}) (insert a vis) cs"
+    using Cons.hyps by blast
+  also have "... = hb \<union> updateHb {} vis (a # cs) "
+    by (simp add: updateHb_cons)
+  finally show ?case .
+qed
+
+lemma snd_updateHb:
+"snd ` updateHb hb vis cs \<subseteq> snd ` hb \<union> set cs"
+  by (smt UnI1 UnI2 image_eqI image_subset_iff prod.collapse updateHb_simp2)
+
+lemma snd_updateHb2:
+"snd ` updateHb {} vis cs \<subseteq> set cs"
+  using snd_updateHb by fastforce
+
+  
+
+
 abbreviation invariant_all' :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
 "invariant_all' state \<equiv>  invariant (prog state) (invContext' state)"
 

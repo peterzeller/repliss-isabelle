@@ -693,6 +693,307 @@ lemma in_C_out:
 
 lemmas C_out_distrib = C_out_union  C_out_insert C_out_intersection C_out_minus
 
+(* TODO utils *)
+definition is_path
+  where "is_path path r \<equiv> (\<forall>i<length path - 1. (path!i, path!(Suc i))\<in>r)"
+
+lemma is_path_empty[simp]:
+  shows "is_path [] r"
+  by (auto simp add: is_path_def)
+
+lemma is_path_single[simp]:
+  shows "is_path [x] r"
+  by (auto simp add: is_path_def)
+
+lemma is_path_cons:
+  shows "is_path (x#y#xs) r \<longleftrightarrow> (x,y)\<in>r \<and> is_path (y#xs) r"
+  using less_Suc_eq_0_disj by (auto simp add: is_path_def)
+
+lemma is_path_cons2:
+  shows "is_path (x#xs) r \<longleftrightarrow> (xs = [] \<or> (x,hd xs)\<in>r \<and> is_path xs r)"
+  by (metis is_path_cons is_path_single list.collapse)
+
+
+
+lemma is_path_append:
+  assumes "xs \<noteq> []" and "ys \<noteq> []"
+  shows
+"is_path (xs@ys) r \<longleftrightarrow> is_path xs r \<and> (last xs, hd ys)\<in>r \<and> is_path ys r"
+  using assms by (induct xs, auto simp add: is_path_cons2)
+
+
+
+
+lemma is_path_trans_cl:
+  shows "(x,y)\<in>r\<^sup>+ \<longleftrightarrow> (\<exists>path. length path > 1 \<and> is_path path r \<and> hd path = x \<and> last path = y)"
+proof
+  show "\<exists>path. 1 < length path \<and> is_path path r \<and> hd path = x \<and> last path = y" if "(x, y) \<in> r\<^sup>+"
+    using that
+  proof (induct)
+    case (base y)
+    show ?case 
+    proof (intro conjI exI)
+      show "hd [x,y] = x" by simp
+      show "last [x, y] = y" by simp
+      show "1 < length [x, y]" by simp
+      show "is_path [x, y] r" by (auto simp add: is_path_def base)
+    qed
+  next
+    case (step y z)
+    from this
+    obtain path 
+      where "1 < length path"
+        and "is_path path r"
+        and "hd path = x"
+        and "last path = y"
+      by blast
+
+    have "path \<noteq> []"
+      using \<open>1 < length path\<close> by auto
+
+
+    show ?case
+    proof (intro conjI exI)
+      show "hd (path @ [z]) = x" using `hd path = x` `path \<noteq> []` by simp
+      show "1 < length (path @ [z])"  using \<open>1 < length path\<close> by auto 
+      show "is_path (path @ [z]) r" using `is_path path r` `(y, z) \<in> r` apply (auto simp add: is_path_def nth_append)
+        by (metis Suc_lessI \<open>last path = y\<close> \<open>path \<noteq> []\<close> diff_Suc_1 last_conv_nth)
+
+      show "last (path @ [z]) = z" by simp
+    qed
+  qed
+
+next
+  assume "\<exists>path. 1 < length path \<and> is_path path r \<and> hd path = x \<and> last path = y"
+  from this obtain path
+    where "1 < length path"
+      and "is_path path r"
+      and "hd path = x"
+      and "last path = y"
+    by blast
+
+  thus "(x, y) \<in> r\<^sup>+"
+  proof (induct path arbitrary: x y rule: rev_induct)
+    case Nil
+    then show ?case by simp
+  next
+    case (snoc e path x y)
+    show ?case
+    proof (cases "1 < length path")
+      case True
+      have "(x, last path) \<in> r\<^sup>+"
+        using `1 < length path`
+      proof (rule snoc.hyps)
+        show "is_path path r"
+          by (metis True is_path_append less_numeral_extra(2) list.size(3) not_Cons_self2 snoc.prems(2))
+        show "hd path = x"
+          using True dual_order.strict_trans snoc.prems(3) by fastforce
+        show "last path = last path" ..
+      qed
+
+      from `is_path (path @ [e]) r`
+      have "(last path, e) \<in> r"
+        by (metis One_nat_def True is_path_append length_greater_0_conv list.sel(1) not_Cons_self2 order.strict_trans zero_less_Suc)
+
+
+      show "(x, y) \<in> r\<^sup>+"
+        using \<open>(last path, e) \<in> r\<close> \<open>(x, last path) \<in> r\<^sup>+\<close> `last (path @ [e]) = y` by auto
+    next
+      assume "\<not> 1 < length path"
+      hence "length path \<le> 1" by simp
+      hence "length path = 1"
+        using less_Suc_eq snoc.prems(1) by auto
+
+      hence "(x,y)\<in>r"
+        by (metis One_nat_def append_is_Nil_conv diff_Suc_1 hd_conv_nth is_path_def last_snoc length_append_singleton less_Suc_eq not_Cons_self nth_append_length snoc.prems(2) snoc.prems(3) snoc.prems(4))
+
+
+      thus "(x, y) \<in> r\<^sup>+"
+        by simp
+    qed
+  qed
+qed
+
+
+
+lemma acyclic_path:
+"acyclic r \<longleftrightarrow> (\<nexists>path. length path > 1 \<and> is_path path r \<and> hd path = last path)"
+  by (auto simp add: acyclic_def is_path_trans_cl)
+
+
+
+lemma acyclic_union_disjoint:
+  assumes "acyclic r"
+    and "acyclic s"
+    and "snd ` s \<inter> fst ` r = {}"
+  shows "acyclic (r \<union> s)"
+proof (auto simp add:  acyclic_path)
+  fix path
+  assume a0: "is_path path (r \<union> s)"
+    and a1: "Suc 0 < length path"
+    and a2: "hd path = last path"
+
+ 
+
+  have all_following_in_s: 
+    "(path!j, path!Suc j)\<in>s"
+    if "(path!i, path!Suc i)\<in>s"
+      and "j\<ge>i" 
+      and "j < length path - 1"
+      and "i < length path - 1"
+    for i j
+    using that
+  proof (induct "j-i" arbitrary: j)
+    case 0
+    then show ?case 
+      using `(path!i, path!Suc i)\<in>s`
+      by auto
+  next
+    case (Suc n)
+    have [simp]: "Suc (j - 1) = j"
+      using Suc.hyps(2) by auto
+
+    have [simp]: "Suc (j - Suc 0) = j"
+      using Suc.hyps(2) by auto
+
+    have "(path ! (j - 1), path ! Suc (j - 1)) \<in> s" 
+    proof (rule Suc.hyps)
+      show "n = j - 1 - i"
+        using Suc.hyps(2) by auto
+      show "i \<le> j - 1"
+        using Suc.hyps(2) by linarith
+      show "j - 1 < length path - 1"
+        using Suc.prems less_imp_diff_less by blast
+      show " i < length path - 1"
+        using that by blast
+      show " (path ! i, path ! Suc i) \<in> s"
+        by (simp add: that)
+    qed
+    hence "path ! j \<in> snd ` s"
+      by (simp add: rev_image_eqI)
+
+
+    have "(path ! j, path ! Suc j) \<notin> r"
+    proof (rule ccontr, simp)
+      assume "(path ! j, path ! Suc j) \<in> r"
+      hence "path ! j \<in> fst ` r"
+        using image_iff by fastforce
+
+      with \<open>snd ` s \<inter> fst ` r = {}\<close> \<open>path ! j \<in> snd ` s\<close>
+      show False  by auto
+    qed
+
+
+    thus "(path ! j, path ! Suc j) \<in> s"
+      by (meson Suc.prems Un_iff a0 is_path_def)
+  qed
+
+  have "(path!0, path!1)\<in>r"
+  proof (rule ccontr)
+    assume "(path ! 0, path ! 1) \<notin> r "
+    hence "(path ! 0, path ! 1) \<in> s"
+      by (metis One_nat_def Un_iff a0 a1 is_path_def zero_less_diff)
+    have "is_path path s"
+      apply (auto simp add: is_path_def)
+      by (metis One_nat_def \<open>(path ! 0, path ! 1) \<in> s\<close> a1 all_following_in_s less_Suc0 not_le_imp_less not_less_iff_gr_or_eq zero_less_diff)
+    thus False
+      using `acyclic s`
+      by (metis One_nat_def a1 a2 acyclic_path)
+  qed
+
+
+  obtain i 
+    where "i < length path - 1"
+      and "(path!i, path!Suc i)\<notin>r"
+    apply (atomize_elim, rule ccontr)
+    using `acyclic r` apply (auto simp add: acyclic_path)
+    by (metis One_nat_def a1 a2 is_path_def)
+
+  hence "(path!i, path!Suc i)\<in>s"
+    by (meson Un_iff a0 is_path_def)
+
+  hence "(path!(length path - 2),path!(Suc ((length path - 2))))\<in>s" 
+  proof (rule all_following_in_s)
+    show " i \<le> length path - 2"
+      using \<open>i < length path - 1\<close> by linarith
+    show "length path - 2 < length path - 1"
+      by (simp add: a1 diff_less_mono2)
+    show "i < length path - 1"
+      using \<open>i < length path - 1\<close> by blast
+  qed
+
+  have "hd path \<in> fst ` r"
+    by (metis One_nat_def \<open>(path ! 0, path ! 1) \<in> r\<close> a1 fst_conv hd_conv_nth image_iff list.size(3) not_one_less_zero)
+
+  have "last path \<in> snd ` s"
+    by (metis One_nat_def Suc_diff_Suc \<open>(path ! (length path - 2), path ! Suc (length path - 2)) \<in> s\<close> a1 image_iff last_conv_nth list.size(3) not_one_less_zero numeral_2_eq_2 snd_conv)
+
+
+  from `hd path = last path` \<open>snd ` s \<inter> fst ` r = {}\<close>
+  show "False"
+    using \<open>hd path \<in> fst ` r\<close> \<open>last path \<in> snd ` s\<close>  by auto
+qed
+
+lemma acyclic_empty[simp]: "acyclic {}"
+  by (simp add: wf_acyclic)
+
+lemma acyclic_prod: "acyclic (A \<times> B) \<longleftrightarrow> A \<inter> B = {}"
+  apply (auto simp add: acyclic_def)
+  by (metis (no_types, lifting) SigmaD1 SigmaD2 disjoint_iff_not_equal tranclE)
+
+
+lemma acyclic_updateHb1:
+  assumes "distinct cs"
+    and "vis \<inter> set cs = {}"
+  shows "acyclic (updateHb {} vis cs)"
+  using assms proof (induct cs arbitrary: vis)
+  case Nil
+  then show ?case by auto
+next
+  case (Cons a cs vis)
+  have "a \<notin> vis"
+    using Cons.prems(2) by auto
+
+
+  show ?case 
+    apply (simp add: updateHb_cons)
+    apply (subst updateHb_simp_split)
+  proof (rule acyclic_union_disjoint)
+    show "acyclic (vis \<times> {a})"
+      by (simp add: acyclic_prod `a \<notin> vis`)
+    show " acyclic (updateHb {} (insert a vis) cs)"
+    proof (rule Cons.hyps)
+      show "distinct cs"
+        using Cons.prems(1) by auto
+      show "insert a vis \<inter> set cs = {}"
+        using Cons.prems(1) Cons.prems(2) by auto
+    qed
+
+    show " snd ` updateHb {} (insert a vis) cs \<inter> fst ` (vis \<times> {a}) = {}"
+      using Cons.prems(2) snd_updateHb2 by fastforce
+  qed
+qed
+
+lemma acyclic_updateHb:
+  assumes "acyclic hb"
+    and "distinct cs"
+    and "vis \<inter> set cs = {}"
+    and "Field hb \<inter> set cs = {}"
+  shows "acyclic (updateHb hb vis cs)"
+  apply (subst  updateHb_simp_split)
+  using `acyclic hb`
+proof (rule acyclic_union_disjoint)
+
+  show "acyclic (updateHb {} vis cs)"
+    by (simp add: acyclic_updateHb1 assms(2) assms(3))
+
+  show "snd ` updateHb {} vis cs \<inter> fst ` hb = {}"
+    by (smt Domain_fst Field_def Int_iff assms(4) disjoint_iff_not_equal inf_sup_absorb snd_updateHb2 subset_eq)
+qed
+
+  
+
+
 theorem chat_app_correct: "programCorrect progr"
 proof M_show_programCorrect
 
@@ -1231,6 +1532,10 @@ proof M_show_programCorrect
                       by (auto simp add: inv3_def, blast)
                   qed
 
+                  have [simp]: "upda_c \<noteq> c"
+                    by (metis Exists_AtReturn(9) inv1(12) invariantContext.simps(1) operationContext.simps(1) option.simps(3) upda_call wellFormed_callOrigin_dom3)
+
+
                   from \<open>crdtSpec (Message (NestedOp (MessageId m) (Author Read)))
                    \<lparr>calls = (s_calls' |` (vis' - {c}))(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True)),
                       happensBefore = updateHb (s_happensBefore' |r vis') vis' [c]\<rparr>
@@ -1276,100 +1581,123 @@ proof M_show_programCorrect
                       = Message \<circ> (NestedOp (MessageId m)) \<circ> Author"
                     by auto
 
+                  have [simp]: "upda_c \<in> vis'"
+                    using causallyConsistent_def inv1(6) upd_vis upda_before_upd by fastforce
 
                   from spec2
-                  have ???
-                    apply (auto simp add: crdtSpec'_def )
-                    apply (auto simp add:  struct_field'_def)
-                    apply (auto simp add:  map_dw_spec'_def)
-                    apply (auto simp add: map_spec'_def )
+                  have "is_from (String author) Undef
+                     (latest_values'
+                       (C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author)
+                         ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                         (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                           (insert c (dom s_calls' \<inter> (vis' - {c}))) -
+                          deleted_calls_dw'
+                           (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                             (insert c (dom s_calls' \<inter> (vis' - {c}))))
+                           ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
+                           (MessageId m)))
+                       ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c])
+                       (Message \<circ> NestedOp (MessageId m) \<circ> Author))"
+                    by (auto simp add: crdtSpec'_def `resa = String author` struct_field'_def map_dw_spec'_def
+                        map_spec'_def restrict_calls_def2 messageStruct'_def register_spec'_def)
 
-                    apply (auto simp add: restrict_calls_def2)
+                  hence "(String author) \<in>
+                     (latest_values'
+                       (C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author)
+                         ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                         (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                           (insert c (dom s_calls' \<inter> (vis' - {c}))) -
+                          deleted_calls_dw'
+                           (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                             (insert c (dom s_calls' \<inter> (vis' - {c}))))
+                           ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
+                           (MessageId m)))
+                       ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c])
+                       (Message \<circ> NestedOp (MessageId m) \<circ> Author))"
+                    apply (rule is_from_exists[THEN iffD1, rotated])
+                  proof (rule latest_values'_exists)
 
-                    apply (auto simp add:  messageStruct'_def)
-                    apply (auto simp add:  struct_field'_def)
-                    apply (auto simp add: register_spec'_def )
-                    apply (auto simp add:  C_out_distrib)
-                    apply (auto simp add: `resa = String author` split: if_splits)
-                    apply (auto simp add: latest_values'_def latest_assignments'_def  split: if_splits)
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: )
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: )
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: )
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
-                    apply (subst(asm) in_C_out)
-                    apply (auto simp add: split: if_splits cong: conj_cong disj_cong)
+                    show "finite
+                       (C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                         (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                           (insert c (dom s_calls' \<inter> (vis' - {c}))) -
+                          deleted_calls_dw'
+                           (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
+                             (insert c (dom s_calls' \<inter> (vis' - {c}))))
+                           ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
+                           (MessageId m)))"
+                      sorry
 
+                    have "acyclic s_happensBefore'"
+                      using happensBefore_acyclic[OF local.inv1(16)] by simp
+                      find_theorems state_wellFormed s_happensBefore'
 
+                    show "acyclic (updateHb s_happensBefore' vis' [c])"
+                      apply (auto simp add: updateHb_cons)
+                      find_theorems acyclic "(\<union>)"
 
+                    apply (rule_tac x=upda_val in exI)
+                    apply (auto simp add: latest_values'_def latest_assignments'_def deleted_calls_dw'_def
+                        image_iff cong: conj_cong)
+                    apply (rule_tac x=upda_c in exI)
+                    apply auto
+                      apply (auto simp add: in_C_out upda_call extract_op_def updateHb_cons split: call.splits option.splits)
+                  proof -
 
-                    find_theorems resa
-                    apply (auto simp add: deleted_calls_dw'_def)
-
-                    apply (subst(asm) C_out_nesting_simp)
-                    apply (auto simp add: C_out_nesting_simp)
-                    apply (auto simp add: C_out_calls_remove_unaffected)
-                    find_theorems "(\<circ>)" C_out_calls
-
-                    sorry
-
-                  have "crdtSpec (Message (NestedOp (MessageId m) (Author Read)))
-                   \<lparr>calls = (s_calls' |` vis'),
-                      happensBefore = s_happensBefore' |r vis'\<rparr>
-                   resa"
-                    apply (auto simp add: crdtSpec_def)
-                    apply (auto simp add: struct_field_def)
-                    apply (auto simp add:  map_dw_spec_def)
-                    apply (auto simp add: map_spec_def)
-                    apply (auto simp add: messageStruct_def)
-                    apply (auto simp add: struct_field_def)
-                    apply (auto simp add: calls_ctxt_remove_calls calls_restrict_ctxt_op2)
-
-
-                    apply (auto simp add: register_spec_def)
-                     apply (auto simp add: latestValues_def latestAssignments_def)
-                    apply (auto simp add: latestAssignments_h_def split: if_splits)
-
-
-
-                  have ???
-                    apply (auto simp add: crdtSpec_def)
-                    apply (auto simp add: struct_field_def)
-                    apply (auto simp add:  map_dw_spec_def)
-                    apply (auto simp add: map_spec_def)
-                    apply (auto simp add: messageStruct_def)
-                    apply (auto simp add: struct_field_def)
-                    apply (auto simp add: register_spec_def)
-                    apply (auto simp add: latestValues_def latestAssignments_def)
-                    
-                    apply (auto simp add: calls_restrict_ctxt_op2)
-                    apply (auto simp add: calls_ctxt_remove_calls calls_restrict_ctxt_op2)
-
-                    apply (auto simp add: calls_restrict_ctxt_op calls_ctxt_remove_calls eq_map_empty)
-                    find_theorems "(\<lambda>x. ?f x) = Map.empty"        
-apply (auto simp add: latestAssignments_h_def split: if_splits intro!: ext)
+                    from upda_before_upd
+                    show "(d, upda_c) \<in> s_happensBefore'"
+                      if d_not_c: "d \<noteq> c"
+                        and d_vis: "d \<in> vis'"
+                        and d_call: "s_calls' d \<triangleq> Call (Message (DeleteKey (MessageId m))) x2"
+                      for  d x2
+                    proof 
 
 
-                    apply (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def
-                          messageStruct_def register_spec_def latestValues_def ) 
-                    apply (auto simp add: latestValues_def split: if_splits)
+                      obtain d_ctxt where "querySpec progr (Message (DeleteKey (MessageId m))) d_ctxt x2"
+                        using Exists_AtReturn(9) d_call get_query_spec by blast
+
+                      hence [simp]: "x2 = Undef"
+                        by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def) 
+
+                      have [simp]: "d \<in> dom s_calls'"
+                        using d_call by blast
+
+                      have "(d, upd_c) \<in> s_happensBefore'"
+                        using ud_not_deleted[rule_format, where d=d]  d_vis d_call
+                        by (auto simp add: extract_op_def split: option.splits)
+
+                      show "(d, upda_c) \<in> s_happensBefore'" if "upda_c = upd_c"
+                        using `(d, upd_c) \<in> s_happensBefore'` `upda_c = upd_c` by simp
 
 
-                    apply (auto simp add: crdt_spec_wf_restrict_ctxt)
+                      show "(d, upda_c) \<in> s_happensBefore'"
+                        if c0: "(upda_c, upd_c) \<in> s_happensBefore'"
+                      proof (rule ccontr)
+                        assume "(d, upda_c) \<notin> s_happensBefore'"
 
+                        from `inv4 s_calls' s_happensBefore'`
+                        show False
+                          apply (auto simp add: inv4_def)
+                          apply (drule spec[where x=upd_c])
+                          apply (drule spec[where x=d])
+                          using upd_is_update by (auto simp add: d_call upd_call  \<open>upd_r = Undef\<close> \<open>(d, upd_c) \<in> s_happensBefore'\<close>)
+                      qed
+                    qed
+
+                    show "False"
+                      if c0: "c' \<noteq> c"
+                        and c1: "c' \<in> vis'"
+                        and c2: "(upda_c, c') \<in> s_happensBefore'"
+                        and c3: "\<forall>d\<in>C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (insert c (dom s_calls' \<inter> (vis' - {c}))). ((\<exists>y. s_calls' d \<triangleq> y) \<or> d = c \<or> d \<noteq> c \<and> (??? = Message (DeleteKey (MessageId m)) \<longrightarrow> (d, c') \<in> s_happensBefore')) \<and> (\<forall>x2. s_calls' d \<triangleq> x2 \<longrightarrow> (\<forall>x1. (\<forall>x2a. x2 \<noteq> Call x1 x2a) \<or> d = c \<or> d \<noteq> c \<and> (x1 = Message (DeleteKey (MessageId m)) \<longrightarrow> (d, c') \<in> s_happensBefore')))"
+                        and c4: "s_calls' c' \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign v')))) x2a"
+                      for  c' v' x2a
+
+
+
+                  qed
+
+                    hence ???
+                      apply (auto simp add:)
 
                (*     apply (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def
                       restrict_map_def deleted_calls_dw_def restrict_relation_def updateHb_cons
