@@ -1,6 +1,11 @@
+section "Execution Invariants (Part 2)"
 theory execution_invariants2
   imports repliss_sem execution_invariants consistency commutativity "fuzzyrule.fuzzyrule"
 begin
+
+
+text \<open>This theory includes more proofs for invariants that hold for all executions.\<close>
+
 
 
 lemma wf_transaction_status_iff_origin_dom:

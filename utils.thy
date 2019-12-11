@@ -1,10 +1,11 @@
+section "Various Utilities"
+
 theory utils
   imports Main
     "HOL-Library.Monad_Syntax"
 begin
 
 
-section "Various Utilities"
 
 text "This theory contains definition and Lemmas that could be in the standard library."
 

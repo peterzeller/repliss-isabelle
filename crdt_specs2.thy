@@ -1,9 +1,9 @@
+section "CRDT Specifications Part 2"
 theory crdt_specs2
   imports crdt_specs
  "fuzzyrule.fuzzyrule"
 begin
 
-section "CRDT Specifications Part 2"
 
 text "The previous CRDT are not nice to work with when composed.
 The problem is, that the specifications for maps and structs transform the context

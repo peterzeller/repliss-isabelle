@@ -1,8 +1,9 @@
+section \<open>Single-Invocation Corrrectness\<close>
+
 theory single_invocation_correctness
   imports execution_invariants_s fixedpoints execution_invariants invContext_simps
 begin
 
-section \<open>Single-invocId corrrectness\<close>
 
 text \<open>This theory includes techniques to prove that a program is correct in the single-invocId semantics.\<close>
 

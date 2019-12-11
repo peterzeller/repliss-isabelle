@@ -1,3 +1,4 @@
+section "Example: User Database"
 theory example_userbase
   imports 
     program_verification_tactics
@@ -7,7 +8,6 @@ theory example_userbase
     program_proof_rules
 begin
 
-section "Example: User database"
 
 
 datatype val =

@@ -1,20 +1,17 @@
+section "Implementation Language"
 theory impl_language
   imports Main 
     "HOL-Library.Monad_Syntax"
   repliss_sem
 begin
 
+
+text "So far, we have assumed that procedure implementations are given by arbitrary state machines.
+Here we define an implementation language using a shallow embedding with the monad syntax package.
+"
+
 context begin
 
-(*
-datatype ('ls, 'operation, 'any) localAction =
-  LocalStep 'ls
-  | BeginAtomic 'ls
-  | EndAtomic 'ls
-  | NewId "'any \<rightharpoonup> 'ls"
-  | DbOperation operation "'any list" "'any \<Rightarrow> 'ls"
-  | Return 'any
-*)
 
 
 datatype ('a,'operation, 'any) io =

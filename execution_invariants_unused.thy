@@ -1,8 +1,11 @@
+section "Execution Invariants (Part 3)"
 theory execution_invariants_unused
   imports repliss_sem execution_invariants consistency commutativity  invariant_simps
 begin
 
-text "These are currently unused execution invariants"
+
+text "These are execution invariants not needed for the soundness proof, but which still
+ might be useful for verifying some applications."
 
 
 

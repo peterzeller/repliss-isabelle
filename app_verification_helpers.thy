@@ -1,3 +1,5 @@
+section "Application Verification Helpers"
+
 theory app_verification_helpers
   imports 
     program_verification_tactics
@@ -7,6 +9,7 @@ theory app_verification_helpers
     program_proof_rules
 begin
 
+text "Various Lemmas that can be used when verifying an application."
 
 
 lemma use_some_wellFormed:

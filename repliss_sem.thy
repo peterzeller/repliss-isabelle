@@ -1,3 +1,5 @@
+section \<open>Interleaving Semantics\<close>
+
 theory repliss_sem
   imports Main
     "HOL-Library.Multiset"
@@ -7,7 +9,6 @@ theory repliss_sem
     utils
 begin
 
-section \<open>Semantics\<close>
 
 text \<open>This theory describes the distributed semantics used by Repliss.
 We use a fine grained interleaving semantics.

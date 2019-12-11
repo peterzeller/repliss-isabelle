@@ -1,8 +1,13 @@
+section "Simulation proofs"
+
 theory simulation_proofs
   imports execution_invariants
 begin
 
 
+text "We establish a general rule for doing simulation proofs on the semantics.
+The function @{term f} transforms an original trace to the simulation trace.
+The predicate @{term P} relates the original trace and state with the simulation trace and state."
 
 
 

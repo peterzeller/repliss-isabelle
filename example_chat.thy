@@ -1,3 +1,5 @@
+section "Example: Chat application"
+
 theory example_chat
   imports 
     program_verification_tactics
@@ -9,7 +11,6 @@ theory example_chat
 begin
 
 
-section "Example: Chat application"
 
 
 

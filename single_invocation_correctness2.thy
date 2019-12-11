@@ -1,7 +1,9 @@
+section "Single Invocation Correctness (Part 2)"
 theory single_invocation_correctness2
   imports single_invocation_correctness
     single_invocation_reduction
 begin
+
 
 text "Checks that a procedure with initial state S on invocation i is correct."
 

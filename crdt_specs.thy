@@ -1,10 +1,10 @@
+section "Composable CRDT specifications"
 theory crdt_specs
   imports repliss_sem
  unique_ids
  "HOL-Library.Monad_Syntax"
 begin
 
-section "Composable CRDT specifications"
 
 text "In this section we define the semantics of several conflict-free replicated data types (CRDTs)."
 

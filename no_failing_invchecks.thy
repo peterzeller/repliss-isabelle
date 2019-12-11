@@ -1,7 +1,11 @@
+section "No Invariant Checks"
 theory no_failing_invchecks
 imports packed_traces ignore_fails
 begin
 
+
+text "In this section we show that we can remove invariant checks from a trace 
+without changing the behaviour of the system."
 
 
 definition openTransactions :: "('proc, 'operation, 'any) trace \<Rightarrow> (invocId \<times> txid) set" where
@@ -73,7 +77,6 @@ we can transfer an execution to the different state,
 when the execution trace contains no action in i.
 \<close>
 
-find_consts "('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b) \<Rightarrow> ('a \<rightharpoonup> 'b)"
 
 
 lemma show_state_transfer:

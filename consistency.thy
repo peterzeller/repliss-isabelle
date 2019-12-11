@@ -1,8 +1,11 @@
+section "Consistency"
+
 theory consistency
 imports repliss_sem execution_invariants
 begin
 
 
+text "In this section, we show that the semantics maintains certain consistency invariants."
 
 definition
 "causallyConsistent hb vis \<equiv>

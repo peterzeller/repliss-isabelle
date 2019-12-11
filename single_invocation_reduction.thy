@@ -1,3 +1,4 @@
+section \<open>Single Invocation Reduction\<close>
 theory single_invocation_reduction
   imports commutativity
     repliss_sem_single_invocation
@@ -5,9 +6,9 @@ theory single_invocation_reduction
     packed_nofails_noinvchecks
 begin
 
-section \<open>Proof approach\<close>
 
-text \<open>This theory includes the soundness proof of our proof approach.\<close>
+text \<open>This theory includes the main soundness proof of our proof approach.
+We reduce the verification problem from the interleaving semantics to the single invocation semantics.\<close>
 
 
 

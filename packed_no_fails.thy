@@ -1,10 +1,11 @@
+section "Packed Traces without Failures"
 theory packed_no_fails
 imports packed_traces ignore_fails
 begin
 
 
 text \<open>
- To show that a program is correct, we only have to consider packed transactions
+ To show that a program is correct, we only have to consider packed transactions without crashes.
 \<close>
 theorem show_programCorrect_noTransactionInterleaving:
   assumes packedTracesCorrect: 

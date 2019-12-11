@@ -1,3 +1,4 @@
+section "Unique Identifiers (Part 2)"
 theory unique_ids2
   imports unique_ids
     invariant_simps 
@@ -10,6 +11,7 @@ theory unique_ids2
     impl_language
     topological_sort
 begin
+
 
 
 definition 

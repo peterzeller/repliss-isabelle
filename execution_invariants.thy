@@ -1,10 +1,11 @@
+section \<open>Execution Invariants\<close>
+
 theory execution_invariants
   imports repliss_sem utils prefix
 begin
 
-section \<open>Execution Invariants\<close>
 
-text \<open>This theory includes proof for invariants that hold for all executions.\<close>
+text \<open>This theory includes proofs for invariants that hold for all executions.\<close>
 
 
 definition state_wellFormed :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> bool" where

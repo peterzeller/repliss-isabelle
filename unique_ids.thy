@@ -1,6 +1,16 @@
+section "Unique Identifiers"
 theory unique_ids
   imports execution_invariants
 begin
+
+
+text \<open>In this section we prove some general properties about unique identifiers.
+
+In general, we assume that procedure implementations are well behaved and cannot produce unique
+identifiers out of thin air (i.e. ``guess'' them).
+We define this property inductively:
+\<close>
+
 
 inductive procedure_cannot_guess_ids :: "uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'operation::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool"  where
   pcgi_local:  "\<lbrakk>impl ls = LocalStep ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"

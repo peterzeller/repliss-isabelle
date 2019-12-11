@@ -1,3 +1,5 @@
+section "Fixed Points"
+
 theory fixedpoints
   imports Main
 begin

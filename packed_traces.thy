@@ -1,6 +1,31 @@
+section "Packed Traces"
 theory packed_traces
 imports commutativity
 begin
+
+
+text "In this section we show that traces can be packed.
+Intuitively a transaction is packed, if there are no steps from other invocations between a 
+@{term ABeginAtomic} and @{term AEndAtomic} action.
+
+The following definition defines that such a step exists at an index @{term k}.
+"
+
+definition indexInOtherTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
+  "indexInOtherTransaction tr tx k \<equiv> 
+  \<exists>i s ntxns. 
+      k<length tr 
+    \<and> i<k 
+    \<and> tr!i = (s, ABeginAtomic tx ntxns)  
+    \<and> fst (tr!k) \<noteq> s
+    \<and> \<not>(\<exists>j. i < j \<and> j < k \<and> tr!j = (s, AEndAtomic))"
+
+text "With this we can define that a trace is packed, if no such step exists:"
+
+definition transactionIsPacked :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
+  "transactionIsPacked tr tx \<equiv> 
+  \<forall>k. \<not>indexInOtherTransaction tr tx k"  
+
 
 
 
@@ -202,19 +227,6 @@ lemma one_compaction_step3:
     and noFail: "\<And>i. (i, AFail) \<notin> set tr"
   shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr' \<leadsto>* C)"
   using local.wf one_compaction_step2 splitTrace splitTrace' txaInTx xOutside no_endatomic noFail by blast 
-
-definition indexInOtherTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
-  "indexInOtherTransaction tr tx k \<equiv> 
-  \<exists>i s ntxns. 
-      k<length tr 
-    \<and> i<k 
-    \<and> tr!i = (s, ABeginAtomic tx ntxns)  
-    \<and> fst (tr!k) \<noteq> s
-    \<and> \<not>(\<exists>j. i < j \<and> j < k \<and> tr!j = (s, AEndAtomic))"
-
-definition transactionIsPacked :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
-  "transactionIsPacked tr tx \<equiv> 
-  \<forall>k. \<not>indexInOtherTransaction tr tx k"  
 
 
 

@@ -1,8 +1,9 @@
+section \<open>Prefixes\<close>
+
 theory prefix
   imports Main
 begin
 
-section \<open>Prefixes\<close>
 
 text \<open>This Function describes that a list is a prefix of another list.\<close>
 

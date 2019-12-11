@@ -1,8 +1,8 @@
+section \<open>Invariants of single-invocId executions.\<close>
 theory execution_invariants_s
   imports repliss_sem_single_invocation execution_invariants
 begin
 
-section \<open>Invariants of single-invocId executions.\<close>
 
 text \<open>This theory includes proof for invariants that hold for all single-invocId executions.\<close>
 

@@ -1,6 +1,10 @@
+section "Invariant Context Simplifications"
 theory invContext_simps
 imports repliss_sem
 begin
+
+
+text "Here we prove various simplifications for the invariant contexts."
 
 
 lemma invContext_unchanged_happensBefore:

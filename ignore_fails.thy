@@ -1,6 +1,13 @@
+section "Ignore Failures"
+
 theory ignore_fails
   imports execution_invariants utils simulation_proofs
 begin
+
+
+text "In this section we show that we do not handle crashes (action @{term AFail}) in order to prove 
+correctness.
+The main idea is that we we cannot distinguish a crash from arbitrary long waiting."
 
 
 lemma can_ignore_fails:

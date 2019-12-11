@@ -1,11 +1,11 @@
+section \<open>Single Invocation Semantics\<close>
 theory repliss_sem_single_invocation
   imports repliss_sem execution_invariants consistency
 begin
 
 
-section \<open>Single invocId semantics\<close>
 
-text \<open>This theory describes the single-invocId semantics used for our proof approach.\<close>
+text \<open>This theory describes the single-invocation semantics used for our proof approach.\<close>
 
 definition 
 "state_monotonicGrowth_txStable callOrigin_S callOrigin_S' transactionStatus_S' \<equiv> (\<forall>c tx. callOrigin_S c \<triangleq> tx \<and> transactionStatus_S' tx \<triangleq> Committed \<longrightarrow> callOrigin_S' c \<triangleq> tx)"

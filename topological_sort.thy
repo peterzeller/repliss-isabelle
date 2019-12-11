@@ -1,7 +1,13 @@
+section "Topological Sorting"
+
 theory topological_sort
   imports Main "HOL-Library.Multiset"
     "fuzzyrule.fuzzyrule"
 begin
+
+
+text "A list is sorted by a partial order, if no element in the list is followed by a smaller
+element with respect to the relation."
 
 definition sorted_by where
 "sorted_by rel xs \<equiv> \<forall>i j. i<j \<longrightarrow> j<length xs \<longrightarrow> (xs!j,xs!i)\<notin>rel"
@@ -71,6 +77,14 @@ lemma sorted_by_cons_iff:
   shows "sorted_by R (x#xs) \<longleftrightarrow> (sorted_by R xs \<and> (\<forall>y\<in>set xs. (y,x)\<notin>R))"
   using sorted_by_append_iff[where R=R and xs="[x]" and ys="xs"]
   by (auto simp add: sorted_by_single)
+
+
+text "For strict linear orders, @{term sorted_by} is the same as @{term sorted}:"
+
+lemma sorted_by_eq_sorted:
+"sorted_by {(x::'a::linorder,y). x < y} xs = sorted xs"
+  by (induct xs, auto simp add: sorted_by_empty sorted_by_cons_iff)
+
 
 
 fun top_sort where

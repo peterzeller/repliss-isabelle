@@ -1,8 +1,8 @@
+section \<open>Invariant Simplifications\<close>
 theory invariant_simps
   imports single_invocation_correctness "fuzzyrule.fuzzyrule"
 begin
 
-section \<open>Invariant simplifications\<close>
 
 text \<open>
  This theory includes helpers for working with invariants.

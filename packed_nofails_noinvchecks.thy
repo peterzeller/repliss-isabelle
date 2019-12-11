@@ -1,14 +1,18 @@
+section "Packed Traces without Failures and Invariant Checks"
 theory packed_nofails_noinvchecks
 imports no_failing_invchecks packed_no_fails consistency
 begin
 
-definition isNotTrueInvcheck :: "(invocId \<times> ('proc, 'operation, 'any) action) \<Rightarrow> bool"
-      where "isNotTrueInvcheck \<equiv> (\<lambda>a. case a of (s, AInvcheck True) \<Rightarrow> False | _\<Rightarrow> True)"
 
 text \<open>
  To show that a program is correct, we only have to consider packed transactions 
- with no invariant checks 
+ with no crashes and no invariant checks.
 \<close>
+
+definition isNotTrueInvcheck :: "(invocId \<times> ('proc, 'operation, 'any) action) \<Rightarrow> bool"
+      where "isNotTrueInvcheck \<equiv> (\<lambda>a. case a of (s, AInvcheck True) \<Rightarrow> False | _\<Rightarrow> True)"
+
+
 theorem show_programCorrect_noTransactionInterleaving_no_passing_invchecks:
   assumes packedTracesCorrect: 
     "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; \<And>s. (s, AInvcheck True) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"

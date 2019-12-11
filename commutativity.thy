@@ -1,3 +1,4 @@
+section \<open>Commutativity in Executions\<close>
 theory commutativity
   imports repliss_sem prefix
     "HOL-Eisbach.Eisbach"
@@ -5,7 +6,6 @@ theory commutativity
     invContext_simps
 begin
 
-text \<open>Commutativity in executions\<close>
 
 text \<open>This theory proves commutativity between certain actions in executions.\<close>
 

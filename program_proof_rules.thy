@@ -1,3 +1,5 @@
+section "Program Proof Rules"
+
 theory program_proof_rules
   imports 
     invariant_simps 
@@ -11,6 +13,12 @@ theory program_proof_rules
     topological_sort
 begin
 
+text "We define some proof rules for our implementation languages, so that 
+we can automate the generation of verification conditions.
+
+The proof rules can simulate symbolic execution of a procedure.
+We add some additional state compared to the system state in the semantics, so that we can derive
+additional assumptions for the verification conditions."
 
 definition execution_s_check where
   "execution_s_check 

@@ -1,3 +1,5 @@
+section "Program Verification Tactics"
+
 theory program_verification_tactics
   imports 
     invariant_simps 
@@ -10,6 +12,10 @@ theory program_verification_tactics
     program_proof_rules
     crdt_specs
 begin
+
+text "We define some tactics to generate proof obligations for showing a programs correctness.
+This theory mainly adds nicer labels to already existing methods using the case labeling package."
+
 
 context begin
 interpretation Labeling_Syntax .
