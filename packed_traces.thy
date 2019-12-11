@@ -583,7 +583,8 @@ qed
 
 
 definition canSwap :: "'ls itself \<Rightarrow> ('proc::valueType, 'operation, 'any::valueType)  action \<Rightarrow> ('proc, 'operation, 'any) action \<Rightarrow> bool" where
-  "canSwap t a b \<equiv> (\<forall>(C1::('proc, 'ls, 'operation, 'any) state) C2 s1 s2. s1\<noteq>s2 \<and> (C1 ~~ [(s1,a),(s2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(s2,b),(s1,a)] \<leadsto>* C2))"
+  "canSwap t a b \<equiv> (\<forall>(C1::('proc, 'ls, 'operation, 'any) state) C2 s1 s2. 
+      s1\<noteq>s2 \<and> (C1 ~~ [(s1,a),(s2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(s2,b),(s1,a)] \<leadsto>* C2))"
 
 lemma show_canSwap:
   assumes "\<And>(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
@@ -627,21 +628,27 @@ method prove_canSwap'' = (
     auto del: ext  simp add: wellFormed_callOrigin_dom2 step_simps wellFormed_currentTransactionUncommitted state_updates_normalize fun_upd_twist intro!: show_state_calls_eq ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
 lemma commutativeS_canSwap:
-  assumes comm: "\<And>(C::('proc::valueType, 'ls, 'operation, 'any::valueType) state) s1 s2. s1\<noteq>s2 \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
+  assumes comm: "\<And>(C::('proc::valueType, 'ls, 'operation, 'any::valueType) state) s1 s2. \<lbrakk>s1\<noteq>s2;  state_wellFormed C\<rbrakk> \<Longrightarrow> commutativeS C (s1,a) (s2,b)"
   shows "canSwap (t::'ls itself) a b"
 proof (auto simp add: canSwap_def)
   fix C1 C2 :: "('proc, 'ls, 'operation, 'any) state"
   fix s1 s2
   assume a0: "s1 \<noteq> s2"
     and a1: "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C2"
+and a2: "state_wellFormed C1"
 
   show "C1 ~~ [(s2, b), (s1, a)] \<leadsto>* C2"
   proof (subst useCommutativeS)
     show "commutativeS C1 (s2, b) (s1, a)" 
-      using comm a0 by (simp add: commutativeS_switchArgs) 
+      using comm a0  a2 by (simp add: commutativeS_switchArgs)
     show "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C2" using a1.
   qed
 qed
+
+lemma commutativeS_canSwap_sym:
+  assumes comm: "\<And>(C::('proc::valueType, 'ls, 'operation, 'any::valueType) state) s1 s2. \<lbrakk>s1\<noteq>s2;  state_wellFormed C\<rbrakk> \<Longrightarrow> commutativeS C (s1,b) (s2,a)"
+  shows "canSwap (t::'ls itself) a b"
+  by (metis comm commutativeS_canSwap commutativeS_switchArgs)
 
 
 lemma canSwap_when_allowed:
@@ -660,11 +667,7 @@ next
   then have [simp]: "b = ANewId bid" .
 
   show ?thesis
-  proof (cases a)
-    case (AInvcheck r)
-    then show ?thesis
-      using is_AInvcheck_def no_invcheck_a by blast 
-  qed (simp, prove_canSwap+)
+    by (simp add: commutativeS_canSwap_sym commutative_newId_other)
 next
   case (ABeginAtomic x31 x32)
   then show ?thesis
@@ -679,19 +682,24 @@ next
       by (simp add: commutativeS_canSwap commutative_ALocal_other)
   next
     case (ANewId x2)
-    then show ?thesis by prove_canSwap''
+    then show ?thesis
+      by (simp add: commutativeS_canSwap commutative_newId_other) 
   next
     case (ABeginAtomic x31 x32)
-    then show ?thesis by prove_canSwap''
+    then show ?thesis 
+      by prove_canSwap''
   next
     case AEndAtomic
-    then show ?thesis by prove_canSwap''
+    then show ?thesis 
+      by prove_canSwap''
   next
     case (ADbOp )
-    then show ?thesis by prove_canSwap''
+    then show ?thesis
+      by (simp add: commutativeS_canSwap commutative_Dbop_other)
   next
     case (AInvoc )
-    then show ?thesis by prove_canSwap''
+    then show ?thesis
+      by prove_canSwap''
   next
     case (AReturn x7)
     then show ?thesis by prove_canSwap''
@@ -709,7 +717,7 @@ next
   then show ?thesis 
   proof (cases a)
     case ALocal
-    then show ?thesis by prove_canSwap''
+    then show ?thesis  by prove_canSwap''
   next
     case (ANewId x2)
     then show ?thesis by prove_canSwap''
