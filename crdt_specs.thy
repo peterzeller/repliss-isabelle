@@ -144,11 +144,12 @@ lemma latestValues_def2:
 "latestValues ctxt =
   {v | c v r . calls ctxt c \<triangleq> Call (Assign v) r  
         \<and> (\<nexists>c' v' r'. calls ctxt c' \<triangleq> Call (Assign v') r' \<and> (c,c')\<in>happensBefore ctxt)}" 
-  apply (auto simp add: latestValues_def latestAssignments_def latestAssignments_h_def image_def ran_def split: option.splits call.splits if_splits )
-
-  apply (case_tac y, auto)
-  apply (case_tac x1, auto split: if_splits)
-  done
+proof (auto simp add: latestValues_def latestAssignments_def latestAssignments_h_def image_def ran_def 
+    split: option.splits call.splits if_splits, goal_cases G)
+  case (G x a y)
+  then show ?case
+    by (cases y; cases "call_operation y", auto split: if_splits)
+qed
 
 
 lemma ctxt_spec_wf_latestValues[simp]:

@@ -338,7 +338,7 @@ qed
 lemma commutative_ALocal_other:
   assumes a1: "sa \<noteq> sb"
   shows "commutativeS S (sa, ALocal) (sb, a)"
-  by (case_tac a, auto simp add: commutativeS_def steps_simps steps_empty a1 a1[symmetric] fun_upd_twist elim!: chooseSnapshot_unchanged_precise)
+  by (cases a, auto simp add: commutativeS_def steps_simps steps_empty a1 a1[symmetric] fun_upd_twist elim!: chooseSnapshot_unchanged_precise)
 
 
 lemma commutative_other_ALocal:
@@ -497,7 +497,7 @@ lemma commutative_fail_other:
   assumes a1[simp]: "sa \<noteq> sb"
     and a2: "state_wellFormed S"
   shows "commutativeS S (sa, AFail) (sb, a)"
-  by (case_tac a, auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute elim!: chooseSnapshot_unchanged_precise)
+  by (cases a, auto simp add: steps_empty commutativeS_def steps_appendFront a1[symmetric]  step_simps fun_upd_twist insert_commute elim!: chooseSnapshot_unchanged_precise)
 
 
 

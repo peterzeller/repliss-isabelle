@@ -495,7 +495,7 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
         and i2: "i < length trace"
         and i_min: "\<forall>i'. (\<exists> s'. trace ! i' = (s', AInvcheck False)) \<and> i' < length trace \<longrightarrow> i\<le>i'"
       by (atomize_elim,
-       rule_tac x="LEAST i'. (\<exists>s'. trace ! i' = (s', AInvcheck False)) \<and> i' < length trace" in exI,
+       rule exI[where x="LEAST i'. (\<exists>s'. trace ! i' = (s', AInvcheck False)) \<and> i' < length trace"],
        rule LeastI2_wellorder_ex,
        insert a,
        auto simp add: traceCorrect_def in_set_conv_nth)
@@ -644,10 +644,10 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 
 
   have induct_measure_ex: "\<exists>x. induct_measure trace x" for trace
-    by (rule_tac x=0 in exI, auto simp add: induct_measure_def)
+    by (rule exI[where x=0], auto simp add: induct_measure_def)
 
   have induct_measure_bound: "\<exists>bound. \<forall>x. induct_measure trace x \<longrightarrow> x \<le> bound" for trace
-    by (rule_tac x="length trace" in exI, auto simp add: induct_measure_def split: nat.split)
+    by (rule exI[where x="length trace"], auto simp add: induct_measure_def split: nat.split)
 
   from steps packed nofail no_inv_checks
   show "traceCorrect trace"
@@ -753,7 +753,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
                       \<and> (j < k \<longrightarrow> k < length newTrace \<longrightarrow> k < pos \<or> trace' ! Suc k \<noteq> (fst (trace' ! y), AEndAtomic))"
                   and c2: "j < pos" 
                   and c3: "trace' ! j = (fst (trace' ! y), ABeginAtomic tx txns)"
-              proof (rule_tac x=j in exI, auto simp add: c3)
+              proof (rule exI[where x=j], auto simp add: c3)
                 show "j \<le> y"
                   using a2 by linarith
                 show "False" 
@@ -1002,7 +1002,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
             case False
             with \<open>no_invariant_checks_in_transaction trace'\<close>
             show ?thesis 
-              by (case_tac "trace' ! pos",
+              by (cases "trace' ! pos",
                   insert beginAtomic_trace' j_leq_pos le_eq_less_or_eq noEndAtomic_trace' pos_less,
                   auto simp add: newTrace_def no_invariant_checks_in_transaction_def nth_append)
           qed
@@ -1246,7 +1246,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
       and a6_min: "allowed_context_switch (snd(tr!j_min))"
       and j_min_min: "\<forall>j. i<j \<and> j<k \<and> allowed_context_switch (snd (tr ! j)) \<longrightarrow> j_min \<le> j"
   proof (atomize_elim,
-    rule_tac x="Least (\<lambda>j. i<j \<and> j<k \<and> allowed_context_switch (snd (tr ! j)))" in exI,
+    rule exI[where x="Least (\<lambda>j. i<j \<and> j<k \<and> allowed_context_switch (snd (tr ! j)))"],
     rule LeastI2_wellorder_ex, auto)
     show "\<exists>x>i. x < k \<and> allowed_context_switch (snd (tr ! x))"
       using a4 a5 a6 by auto
@@ -1328,11 +1328,14 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
       and "back_min \<le> length tr"
       and "fst (tr!back_min) = invoc"
       and back_min_min: "\<forall>i. i > j_min \<and> i < length tr \<and> fst (tr!i) = invoc \<longrightarrow> i\<ge> back_min"
-  proof (atomize_elim,
-    rule_tac x="Least (\<lambda>i. i > j_min \<and> i < length tr \<and> fst (tr!i) = invoc)" in exI, auto)
+  proof (atomize_elim, intro exI[where x="Least (\<lambda>i. i > j_min \<and> i < length tr \<and> fst (tr!i) = invoc)"] conjI)
     assume a0: "tr ! i_end = (invoc, AEndAtomic)"
       and a1: "k \<le> i_end"
       and a2: "i_end < length tr"
+      and a3: "tr ! i_end = (invoc, AEndAtomic)"
+      and a4: "k \<le> i_end"
+      and a5: "i_end < length tr"
+
 
 
     have "i_end>j_min"
@@ -1354,17 +1357,18 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
     show "fst (tr ! (LEAST i. j_min < i \<and> i < length tr \<and> fst (tr ! i) = invoc)) = invoc"
       using eX by (rule LeastI2_wellorder_ex, auto)
 
-  next
-    fix i
-    assume a0: "tr ! i_end = (fst (tr ! i), AEndAtomic)"
-      and a1: "k \<le> i_end"
-      and a2: "i_end < length tr"
-      and a3: "j_min < i"
-      and a4: "i < length tr"
-      and a5: "invoc = fst (tr ! i)"
 
-    show "(LEAST ia. j_min < ia \<and> ia < length tr \<and> fst (tr ! ia) = fst (tr ! i)) \<le> i"
-      by (simp add: Least_le a3 a4)
+
+    show "\<forall>i. j_min < i \<and> i < length tr \<and> fst (tr ! i) = invoc \<longrightarrow> (LEAST i. j_min < i \<and> i < length tr \<and> fst (tr ! i) = invoc) \<le> i"
+    proof auto
+
+      show "(LEAST ia. j_min < ia \<and> ia < length tr \<and> fst (tr ! ia) = fst (tr ! i)) \<le> i"
+        if c0: "j_min < i"
+          and c1: "i < length tr"
+          and c2: "invoc = fst (tr ! i)"
+        for  i
+        by (simp add: Least_le c0 c1)
+    qed
   qed
 
   have "back_min < length tr"
@@ -1551,8 +1555,8 @@ next
     moreover have "(\<exists>i txns. i < length (tr @ [a]) \<and>
                      (tr @ [a]) ! i = (fst (last (tr @ [a])), ABeginAtomic tx txns) \<and>
                      (\<forall>j. i < j \<and> j < length (tr @ [a]) \<longrightarrow> (tr @ [a]) ! j \<noteq> (fst (last (tr @ [a])), AEndAtomic)))"
-      apply (rule_tac x=i in exI)
-      apply (rule_tac x=txns in exI)
+      apply (rule exI[where x=i])
+      apply (rule exI[where x=txns])
       apply (auto simp add: )
       using i1 less_SucI apply blast
       using \<open>(tr @ [a]) ! i = (fst (last tr), ABeginAtomic tx txns)\<close> a_split i'_simps apply blast

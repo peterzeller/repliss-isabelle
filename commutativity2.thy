@@ -55,7 +55,7 @@ proof (intro if_cases2; clarsimp?)
     and a1: "snd a = ABeginAtomic t ts"
 
   then show "sessionsInTransaction (tr @ [a]) (length tr) = insert (fst a) (sessionsInTransaction tr (length tr - Suc 0))"
-  proof (case_tac a, auto)
+  proof (cases a, auto)
     show "\<And>aa x. \<lbrakk>a = (aa, ABeginAtomic t ts); i = length tr; x \<in> sessionsInTransaction (tr @ [(aa, ABeginAtomic t ts)]) (length tr); x \<notin> sessionsInTransaction tr (length tr - Suc 0)\<rbrakk> \<Longrightarrow> x = aa"
       apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
       by (metis (full_types) Suc_leI Suc_le_mono Suc_pred gr_implies_not_zero less_imp_le_nat nat_neq_iff)
@@ -70,7 +70,7 @@ next
     and a1: "snd a = AEndAtomic"
 
   then show "sessionsInTransaction (tr @ [a]) (length tr) = sessionsInTransaction tr (length tr - Suc 0) - {fst a}"
-    apply (case_tac a, auto)
+    apply (cases a, auto)
       apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)[1]
       apply (smt Suc_pred inc_induct less_Suc_eq less_imp_le_nat linorder_neqE_nat not_less_zero)
      apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def sndI split: if_splits)[1]
@@ -82,7 +82,7 @@ next
     and a2: "snd a \<noteq> AEndAtomic"
 
   then show "sessionsInTransaction (tr @ [a]) (length tr) = sessionsInTransaction tr (length tr - Suc 0)"
-    apply (case_tac a, auto)
+    apply (cases a, auto)
      apply (auto simp add: nth_append sessionsInTransaction_def inTransaction_def split: if_splits)
      apply (smt Suc_diff_diff Suc_pred cancel_comm_monoid_add_class.diff_cancel diff_diff_cancel diff_is_0_eq' diff_zero le_trans n_not_Suc_n nat_le_linear not_gr_zero zero_less_diff)
     by (metis Suc_pred le0 le_less_trans less_not_refl3 less_trans_Suc not_le)
@@ -139,7 +139,7 @@ next
     case (Suc n')
     then show ?thesis 
       apply auto
-       apply (case_tac i)
+       apply (cases i)
       apply auto
       by (metis Cons.hyps One_nat_def Suc_pred diff_Suc_eq_diff_pred less_Suc_eq_0_disj neq0_conv)
   qed

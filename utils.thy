@@ -46,7 +46,7 @@ lemma hd_drop_conv_nth2:  "\<lbrakk>i<length xs; a = hd (drop i xs)\<rbrakk> \<L
   by (simp add: hd_drop_conv_nth)      
 
 lemma eq_tl: "\<lbrakk>xs \<noteq> []; \<And>a as. xs = a#as \<Longrightarrow> drop i ys = as\<rbrakk> \<Longrightarrow> drop i ys = tl xs"
-  by (case_tac xs, auto)
+  by (cases xs, auto)
 
 
 lemma sumSplit:

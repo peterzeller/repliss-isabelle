@@ -182,34 +182,6 @@ next
 
       have vis_defined: "visibleCalls S' s \<noteq> None" if "currentTransaction S' s \<noteq> None"
         using S'_wf state_wellFormed_tx_to_visibleCalls that by auto
-          (*
-      obtain vis'
-        where vis'_sub: "vis' orElse {} \<subseteq>visibleCalls S' s orElse {}"
-          and vis'_else: "currentTransaction S' s \<noteq> None \<Longrightarrow> vis' = visibleCalls S' s"
-          and S2_vis': "S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>"
-      proof (atomize_elim, cases "currentTransaction S' s")
-        case None
-        hence currentTxNone: "currentTransaction S' s = None" .
-
-        from ih3_noTx[OF currentTxNone] obtain vis''  
-          where vis''1: "vis'' orElse {} \<subseteq> visibleCalls S' s orElse {}" 
-            and vis''2: "S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis'')\<rparr>"
-          by metis
-
-        show " \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> (currentTransaction S' s \<noteq> None \<longrightarrow> vis' = visibleCalls S' s) \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>"
-          by (rule_tac x="vis''" in exI, auto simp add: currentTxNone vis''1 vis''2) 
-
-      next
-        case (Some tx)
-        hence currentTxSome: "currentTransaction S' s \<triangleq> tx" .
-
-        from ih3_tx[OF currentTxSome] have sameStates: "S2 = S'" .
-
-
-        show "\<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S' s orElse {} \<and> (currentTransaction S' s \<noteq> None \<longrightarrow> vis' = visibleCalls S' s) \<and> S2 = S'\<lparr>visibleCalls := (visibleCalls S')(s := vis')\<rparr>"
-          by (rule exI[where x="visibleCalls S' s"], auto simp add: sameStates)
-      qed   
-*)
 
       have tr_noSwitch: "noContextSwitchesInTransaction tr"
         using isPrefix_appendI noContextSwitch prefixes_noContextSwitchesInTransaction by blast

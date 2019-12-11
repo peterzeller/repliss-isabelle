@@ -600,19 +600,15 @@ definition initialStates' :: "('proc::valueType, 'ls, 'operation::valueType, 'an
 
 lemma initialStates'_same:
   shows "initialStates progr i = initialStates' progr i"
-  apply (auto simp add: initialStates_def initialStates'_def)
-   apply (rule_tac x=S in exI)
-   apply (rule_tac x=proc in exI)
-   apply (rule_tac x=initState in exI)
-   apply (rule_tac x=impl in exI)
-   apply (auto simp add: invContext_same_allCommitted)
-  apply (rule_tac x=S in exI)
-  apply (rule_tac x=proc in exI)
-  apply (rule_tac x=initState in exI)
-  apply (rule_tac x=impl in exI)
-  apply (auto simp add: invContext_same_allCommitted)
-  done
-
+proof(auto simp add: initialStates_def initialStates'_def, goal_cases A B)
+  case (A S proc initState impl)
+  then show ?case 
+    by (auto simp add: invContext_same_allCommitted)
+next
+  case (B S proc initState impl)
+  then show ?case
+    by (auto simp add: invContext_same_allCommitted intro!: exI)
+qed
 
        
 

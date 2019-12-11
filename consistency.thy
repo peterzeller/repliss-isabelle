@@ -64,10 +64,15 @@ lemma chooseSnapshot_causallyConsistent_preserve:
     and a2': "trans (happensBefore S)"
     and a3: "causallyConsistent (happensBefore S) vis"
   shows "causallyConsistent (happensBefore S) snapshot"
-  using a1 a3 apply (auto simp add: chooseSnapshot_def downwardsClosure_def causallyConsistent_def)
-   apply (rule_tac x=y in exI)
-  apply auto
-  by (meson a2' transE)
+  using a1 a3 proof (auto simp add: chooseSnapshot_def downwardsClosure_def causallyConsistent_def, intro exI conjI, goal_cases A)
+  case (A newTxns c1 c2 y)
+  show "(c2, y) \<in> happensBefore S"
+    using `(c2, c1) \<in> happensBefore S`
+      `(c1, y) \<in> happensBefore S`
+    by (meson  a2' transE)
+  show "y \<in> callsInTransaction S newTxns"
+    using ` y \<in> callsInTransaction S newTxns` .
+qed
 
 
 

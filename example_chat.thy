@@ -786,7 +786,7 @@ proof M_show_programCorrect
               case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
               show ?case 
                 apply (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong)
-                 apply (rule_tac x=upda_c in exI)
+                 apply (rule in exI[where x=upda_c])
                  apply (auto simp add: \<open>upda_c \<noteq> c\<close> \<open>upda_c \<noteq> ca\<close> upda_call)
                 using causallyConsistent_def inv3(6) upd_vis upda_before_upd apply fastforce
                 by (metis i3 inv3(13) inv3_def)

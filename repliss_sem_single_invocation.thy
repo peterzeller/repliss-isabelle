@@ -25,9 +25,12 @@ lemma state_monotonicGrowth_step:
     and "i' \<noteq> i"
     and "a \<noteq> AFail"
   shows "state_monotonicGrowth i S S''"
-  using assms apply (auto simp add: state_monotonicGrowth_def )
-  apply (rule_tac x="tr@[(i',a)]" in exI)
-  by (auto simp add: steps_step)
+  using assms proof (auto simp add: state_monotonicGrowth_def, goal_cases G )
+  case (G tr)
+  then show ?case
+    by (auto simp add: steps_step intro!: exI[where x="tr@[(i',a)]"])
+qed
+  
 
 
 lemma state_monotonicGrowth_wf1: 

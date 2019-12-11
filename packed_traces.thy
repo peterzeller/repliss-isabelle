@@ -283,7 +283,7 @@ proof (auto simp add: transactionIsPackedAlt_def )
     using a4 by auto
 
   show "transactionIsPacked tr tx"
-    by (auto simp add: transactionIsPacked_def indexInOtherTransaction_def, rename_tac i' s',
+    by (auto simp add: transactionIsPacked_def indexInOtherTransaction_def,
      smt \<open>ia = i\<close> \<open>sa = s\<close> a2 a3 a4' le_eq_less_or_eq le_less_trans prod.inject uniqueTxs)
 next
   fix i s ntxns
@@ -298,14 +298,14 @@ next
     using a1 that by (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
 
   show "\<exists>i<length tr. \<exists>s. (\<exists>ntxns. tr ! i = (s, ABeginAtomic tx ntxns)) \<and> (\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> fst (tr ! j) = s))"  
-  proof (rule_tac x=i in exI, (auto simp add: a0))
+  proof (rule exI[where x=i], (auto simp add: a0))
     show "\<exists>s. (\<exists>ntxns. tr ! i = (s, ABeginAtomic tx ntxns)) \<and> (\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> fst (tr ! j) = s))"
-    proof (rule_tac x=s in exI, safe)
+    proof (rule exI[where x=s], safe)
       show "\<exists>ntxns. tr ! i = (s, ABeginAtomic tx ntxns)"
         by (simp add: a1) 
       define endPos where "endPos = (if \<exists>j. i<j \<and> j<length tr \<and> tr!j = (s, AEndAtomic) then LEAST j. i<j \<and> j<length tr \<and> tr!j = (s, AEndAtomic) else length tr)"
       show "\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> fst (tr ! j) = s) "
-      proof (rule_tac x="endPos" in exI, (auto simp add: endPos_def))
+      proof (rule exI[where x="endPos"], (auto simp add: endPos_def))
         show "\<And>j. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic); (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) \<noteq> length tr\<rbrakk> \<Longrightarrow> (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) < length tr"
           by (smt less_trans neqE not_less_Least)
         show "\<And>j. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic); (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) \<noteq> length tr\<rbrakk> \<Longrightarrow> tr ! (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) = (s, AEndAtomic)"
@@ -349,7 +349,7 @@ next
 
 
   show "transactionIsPacked tr tx"
-  proof (auto simp add: transactionIsPacked_def indexInOtherTransaction_def, rename_tac i' s' ntxns)
+  proof (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
     fix k i' s' ntxns
     assume b0: "k < length tr"
       and b1: "i' < k"

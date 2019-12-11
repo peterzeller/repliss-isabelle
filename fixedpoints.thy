@@ -186,7 +186,7 @@ proof
 
     ultimately
     show "P a"
-      by (case_tac a, auto)
+      by (cases a, auto)
   qed
 qed
 
@@ -260,16 +260,16 @@ lemma check_fail_least: "check_fail \<le> x"
   by (simp add: less_eq_check_result_def)
 
 lemma check_fail_least2: "x \<le> check_fail \<longleftrightarrow> x = check_fail"
-  by (case_tac x, auto simp add: less_eq_check_result_def)
+  by (cases x, auto simp add: less_eq_check_result_def)
 
 lemma check_inf_greatest: "x \<le> check_ok_infinite"
-  by (case_tac x, auto simp add: less_eq_check_result_def)
+  by (cases x, auto simp add: less_eq_check_result_def)
 
 lemma check_inf_greatest2: "check_ok_infinite \<le> x \<longleftrightarrow> x = check_ok_infinite"
-  by (case_tac x, auto simp add: less_eq_check_result_def)
+  by (cases x, auto simp add: less_eq_check_result_def)
 
 lemma check_ok_compare: "check_ok x \<le> check_ok y \<longleftrightarrow> x \<le> y"
-  by (case_tac x, auto simp add: less_eq_check_result_def)
+  by (cases x, auto simp add: less_eq_check_result_def)
 
 lemma GreatestI_check_result:
   assumes example: "\<exists>m::check_result. P m"
@@ -294,8 +294,8 @@ proof (cases "\<exists>n. P (check_ok n)")
   proof (subst Greatest_def, rule the_equality, auto)
     show " P (check_ok (Greatest P'))"
       using P'_def \<open>P' (Greatest P')\<close> by auto
-    show "\<And>y. P y \<Longrightarrow> y \<le> check_ok (Greatest P')"
-      apply (case_tac y, auto simp add: check_fail_least check_inf_greatest2 check_inf_greatest2 check_ok_compare)
+    show "P y \<Longrightarrow> y \<le> check_ok (Greatest P')" for y
+      apply (cases y, auto simp add: check_fail_least check_inf_greatest2 check_inf_greatest2 check_ok_compare)
        apply (rule Greatest_le_nat[where b=bound])
       using bound by (auto simp add: P'_def check_inf_greatest2 check_ok_compare)
     show "\<And>x. \<lbrakk>P x; \<forall>y. P y \<longrightarrow> y \<le> x\<rbrakk> \<Longrightarrow> x = check_ok (Greatest P')"
@@ -312,8 +312,12 @@ next
 
   with False
   have "P x \<longleftrightarrow> x = check_fail" for x
-    using example apply (case_tac x, auto)
-    by (case_tac xa, auto)
+
+    using example proof (cases x, auto, goal_cases G)
+    case (G y)
+    thus "P check_fail"
+      by (cases y, auto)
+  qed
 
   then show ?thesis
     by (metis GreatestI2_order eq_refl)
@@ -380,7 +384,7 @@ next
 
       obtain i_max where "check_ok i_max \<in> A" and "i_max \<le> i" and "\<forall>i'. check_ok i' \<in> A \<and> i' \<le> i \<longrightarrow> i' \<le> i_max"
         apply atomize_elim
-        apply (rule_tac x="GREATEST i'. check_ok i' \<in> A \<and> i' \<le> i" in exI)
+        apply (rule exI[where x="GREATEST i'. check_ok i' \<in> A \<and> i' \<le> i"])
         apply auto
           apply (rule GreatestI_nat2[where bound=i])
             apply (auto simp add: exists_ok)
@@ -392,11 +396,21 @@ next
 
       with a show False
         apply auto
-        apply (drule_tac x="check_ok i_max" in spec) 
+        apply (drule spec[where x="check_ok i_max"]) 
         apply auto
-        apply (case_tac x, auto simp add: check_ok_compare check_fail_smaller)
-        using i_greatest not_le_imp_less apply blast
-        using False by blast
+      proof -
+
+        show "False"
+          if c0: "check_ok i_max \<in> A"
+            and c1: "i_max \<le> i"
+            and c2: "\<forall>i'. check_ok i' \<in> A \<and> i' \<le> i \<longrightarrow> i' \<le> i_max"
+            and c3: "x \<in> A"
+            and c4: "\<not> x \<le> check_ok i_max"
+          for  x
+          using that apply (cases x, auto simp add: check_ok_compare check_fail_smaller)
+          using i_greatest not_le_imp_less apply blast
+          using False by blast
+      qed
     qed
   next
     case False
@@ -444,7 +458,7 @@ proof
 
   show "x \<in> A \<Longrightarrow> x \<le> Sup A" for A
     apply (auto simp add: Sup_check_result_def check_inf_greatest        )
-    apply (erule_tac P="x \<le> (GREATEST x. x \<in> A)" in notE)
+    apply (erule notE[where P="x \<le> (GREATEST x. x \<in> A)"])
     apply (rule Greatest_leq)
     by (auto simp add: exists_greatest_check_result)
 
@@ -455,11 +469,11 @@ proof
        check_ok_infinite_max'
     )
     using check_ok_infinite_max' apply blast
-     apply (case_tac z)
+     apply (cases z)
        apply (auto simp add: check_fail_least2 check_fail_smaller)
     using check_ok_compare leD apply blast
-    apply (erule_tac P=" (GREATEST x. x \<in> A) \<le> z" in notE)
-    apply (case_tac z)
+    apply (erule notE[where P=" (GREATEST x. x \<in> A) \<le> z"])
+    apply (cases z)
       apply (auto simp add: check_inf_greatest)
      apply (metis GreatestI_check_result check_fail_least2 le_cases)
     by (metis (full_types) GreatestI_check_result)

@@ -43,7 +43,7 @@ lemma state_wellFormed_combine_step:
       and c2: "\<forall>i. (i, AFail) \<notin> set tr"
       and c3: "initialState (prog S) ~~ tr \<leadsto>* S"
     for  tr
-  proof (rule_tac x="tr@[a]" in exI, auto)
+  proof (rule exI[where x="tr@[a]"], auto)
     show "\<And>i. a = (i, AFail) \<Longrightarrow> False" using noFails by auto
     show "\<And>i. (i, AFail) \<in> set tr \<Longrightarrow> False" using c2 by auto 
     show "initialState (prog S') ~~ tr @ [a] \<leadsto>* S'"
@@ -381,7 +381,7 @@ qed
 lemma finite_dom_spit:
   assumes "finite (dom A \<inter> {x. P x})" and "finite (dom B \<inter> {x. \<not>P x})"
   shows "finite (dom (\<lambda>x. if P x then A x else B x))"
-proof (rule_tac B="(dom A \<inter> {x. P x}) \<union> (dom B \<inter> {x. \<not>P x})" in finite_subset)
+proof (rule finite_subset[where  B="(dom A \<inter> {x. P x}) \<union> (dom B \<inter> {x. \<not>P x})"])
   show " dom (\<lambda>x. if P x then A x else B x) \<subseteq> dom A \<inter> {x. P x} \<union> dom B \<inter> {x. \<not> P x}"
     using assms by (auto split: if_splits)
   show "finite (dom A \<inter> {x. P x} \<union> dom B \<inter> {x. \<not> P x})"
@@ -1277,7 +1277,7 @@ lemma unchangedInTransaction_knownIds:
     and aIsInTransaction: "currentTransaction A sa \<triangleq> tx"
     and exec: "A ~~ (sa, a) \<leadsto> B"
   shows "knownIds A = knownIds B"
-  using exec by (case_tac a, auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims)
+  using exec by (cases a, auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims)
 
 lemmas unchangedInTransaction = unchanged_in_step unchangedInTransaction_knownIds
 
@@ -1410,10 +1410,10 @@ next
   then show ?case 
   proof (cases "snd a")
     case ALocal
-    then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
+    then show ?thesis using steps_step by (cases a, auto simp add: step_simps)
   next
     case (ANewId x2)
-    then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
+    then show ?thesis using steps_step by (cases a, auto simp add: step_simps)
   next
     case (ABeginAtomic x3)
     then show ?thesis using steps_step by auto 
@@ -1422,20 +1422,20 @@ next
     then show ?thesis using steps_step by auto
   next
     case (ADbOp)
-    then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
+    then show ?thesis using steps_step by (cases a, auto simp add: step_simps)
   next
     case (AInvoc )
-    then show ?thesis using steps_step by (case_tac a, auto simp add: step_simps)
+    then show ?thesis using steps_step by (cases a, auto simp add: step_simps)
   next
     case (AReturn x8)
-    then show ?thesis using steps_step by (case_tac a, case_tac "currentTransaction S s", auto elim: step_elims)
+    then show ?thesis using steps_step by (cases a, cases "currentTransaction S s", auto elim: step_elims)
   next
     case AFail
     then show ?thesis using steps_step
       by auto
   next
     case (AInvcheck x10)
-    then show ?thesis using steps_step by (case_tac a, case_tac "currentTransaction S s", auto elim: step_elims)
+    then show ?thesis using steps_step by (cases a, cases "currentTransaction S s", auto elim: step_elims)
   qed
 qed
 
@@ -2039,9 +2039,7 @@ next
         by (metis Un_insert_right append_Nil2 insert_iff list.simps(15) not_None_eq set_append wellFormed_currentTransaction_unique_h(2))
 
       show ?thesis 
-        by (rule_tac x="length tr" in exI,
-            insert beginAtomic,
-            auto simp add: nth_append True \<open>s = i\<close>)
+        using beginAtomic by (auto simp add: nth_append True \<open>s = i\<close>)
     next
       case False
 
@@ -2067,10 +2065,8 @@ next
     qed
 
     then show ?thesis 
-      by (auto,
-          rule_tac x=ib in exI,
-          insert endAtomic \<open>currentTransaction S'' i \<triangleq> tx\<close>,
-          auto simp add: nth_append)
+      using endAtomic \<open>currentTransaction S'' i \<triangleq> tx\<close> by (auto simp add: nth_append)
+
   next
     case (dbop s ls f Op  ls' t c res vis)
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
