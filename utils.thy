@@ -906,6 +906,12 @@ lemma imp_assoc_elem:
   shows "(a \<longrightarrow> (x \<in> S \<longrightarrow> c)) \<longleftrightarrow> (x \<in> S \<longrightarrow> (a \<longrightarrow> c))"
   by auto
 
+lemma rel_eqI:
+  assumes lr: "\<And>x y. (x,y) \<in> A \<Longrightarrow> (x,y) \<in> B"
+    and rl: "\<And>x y. (x,y) \<in> B \<Longrightarrow> (x,y) \<in> A"
+  shows "A = B"
+  using lr rl by auto
+
 
 
 end
