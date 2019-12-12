@@ -558,7 +558,54 @@ proof -
 qed
 
 
+lemma commutativeInTransaction:
+  assumes a_is_in_transaction: "currentTransaction S sa \<triangleq> t"
+    and b_is_a_different_session[simp]: "sa \<noteq> sb"
+    and not_endAtomic: "a \<noteq> AEndAtomic"
+    and not_invCheck: "\<not>is_AInvcheck a"
+    and wf[simp]: "state_wellFormed S"
+  shows "commutativeS S (sa, a) (sb, b)"
+proof (cases a)
+  case ALocal
+  then show ?thesis 
+    by (simp add: commutative_ALocal_other)
+next
+  case (ANewId x2)
+  then show ?thesis
+    by (simp add: commutative_newId_other) 
+next
+  case (ABeginAtomic x3)
+  then show ?thesis  
+    by (auto simp add: commutativeS_def steps_appendFront step_simps a_is_in_transaction,
+        metis a_is_in_transaction b_is_a_different_session option.simps(3) unchangedInTransaction(3))
+next
+  case AEndAtomic
+  then show ?thesis using not_endAtomic by simp
+next
+  case (ADbOp)
+  then show ?thesis
+    by (simp add: commutative_Dbop_other)  
+next
+  case (AInvoc)
+  then show ?thesis 
+    by (auto simp add: commutativeS_def steps_appendFront,
+        metis a_is_in_transaction local.wf option.distinct(1) preconditionI precondition_invoc wellFormed_invoc_notStarted(1),
+        metis a_is_in_transaction b_is_a_different_session local.wf option.distinct(1) preconditionI precondition_invoc unchangedInTransaction(5) wellFormed_invoc_notStarted(1))
+next
+  case (AReturn x8)
+  then show ?thesis   
+    by (auto simp add: commutativeS_def steps_appendFront step_simps a_is_in_transaction,
+        metis a_is_in_transaction b_is_a_different_session option.distinct(1) unchangedInTransaction(3))
 
+next
+  case AFail
+  then show ?thesis
+    by (simp add: commutative_fail_other)  
+next
+  case (AInvcheck res)
+  then show ?thesis
+    using is_AInvcheck_def not_invCheck by auto   
+qed
 
 
 

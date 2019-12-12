@@ -73,7 +73,7 @@ lemma convert_to_single_session_trace:
     and inv: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S' "
   shows "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<forall>a. (a, False)\<notin>set tr')
-        \<and> (state_coupling S' S2 s (tr = [] \<or> fst (last tr) = s))"
+        \<and> (state_coupling S' S2 s (tr = [] \<or> get_invoc (last tr) = s))"
   using steps S_wellformed packed inv noFails noUncommitted noCtxtSwitchInTx proof (induct rule: steps.induct)
   case (steps_refl S)
 
@@ -93,7 +93,7 @@ next
                \<And>tr' S'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'\<rbrakk> 
                \<Longrightarrow> \<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
                    \<and> (\<forall>a. (a, False) \<notin> set tr') 
-                   \<and> (state_coupling S' S2 s (tr = [] \<or> fst (last tr) = s))"
+                   \<and> (state_coupling S' S2 s (tr = [] \<or> get_invoc (last tr) = s))"
     and  step: "S' ~~ a \<leadsto> S''"
     and  packed: "packed_trace (tr @ [a])"
     and prefix_invariant: "\<And>tr' S'.  \<lbrakk>isPrefix tr' (tr @ [a]); S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
@@ -118,7 +118,7 @@ next
 
   have "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
          \<and> (\<forall>a. (a, False) \<notin> set tr') 
-         \<and> (state_coupling S' S2 s (tr = [] \<or> fst (last tr) = s))"
+         \<and> (state_coupling S' S2 s (tr = [] \<or> get_invoc (last tr) = s))"
   proof (rule IH)
     have "isPrefix tr (tr@[a])"
       by (simp add: isPrefix_appendI)
@@ -132,18 +132,18 @@ next
   from this obtain tr' S2
     where ih1: "S ~~ (s, tr') \<leadsto>\<^sub>S* S2"
       and ih2: "\<And>a. (a, False) \<notin> set tr'"
-      and ih3': "state_coupling S' S2 s  (tr = [] \<or> fst (last tr) = s)"
+      and ih3': "state_coupling S' S2 s  (tr = [] \<or> get_invoc (last tr) = s)"
     by blast
 
-  show  "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 s (tr @ [a] = [] \<or> fst (last (tr @ [a])) = s)"  
-  proof (cases "fst a = s"; simp)
+  show  "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 s (tr @ [a] = [] \<or> get_invoc (last (tr @ [a])) = s)"  
+  proof (cases "get_invoc a = s"; simp)
     case True \<comment> \<open>the new action is on invocId s\<close>
-    then have [simp]: "fst a = s" .
+    then have [simp]: "get_invoc a = s" .
 
     show "\<exists>tr' S2. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 s True"  (is ?goal) 
-    proof (cases "tr = [] \<or> fst (last tr) = s")
+    proof (cases "tr = [] \<or> get_invoc (last tr) = s")
       case True \<comment> \<open>the previous action was on the same trace (if there was a previous action)\<close>
-      then have [simp]: "tr = [] \<or> fst (last tr) = s" by simp
+      then have [simp]: "tr = [] \<or> get_invoc (last tr) = s" by simp
       then have ih3: "state_coupling S' S2 s True"
         using ih3' by simp
 
@@ -194,7 +194,7 @@ next
 
 
       show ?goal
-      proof (cases "snd a")
+      proof (cases "get_action a")
         case ALocal
         then have "a = (s, ALocal)"
           by (simp add: prod.expand) 
@@ -428,7 +428,7 @@ next
             {
               assume "0 < length tr"
               from \<open>S ~~ tr \<leadsto>* S'\<close> S_wf
-              have "currentTransaction S' (fst (last tr)) \<triangleq> tx "
+              have "currentTransaction S' (get_invoc (last tr)) \<triangleq> tx "
               proof (rule only_one_commmitted_transaction_h[THEN conjunct1])
 
                 show "packed_trace tr"
@@ -711,7 +711,7 @@ next
 
         have noCurrentTransaction: "currentTransaction S' i = None" for i
           using \<open>S' ~~ a \<leadsto> S''\<close>
-          using \<open>fst a = s\<close> a2 \<open>snd a = AInvoc proc\<close> apply (auto simp add: step.simps)
+          using \<open>get_invoc a = s\<close> a2 \<open>get_action a = AInvoc proc\<close> apply (auto simp add: step.simps)
 
           using at_most_one_current_tx[OF \<open>S ~~ tr \<leadsto>* S'\<close> \<open>noContextSwitchesInTransaction tr\<close> \<open>packed_trace tr\<close> \<open>state_wellFormed S\<close> \<open>\<And>s. (s, AFail) \<notin> set tr\<close>]
           by (metis S_wf True noCurrentTransaction_s option.exhaust steps steps_empty steps_step.prems(5) wellFormed_currentTransactionUncommitted)
@@ -868,7 +868,7 @@ next
       qed
     next
       case False \<comment> \<open>we are coming from a different invocId and executing an action on s now\<close>
-      then have [simp]: "tr \<noteq> []" and [simp]: "fst (last tr) \<noteq> s" by auto
+      then have [simp]: "tr \<noteq> []" and [simp]: "get_invoc (last tr) \<noteq> s" by auto
 
       then have ih3: "state_coupling S' S2 s  False" using ih3' by simp
 
@@ -882,20 +882,20 @@ next
 
 
       text \<open>Because the trace is packed, there can only be two cases where we can go from another invocId to s:\<close>
-      have "allowed_context_switch (snd a)"
+      have "allowed_context_switch (get_action a)"
       proof (rule context_switches_in_packed[OF packed])
-        show "tr @ [a] = butlast tr @ [(fst (last tr), snd (last tr)), (s, snd a)] @ []"
+        show "tr @ [a] = butlast tr @ [(get_invoc (last tr), get_action (last tr)), (s, get_action a)] @ []"
           apply auto
           by (metis True prod.collapse)
-        show "fst (last tr) \<noteq> s"
+        show "get_invoc (last tr) \<noteq> s"
           by simp
       qed
-      then have "(\<exists>tx txns. (snd a) = ABeginAtomic tx txns) \<or> (\<exists>p. (snd a) = AInvoc p)"
+      then have "(\<exists>tx txns. (get_action a) = ABeginAtomic tx txns) \<or> (\<exists>p. (get_action a) = AInvoc p)"
         using allowed_context_switch_def by blast
       then show ?thesis
       proof (rule disjE; clarsimp)
         fix tx snapshot
-        assume "snd a = ABeginAtomic tx snapshot"
+        assume "get_action a = ABeginAtomic tx snapshot"
 
         with step
         have step': "S' ~~ (s, ABeginAtomic tx snapshot) \<leadsto> S''"
@@ -997,7 +997,7 @@ next
               using S_wf a6 state_wellFormed_combine steps wf_callOrigin_implies_transactionStatus_defined a1 noFails by (auto, blast)
 
 
-            have "\<forall>i. currentTransaction S'' i \<noteq> None \<longrightarrow> i = fst (last (tr@[a]))"
+            have "\<forall>i. currentTransaction S'' i \<noteq> None \<longrightarrow> i = get_invoc (last (tr@[a]))"
             proof (rule at_most_one_current_tx)
               show "S ~~ tr @ [a] \<leadsto>* S''"
                 using steps' by auto
@@ -1089,7 +1089,7 @@ next
         qed
       next
         fix p
-        assume a0: "snd a = AInvoc p"
+        assume a0: "get_action a = AInvoc p"
 
         with step
         have step': "S' ~~ (s, AInvoc p) \<leadsto> S''"
@@ -1166,7 +1166,7 @@ next
     qed
   next
     case False
-    then have different_session[simp]:  "fst a \<noteq> s" by simp
+    then have different_session[simp]:  "get_invoc a \<noteq> s" by simp
 
     text \<open>we are now in the case of doing steps in a different session.
    We show that all of these preserve the coupling. 
@@ -1193,31 +1193,31 @@ next
     proof (induct rule: step.cases) \<comment> \<open>prove this with a case distinction on the action\<close>
       case (local C s ls f ls')
       then show ?case 
-        using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
+        using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="get_invoc a" and a="get_action a"])
 
     next
       case (newId C s ls f ls' uid)
       then show ?case 
-        using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
+        using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="get_invoc a" and a="get_action a"])
     next
       case (beginAtomic C s' ls f ls' t vis  vis')
       then show ?case using old_coupling different_session wf_S''
-        apply (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
+        apply (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="get_invoc a" and a="get_action a"])
         using \<open>state_wellFormed S'\<close> wf_transaction_status_iff_origin by force
     next
       case (endAtomic C s ls f ls' t)
       then show ?case using old_coupling different_session wf_S'' 
-        by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
+        by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="get_invoc a" and a="get_action a"])
     next
       case (dbop C s' ls f Op ls' t c res vis)
       then show ?case using old_coupling different_session wf_S'' 
-        by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
+        by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="get_invoc a" and a="get_action a"])
     next
       case (invocation C s procName initialState impl)
-      then show ?case using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
+      then show ?case using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="get_invoc a" and a="get_action a"])
     next
       case (return C s ls f res)
-      then show ?case using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="fst a" and a="snd a"])
+      then show ?case using old_coupling different_session wf_S'' by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="get_invoc a" and a="get_action a"])
     next
       case (fail C s ls)
 
@@ -1471,11 +1471,11 @@ lemma no_current_transaction_when_invariant_fails:
     and "state_wellFormed S"
     and " invariant_all S"
     and wf: "state_wellFormed S"
-    and noEndAtomic: "snd a \<noteq> AEndAtomic"
-  shows "currentTransaction S (fst a) = None"
+    and noEndAtomic: "get_action a \<noteq> AEndAtomic"
+  shows "currentTransaction S (get_invoc a) = None"
 proof (rule ccontr)
-  assume " currentTransaction S (fst a) \<noteq> None"
-  from this obtain tx where ctx: "currentTransaction S (fst a) \<triangleq> tx"
+  assume " currentTransaction S (get_invoc a) \<noteq> None"
+  from this obtain tx where ctx: "currentTransaction S (get_invoc a) \<triangleq> tx"
     by (metis not_None_eq)
 
   have uncommitted: "transactionStatus S tx \<triangleq> Uncommitted"
@@ -1493,7 +1493,7 @@ proof (rule ccontr)
   next
     case (beginAtomic s ls f ls' t vis snapshot)
     then show ?thesis
-      by (metis \<open>currentTransaction S (fst a) \<noteq> None\<close> fst_conv) 
+      by (metis \<open>currentTransaction S (get_invoc a) \<noteq> None\<close> fst_conv) 
 
   next
     case (endAtomic s ls f ls' t)
@@ -1595,7 +1595,7 @@ proof (rule ccontr)
 
   have committedCallsH_same: "committedCallsH (callOrigin S_fail) (transactionStatus S_fail) = committedCallsH (callOrigin S) (transactionStatus S)"
     using \<open>S ~~ a \<leadsto> S_fail\<close>
-    using \<open>currentTransaction S (fst a) \<noteq> None\<close> noEndAtomic apply (auto simp add: step.simps committedCallsH_def )
+    using \<open>currentTransaction S (get_invoc a) \<noteq> None\<close> noEndAtomic apply (auto simp add: step.simps committedCallsH_def )
      apply (auto simp add: isCommittedH_def split: if_splits)
     using wellFormed_currentTransactionUncommitted[OF wf] apply auto
     by (metis local.wf option.distinct(1) wellFormed_callOrigin_dom2)
@@ -1607,7 +1607,7 @@ proof (rule ccontr)
 
   have "invContext S_fail = invContext S" 
     apply (auto simp add: invContextH_def committedCallsH_same)
-    using \<open>S ~~ a \<leadsto> S_fail\<close> noEndAtomic \<open>currentTransaction S (fst a) \<noteq> None\<close>
+    using \<open>S ~~ a \<leadsto> S_fail\<close> noEndAtomic \<open>currentTransaction S (get_invoc a) \<noteq> None\<close>
     by (auto simp add: step.simps restrict_map_def restrict_relation_def committedCallsExist inTransaction_localState[OF wf])
 
   with   \<open>\<not> invariant_all S_fail\<close> \<open>invariant_all S\<close>
@@ -1714,7 +1714,7 @@ proof -
   obtain tr1' S1' 
     where tr1'_steps: "S ~~ (as, tr1') \<leadsto>\<^sub>S* S1'"
       and tr1'_ok: "\<forall>a. (a, False)\<notin>set tr1'"
-      and tr1'_coupling: "state_coupling S1 S1' as (tr1 = [] \<or> fst (last tr1) = as)"
+      and tr1'_coupling: "state_coupling S1 S1' as (tr1 = [] \<or> get_invoc (last tr1) = as)"
   proof (atomize_elim, rule convert_to_single_session_trace)
     show "S ~~ tr1 \<leadsto>* S1" using steps1 .
     show "state_wellFormed S" using S_wellformed .
@@ -1752,7 +1752,7 @@ proof -
       using inv_before isPrefix_refl steps1 by blast
     show "\<not> invariant_all S_fail"
       by (simp add: first_not_inv)
-    show "state_coupling S1 S1' as (tr1 = [] \<or> fst (last tr1) = as)"  
+    show "state_coupling S1 S1' as (tr1 = [] \<or> get_invoc (last tr1) = as)"  
       using tr1'_coupling .
 
 
@@ -1762,7 +1762,7 @@ proof -
       have  noFails_tr1: "\<And>s. (s, AFail) \<notin> set tr1"
         using noFails tr_split by auto
 
-      have current_tx:  "\<forall>i. currentTransaction S1 i \<noteq> None \<longrightarrow> i = fst (last tr1)"
+      have current_tx:  "\<forall>i. currentTransaction S1 i \<noteq> None \<longrightarrow> i = get_invoc (last tr1)"
       proof (rule at_most_one_current_tx[OF \<open>S ~~ tr1 \<leadsto>* S1\<close>])
         show "noContextSwitchesInTransaction tr1"
           using isPrefix_appendI noContextSwitches prefixes_noContextSwitchesInTransaction tr_split by blast
@@ -1781,7 +1781,7 @@ proof -
 
 
 
-      have noCurrentTx_a: "currentTransaction S1 (fst a) = None"
+      have noCurrentTx_a: "currentTransaction S1 (get_invoc a) = None"
       proof (rule no_current_transaction_when_invariant_fails[OF \<open>S1 ~~ a \<leadsto> S_fail\<close> \<open>\<not> invariant_all S_fail\<close>])
         show "state_wellFormed S1"
           by (simp add: \<open>state_wellFormed S1\<close>) 
@@ -1789,11 +1789,11 @@ proof -
           by (simp add: \<open>invariant_all S1\<close>)
         show "state_wellFormed S1"
           by (metis \<open>state_wellFormed S1\<close>)
-        show "snd a \<noteq> AEndAtomic"
+        show "get_action a \<noteq> AEndAtomic"
           by (metis a_def sndI that) 
       qed
 
-      have noCurrentTx: "currentTransaction S1 (fst (last tr1)) = None"
+      have noCurrentTx: "currentTransaction S1 (get_invoc (last tr1)) = None"
       proof (cases "tr1")
         case Nil
         then have "S1 = S"
@@ -1806,7 +1806,7 @@ proof -
           by simp
 
         show ?thesis 
-        proof (cases "fst (last tr1) = fst a")
+        proof (cases "get_invoc (last tr1) = get_invoc a")
           case True
           then show ?thesis
             by (simp add: noCurrentTx_a) 
@@ -1814,9 +1814,9 @@ proof -
           case False
           show ?thesis
           proof (rule ccontr)
-            assume a0: "currentTransaction S1 (fst (last tr1)) \<noteq> None"
+            assume a0: "currentTransaction S1 (get_invoc (last tr1)) \<noteq> None"
 
-            define invoc where "invoc \<equiv> fst (last tr1)"
+            define invoc where "invoc \<equiv> get_invoc (last tr1)"
 
             from a0 obtain tx where "currentTransaction S1 invoc \<triangleq> tx"
               by (metis not_Some_eq invoc_def)
@@ -1841,7 +1841,7 @@ proof -
             have steps_fail: "S ~~ tr1@[a] \<leadsto>* S_fail"
               using stepA steps1 steps_step by blast
 
-            have "allowed_context_switch (snd ((tr1@[a]) ! length tr1))"
+            have "allowed_context_switch (get_action ((tr1@[a]) ! length tr1))"
             proof (rule use_packed_trace)  
               show " packed_trace (tr1 @ [a])"
                 by (simp add: tr1_packed)
@@ -1849,13 +1849,13 @@ proof -
                 using tr1_len .
               show "length tr1 < length (tr1 @ [a])"
                 by simp
-              show "fst ((tr1 @ [a]) ! (length tr1 - 1)) \<noteq> fst ((tr1 @ [a]) ! length tr1)"
+              show "get_invoc ((tr1 @ [a]) ! (length tr1 - 1)) \<noteq> get_invoc ((tr1 @ [a]) ! length tr1)"
                 by (metis False One_nat_def diff_Suc_less last_conv_nth list.simps(3) local.Cons nth_append nth_append_length tr1_len)
             qed
 
             
 
-            moreover have "\<not> allowed_context_switch (snd ((tr1@[a]) ! length tr1))"
+            moreover have "\<not> allowed_context_switch (get_action ((tr1@[a]) ! length tr1))"
             proof (rule use_noContextSwitchesInTransaction)
               show "noContextSwitchesInTransaction (tr1 @ [a])"
                 by (metis append.assoc append_Cons append_Nil isPrefix_appendI noContextSwitches prefixes_noContextSwitchesInTransaction tr_split)
@@ -1885,7 +1885,7 @@ proof -
         obtain invoc where "currentTransaction S1 invoc = Some tx"
           using uncommitted_tx_is_current_somewhere[OF \<open>S ~~ tr1 \<leadsto>* S1\<close> \<open>state_wellFormed S\<close> noFails_tr1 noUncommittedTx a] by blast
 
-        then have "invoc = fst (last tr1)"
+        then have "invoc = get_invoc (last tr1)"
           by (simp add: current_tx)
 
         with \<open>currentTransaction S1 invoc = Some tx\<close> show False
@@ -1898,15 +1898,15 @@ proof -
 
 
        
-    assume "\<not> (tr1 = [] \<or> fst (last tr1) = as)"
-    then have "tr1 \<noteq> []" and "fst (last tr1) \<noteq> as"
+    assume "\<not> (tr1 = [] \<or> get_invoc (last tr1) = as)"
+    then have "tr1 \<noteq> []" and "get_invoc (last tr1) \<noteq> as"
       by auto
     show "allowed_context_switch aa"  
     using tr1_packed proof (rule context_switches_in_packed)
-      show "tr1 @ [a] = butlast tr1 @ [(fst (last tr1), snd (last tr1)), (as, aa)] @ []"
+      show "tr1 @ [a] = butlast tr1 @ [(get_invoc (last tr1), get_action (last tr1)), (as, aa)] @ []"
         by (simp add: \<open>tr1 \<noteq> []\<close> a_def)
-      show "fst (last tr1) \<noteq> as"
-        by (simp add: \<open>fst (last tr1) \<noteq> as\<close>)
+      show "get_invoc (last tr1) \<noteq> as"
+        by (simp add: \<open>get_invoc (last tr1) \<noteq> as\<close>)
     qed    
   qed    
     

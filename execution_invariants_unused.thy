@@ -80,35 +80,6 @@ proof -
 qed
 
 
-(*
-lemma wf_happensBefore_trans: 
-  assumes  wf: "state_wellFormed S"
-  shows "trans (happensBefore S)"
-  using assms apply (induct rule: wellFormed_induct)
-   apply (simp add: initialState_def)
-  apply (auto simp add: step.simps)
-  apply (subst trans_def)
-  apply (auto dest: transD)
-proof -
-
-show "(x, c) \<in> happensBefore t"
-    if c0: "state_wellFormed t"
-   and c1: "trans (happensBefore t)"
-   and c2: "localState t sa \<triangleq> ls"
-   and c3: "currentProc t sa \<triangleq> f"
-   and c4: "f ls = DbOperation Op args ls'"
-   and c5: "currentTransaction t sa \<triangleq> ta"
-   and c6: "calls t c = None"
-   and c7: "querySpec (prog t) Op args (getContextH (calls t) (happensBefore t) (Some vis)) res"
-   and c8: "visibleCalls t sa \<triangleq> vis"
-   and c9: "(x, y) \<in> happensBefore t"
-   and c10: "y \<in> vis"
-   and c11: "x \<notin> vis"
-   for  t sa ls f Op args ls' ta c res vis x y
-  using wellFormed_visibleCallsSubsetCalls[OF c0 c8] wellFormed_visibleCallsSubsetCalls_h(1)[OF c0]
-that 
-*)
-
 
 lemma downwardsClosure_subset2:
   "x \<in> S \<down> R \<Longrightarrow> x \<in> S \<union> fst ` R"
@@ -123,25 +94,25 @@ lemma nothing_after_fail_or_return:
   assumes steps: "initialState program ~~ tr \<leadsto>* S"
     and fail_or_return: "tr!i = (s, AFail) \<or> tr!i = (s, AReturn res)"
     and i_in_range: "i < length tr"
-  shows "\<nexists>j. j>i \<and> j<length tr \<and> fst(tr!j) = s \<and> \<not>is_AInvcheck (snd (tr!j))" 
+  shows "\<nexists>j. j>i \<and> j<length tr \<and> get_invoc(tr!j) = s \<and> \<not>is_AInvcheck (get_action (tr!j))" 
   using steps fail_or_return i_in_range proof (induct rule: steps_induct)
   case initial
   then show ?case by auto
 next
   case (step S' tr a S'')
-  show "\<not> (\<exists>j>i. j < length (tr @ [a]) \<and> fst ((tr @ [a]) ! j) = s \<and> \<not> is_AInvcheck (snd ((tr @ [a]) ! j)))"
+  show "\<not> (\<exists>j>i. j < length (tr @ [a]) \<and> get_invoc ((tr @ [a]) ! j) = s \<and> \<not> is_AInvcheck (get_action ((tr @ [a]) ! j)))"
   proof (rule ccontr, auto)
     fix j
     assume a1: "j < Suc (length tr)"
       and a2: "i < j"
-      and a3: "s = fst ((tr @ [a]) ! j)"
-      and a4: "\<not> is_AInvcheck (snd ((tr @ [a]) ! j))"
+      and a3: "s = get_invoc ((tr @ [a]) ! j)"
+      and a4: "\<not> is_AInvcheck (get_action ((tr @ [a]) ! j))"
 
     have j_def: "j = length tr"
     proof (rule ccontr)
       assume "j \<noteq> length tr"
       then have "j < length tr" using a1 by simp
-      then have "s \<noteq> fst ((tr @ [a]) ! j)"
+      then have "s \<noteq> get_invoc ((tr @ [a]) ! j)"
         by (metis a2 a4 length_append_singleton less_Suc_eq nth_append order.asym step.IH step.prems(1) step.prems(2))
       with a3 show False by simp
     qed
@@ -157,7 +128,7 @@ next
        apply (metis a2 everything_starts_with_an_invocation j_def nth_append step.steps)
       by (metis a2 everything_starts_with_an_invocation j_def nth_append step.prems(1) step.steps)
 
-    have fst_a: "fst a = s" using a_def by simp  
+    have fst_a: "get_invoc a = s" using a_def by simp  
 
     from \<open>S' ~~ a \<leadsto> S''\<close> a_def
     have "S' ~~ (s, a_op) \<leadsto> S''" by simp  

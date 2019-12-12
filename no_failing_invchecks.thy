@@ -120,7 +120,7 @@ lemma remove_local_step:
     and steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
     and a_def: "a = (i, ALocal)"
-    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and S_end'_def: "S_end' = S_end\<lparr>localState := (localState S_end)(i := localState S_start i)\<rparr>"
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
@@ -157,7 +157,7 @@ lemma remove_newId_step:
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
     and a_def: "a = (i, ANewId uid)"
-    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and wf: "state_wellFormed S_start"
     and S_end'_def: "S_end' = S_end\<lparr>generatedIds := (generatedIds S_end)(to_nat uid := None), localState := (localState S_end)(i := localState S_start i)\<rparr>"
   shows "S_start ~~ tr \<leadsto>* S_end'"
@@ -236,7 +236,7 @@ lemma remove_beginAtomic_step:
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
     and a_def: "a = (i, ABeginAtomic t txns)"
-    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and wf: "state_wellFormed S_start"
     and newCalls_def: "newCalls = callsInTransaction C newTxns \<down> happensBefore C"
     and snapshot_def: "snapshot = vis \<union> newCalls"
@@ -363,7 +363,7 @@ lemma remove_DBOp_step:
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
     and a_def: "a = (i, ADbOp cId operation res)"
-    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and wf: "state_wellFormed S_start"
     and S_end'_def: "S_end' = S_end\<lparr>
                 localState := (localState S_end)(i := localState S_start i), 
@@ -566,7 +566,7 @@ qed
 
 lemma transfer_execution_local_difference:
   assumes steps: "S1 ~~ tr \<leadsto>* S1'"
-    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and S2_def: "S2 = S1\<lparr>localState := (localState S1)(i := ls),
       currentTransaction := (currentTransaction S1)(i := tx)\<rparr>"
     and S2'_def: "S2' = S1'\<lparr>localState := (localState S1')(i := ls),
@@ -583,15 +583,15 @@ next
 
   have "S2 ~~ tr \<leadsto>* S_mid"
   proof (rule step.IH)
-    show "\<And>a. a \<in> set tr \<Longrightarrow> fst a \<noteq> i"
+    show "\<And>a. a \<in> set tr \<Longrightarrow> get_invoc a \<noteq> i"
       using step.prems(1) by auto
     show " S_mid = S'\<lparr>localState := (localState S')(i := ls), currentTransaction := (currentTransaction S')(i := tx)\<rparr>"
       by (simp add: S_mid_def)
   qed
 
-  have [simp]: "fst a \<noteq> i" 
+  have [simp]: "get_invoc a \<noteq> i" 
     by (auto simp add: step.prems(1))
-  then have [simp]: "i\<noteq>fst a"
+  then have [simp]: "i\<noteq>get_invoc a"
     by blast
 
 
@@ -600,40 +600,40 @@ next
   proof (induct rule: step.cases)
     case (local C s ls f ls')
     then show ?case 
-      using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
+      using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
     case (newId C s ls f ls' uid)
     then show ?case 
-      using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
+      using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
     case (beginAtomic C s ls f ls' t vis snapshot)
     then show ?case 
-      using \<open>fst a \<noteq> i\<close> 
+      using \<open>get_invoc a \<noteq> i\<close> 
       by (auto simp add: step step_simps S_mid_def intro!: stateEqI elim: chooseSnapshot_unchanged)
   next
     case (endAtomic C s ls f ls' t)
     then show ?case 
-      using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
+      using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
     case (dbop C s ls f Op ls' t c res vis)
     then show ?case 
-      using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
+      using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
     case (invocation C s procName initialState impl)
     then show ?case 
-      using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
+      using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
     case (return C s ls f res)
     then show ?case 
-      using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
+      using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
     case (fail C s ls)
     then show ?case 
-      using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
+      using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
     case (invCheck C res s)
     then show ?case 
-      using \<open>fst a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
+      using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   qed
   then show "S2 ~~ tr @ [a] \<leadsto>* S2'"
     using \<open>S2 ~~ tr \<leadsto>* S_mid\<close> steps_step by blast
@@ -643,7 +643,7 @@ qed
 
 lemma transfer_execution_local_difference':
   assumes steps: "S1 ~~ tr \<leadsto>* S1'"
-    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> fst a \<noteq> i"
+    and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and S2_def: "\<exists>ls tx. S2 = S1\<lparr>localState := (localState S1)(i := ls),
       currentTransaction := (currentTransaction S1)(i := tx)\<rparr>"
   shows "\<exists>S2'. S2 ~~ tr \<leadsto>* S2'"
@@ -678,7 +678,7 @@ lemma use_no_invariant_checks_in_transaction:
 
 lemma maintain_no_invariant_checks_in_transaction:
   assumes "no_invariant_checks_in_transaction tr"
-    and "snd (tr!pos) \<noteq> AEndAtomic"
+    and "get_action (tr!pos) \<noteq> AEndAtomic"
     and "pos < length tr"
   shows "no_invariant_checks_in_transaction (take pos tr @ drop (Suc pos) tr)"
 proof (rule show_no_invariant_checks_in_transaction)

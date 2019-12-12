@@ -17,7 +17,7 @@ definition indexInOtherTransaction :: "('proc, 'operation, 'any) trace \<Rightar
       k<length tr 
     \<and> i<k 
     \<and> tr!i = (s, ABeginAtomic tx ntxns)  
-    \<and> fst (tr!k) \<noteq> s
+    \<and> get_invoc (tr!k) \<noteq> s
     \<and> \<not>(\<exists>j. i < j \<and> j < k \<and> tr!j = (s, AEndAtomic))"
 
 text "With this we can define that a trace is packed, if no such step exists:"
@@ -39,54 +39,14 @@ lemma move_transaction:
    \<longleftrightarrow> (S ~~ [(sb,b),(sa,a)] \<leadsto>* T)"
 proof (rule useCommutativeS)   
   show "commutativeS S (sa, a) (sb, b)"
-  proof (cases a)
-    case ALocal
-    then show ?thesis 
-      by (simp add: commutative_ALocal_other)
-  next
-    case (ANewId x2)
-    then show ?thesis
-      by (simp add: commutative_newId_other) 
-  next
-    case (ABeginAtomic x3)
-    then show ?thesis  
-      by (auto simp add: commutativeS_def steps_appendFront step_simps a_is_in_transaction,
-      metis a_is_in_transaction b_is_a_different_session option.simps(3) unchangedInTransaction(3))
-  next
-    case AEndAtomic
-    then show ?thesis using not_endAtomic by simp
-  next
-    case (ADbOp)
-    then show ?thesis
-      by (simp add: commutative_Dbop_other)  
-  next
-    case (AInvoc)
-    then show ?thesis 
-      by (auto simp add: commutativeS_def steps_appendFront,
-       metis a_is_in_transaction local.wf option.distinct(1) preconditionI precondition_invoc wellFormed_invoc_notStarted(1),
-       metis a_is_in_transaction b_is_a_different_session local.wf option.distinct(1) preconditionI precondition_invoc unchangedInTransaction(5) wellFormed_invoc_notStarted(1))
-  next
-    case (AReturn x8)
-    then show ?thesis   
-      by (auto simp add: commutativeS_def steps_appendFront step_simps a_is_in_transaction,
-       metis a_is_in_transaction b_is_a_different_session option.distinct(1) unchangedInTransaction(3))
-
-  next
-    case AFail
-    then show ?thesis
-      by (simp add: commutative_fail_other)  
-  next
-    case (AInvcheck res)
-    then show ?thesis
-      using is_AInvcheck_def not_invCheck by auto   
-  qed
+    by (simp add: a_is_in_transaction commutativeInTransaction not_endAtomic not_invCheck)
 qed
 
 lemma move_transaction2:
-  assumes a_is_in_transaction: "currentTransaction S (fst a) \<triangleq> t"
-    and b_is_a_different_session[simp]: "fst a \<noteq> fst b"
-    and not_endAtomic: "snd a \<noteq> AEndAtomic"
-    and not_invCheck: "\<not>is_AInvcheck (snd a)"
+  assumes a_is_in_transaction: "currentTransaction S (get_invoc a) \<triangleq> t"
+    and b_is_a_different_session[simp]: "get_invoc a \<noteq> get_invoc b"
+    and not_endAtomic: "get_action a \<noteq> AEndAtomic"
+    and not_invCheck: "\<not>is_AInvcheck (get_action a)"
     and wf[simp]: "state_wellFormed S"
   shows "(S ~~ a#b#xs \<leadsto>* T) 
    \<longleftrightarrow> (S ~~ b#a#xs \<leadsto>* T)"
@@ -109,9 +69,9 @@ qed
 lemma one_compaction_step:
   assumes splitTrace: "tr = (s, ABeginAtomic tx ntxns) # txa @ x # rest" 
     and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic \<and> at \<noteq> AFail \<and> \<not> is_AInvcheck at"
-    and xOutside: "fst x \<noteq> s"
+    and xOutside: "get_invoc x \<noteq> s"
     and wf: "state_wellFormed s_init"
-    and no_endAtomic: "snd x \<noteq> AEndAtomic"
+    and no_endAtomic: "get_action x \<noteq> AEndAtomic"
   shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C)"
   using splitTrace txaInTx xOutside no_endAtomic  proof (induct txa arbitrary: tr x rest rule: rev_induct)
   case Nil
@@ -122,7 +82,7 @@ lemma one_compaction_step:
   moreover have "... = (\<exists>S'. (s_init ~~ [(s, ABeginAtomic tx ntxns), x] \<leadsto>* S') \<and> (S' ~~ rest \<leadsto>* C))"
     by (auto simp add: steps_appendFront steps_empty)
   moreover have "... = (\<exists>S'. (s_init ~~ [x, (s, ABeginAtomic tx ntxns)] \<leadsto>* S') \<and> (S' ~~ rest \<leadsto>* C))"
-    using useCommutativeS[OF commutative_beginAtomic_other[OF \<open>fst x \<noteq> s\<close>[symmetric] wf \<open>snd x \<noteq> AEndAtomic\<close>]]
+    using useCommutativeS[OF commutative_beginAtomic_other[OF \<open>get_invoc x \<noteq> s\<close>[symmetric] wf \<open>get_action x \<noteq> AEndAtomic\<close>]]
     by simp
   moreover have "... = ( s_init ~~ x # (s, ABeginAtomic tx ntxns) # [] @ rest \<leadsto>* C)"
     by (auto simp add: steps_appendFront steps_empty)
@@ -147,21 +107,21 @@ next
       if "(s_init ~~ (s, ABeginAtomic tx ntxns) # as \<leadsto>* S')"
       for S'
     proof (rule move_transaction2[symmetric])
-      have [simp]: "fst a = s" using snoc
+      have [simp]: "get_invoc a = s" using snoc
         by (metis list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1) 
-      show "currentTransaction S' (fst a) \<triangleq> tx" 
+      show "currentTransaction S' (get_invoc a) \<triangleq> tx" 
         using currentTransaction_unchangedInternalSteps3
-        by (metis \<open>fst a = s\<close> butlast_snoc in_set_butlastD local.wf snoc.prems(2) that) 
-      show "fst a \<noteq> fst x"
+        by (metis \<open>get_invoc a = s\<close> butlast_snoc in_set_butlastD local.wf snoc.prems(2) that) 
+      show "get_invoc a \<noteq> get_invoc x"
         using snoc
         by (metis list.set_intros(1) rotate1.simps(2) set_rotate1 surjective_pairing) 
-      show "snd a \<noteq> AEndAtomic"
+      show "get_action a \<noteq> AEndAtomic"
         using snoc 
         by (metis list.set_intros(1) rotate1.simps(2) set_rotate1 surjective_pairing)  
       show "state_wellFormed S'"
         using wf that by (rule state_wellFormed_combine, 
             insert snoc.prems(2), fastforce)
-      show " \<not> is_AInvcheck (snd a)"
+      show " \<not> is_AInvcheck (get_action a)"
         by (metis list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1 snoc.prems(2))
     qed
     then show ?eq1 by blast
@@ -178,9 +138,9 @@ qed
 lemma one_compaction_step2:
   assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx ntxns) # txa @ x # rest" 
     and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic \<and> at \<noteq> AFail \<and> \<not> is_AInvcheck at"
-    and xOutside: "fst x \<noteq> s"
+    and xOutside: "get_invoc x \<noteq> s"
     and wf: "state_wellFormed s_init"
-    and no_endatomic: "snd x \<noteq> AEndAtomic"
+    and no_endatomic: "get_action x \<noteq> AEndAtomic"
     and noFail: "\<And>i. (i, AFail) \<notin> set tr"
   shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ trStart @ x # (s, ABeginAtomic tx ntxns) # txa @ rest \<leadsto>* C)"
 proof 
@@ -221,9 +181,9 @@ lemma one_compaction_step3:
   assumes splitTrace: "tr = trStart @ (s, ABeginAtomic tx ntxns) # txa @ x # rest" 
     and splitTrace': "tr' = trStart @ x # (s, ABeginAtomic tx ntxns) # txa @ rest"
     and txaInTx: "\<And>st at. (st,at)\<in>set txa \<Longrightarrow> st=s \<and> at \<noteq> AEndAtomic \<and> at \<noteq> AFail \<and> \<not> is_AInvcheck at"
-    and xOutside: "fst x \<noteq> s"
+    and xOutside: "get_invoc x \<noteq> s"
     and wf: "state_wellFormed s_init"
-    and no_endatomic: "snd x \<noteq> AEndAtomic"
+    and no_endatomic: "get_action x \<noteq> AEndAtomic"
     and noFail: "\<And>i. (i, AFail) \<notin> set tr"
   shows "(s_init ~~ tr \<leadsto>* C)  \<longleftrightarrow> (s_init ~~ tr' \<leadsto>* C)"
   using local.wf one_compaction_step2 splitTrace splitTrace' txaInTx xOutside no_endatomic noFail by blast 
@@ -240,7 +200,7 @@ definition transactionIsPackedAlt :: "('proc, 'operation, 'any) trace \<Rightarr
         \<and> tr!i = (s, ABeginAtomic tx ntxns)
         \<and> end > i  
         \<and> (end < length tr \<and> tr!end = (s, AEndAtomic) \<or> end = length tr)  
-        \<and> (\<forall>j. i\<le>j \<and> j< end \<longrightarrow> fst (tr!j) = s) 
+        \<and> (\<forall>j. i\<le>j \<and> j< end \<longrightarrow> get_invoc (tr!j) = s) 
   else
     True
   "  
@@ -253,7 +213,7 @@ lemma transactionIsPackedAlt_case_tx_exists:
         \<and> tr!i = (s, ABeginAtomic tx ntxns)
         \<and> end > i  
         \<and> (end < length tr \<and> tr!end = (s, AEndAtomic) \<or> end = length tr)  
-        \<and> (\<forall>j. i\<le>j \<and> j< end \<longrightarrow> fst (tr!j) = s) 
+        \<and> (\<forall>j. i\<le>j \<and> j< end \<longrightarrow> get_invoc (tr!j) = s) 
   "  
   by (subst transactionIsPackedAlt_def,
   subst if_P,
@@ -270,7 +230,7 @@ proof (auto simp add: transactionIsPackedAlt_def )
     and a1: "tr ! i = (s, ABeginAtomic tx ntxns)"
     and a2: "ia < length tr"
     and a3: "tr ! ia = (sa, ABeginAtomic tx ntxns')"
-    and a4: "\<forall>j. ia \<le> j \<and> j < length tr \<longrightarrow> fst (tr ! j) = sa"
+    and a4: "\<forall>j. ia \<le> j \<and> j < length tr \<longrightarrow> get_invoc (tr ! j) = sa"
 
   have [simp]: "ia = i"
     using a2 a0 a3 a1 by (rule uniqueTxs)
@@ -279,7 +239,7 @@ proof (auto simp add: transactionIsPackedAlt_def )
 
   then have [simp]: "sa = s"
     using a1 a3 by auto  
-  then have a4': "\<And>j. i \<le> j \<Longrightarrow> j < length tr \<Longrightarrow> fst (tr ! j) = s"  
+  then have a4': "\<And>j. i \<le> j \<Longrightarrow> j < length tr \<Longrightarrow> get_invoc (tr ! j) = s"  
     using a4 by auto
 
   show "transactionIsPacked tr tx"
@@ -292,27 +252,27 @@ next
     and a2: "transactionIsPacked tr tx"
 
   from a2
-  have a2': "fst (tr ! k) = s \<or> (\<exists>j<k. i < j \<and> tr ! j = (s, AEndAtomic))" 
+  have a2': "get_invoc (tr ! k) = s \<or> (\<exists>j<k. i < j \<and> tr ! j = (s, AEndAtomic))" 
     if "k<length tr" "i<k"
     for k
     using a1 that by (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
 
-  show "\<exists>i<length tr. \<exists>s. (\<exists>ntxns. tr ! i = (s, ABeginAtomic tx ntxns)) \<and> (\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> fst (tr ! j) = s))"  
+  show "\<exists>i<length tr. \<exists>s. (\<exists>ntxns. tr ! i = (s, ABeginAtomic tx ntxns)) \<and> (\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> get_invoc (tr ! j) = s))"  
   proof (rule exI[where x=i], (auto simp add: a0))
-    show "\<exists>s. (\<exists>ntxns. tr ! i = (s, ABeginAtomic tx ntxns)) \<and> (\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> fst (tr ! j) = s))"
+    show "\<exists>s. (\<exists>ntxns. tr ! i = (s, ABeginAtomic tx ntxns)) \<and> (\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> get_invoc (tr ! j) = s))"
     proof (rule exI[where x=s], safe)
       show "\<exists>ntxns. tr ! i = (s, ABeginAtomic tx ntxns)"
         by (simp add: a1) 
       define endPos where "endPos = (if \<exists>j. i<j \<and> j<length tr \<and> tr!j = (s, AEndAtomic) then LEAST j. i<j \<and> j<length tr \<and> tr!j = (s, AEndAtomic) else length tr)"
-      show "\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> fst (tr ! j) = s) "
+      show "\<exists>end>i. (end < length tr \<and> tr ! end = (s, AEndAtomic) \<or> end = length tr) \<and> (\<forall>j. i \<le> j \<and> j < end \<longrightarrow> get_invoc (tr ! j) = s) "
       proof (rule exI[where x="endPos"], (auto simp add: endPos_def))
         show "\<And>j. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic); (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) \<noteq> length tr\<rbrakk> \<Longrightarrow> (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) < length tr"
           by (smt less_trans neqE not_less_Least)
         show "\<And>j. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic); (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) \<noteq> length tr\<rbrakk> \<Longrightarrow> tr ! (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic)) = (s, AEndAtomic)"
           by (smt LeastI)
-        show "\<And>j ja. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic); i \<le> ja; ja < (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic))\<rbrakk> \<Longrightarrow> fst (tr ! ja) = s"
+        show "\<And>j ja. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic); i \<le> ja; ja < (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic))\<rbrakk> \<Longrightarrow> get_invoc (tr ! ja) = s"
           by (smt a1 a2' dual_order.strict_trans fst_conv neqE not_le not_less_Least)
-        show "\<And>j. \<lbrakk>\<forall>j<length tr. i < j \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic); i \<le> j; j < length tr\<rbrakk> \<Longrightarrow> fst (tr ! j) = s"
+        show "\<And>j. \<lbrakk>\<forall>j<length tr. i < j \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic); i \<le> j; j < length tr\<rbrakk> \<Longrightarrow> get_invoc (tr ! j) = s"
           by (metis a1 a2' dual_order.strict_trans fst_conv le_eq_less_or_eq)
         show "\<And>j. \<lbrakk>i < j; j < length tr; tr ! j = (s, AEndAtomic)\<rbrakk> \<Longrightarrow> i < (LEAST j. i < j \<and> j < length tr \<and> tr ! j = (s, AEndAtomic))"
           by (metis (mono_tags, lifting) LeastI_ex)
@@ -330,7 +290,7 @@ next
     and a1: "tr ! i = (s, ABeginAtomic tx ntxns)"
     and a3: "tr ! ia = (sa, ABeginAtomic tx ntxns')"
     and a7: "ia < ende"
-    and a4: "\<forall>j. ia \<le> j \<and> j < ende \<longrightarrow> fst (tr ! j) = sa"
+    and a4: "\<forall>j. ia \<le> j \<and> j < ende \<longrightarrow> get_invoc (tr ! j) = sa"
     and a5: "ende < length tr"
     and a6: "tr ! ende = (sa, AEndAtomic)"
 
@@ -344,7 +304,7 @@ next
   then have [simp]: "sa = s"
     using a1 a3 by auto     
 
-  have a4': "fst (tr ! j) = s" if "i \<le> j" and "j < ende" for j
+  have a4': "get_invoc (tr ! j) = s" if "i \<le> j" and "j < ende" for j
     by (auto simp add: that a4)  
 
 
@@ -355,7 +315,7 @@ next
       and b1: "i' < k"
       and b2: "tr ! i' = (s', ABeginAtomic tx ntxns)"
       and b3: "\<forall>j>i'. j < k \<longrightarrow> tr ! j \<noteq> (s', AEndAtomic)"
-      and b4: "fst (tr ! k) \<noteq> s'"
+      and b4: "get_invoc (tr ! k) \<noteq> s'"
 
     have " i' < length tr"
       using b0 b1 order.strict_trans by blast 
@@ -369,7 +329,7 @@ next
 
     have b3': "\<forall>j>i. j < k \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic)"
       using b3 by simp      
-    have "fst (tr ! k) = s"
+    have "get_invoc (tr ! k) = s"
     proof (cases "k < ende")
       case True
       show ?thesis
@@ -418,7 +378,7 @@ lemma transactionIsPacked_show:
     and beginAtomic2: "tr!beginAtomic = (s, ABeginAtomic tx ntxns)"
     and endAtomic1: "endAtomic < length tr"    
     and endAtomic2: "tr!endAtomic = (s, AEndAtomic)"
-    and a1: "\<forall>i. beginAtomic \<le> i \<and> i \<le> endAtomic \<longrightarrow> fst (tr ! i) = s"
+    and a1: "\<forall>i. beginAtomic \<le> i \<and> i \<le> endAtomic \<longrightarrow> get_invoc (tr ! i) = s"
   shows "transactionIsPacked tr tx"
 proof (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
   fix k i s' ntxns
@@ -426,7 +386,7 @@ proof (auto simp add: transactionIsPacked_def indexInOtherTransaction_def)
     and b1: "i < k"
     and b2: "tr ! i = (s', ABeginAtomic tx ntxns)"
     and b3: "\<forall>j>i. j < k \<longrightarrow> tr ! j \<noteq> (s', AEndAtomic)"
-    and b4: "fst (tr ! k) \<noteq> s'"
+    and b4: "get_invoc (tr ! k) \<noteq> s'"
 
   from b2
   have "i = beginAtomic"
@@ -455,7 +415,7 @@ definition transactionsArePacked :: "('proc, 'operation, 'any) trace \<Rightarro
       i<k 
     \<and> k<length tr 
     \<and> tr!i = (s, ABeginAtomic t txns)  
-    \<and> fst (tr!k) \<noteq> s
+    \<and> get_invoc (tr!k) \<noteq> s
     \<longrightarrow>  (\<exists>j. i < j \<and> j < k \<and> tr!j = (s, AEndAtomic))"
 
 text \<open>
@@ -543,8 +503,8 @@ definition packed_trace :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" 
   \<forall>i.
       0<i
     \<longrightarrow> i<length tr
-    \<longrightarrow> fst (tr!(i-1)) \<noteq> fst (tr!i)
-    \<longrightarrow> (allowed_context_switch (snd (tr!i)))" 
+    \<longrightarrow> get_invoc (tr!(i-1)) \<noteq> get_invoc (tr!i)
+    \<longrightarrow> (allowed_context_switch (get_action (tr!i)))" 
 
 
 lemmas use_packed_trace = iffD1[OF packed_trace_def[THEN meta_eq_to_obj_eq], rule_format]
@@ -566,15 +526,15 @@ lemma context_switches_in_packed:
     and differentSession: "s \<noteq> s'"
   shows "allowed_context_switch a'"
 proof -
-  have "a' = snd(tr!(1+length tr1))"
+  have "a' = get_action(tr!(1+length tr1))"
     using split_tr by (auto simp add: nth_append)
 
   moreover
-  have "allowed_context_switch (snd(tr!(1+length tr1)))"
+  have "allowed_context_switch (get_action(tr!(1+length tr1)))"
     using packed proof (rule use_packed_trace)
     show "0 < 1 + length tr1" by simp
     show "1 + length tr1 < length tr" using split_tr by auto
-    show "fst (tr ! (1 + length tr1 - 1)) \<noteq> fst (tr ! (1 + length tr1))" using split_tr \<open>s \<noteq> s'\<close> by (auto simp add: nth_append)
+    show "get_invoc (tr ! (1 + length tr1 - 1)) \<noteq> get_invoc (tr ! (1 + length tr1))" using split_tr \<open>s \<noteq> s'\<close> by (auto simp add: nth_append)
   qed
   ultimately
   show ?thesis by simp
@@ -798,8 +758,8 @@ qed
 text \<open>We can swap one action over a list of actions with canSwap\<close>
 lemma swapMany:
   assumes steps: "(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) ~~ tr @ [(s,a)] \<leadsto>* C2"
-    and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
-    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
+    and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> s"
+    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) a"
     and wf: "state_wellFormed C1"
     and noFail: "\<And>i. (i, AFail) \<notin> set tr"
   shows "C1 ~~ [(s,a)] @ tr \<leadsto>* C2"
@@ -810,10 +770,10 @@ proof (induct tr arbitrary: C2 rule: rev_induct)
     by simp 
 next
   case (snoc a' tr')
-  then have IH: "\<And>C2. \<lbrakk>C1 ~~ tr' @ [(s, a)] \<leadsto>* C2; \<And>x. x \<in> set tr' \<Longrightarrow> fst x \<noteq> s; \<And>x. x \<in> set tr' \<Longrightarrow> canSwap t (snd x) a\<rbrakk> \<Longrightarrow> C1 ~~ [(s, a)] @ tr' \<leadsto>* C2" 
+  then have IH: "\<And>C2. \<lbrakk>C1 ~~ tr' @ [(s, a)] \<leadsto>* C2; \<And>x. x \<in> set tr' \<Longrightarrow> get_invoc x \<noteq> s; \<And>x. x \<in> set tr' \<Longrightarrow> canSwap t (get_action x) a\<rbrakk> \<Longrightarrow> C1 ~~ [(s, a)] @ tr' \<leadsto>* C2" 
     and steps: "C1 ~~ (tr' @ [a']) @ [(s, a)] \<leadsto>* C2"
-    and tr_different_session: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> fst x \<noteq> s"
-    and tr_canSwap: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> canSwap t (snd x) a"
+    and tr_different_session: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> get_invoc x \<noteq> s"
+    and tr_canSwap: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> canSwap t (get_action x) a"
     and noFail2a: "\<And>i. (i, AFail) \<notin> set (tr' @ [a'])"
     by auto
 
@@ -853,8 +813,8 @@ qed
 lemma swapMany_middle:
   fixes C1 :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state"
   assumes steps: "C1 ~~ tr_start @ tr @ [(s,a)] @ tr_end \<leadsto>* C2"
-    and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> s"
-    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) a"
+    and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> s"
+    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) a"
     and wf: "state_wellFormed C1"
     and nofail1: "\<And>i. (i,AFail)\<notin> set tr_start"
     and nofail2: "\<And>i. (i,AFail)\<notin> set tr"
@@ -876,8 +836,8 @@ qed
 lemma swapMany_middle':
   fixes C1 :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state"
   assumes steps: "C1 ~~ tr_start @ tr @ [a] @ tr_end \<leadsto>* C2"
-    and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> fst x \<noteq> (fst a)"
-    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (snd x) (snd a)"
+    and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> (get_invoc a)"
+    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) (get_action a)"
     and wf: "state_wellFormed C1"
     and nofail1: "\<And>i. (i,AFail)\<notin> set tr_start"
     and nofail2: "\<And>i. (i,AFail)\<notin> set tr"
@@ -890,9 +850,9 @@ definition packed_trace_s :: "('proc, 'operation, 'any) trace \<Rightarrow> invo
   \<forall>i.
       0<i
     \<longrightarrow> i<length tr
-    \<longrightarrow> fst (tr!i) = s
-    \<longrightarrow> fst (tr!(i-1)) \<noteq> s
-    \<longrightarrow> (allowed_context_switch (snd (tr!i)))" 
+    \<longrightarrow> get_invoc (tr!i) = s
+    \<longrightarrow> get_invoc (tr!(i-1)) \<noteq> s
+    \<longrightarrow> (allowed_context_switch (get_action (tr!i)))" 
 
 
 
@@ -913,14 +873,14 @@ lemma pack_trace_for_one_session:
 proof (induct "max_natset {length tr - i  | i.
         0<i 
       \<and> i<length tr 
-      \<and> fst (tr!(i-1)) \<noteq> s
-      \<and> fst (tr!i) = s
-      \<and> \<not>(allowed_context_switch (snd(tr!i)))}"
+      \<and> get_invoc (tr!(i-1)) \<noteq> s
+      \<and> get_invoc (tr!i) = s
+      \<and> \<not>(allowed_context_switch (get_action(tr!i)))}"
     arbitrary: tr C
     rule: less_induct)
   case less
-  then have IH: "\<And>tra C. \<lbrakk>max_natset {length tra - i |i. 0 < i \<and> i < length tra \<and> fst (tra ! (i - 1)) \<noteq> s \<and> fst (tra ! i) = s \<and> \<not> allowed_context_switch (snd (tra ! i))}
-                      < max_natset {length tr - i |i. 0 < i \<and> i < length tr \<and> fst (tr ! (i - 1)) \<noteq> s \<and> fst (tr ! i) = s \<and> \<not> allowed_context_switch (snd (tr ! i))};
+  then have IH: "\<And>tra C. \<lbrakk>max_natset {length tra - i |i. 0 < i \<and> i < length tra \<and> get_invoc (tra ! (i - 1)) \<noteq> s \<and> get_invoc (tra ! i) = s \<and> \<not> allowed_context_switch (get_action (tra ! i))}
+                      < max_natset {length tr - i |i. 0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))};
                       initialState program ~~ tra \<leadsto>* C; \<And>s. (s, AFail) \<notin> set tra; \<And>s a. (s, a) \<in> set tra \<Longrightarrow> \<not> is_AInvcheck a\<rbrakk>
                      \<Longrightarrow> \<exists>tr'. packed_trace_s tr' s \<and> (initialState program ~~ tr' \<leadsto>* C) \<and> (\<forall>s. packed_trace_s tra s \<longrightarrow> packed_trace_s tr' s) \<and> (\<forall>s. (s, AFail) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"
     and noFail: "\<And>s. (s, AFail) \<notin> set tr"
@@ -928,9 +888,9 @@ proof (induct "max_natset {length tr - i  | i.
     by auto
 
   show ?case 
-  proof (cases "max_natset {length tr - i  | i. 0<i \<and> i<length tr \<and> fst (tr!(i-1)) \<noteq> s \<and> fst (tr!i) = s \<and> \<not>(allowed_context_switch (snd(tr!i)))}")
+  proof (cases "max_natset {length tr - i  | i. 0<i \<and> i<length tr \<and> get_invoc (tr!(i-1)) \<noteq> s \<and> get_invoc (tr!i) = s \<and> \<not>(allowed_context_switch (get_action(tr!i)))}")
     case 0
-    then have "{i. 0<i \<and> i<length tr \<and> fst (tr!(i-1)) \<noteq> s \<and> fst (tr!i) = s \<and> \<not>(allowed_context_switch (snd(tr!i)))} = {}"
+    then have "{i. 0<i \<and> i<length tr \<and> get_invoc (tr!(i-1)) \<noteq> s \<and> get_invoc (tr!i) = s \<and> \<not>(allowed_context_switch (get_action(tr!i)))} = {}"
       by (simp add: max_natset_empty)
     then have already_packed: "packed_trace_s tr s"
       by (auto simp add: packed_trace_s_def)
@@ -944,48 +904,48 @@ proof (induct "max_natset {length tr - i  | i.
     text \<open>There is one problematic position\<close>
     from Suc
     obtain i_example
-      where i_example: "0 < i_example \<and> i_example < length tr \<and> fst (tr ! (i_example - 1)) \<noteq> s \<and> fst (tr ! i_example) = s \<and> \<not> allowed_context_switch (snd (tr ! i_example))"
+      where i_example: "0 < i_example \<and> i_example < length tr \<and> get_invoc (tr ! (i_example - 1)) \<noteq> s \<and> get_invoc (tr ! i_example) = s \<and> \<not> allowed_context_switch (get_action (tr ! i_example))"
       using max_natset_Collect_Suc(1) by fastforce
 
     text \<open>Let i be the smallest problematic position\<close>
     obtain i
-      where i_def: "0<i \<and> i<length tr \<and> fst (tr!(i-1)) \<noteq> s \<and> fst (tr!i) = s \<and> \<not>(allowed_context_switch (snd(tr!i)))"
-        and i_min: "\<And>j. 0<j \<and> j<length tr \<and> fst (tr!(j-1)) \<noteq> s \<and> fst (tr!j) = s \<and> \<not>(allowed_context_switch (snd(tr!j))) \<Longrightarrow> j\<ge>i"
+      where i_def: "0<i \<and> i<length tr \<and> get_invoc (tr!(i-1)) \<noteq> s \<and> get_invoc (tr!i) = s \<and> \<not>(allowed_context_switch (get_action(tr!i)))"
+        and i_min: "\<And>j. 0<j \<and> j<length tr \<and> get_invoc (tr!(j-1)) \<noteq> s \<and> get_invoc (tr!j) = s \<and> \<not>(allowed_context_switch (get_action(tr!j))) \<Longrightarrow> j\<ge>i"
       using i_example by (atomize_elim, rule ex_has_least_nat)
     then have i1[simp]: "0<i"
       and i2[simp]: "i<length tr"
-      and i3: "fst (tr!(i-1)) \<noteq> s"
-      and i4: "fst (tr!i) = s"
-      and i5: "\<not>(allowed_context_switch (snd(tr!i)))"
+      and i3: "get_invoc (tr!(i-1)) \<noteq> s"
+      and i4: "get_invoc (tr!i) = s"
+      and i5: "\<not>(allowed_context_switch (get_action(tr!i)))"
       by auto
 
     text \<open>There must be a previous action on the same invocId (at least the invocId should be there, since i is no invocId).\<close>
     obtain prev
-      where prev1: "fst(tr!prev) = s"
+      where prev1: "get_invoc(tr!prev) = s"
         and prev2: "prev < i"
-        and prev3: "\<And>j. \<lbrakk>prev < j; j < i\<rbrakk> \<Longrightarrow> fst(tr!j) \<noteq> s"
+        and prev3: "\<And>j. \<lbrakk>prev < j; j < i\<rbrakk> \<Longrightarrow> get_invoc(tr!j) \<noteq> s"
     proof (atomize_elim)
-      from \<open>initialState program ~~ tr \<leadsto>* C\<close> \<open>i<length tr\<close> \<open>fst (tr!i) = s\<close>
-      have "\<exists>j<i. fst (tr ! j) = s \<and> (\<exists>p. snd (tr ! j) = AInvoc p)"
+      from \<open>initialState program ~~ tr \<leadsto>* C\<close> \<open>i<length tr\<close> \<open>get_invoc (tr!i) = s\<close>
+      have "\<exists>j<i. get_invoc (tr ! j) = s \<and> (\<exists>p. get_action (tr ! j) = AInvoc p)"
       proof (rule exists_invoc)
-        show "\<And>p. snd (tr ! i) \<noteq> AInvoc p"
-          using allowed_context_switch_def[where action="snd (tr ! i)"] i5 by auto 
-        show "\<not> is_AInvcheck (snd (tr ! i))"
+        show "\<And>p. get_action (tr ! i) \<noteq> AInvoc p"
+          using allowed_context_switch_def[where action="get_action (tr ! i)"] i5 by auto 
+        show "\<not> is_AInvcheck (get_action (tr ! i))"
           by (metis i2 less.prems(3) nth_mem snd_conv surj_pair)
       qed
-      then have "\<exists>j<i. fst (tr ! j) = s"
+      then have "\<exists>j<i. get_invoc (tr ! j) = s"
         by auto
-      then have "\<exists>j. (j<i \<and> fst (tr ! j) = s) \<and> (\<forall>j'. j'<i \<and> fst (tr ! j') = s \<longrightarrow> j'\<le>j)"
+      then have "\<exists>j. (j<i \<and> get_invoc (tr ! j) = s) \<and> (\<forall>j'. j'<i \<and> get_invoc (tr ! j') = s \<longrightarrow> j'\<le>j)"
       proof (rule exists_greatest')
-        show "\<exists>bound. \<forall>j. j < i \<and> fst (tr ! j) = s \<longrightarrow> j \<le> bound"
+        show "\<exists>bound. \<forall>j. j < i \<and> get_invoc (tr ! j) = s \<longrightarrow> j \<le> bound"
           using less_or_eq_imp_le by blast
       qed
-      from this obtain j where "(j<i \<and> fst (tr ! j) = s) \<and> (\<forall>j'. j'<i \<and> fst (tr ! j') = s \<longrightarrow> j'\<le>j)"
+      from this obtain j where "(j<i \<and> get_invoc (tr ! j) = s) \<and> (\<forall>j'. j'<i \<and> get_invoc (tr ! j') = s \<longrightarrow> j'\<le>j)"
         by blast
-      then have "fst (tr ! j) = s \<and> j < i \<and> (\<forall>j'>j. j' < i \<longrightarrow> fst (tr ! j') \<noteq> s)"
+      then have "get_invoc (tr ! j) = s \<and> j < i \<and> (\<forall>j'>j. j' < i \<longrightarrow> get_invoc (tr ! j') \<noteq> s)"
         by auto
 
-      then show "\<exists>prev. fst (tr ! prev) = s \<and> prev < i \<and> (\<forall>j>prev. j < i \<longrightarrow> fst (tr ! j) \<noteq> s)"  ..
+      then show "\<exists>prev. get_invoc (tr ! prev) = s \<and> prev < i \<and> (\<forall>j>prev. j < i \<longrightarrow> get_invoc (tr ! j) \<noteq> s)"  ..
     qed
 
     have [simp]: "prev < length tr"
@@ -1036,12 +996,12 @@ proof (induct "max_natset {length tr - i  | i.
       show "initialState program ~~ (take prev tr @ [tr ! prev]) @ drop (Suc prev) (take i tr) @ [tr ! i] @ drop (Suc i) tr \<leadsto>* C"
         using tr_split less.prems(1) by auto
 
-      show "\<And>x. x \<in> set (drop (Suc prev) (take i tr)) \<Longrightarrow> fst x \<noteq> fst (tr ! i)"
+      show "\<And>x. x \<in> set (drop (Suc prev) (take i tr)) \<Longrightarrow> get_invoc x \<noteq> get_invoc (tr ! i)"
         using prev3 by (auto simp add: in_set_conv_nth,
             metis add.commute add_Suc_right fst_conv i4 less_add_Suc1 less_diff_conv) 
 
       from i5
-      show "canSwap t (snd x) (snd (tr ! i))" if "x \<in> set (drop (Suc prev) (take i tr))" for x t
+      show "canSwap t (get_action x) (get_action (tr ! i))" if "x \<in> set (drop (Suc prev) (take i tr))" for x t
       proof (rule canSwap_when_allowed)
         from that obtain k 
           where k1: "x = tr!k" 
@@ -1053,13 +1013,13 @@ proof (induct "max_natset {length tr - i  | i.
           using dual_order.strict_trans i2 nth_mem by blast
 
 
-        show "\<not> is_AInvcheck (snd x)"
+        show "\<not> is_AInvcheck (get_action x)"
           by (metis k4 less.prems(3) prod.collapse)
-        show "\<not> is_AInvcheck (snd (tr ! i))"
+        show "\<not> is_AInvcheck (get_action (tr ! i))"
           by (metis i2 less.prems(3) nth_mem snd_conv surj_pair)
-        show "snd x \<noteq> AFail"
+        show "get_action x \<noteq> AFail"
           by (metis k4 less.prems(2) prod.collapse)
-        show "snd (tr ! i) \<noteq> AFail"
+        show "get_action (tr ! i) \<noteq> AFail"
           by (metis i2 less.prems(2) nth_mem old.prod.exhaust snd_conv)
       qed  
 
@@ -1098,27 +1058,27 @@ proof (induct "max_natset {length tr - i  | i.
 
 
 
-      show "max_natset {length tr' - i |i. 0 < i \<and> i < length tr' \<and> fst (tr' ! (i - 1)) \<noteq> s \<and> fst (tr' ! i) = s \<and> \<not> allowed_context_switch (snd (tr' ! i))}
-          < max_natset {length tr - i |i. 0 < i \<and> i < length tr \<and> fst (tr ! (i - 1)) \<noteq> s \<and> fst (tr ! i) = s \<and> \<not> allowed_context_switch (snd (tr ! i))}"
+      show "max_natset {length tr' - i |i. 0 < i \<and> i < length tr' \<and> get_invoc (tr' ! (i - 1)) \<noteq> s \<and> get_invoc (tr' ! i) = s \<and> \<not> allowed_context_switch (get_action (tr' ! i))}
+          < max_natset {length tr - i |i. 0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))}"
       proof (rule show_max_natset_smaller_Collect, intro exI)
-        show "length tr - i = length tr - i \<and> 0 < i \<and> i < length tr \<and> fst (tr ! (i - 1)) \<noteq> s \<and> fst (tr ! i) = s \<and> \<not> allowed_context_switch (snd (tr ! i))"
+        show "length tr - i = length tr - i \<and> 0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))"
           using One_nat_def i3 i4 i5 by auto
-        show "finite {length tr - i |i. 0 < i \<and> i < length tr \<and> fst (tr ! (i - 1)) \<noteq> s \<and> fst (tr ! i) = s \<and> \<not> allowed_context_switch (snd (tr ! i))}" by force
-        show "\<exists>i. j = length tr' - i \<and> 0 < i \<and> i < length tr' \<and> fst (tr' ! (i - 1)) \<noteq> s \<and> fst (tr' ! i) = s \<and> \<not> allowed_context_switch (snd (tr' ! i)) \<Longrightarrow> j < length tr - i" for j
+        show "finite {length tr - i |i. 0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))}" by force
+        show "\<exists>i. j = length tr' - i \<and> 0 < i \<and> i < length tr' \<and> get_invoc (tr' ! (i - 1)) \<noteq> s \<and> get_invoc (tr' ! i) = s \<and> \<not> allowed_context_switch (get_action (tr' ! i)) \<Longrightarrow> j < length tr - i" for j
         proof (auto simp add: tr'sameLength intro!: diff_less_mono2)
           fix i'
           assume a0: "j = length tr - i'"
             and a1: "0 < i'"
             and a2: "i' < length tr"
-            and a3: "fst (tr' ! (i' - Suc 0)) \<noteq> fst (tr' ! i')"
-            and a4: "\<not> allowed_context_switch (snd (tr' ! i'))"
-            and a5: "s = fst (tr' ! i')"
+            and a3: "get_invoc (tr' ! (i' - Suc 0)) \<noteq> get_invoc (tr' ! i')"
+            and a4: "\<not> allowed_context_switch (get_action (tr' ! i'))"
+            and a5: "s = get_invoc (tr' ! i')"
 
           show "i < i'"
             using a2 a3 a4
             by (auto simp add: tr'i_def split: if_splits,
                 metis One_nat_def a1 a5 dual_order.strict_iff_order i_min leD prev2 tr'1,
-                insert \<open>0 < i \<and> i < length tr \<and> fst (tr ! (i - 1)) \<noteq> s \<and> fst (tr ! i) = s \<and> \<not> allowed_context_switch (snd (tr ! i))\<close> prev1,
+                insert \<open>0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))\<close> prev1,
                 blast,
                 insert a3 a5 i_def tr'2, (auto)[1],
                 metis One_nat_def a5 antisym diff_le_self i3 le_less_linear prev3 tr'i_def)
@@ -1160,7 +1120,7 @@ lemma pack_trace:
         \<and> (\<forall>s. (s, AFail) \<notin> set tr')
         \<and> (\<forall>s a. (s,a)\<in>set tr' \<longrightarrow> \<not>is_AInvcheck a)"
 proof -
-  have "{s. \<not>packed_trace_s tr s } \<subseteq> set (map fst tr)"
+  have "{s. \<not>packed_trace_s tr s } \<subseteq> set (map get_invoc tr)"
     by (auto simp add: packed_trace_s_def)
 
   then have "finite {s. \<not>packed_trace_s tr s }"
@@ -1285,7 +1245,7 @@ proof -
       and tr'''4: "\<forall>s a. (s, a) \<in> set tr''' \<longrightarrow> \<not> is_AInvcheck a"
     by blast
 
-  define tr4 where "tr4 = tr''' @ [(fst (last tr'''), AInvcheck False)]"
+  define tr4 where "tr4 = tr''' @ [(get_invoc (last tr'''), AInvcheck False)]"
 
   from \<open>packed_trace tr'''\<close>
   have "packed_trace tr4"

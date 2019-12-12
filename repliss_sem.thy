@@ -753,6 +753,11 @@ definition initialState :: "('proc, 'ls, 'operation, 'any) prog \<Rightarrow> ('
 
 type_synonym ('proc, 'operation, 'any) trace = "(invocId\<times>('proc, 'operation, 'any) action) list"
 
+abbreviation get_invoc :: "invocId\<times>('proc, 'operation, 'any) action \<Rightarrow> invocId" where 
+"get_invoc \<equiv> fst"
+abbreviation get_action :: "invocId\<times>('proc, 'operation, 'any) action \<Rightarrow> ('proc, 'operation, 'any) action" where 
+"get_action \<equiv> snd"
+
 definition traces where
   "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
 

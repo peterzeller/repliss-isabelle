@@ -30,18 +30,18 @@ proof (rule iffI2; clarsimp)
 \<close>
 
   show "\<exists>tr\<in>traces program. (\<forall>s. (s, AFail) \<notin> set tr) \<and> \<not> traceCorrect tr"
-  proof (rule bexI[where x="[x\<leftarrow>tr . \<not>isAFail (snd x)]"], intro conjI allI)
+  proof (rule bexI[where x="[x\<leftarrow>tr . \<not>isAFail (get_action x)]"], intro conjI allI)
 
-    show "\<And>s. (s, AFail) \<notin> set [x\<leftarrow>tr . \<not>isAFail (snd x)]"
+    show "\<And>s. (s, AFail) \<notin> set [x\<leftarrow>tr . \<not>isAFail (get_action x)]"
       by (auto simp add: isAFail_def)
 
-    show "\<not> traceCorrect [tr\<leftarrow>tr . \<not> isAFail (snd tr)]"
+    show "\<not> traceCorrect [tr\<leftarrow>tr . \<not> isAFail (get_action tr)]"
       using tr_fail by (auto simp add: traceCorrect_def isAFail_def) 
 
     thm state_ext  
 
     from \<open>initialState program ~~ tr \<leadsto>* S'\<close>
-    have "\<exists>S''. (initialState program ~~ [tr\<leftarrow>tr . \<not> isAFail (snd tr)] \<leadsto>* S'') 
+    have "\<exists>S''. (initialState program ~~ [tr\<leftarrow>tr . \<not> isAFail (get_action tr)] \<leadsto>* S'') 
         \<and> (
            calls S'' = calls S'
          \<and> happensBefore S'' = happensBefore S'
@@ -69,7 +69,7 @@ proof (rule iffI2; clarsimp)
     next
       case (induct_step tr a S1 S2 S1')
       from steps_append2[OF induct_step.steps2]
-      have [simp]: "(initialState program ~~ [tr\<leftarrow>tr . \<not> isAFail (snd tr)] @ trb \<leadsto>* C) \<longleftrightarrow> (S2 ~~ trb \<leadsto>* C)" for trb C .
+      have [simp]: "(initialState program ~~ [tr\<leftarrow>tr . \<not> isAFail (get_action tr)] @ trb \<leadsto>* C) \<longleftrightarrow> (S2 ~~ trb \<leadsto>* C)" for trb C .
 
 
       from \<open>S1 ~~ a \<leadsto> S1'\<close>
@@ -177,7 +177,7 @@ proof (rule iffI2; clarsimp)
     qed
 
 
-    then show "[tr\<leftarrow>tr . \<not> isAFail (snd tr)] \<in> traces program"
+    then show "[tr\<leftarrow>tr . \<not> isAFail (get_action tr)] \<in> traces program"
       by (auto simp add: traces_def)
   qed
 qed

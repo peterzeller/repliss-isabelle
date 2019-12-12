@@ -287,8 +287,8 @@ next
     show "state_wellFormed S'"
       using S_wf state_wellFormed_combine step.prems step.steps by fastforce
 
-    show "a = (fst a, snd a)" by force
-    show "fst a \<noteq> i"
+    show "a = (get_invoc a, get_action a)" by force
+    show "get_invoc a \<noteq> i"
       using local.step by auto
     show "program_wellFormed (prog S')"
       using prog_wf step.steps steps_do_not_change_prog by fastforce

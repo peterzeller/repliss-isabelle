@@ -33,13 +33,13 @@ qed
 lemma state_wellFormed_combine_step:
   assumes wf: "state_wellFormed S"
     and step: "S ~~ a \<leadsto> S'"
-    and noFails: "snd a \<noteq> AFail"
+    and noFails: "get_action a \<noteq> AFail"
   shows "state_wellFormed S'"
   using wf step noFails  proof (auto simp add: state_wellFormed_def)
 
   show "\<exists>tr. (\<forall>i. (i, AFail) \<notin> set tr) \<and> initialState (prog S') ~~ tr \<leadsto>* S'"
     if c0: "S ~~ a \<leadsto> S'"
-      and c1: "snd a \<noteq> AFail"
+      and c1: "get_action a \<noteq> AFail"
       and c2: "\<forall>i. (i, AFail) \<notin> set tr"
       and c3: "initialState (prog S) ~~ tr \<leadsto>* S"
     for  tr
@@ -132,7 +132,7 @@ lemma steps_induct2[consumes 1, case_names initial step[steps IH step]]:
 lemma wellFormed_induct[consumes 1, case_names initial step]:
   assumes wf: "state_wellFormed s"
     and P_initial: "P (initialState (prog s))"
-    and P_step: "\<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s; snd a \<noteq> AFail\<rbrakk> \<Longrightarrow> P s"
+    and P_step: "\<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s; get_action a \<noteq> AFail\<rbrakk> \<Longrightarrow> P s"
   shows "P s"
   using wf proof (auto simp add: state_wellFormed_def)
   fix tr 
@@ -154,7 +154,7 @@ lemma wellFormed_induct[consumes 1, case_names initial step]:
         by (metis butlast_snoc in_set_butlastD state_wellFormed_combine state_wellFormed_init step.prems step.steps) 
       show "P S'"
         using step.IH step.prems by auto 
-      show "snd a \<noteq> AFail"
+      show "get_action a \<noteq> AFail"
         by (metis append_is_Nil_conv last_in_set last_snoc list.distinct(1) step.prems surjective_pairing)
     qed
   qed
@@ -919,7 +919,7 @@ next
   case (step S' tr a S'')
 
   show ?case
-  proof (cases "fst a = s")
+  proof (cases "get_invoc a = s")
     case True
     from this obtain action where [simp]: "a = (s, action)"
       using surjective_pairing by blast 
@@ -956,7 +956,7 @@ next
         using step.prems by blast 
     qed
   next
-    case False then have [simp]: "fst a \<noteq> s" .
+    case False then have [simp]: "get_invoc a \<noteq> s" .
     from \<open>S' ~~ a \<leadsto> S''\<close>
     have "localState S'' s = localState S' s" and "invocationOp S'' s = invocationOp S' s"
       using False by (induct rule: step.cases, auto)
@@ -1118,7 +1118,7 @@ lemma transactionStatus_mono':
   by (erule step.cases, auto split: if_splits)
 
 lemma transactionStatus_mono2:
-  "\<lbrakk>transactionStatus B tx \<triangleq> Committed; A ~~ a \<leadsto> B; snd a\<noteq>AEndAtomic\<rbrakk> \<Longrightarrow> transactionStatus A tx \<triangleq> Committed"
+  "\<lbrakk>transactionStatus B tx \<triangleq> Committed; A ~~ a \<leadsto> B; get_action a\<noteq>AEndAtomic\<rbrakk> \<Longrightarrow> transactionStatus A tx \<triangleq> Committed"
   by (erule step.cases, auto split: if_splits)
 
 
@@ -1398,9 +1398,9 @@ lemma callsInTransaction_down_hb_unchanged:"
 
 lemma currentTransaction_unchangedInternalSteps:
   assumes "S ~~ tr \<leadsto>* S'"
-    and "\<And>a.  a \<in> set tr \<Longrightarrow> snd a \<noteq> AEndAtomic"
-    and "\<And>a tx ntxns.  a \<in> set tr \<Longrightarrow> snd a \<noteq> ABeginAtomic tx ntxns"
-    and "\<And>a.  a \<in> set tr \<Longrightarrow> snd a \<noteq> AFail"
+    and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> AEndAtomic"
+    and "\<And>a tx ntxns.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> ABeginAtomic tx ntxns"
+    and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> AFail"
   shows "currentTransaction S' s = currentTransaction S s"  
   using assms proof (induct rule: steps.induct)
   case (steps_refl S)
@@ -1408,7 +1408,7 @@ lemma currentTransaction_unchangedInternalSteps:
 next
   case (steps_step S tr S' a S'')
   then show ?case 
-  proof (cases "snd a")
+  proof (cases "get_action a")
     case ALocal
     then show ?thesis using steps_step by (cases a, auto simp add: step_simps)
   next
@@ -1446,8 +1446,8 @@ qed
 
 lemma currentTransaction_unchangedInternalSteps2:
   assumes "S ~~ tr \<leadsto>* S'"
-    and "\<And>a.  a \<in> set tr \<Longrightarrow> snd a \<noteq> AEndAtomic"
-    and "\<And>a.  a \<in> set tr \<Longrightarrow> snd a \<noteq> AFail"
+    and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> AEndAtomic"
+    and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> AFail"
     and "currentTransaction S s = Some t"  
     and wf: "state_wellFormed S"
   shows "currentTransaction S' s = Some t"  and "a \<in> set tr \<Longrightarrow> a \<noteq> (s, ABeginAtomic tx ntxn)" 
@@ -1481,7 +1481,7 @@ proof -
   show "currentTransaction S' s \<triangleq> tx"
   proof (rule currentTransaction_unchangedInternalSteps2)
     from a2
-    show "\<And>a. a \<in> set as \<Longrightarrow> snd a \<noteq> AEndAtomic" and "\<And>a. a \<in> set as \<Longrightarrow> snd a \<noteq> AFail"
+    show "\<And>a. a \<in> set as \<Longrightarrow> get_action a \<noteq> AEndAtomic" and "\<And>a. a \<in> set as \<Longrightarrow> get_action a \<noteq> AFail"
       by auto    
     from 1
     show "currentTransaction S s \<triangleq> tx"
@@ -1690,10 +1690,10 @@ lemma localState_iff_exists_invoc:
 lemma exists_invoc:
   assumes steps: "initialState program ~~ tr \<leadsto>* C"
     and "i < length tr"
-    and "fst(tr!i) = s"
-    and "\<And>p. snd(tr!i) \<noteq> AInvoc p"
-    and "\<not>is_AInvcheck (snd(tr!i))"
-  shows "\<exists>j. j<i \<and> fst(tr!j) = s \<and> (\<exists>p. snd(tr!j) = AInvoc p)"    
+    and "get_invoc(tr!i) = s"
+    and "\<And>p. get_action(tr!i) \<noteq> AInvoc p"
+    and "\<not>is_AInvcheck (get_action(tr!i))"
+  shows "\<exists>j. j<i \<and> get_invoc(tr!j) = s \<and> (\<exists>p. get_action(tr!j) = AInvoc p)"    
   using assms proof (induct arbitrary: i rule: steps_induct)
   case initial
   then show ?case by (auto simp add: initialState_def)
@@ -1714,8 +1714,8 @@ next
     case True
     then show ?thesis 
       using \<open>S' ~~ a \<leadsto> S''\<close> 
-        \<open>fst ((tr @ [a]) ! i) = s\<close>
-      using step.prems(3) is_AInvcheck_def[where a="(snd ((tr @ [a]) ! i))"] step.prems(4)
+        \<open>get_invoc ((tr @ [a]) ! i) = s\<close>
+      using step.prems(3) is_AInvcheck_def[where a="(get_action ((tr @ [a]) ! i))"] step.prems(4)
       by (auto simp add: step_simps_all nth_append_first  dest!: getI split: if_splits, fastforce)
   next
     case False
@@ -1908,7 +1908,7 @@ next
   case (step S a S')
   show ?case 
     by (rule step.cases[OF `S ~~ a \<leadsto> S'`],
-        insert `(localState S s = None) = (visibleCalls S s = None)` `snd a \<noteq> AFail`,
+        insert `(localState S s = None) = (visibleCalls S s = None)` `get_action a \<noteq> AFail`,
         auto)
 
 qed
@@ -1928,7 +1928,7 @@ next
   from `S ~~ a \<leadsto> S'`
   show ?case
     by (rule step.cases, 
-        insert  `currentTransaction S' s \<triangleq> tx` ` snd a \<noteq> AFail` `currentTransaction S s \<triangleq> tx \<Longrightarrow> localState S s \<noteq> None`,
+        insert  `currentTransaction S' s \<triangleq> tx` ` get_action a \<noteq> AFail` `currentTransaction S s \<triangleq> tx \<Longrightarrow> localState S s \<noteq> None`,
         auto split: if_splits)
 qed
 
