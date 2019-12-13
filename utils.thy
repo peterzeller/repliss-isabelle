@@ -94,7 +94,6 @@ lemma show_appendEqH:
   "\<lbrakk>n \<le> length ys; length xs \<ge> n; take n xs = take n ys; drop n xs = zs\<rbrakk> \<Longrightarrow> xs = (take n ys) @ zs"
   by (metis append_take_drop_id) 
 
-
 definition max_natset :: "nat set \<Rightarrow> nat" where
   "max_natset S \<equiv> if S = {} then 0 else Suc (Max S)"
 
@@ -131,6 +130,26 @@ lemma show_max_natset_smaller_Collect:
 lemma finiteH: 
   "finite {x::nat. 0 < x \<and> x < A \<and> P x}"
   by simp
+
+
+text "Like less_induct, but reversed with an upper bound. 
+We only need it for natural numbers, but it could probably be generalized.
+"
+lemma greater_induct [case_names greater]: 
+  assumes  step: "\<And>x. \<lbrakk>\<And>y. \<lbrakk>y > x; y < bound\<rbrakk> \<Longrightarrow> P y\<rbrakk> \<Longrightarrow> P x" 
+  shows "P (a::nat)"
+proof (induct "bound - a" arbitrary: a  rule: less_induct)
+  case less
+  show "P a"
+  proof (rule step)
+    show "P y" if "a < y" and "y < bound" for y
+    proof (rule less)
+
+      show "bound - y < bound - a"
+        using diff_less_mono2 dual_order.strict_trans that by blast
+    qed
+  qed
+qed
 
 
 
@@ -911,6 +930,14 @@ lemma rel_eqI:
     and rl: "\<And>x y. (x,y) \<in> B \<Longrightarrow> (x,y) \<in> A"
   shows "A = B"
   using lr rl by auto
+
+
+
+lemma min_nat_induct[case_names step[bound hyp]]:
+  fixes P :: "nat \<Rightarrow> bool"
+  assumes "\<And>i. \<lbrakk>i<bound; \<And>j. j < i \<Longrightarrow> P j  \<rbrakk> \<Longrightarrow> P i"
+  shows "\<forall>i<bound. P i"
+  by (metis assms dual_order.strict_trans infinite_descent0 nat_neq_iff not_less_zero)
 
 
 

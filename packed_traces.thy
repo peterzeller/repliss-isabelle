@@ -845,67 +845,159 @@ lemma swapMany_middle':
   by (insert assms, cases a, rule ssubst, assumption, rule swapMany_middle, auto)
 
 
-definition packed_trace_s :: "('proc, 'operation, 'any) trace \<Rightarrow> invocId \<Rightarrow> bool" where
-  "packed_trace_s tr s \<equiv>
+definition packed_trace_i :: "('proc, 'operation, 'any) trace \<Rightarrow> invocId \<Rightarrow> bool" where
+  "packed_trace_i tr invoc \<equiv>
   \<forall>i.
       0<i
     \<longrightarrow> i<length tr
-    \<longrightarrow> get_invoc (tr!i) = s
-    \<longrightarrow> get_invoc (tr!(i-1)) \<noteq> s
+    \<longrightarrow> get_invoc (tr!i) = invoc
+    \<longrightarrow> get_invoc (tr!(i-1)) \<noteq> invoc
     \<longrightarrow> (allowed_context_switch (get_action (tr!i)))" 
 
+(* TODO utils *)
+text "Like less_induct, but reversed with an upper bound. 
+We only need it for natural numbers, but it could probably be generalized.
+"
+lemma greater_induct [case_names bounded greater]: 
+  assumes "a < bound"  
+    and  step: "\<And>x. \<lbrakk>\<And>y. \<lbrakk>y > x; y < bound\<rbrakk> \<Longrightarrow> P y; x < bound\<rbrakk> \<Longrightarrow> P x"
+  shows "P (a::nat)"
+  using `a < bound`
+proof (induct "bound - a" arbitrary: a  rule: less_induct)
+  case less
+  show "P a"
+  proof (rule step)
+    show "P y" if "a < y" and "y < bound" for y
+    proof (rule less)
+
+      show "bound - y < bound - a"
+        using diff_less_mono2 dual_order.strict_trans that by blast
+
+      show " y < bound"
+        by (simp add: that(2))
+    qed
+
+    show "a < bound"
+      using less.prems by auto
+
+  qed
+qed
+
+definition "is_bounded S bound \<equiv> \<forall>x\<in>S. x < bound"
+
+lemma use_is_bounded:
+  assumes "is_bounded S bound" and "x \<in> S"
+  shows "x < bound"
+  using assms is_bounded_def by blast
 
 
+lemma min_set_induct[consumes 1, induct set: is_bounded, case_names empty step[not_empty bounded IH]]:
+  fixes S :: "nat set"
+  assumes bounded: "is_bounded S bound"
+    and empty: "P {}"
+    and step: "\<And>S. \<lbrakk>S \<noteq> {}; is_bounded S bound; (\<And>S'. \<lbrakk>S' \<noteq> {} \<Longrightarrow> Inf S' > Inf S; is_bounded S' bound\<rbrakk> \<Longrightarrow> P S')\<rbrakk> \<Longrightarrow> P S"
+  shows "P S"
+  using bounded
+proof (induct "if S = {} then 0 else bound - (Inf S)" arbitrary: S rule: less_induct)
+  case less
+  show ?case 
+  proof (cases "S = {}")
+    case True
+    then show ?thesis
+      by (simp add: empty) 
+  next
+    case False
+    show ?thesis 
+    proof (rule step)  
 
+      from ` S \<noteq> {}` obtain x where "x \<in> S"
+        by blast
+
+      moreover have "x < bound"
+        using calculation less.prems use_is_bounded by blast
+
+      ultimately have "Inf S < bound"
+        by (meson False Inf_nat_def1 is_bounded_def less.prems)
+
+      show "S \<noteq> {}"
+        by (simp add: False)
+      show "is_bounded S bound"
+        using less.prems by blast
+
+      show "P S'"
+        if  c1: "S' \<noteq> {} \<Longrightarrow> Inf S < Inf S'"
+          and c2: "is_bounded S' bound"
+        for  S'
+      proof (rule less)
+        show "(if S' = {} then 0 else bound - Inf S') < (if S = {} then 0 else bound - Inf S)"
+          by (auto simp add:  \<open>Inf S < bound\<close> \<open>S \<noteq> {}\<close> c1 diff_less_mono2)
+
+        show "is_bounded S' bound"
+          using c2 by blast
+      qed
+    qed  
+  qed
+qed
+
+
+lemma show_Inf_smaller:
+  assumes "(i::nat) \<in> S"
+    and "\<And>i'. i'\<in>S' \<Longrightarrow> i < i'"
+    and "S' \<noteq> {}"
+  shows "Inf S < Inf S'"
+  by (metis Inf_nat_def1 assms(1) assms(2) assms(3) bdd_above_bot cInf_less_iff empty_iff)
 
 lemma pack_trace_for_one_session:
   assumes steps: "initialState program ~~ tr \<leadsto>* C"
-    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFail: "\<And>s. (s, AFail) \<notin> set tr" (is "\<And>s. _ \<notin> set ?tr")
     and noInvcheck: "\<And>s a. (s, a)\<in>set tr \<Longrightarrow> \<not>is_AInvcheck a "
-  shows "\<exists>tr'. packed_trace_s tr' s
+  shows "\<exists>tr'. packed_trace_i tr' s
         \<and> (initialState program ~~ tr' \<leadsto>* C)
-        \<and> (\<forall>s. packed_trace_s tr s \<longrightarrow> packed_trace_s tr' s)
+        \<and> (\<forall>s. packed_trace_i tr s \<longrightarrow> packed_trace_i tr' s)
         \<and> (\<forall>s. (s, AFail) \<notin> set tr')
         \<and> (\<forall>s a. (s,a)\<in>set tr' \<longrightarrow> \<not>is_AInvcheck a)"
   text \<open>By induction over the minimal index that is not packed.\<close>
     \<comment> \<open>I could not figure out how to write this down as an induction over the minimum, so I reversed it and made it an induction over the maximum inversed index.\<close>
-  using steps noFail noInvcheck        
-proof (induct "max_natset {length tr - i  | i.
+proof -
+  define bound where bound_def: "bound \<equiv> length tr"
+
+  have bound: "is_bounded {i.
+        0<i 
+      \<and> i<length tr 
+      \<and> get_invoc (tr!(i-1)) \<noteq> s
+      \<and> get_invoc (tr!i) = s
+      \<and> \<not>(allowed_context_switch (get_action(tr!i)))} bound" by (auto simp add: is_bounded_def bound_def)
+
+  show ?thesis
+  using bound bound_def steps noFail noInvcheck        
+proof (induct "{i.
         0<i 
       \<and> i<length tr 
       \<and> get_invoc (tr!(i-1)) \<noteq> s
       \<and> get_invoc (tr!i) = s
       \<and> \<not>(allowed_context_switch (get_action(tr!i)))}"
     arbitrary: tr C
-    rule: less_induct)
-  case less
-  then have IH: "\<And>tra C. \<lbrakk>max_natset {length tra - i |i. 0 < i \<and> i < length tra \<and> get_invoc (tra ! (i - 1)) \<noteq> s \<and> get_invoc (tra ! i) = s \<and> \<not> allowed_context_switch (get_action (tra ! i))}
-                      < max_natset {length tr - i |i. 0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))};
-                      initialState program ~~ tra \<leadsto>* C; \<And>s. (s, AFail) \<notin> set tra; \<And>s a. (s, a) \<in> set tra \<Longrightarrow> \<not> is_AInvcheck a\<rbrakk>
-                     \<Longrightarrow> \<exists>tr'. packed_trace_s tr' s \<and> (initialState program ~~ tr' \<leadsto>* C) \<and> (\<forall>s. packed_trace_s tra s \<longrightarrow> packed_trace_s tr' s) \<and> (\<forall>s. (s, AFail) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"
-    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
-    and noInvcheck: "\<And>s a. (s, a) \<in> set tr \<Longrightarrow> \<not> is_AInvcheck a"
-    by auto
+    rule: min_set_induct)
+  case empty
 
-  show ?case 
-  proof (cases "max_natset {length tr - i  | i. 0<i \<and> i<length tr \<and> get_invoc (tr!(i-1)) \<noteq> s \<and> get_invoc (tr!i) = s \<and> \<not>(allowed_context_switch (get_action(tr!i)))}")
-    case 0
-    then have "{i. 0<i \<and> i<length tr \<and> get_invoc (tr!(i-1)) \<noteq> s \<and> get_invoc (tr!i) = s \<and> \<not>(allowed_context_switch (get_action(tr!i)))} = {}"
-      by (simp add: max_natset_empty)
-    then have already_packed: "packed_trace_s tr s"
-      by (auto simp add: packed_trace_s_def)
+  then have "{i. 0<i \<and> i<length tr \<and> get_invoc (tr!(i-1)) \<noteq> s \<and> get_invoc (tr!i) = s \<and> \<not>(allowed_context_switch (get_action(tr!i)))} = {}"
+    by simp
+  then have already_packed: "packed_trace_i tr s"
+    by (auto simp add: packed_trace_i_def)
 
-    show ?thesis 
-      by (rule exI[where x=tr], auto simp add: less already_packed)
+  show "\<exists>tr'. packed_trace_i tr' s \<and>
+                 (initialState program ~~ tr' \<leadsto>* C) \<and>
+                 (\<forall>s. packed_trace_i tr s \<longrightarrow> packed_trace_i tr' s) \<and>
+                 (\<forall>s. (s, AFail) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a) "
+    by (rule exI[where x=tr], auto simp add: empty already_packed)
 
-  next
-    case (Suc n)
-
+next
+  case (step tr C)
+  
     text \<open>There is one problematic position\<close>
-    from Suc
     obtain i_example
       where i_example: "0 < i_example \<and> i_example < length tr \<and> get_invoc (tr ! (i_example - 1)) \<noteq> s \<and> get_invoc (tr ! i_example) = s \<and> \<not> allowed_context_switch (get_action (tr ! i_example))"
-      using max_natset_Collect_Suc(1) by fastforce
+      using step.hyps(1) by blast
 
     text \<open>Let i be the smallest problematic position\<close>
     obtain i
@@ -931,7 +1023,7 @@ proof (induct "max_natset {length tr - i  | i.
         show "\<And>p. get_action (tr ! i) \<noteq> AInvoc p"
           using allowed_context_switch_def[where action="get_action (tr ! i)"] i5 by auto 
         show "\<not> is_AInvcheck (get_action (tr ! i))"
-          by (metis i2 less.prems(3) nth_mem snd_conv surj_pair)
+          by (metis i_def nth_mem prod.collapse step.prems(3))
       qed
       then have "\<exists>j<i. get_invoc (tr ! j) = s"
         by auto
@@ -994,7 +1086,7 @@ proof (induct "max_natset {length tr - i  | i.
     have "initialState program ~~ (take prev tr @ [tr!prev]) @ [tr!i] @ drop (Suc prev) (take i tr)  @ drop (Suc i) tr \<leadsto>* C"
     proof (rule swapMany_middle')
       show "initialState program ~~ (take prev tr @ [tr ! prev]) @ drop (Suc prev) (take i tr) @ [tr ! i] @ drop (Suc i) tr \<leadsto>* C"
-        using tr_split less.prems(1) by auto
+        using tr_split step.prems(1) by auto
 
       show "\<And>x. x \<in> set (drop (Suc prev) (take i tr)) \<Longrightarrow> get_invoc x \<noteq> get_invoc (tr ! i)"
         using prev3 by (auto simp add: in_set_conv_nth,
@@ -1014,13 +1106,13 @@ proof (induct "max_natset {length tr - i  | i.
 
 
         show "\<not> is_AInvcheck (get_action x)"
-          by (metis k4 less.prems(3) prod.collapse)
+          by (metis k4 step.prems(3) prod.collapse)
         show "\<not> is_AInvcheck (get_action (tr ! i))"
-          by (metis i2 less.prems(3) nth_mem snd_conv surj_pair)
+          by (metis i2 step.prems(3) nth_mem snd_conv surj_pair)
         show "get_action x \<noteq> AFail"
-          by (metis k4 less.prems(2) prod.collapse)
+          by (metis k4 step.prems(2) prod.collapse)
         show "get_action (tr ! i) \<noteq> AFail"
-          by (metis i2 less.prems(2) nth_mem old.prod.exhaust snd_conv)
+          by (metis i2 step.prems(2) nth_mem old.prod.exhaust snd_conv)
       qed  
 
       show "state_wellFormed (initialState program)"
@@ -1028,87 +1120,116 @@ proof (induct "max_natset {length tr - i  | i.
 
       from noFail
       show "\<And>i. (i, AFail) \<notin> set (take prev tr @ [tr ! prev])"
-        by (metis \<open>prev < length tr\<close> hd_drop_conv_nth in_set_takeD take_hd_drop)
+        by (metis Un_iff set_append step.prems(2) tr_split)
       from noFail
       show "\<And>ia. (ia, AFail) \<notin> set (drop (Suc prev) (take i tr))"
-        by (meson in_set_dropD in_set_takeD)
+        by (meson in_set_dropD in_set_takeD step.prems(2))
     qed    
 
 
     then have "initialState program ~~ tr' \<leadsto>* C"
       by (simp add: tr'_def)
 
-    have tr'packed: "packed_trace_s tr' s" if "packed_trace_s tr s" for s
+    have tr'packed: "packed_trace_i tr' s" if "packed_trace_i tr s" for s
       using that Suc_leI prev2 
-      by (auto simp add: packed_trace_s_def tr'i_def tr'sameLength i4 prev1,
+      by (auto simp add: packed_trace_i_def tr'i_def tr'sameLength i4 prev1,
          metis One_nat_def Suc_diff_eq_diff_pred  i4 nat_less_le not_less_eq_eq zero_less_Suc zero_less_diff,
          metis One_nat_def Suc_eq_plus1 diff_Suc_1 i_def le_SucE le_diff_conv zero_less_Suc)
 
 
 
     text \<open>Now the problem at i is fixed, so we can use IH to fix the rest of the trace.\<close>
-    have "\<exists>tr''. packed_trace_s tr'' s \<and> (initialState program ~~ tr'' \<leadsto>* C) \<and> (\<forall>s. packed_trace_s tr' s \<longrightarrow> packed_trace_s tr'' s) \<and> (\<forall>s. (s, AFail) \<notin> set tr'') \<and> (\<forall>s a. (s, a) \<in> set tr'' \<longrightarrow> \<not> is_AInvcheck a)"
-    proof (rule IH)
+    have "\<exists>tr''. packed_trace_i tr'' s \<and> (initialState program ~~ tr'' \<leadsto>* C) \<and> (\<forall>s. packed_trace_i tr' s \<longrightarrow> packed_trace_i tr'' s) \<and> (\<forall>s. (s, AFail) \<notin> set tr'') \<and> (\<forall>s a. (s, a) \<in> set tr'' \<longrightarrow> \<not> is_AInvcheck a)"
+    proof (rule step.hyps)
       show "initialState program ~~ tr' \<leadsto>* C"
         by (simp add: \<open>initialState program ~~ tr' \<leadsto>* C\<close>)
       show "\<And>s. (s, AFail) \<notin> set tr'"
-        using noFail tr'_sameSet by blast 
+        by (simp add: step.prems(2) tr'_sameSet)
       show "\<And>s a. (s, a) \<in> set tr' \<Longrightarrow> \<not> is_AInvcheck a"
-        using noInvcheck tr'_sameSet by blast
+        using step.prems(3) tr'_sameSet by auto
+
+      show "Inf {i. 0 < i \<and>
+            i < length tr \<and>
+            get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))}
+    < Inf {i. 0 < i \<and>
+              i < length tr' \<and>
+              get_invoc (tr' ! (i - 1)) \<noteq> s \<and> get_invoc (tr' ! i) = s \<and> \<not> allowed_context_switch (get_action (tr' ! i))}"
+        if notempty: "{i. 0 < i \<and>
+              i < length tr' \<and>
+              get_invoc (tr' ! (i - 1)) \<noteq> s \<and> get_invoc (tr' ! i) = s \<and> \<not> allowed_context_switch (get_action (tr' ! i))} \<noteq>
+          {}"
+      proof (rule show_Inf_smaller)
+        show "i \<in> {i. 0 < i \<and>
+              i < length tr \<and>
+              get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))}"
+           using One_nat_def i3 i4 i5 by auto
+         show "\<And>i'. i' \<in> {i. 0 < i \<and>
+                   i < length tr' \<and>
+                   get_invoc (tr' ! (i - 1)) \<noteq> s \<and>
+                   get_invoc (tr' ! i) = s \<and> \<not> allowed_context_switch (get_action (tr' ! i))} \<Longrightarrow>
+          i < i'"
+         proof (auto simp add: tr'sameLength)
+           fix i'
+           assume a1: "0 < i'"
+             and a2: "i' < length tr"
+             and a3: "get_invoc (tr' ! (i' - Suc 0)) \<noteq> get_invoc (tr' ! i')"
+             and a4: "\<not> allowed_context_switch (get_action (tr' ! i'))"
+             and a5: "s = get_invoc (tr' ! i')"
 
 
+           show "i < i'"
+             using a2 a3 a4
+             by (auto simp add: tr'i_def split: if_splits,
+                 metis One_nat_def a1 a5 dual_order.strict_iff_order i_min leD prev2 tr'1,
+                 insert \<open>0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))\<close> prev1,
+                 blast,
+                 insert a3 a5 i_def tr'2, (auto)[1],
+                 metis One_nat_def a5 antisym diff_le_self i3 le_less_linear prev3 tr'i_def)
+         qed
 
-      show "max_natset {length tr' - i |i. 0 < i \<and> i < length tr' \<and> get_invoc (tr' ! (i - 1)) \<noteq> s \<and> get_invoc (tr' ! i) = s \<and> \<not> allowed_context_switch (get_action (tr' ! i))}
-          < max_natset {length tr - i |i. 0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))}"
-      proof (rule show_max_natset_smaller_Collect, intro exI)
-        show "length tr - i = length tr - i \<and> 0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))"
-          using One_nat_def i3 i4 i5 by auto
-        show "finite {length tr - i |i. 0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))}" by force
-        show "\<exists>i. j = length tr' - i \<and> 0 < i \<and> i < length tr' \<and> get_invoc (tr' ! (i - 1)) \<noteq> s \<and> get_invoc (tr' ! i) = s \<and> \<not> allowed_context_switch (get_action (tr' ! i)) \<Longrightarrow> j < length tr - i" for j
-        proof (auto simp add: tr'sameLength intro!: diff_less_mono2)
-          fix i'
-          assume a0: "j = length tr - i'"
-            and a1: "0 < i'"
-            and a2: "i' < length tr"
-            and a3: "get_invoc (tr' ! (i' - Suc 0)) \<noteq> get_invoc (tr' ! i')"
-            and a4: "\<not> allowed_context_switch (get_action (tr' ! i'))"
-            and a5: "s = get_invoc (tr' ! i')"
+         show "{i. 0 < i \<and>
+                i < length tr' \<and>
+                get_invoc (tr' ! (i - 1)) \<noteq> s \<and> get_invoc (tr' ! i) = s \<and> \<not> allowed_context_switch (get_action (tr' ! i))} \<noteq>
+            {}"
+           using notempty
+           by auto
 
-          show "i < i'"
-            using a2 a3 a4
-            by (auto simp add: tr'i_def split: if_splits,
-                metis One_nat_def a1 a5 dual_order.strict_iff_order i_min leD prev2 tr'1,
-                insert \<open>0 < i \<and> i < length tr \<and> get_invoc (tr ! (i - 1)) \<noteq> s \<and> get_invoc (tr ! i) = s \<and> \<not> allowed_context_switch (get_action (tr ! i))\<close> prev1,
-                blast,
-                insert a3 a5 i_def tr'2, (auto)[1],
-                metis One_nat_def a5 antisym diff_le_self i3 le_less_linear prev3 tr'i_def)
-        qed
+       qed
+     next
+       show "bound = length tr'"
+         by (simp add: step.hyps(4) tr'sameLength)
+
+
+       show " is_bounded {i. 0 < i \<and> i < length tr' \<and> get_invoc (tr' ! (i - 1)) \<noteq> s \<and> get_invoc (tr' ! i) = s \<and> \<not> allowed_context_switch (get_action (tr' ! i))} bound"
+         using step(2)
+         by (auto simp add: is_bounded_def `bound = length tr'`)
+
       qed
-    qed
 
     from this obtain tr'' 
-      where tr''1: "packed_trace_s tr'' s" 
+      where tr''1: "packed_trace_i tr'' s" 
         and tr''2: "initialState program ~~ tr'' \<leadsto>* C" 
-        and tr''3: "\<forall>s. packed_trace_s tr' s \<longrightarrow> packed_trace_s tr'' s"
+        and tr''3: "\<forall>s. packed_trace_i tr' s \<longrightarrow> packed_trace_i tr'' s"
         and tr''4: "(\<forall>s. (s, AFail) \<notin> set tr'')"
         and tr''5: "(\<forall>s a. (s, a) \<in> set tr'' \<longrightarrow> \<not> is_AInvcheck a)" 
       by blast
 
     from tr''3
-    have tr''packed: "\<forall>s. packed_trace_s tr s \<longrightarrow> packed_trace_s tr'' s"
+    have tr''packed: "\<forall>s. packed_trace_i tr s \<longrightarrow> packed_trace_i tr'' s"
       using tr'packed by blast
 
-
-    show ?thesis
+    show "\<exists>tr'. packed_trace_i tr' s \<and>
+                 (initialState program ~~ tr' \<leadsto>* C) \<and>
+                 (\<forall>s. packed_trace_i tr s \<longrightarrow> packed_trace_i tr' s) \<and>
+                 (\<forall>s. (s, AFail) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"
       using tr''1 tr''2 tr''4 tr''5 tr''packed by blast 
-
 
   qed
 qed
 
 lemma packed_trace_iff_all_sessions_packed:
-  "packed_trace tr \<longleftrightarrow> (\<forall>s. packed_trace_s tr s)"
-  by (auto simp add: packed_trace_def packed_trace_s_def)
+  "packed_trace tr \<longleftrightarrow> (\<forall>s. packed_trace_i tr s)"
+  by (auto simp add: packed_trace_def packed_trace_i_def)
 
 text \<open>Now we can just repeat fixing invocId by invocId, until all sessions are packed.\<close>
 lemma pack_trace:
@@ -1120,19 +1241,19 @@ lemma pack_trace:
         \<and> (\<forall>s. (s, AFail) \<notin> set tr')
         \<and> (\<forall>s a. (s,a)\<in>set tr' \<longrightarrow> \<not>is_AInvcheck a)"
 proof -
-  have "{s. \<not>packed_trace_s tr s } \<subseteq> set (map get_invoc tr)"
-    by (auto simp add: packed_trace_s_def)
+  have "{s. \<not>packed_trace_i tr s } \<subseteq> set (map get_invoc tr)"
+    by (auto simp add: packed_trace_i_def)
 
-  then have "finite {s. \<not>packed_trace_s tr s }"
+  then have "finite {s. \<not>packed_trace_i tr s }"
     using infinite_super by blast
 
   from this and assms
   show ?thesis
-  proof (induct "{s. \<not>packed_trace_s tr s }" arbitrary: tr rule: finite_psubset_induct)
+  proof (induct "{s. \<not>packed_trace_i tr s }" arbitrary: tr rule: finite_psubset_induct)
     case psubset
 
     show ?case 
-    proof (cases "{s. \<not>packed_trace_s tr s } = {}")
+    proof (cases "{s. \<not>packed_trace_i tr s } = {}")
       case True
       then have "packed_trace tr"
         by (auto simp add: packed_trace_iff_all_sessions_packed)
@@ -1140,25 +1261,25 @@ proof -
         using psubset.prems by blast 
     next
       case False
-      from this obtain s where "\<not> packed_trace_s tr s"
+      from this obtain s where "\<not> packed_trace_i tr s"
         by blast
 
 
       from \<open>initialState program ~~ tr \<leadsto>* C\<close> \<open>\<And>s. (s, AFail) \<notin> set tr\<close> \<open>\<And>s a. (s, a) \<in> set tr \<Longrightarrow> \<not> is_AInvcheck a\<close>
-      have "\<exists>tr'. packed_trace_s tr' s \<and> (initialState program ~~ tr' \<leadsto>* C) \<and> (\<forall>s. packed_trace_s tr s \<longrightarrow> packed_trace_s tr' s) \<and> (\<forall>s. (s, AFail) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"  
+      have "\<exists>tr'. packed_trace_i tr' s \<and> (initialState program ~~ tr' \<leadsto>* C) \<and> (\<forall>s. packed_trace_i tr s \<longrightarrow> packed_trace_i tr' s) \<and> (\<forall>s. (s, AFail) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"  
         by (rule pack_trace_for_one_session; force)
 
       from this
       obtain tr' 
-        where tr'1: "packed_trace_s tr' s"
+        where tr'1: "packed_trace_i tr' s"
           and tr'2: "initialState program ~~ tr' \<leadsto>* C"
-          and tr'3: "\<forall>s. packed_trace_s tr s \<longrightarrow> packed_trace_s tr' s"
+          and tr'3: "\<forall>s. packed_trace_i tr s \<longrightarrow> packed_trace_i tr' s"
           and tr'4: "\<And>s. (s, AFail) \<notin> set tr'"
           and tr'5: "\<And>s a. (s, a) \<in> set tr' \<Longrightarrow> \<not> is_AInvcheck a"
         by blast
 
-      from tr'1 tr'3 \<open>\<not> packed_trace_s tr s\<close>
-      have subset: "{s. \<not>packed_trace_s tr' s } \<subset> {s. \<not>packed_trace_s tr s }"
+      from tr'1 tr'3 \<open>\<not> packed_trace_i tr s\<close>
+      have subset: "{s. \<not>packed_trace_i tr' s } \<subset> {s. \<not>packed_trace_i tr s }"
         by auto
 
       from subset tr'2 tr'4 tr'5
