@@ -191,6 +191,13 @@ lemma use_Greatest:
 \<and> (\<forall>y. P y \<longrightarrow> y \<le> (GREATEST x::nat. P x))"
   using GreatestI_nat Greatest_le_nat assms by auto
 
+lemma use_Greatest2:
+  assumes "P x"
+    and "\<forall>x. P x \<longrightarrow> x \<le> bound"
+  shows "P (GREATEST x::nat. P x)
+\<and> (\<forall>y. P y \<longrightarrow> y \<le> (GREATEST x::nat. P x))"
+  by (rule use_Greatest, insert assms, auto)
+
 lemma Greatest_smaller:
   assumes "\<exists>x::nat. P x"
     and "\<exists>bound. \<forall>x. P x \<longrightarrow> x \<le> bound"
@@ -212,6 +219,155 @@ proof -
   show "x < Greatest P"
     by auto
 qed
+
+
+text "Like less_induct, but reversed with an upper bound. 
+We only need it for natural numbers, but it could probably be generalized.
+"
+lemma greater_induct2 [case_names bounded greater]: 
+  assumes "a < bound"  
+    and  step: "\<And>x. \<lbrakk>\<And>y. \<lbrakk>y > x; y < bound\<rbrakk> \<Longrightarrow> P y; x < bound\<rbrakk> \<Longrightarrow> P x"
+  shows "P (a::nat)"
+  using `a < bound`
+proof (induct "bound - a" arbitrary: a  rule: less_induct)
+  case less
+  show "P a"
+  proof (rule step)
+    show "P y" if "a < y" and "y < bound" for y
+    proof (rule less)
+
+      show "bound - y < bound - a"
+        using diff_less_mono2 dual_order.strict_trans that by blast
+
+      show " y < bound"
+        by (simp add: that(2))
+    qed
+
+    show "a < bound"
+      using less.prems by auto
+
+  qed
+qed
+
+definition "is_bounded S bound \<equiv> \<forall>x\<in>S. x < bound"
+
+lemma use_is_bounded:
+  assumes "is_bounded S bound" and "x \<in> S"
+  shows "x < bound"
+  using assms is_bounded_def by blast
+
+
+lemma min_set_induct[consumes 1, induct set: is_bounded, case_names empty step[not_empty bounded IH]]:
+  fixes S :: "nat set"
+  assumes bounded: "is_bounded S bound"
+    and empty: "P {}"
+    and step: "\<And>S. \<lbrakk>S \<noteq> {}; is_bounded S bound; (\<And>S'. \<lbrakk>S' \<noteq> {} \<Longrightarrow> Inf S' > Inf S; is_bounded S' bound\<rbrakk> \<Longrightarrow> P S')\<rbrakk> \<Longrightarrow> P S"
+  shows "P S"
+  using bounded
+proof (induct "if S = {} then 0 else bound - (Inf S)" arbitrary: S rule: less_induct)
+  case less
+  show ?case 
+  proof (cases "S = {}")
+    case True
+    then show ?thesis
+      by (simp add: empty) 
+  next
+    case False
+    show ?thesis 
+    proof (rule step)  
+
+      from ` S \<noteq> {}` obtain x where "x \<in> S"
+        by blast
+
+      moreover have "x < bound"
+        using calculation less.prems use_is_bounded by blast
+
+      ultimately have "Inf S < bound"
+        by (meson False Inf_nat_def1 is_bounded_def less.prems)
+
+      show "S \<noteq> {}"
+        by (simp add: False)
+      show "is_bounded S bound"
+        using less.prems by blast
+
+      show "P S'"
+        if  c1: "S' \<noteq> {} \<Longrightarrow> Inf S < Inf S'"
+          and c2: "is_bounded S' bound"
+        for  S'
+      proof (rule less)
+        show "(if S' = {} then 0 else bound - Inf S') < (if S = {} then 0 else bound - Inf S)"
+          by (auto simp add:  \<open>Inf S < bound\<close> \<open>S \<noteq> {}\<close> c1 diff_less_mono2)
+
+        show "is_bounded S' bound"
+          using c2 by blast
+      qed
+    qed  
+  qed
+qed
+
+lemma forward_induct[case_names zero step[given broken bound]]:
+  assumes init: "Q 0"
+    and step: "\<And>i::nat. \<lbrakk>Q i; \<not>Q (Suc i);  i < bound\<rbrakk> \<Longrightarrow> \<exists>j>i. Q j "
+  shows "\<exists>i\<ge>bound. Q i"
+proof (rule ccontr, clarsimp)
+  assume "\<forall>i\<ge>bound. \<not> Q i"
+  hence bounded: "\<forall>y. Q y \<longrightarrow> y < bound"
+    using not_le_imp_less by blast
+  hence bounded2: "\<forall>y. Q y \<longrightarrow> y \<le> bound - 1"
+    by auto
+
+
+
+  from use_Greatest2[OF init bounded2]
+  have "Q (GREATEST x. Q x)"
+    and  "(\<forall>y. Q y \<longrightarrow> y \<le> (GREATEST x. Q x))"
+    by auto
+
+
+  from `Q (GREATEST x. Q x)`
+  have "(GREATEST x. Q x) < bound"
+    by (simp add: bounded)
+
+
+  obtain i 
+    where "Q i"
+      and "\<forall>j>i. \<not>Q j"
+      and "i < bound"
+    using \<open>(GREATEST x. Q x) < bound\<close> \<open>Q (GREATEST x. Q x) \<and> (\<forall>y. Q y \<longrightarrow> y \<le> (GREATEST x. Q x))\<close> leD by auto
+
+
+
+  have "\<exists>j>i. Q j"
+    using `Q i` 
+  proof (rule step)
+
+    show "i < bound" using `i < bound` .
+
+    show "\<not> Q (Suc i)"
+      by (simp add: \<open>\<forall>j>i. \<not> Q j\<close>)
+  qed
+
+  thus False
+    using \<open>\<forall>j>i. \<not> Q j\<close> by blast
+qed
+
+
+
+
+
+lemma show_Inf_smaller:
+  assumes "(i::nat) \<in> S"
+    and "\<And>i'. i'\<in>S' \<Longrightarrow> i < i'"
+    and "S' \<noteq> {}"
+  shows "Inf S < Inf S'"
+  by (metis Inf_nat_def1 assms(1) assms(2) assms(3) bdd_above_bot cInf_less_iff empty_iff)
+
+
+lemma rewrite_and_implies:
+  shows "a \<and> b \<longrightarrow> c \<longleftrightarrow> a \<longrightarrow> b \<longrightarrow> c"
+  by auto
+
+
 
 lemma nth_drop_if: 
 "drop n xs ! i = (if n \<le> length xs then xs ! (n + i) else [] ! i)"
@@ -938,6 +1094,75 @@ lemma min_nat_induct[case_names step[bound hyp]]:
   assumes "\<And>i. \<lbrakk>i<bound; \<And>j. j < i \<Longrightarrow> P j  \<rbrakk> \<Longrightarrow> P i"
   shows "\<forall>i<bound. P i"
   by (metis assms dual_order.strict_trans infinite_descent0 nat_neq_iff not_less_zero)
+
+
+
+lemma fix_smalles_induct:
+  assumes "P x"
+and step: "\<And>x (i::nat). \<lbrakk>P x; \<And>j. j<i \<Longrightarrow> Q x j; \<not>Q x i; i < bound\<rbrakk> \<Longrightarrow> \<exists>x'. (\<forall>j\<le>i. Q x' j) \<and> P x'"
+shows "\<exists>x'. (\<forall>i<bound. Q x' i) \<and> P x'"
+proof (rule ccontr)
+  assume a: "\<nexists>x'. (\<forall>i<bound. Q x' i) \<and> P x'  "
+
+
+
+  obtain i x_i
+    where i1: "P x_i"
+      and i2: "\<forall>j<i. Q x_i j"
+      and i3: "\<not>Q x_i i"
+    by (metis a `P x` nat_less_induct)
+
+  define indexes where "indexes \<equiv> {i. \<exists>x_i. P x_i \<and> (\<forall>j<i. Q x_i j) \<and> \<not>Q x_i i }"
+
+  have "\<exists>i_max. i_max \<in> indexes \<and> (\<forall>y\<in>indexes. (i_max, y) \<notin> {(x,y). x < y})"
+  proof (rule exists_max)
+    show "finite indexes"
+    proof (rule finite_subset)
+      show "indexes \<subseteq> {i. i\<le>bound}"
+        apply (auto simp add: indexes_def)
+        by (metis (no_types, lifting) a dual_order.strict_trans le_eq_less_or_eq less_SucI not_less_eq_eq)
+      show "finite {i. i \<le> bound}" by force
+    qed
+    show "acyclicP ((<) :: nat \<Rightarrow> nat => bool)"
+      by (simp add: wf_acyclic wf_less)
+
+    show "i \<in> indexes"
+      using i1 i2 i3 by (auto simp add: indexes_def )
+  qed
+
+  from this obtain i_max 
+    where "i_max \<in> indexes"
+      and "(\<forall>y\<in>indexes. (i_max, y) \<notin> {(x,y). x < y})"
+    by blast
+
+  from this
+  obtain  x_i_max
+    where "P x_i_max"
+      and "\<forall>j<i_max. Q x_i_max j"
+      and "\<not>Q x_i_max i_max"
+    by (auto simp add: indexes_def)
+
+
+  from `(\<forall>y\<in>indexes. (i_max, y) \<notin> {(x,y). x < y})`
+  have i_max_max: "\<forall>i'>i_max. \<forall>x'. \<not>(P x' \<and> (\<forall>j<i'. Q x' j) \<and> \<not>Q x' i')"
+    by (auto simp add: indexes_def)
+
+
+  have "\<exists>x'. (\<forall>j\<le>i_max. Q x' j) \<and> P x' "
+    using `P x_i_max`
+  proof (rule step)
+    show "\<And>j. j < i_max \<Longrightarrow> Q x_i_max j"
+      by (simp add: \<open>\<forall>j<i_max. Q x_i_max j\<close>)
+    show "\<not> Q x_i_max i_max"
+      by (simp add: \<open>\<not> Q x_i_max i_max\<close>)
+    show "i_max < bound"
+      by (metis \<open>P x_i_max\<close> \<open>\<forall>j<i_max. Q x_i_max j\<close> a dual_order.strict_trans linorder_neqE_nat)
+  qed
+
+  with i_max_max
+  show False
+    by (auto, smt a min_nat_induct not_le_imp_less)
+qed
 
 
 
