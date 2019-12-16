@@ -1097,7 +1097,7 @@ lemma min_nat_induct[case_names step[bound hyp]]:
 
 
 
-lemma fix_smalles_induct:
+lemma fix_smallest_induct:
   assumes "P x"
 and step: "\<And>x (i::nat). \<lbrakk>P x; \<And>j. j<i \<Longrightarrow> Q x j; \<not>Q x i; i < bound\<rbrakk> \<Longrightarrow> \<exists>x'. (\<forall>j\<le>i. Q x' j) \<and> P x'"
 shows "\<exists>x'. (\<forall>i<bound. Q x' i) \<and> P x'"
