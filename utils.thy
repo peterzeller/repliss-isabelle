@@ -132,7 +132,7 @@ lemma finiteH:
   by simp
 
 
-text "Like less_induct, but reversed with an upper bound. 
+text "Like @{thm[mode=Rule] less_induct}, but reversed with an upper bound. 
 We only need it for natural numbers, but it could probably be generalized.
 "
 lemma greater_induct [case_names greater]: 
