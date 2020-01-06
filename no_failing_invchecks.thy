@@ -274,7 +274,7 @@ proof -
 
   then have "P S_mid"
     using step_a
-    by (auto simp add: p_def step.simps precondition_beginAtomic a_def  split: if_splits)
+    by (auto simp add: p_def step.simps  a_def  split: if_splits)
 
 
 
@@ -379,7 +379,7 @@ proof -
     using step_a a_def by (auto simp add: step_simps)
 
   have calls_S_start_cId: "calls S_start cId = None"
-    using a_def preconditionI precondition_dbop step_a by fastforce
+    using a_def callIds_unique(1) steps by fastforce
 
   
 

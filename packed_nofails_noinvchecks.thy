@@ -297,7 +297,7 @@ lemma move_invariant_checks_out_of_transactions:
       next
         case (ABeginAtomic x31 x32)
         then show ?thesis
-          by (metis \<open>S1 ~~ (s, action) \<leadsto> S2\<close> \<open>currentTransaction S1 s \<triangleq> tx\<close> option.simps(3) preconditionI precondition_beginAtomic) 
+          using \<open>S1 ~~ (s, action) \<leadsto> S2\<close> currentTx step_simps(3) by force
       next
         case AEndAtomic
         then show ?thesis
