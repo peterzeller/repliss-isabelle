@@ -934,7 +934,7 @@ lemma swapMany_middle':
 
 
 
-
+text "The following are all the relevant cases where canSwap is true:"
 lemma canSwap_cases:
   assumes no_begin_atomic: "\<And>txId txns. b \<noteq> ABeginAtomic txId txns"
     and no_invoc: "\<And>p. b \<noteq> AInvoc p"
