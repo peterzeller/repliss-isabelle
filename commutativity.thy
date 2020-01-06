@@ -140,8 +140,6 @@ method prove_canSwap'' uses simp  = (
     auto del: ext  simp add: simp step_simps fun_upd_twist intro!: show_state_calls_eq ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
 
-thm wellFormed_callOrigin_dom2  wellFormed_currentTransactionUncommitted state_updates_normalize 
-
 
 
 text "The following are all the relevant cases where canSwap is true:"
