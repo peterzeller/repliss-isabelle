@@ -17,12 +17,12 @@ definition canSwap :: "'ls itself \<Rightarrow> ('proc::valueType, 'operation, '
 
 text \<open>We can swap one action over a list of actions with canSwap\<close>
 lemma swapMany:
-  assumes steps: "(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) ~~ tr @ [(s,a)] \<leadsto>* C2"
-    and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> s"
+  assumes steps: "(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) ~~ tr @ [(i,a)] \<leadsto>* C2"
+    and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> i"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) a"
     and wf: "state_wellFormed C1"
     and noFail: "\<And>i. (i, AFail) \<notin> set tr"
-  shows "C1 ~~ [(s,a)] @ tr \<leadsto>* C2"
+  shows "C1 ~~ [(i,a)] @ tr \<leadsto>* C2"
   using steps tr_different_session tr_canSwap noFail
 proof (induct tr arbitrary: C2 rule: rev_induct)
   case Nil
@@ -30,9 +30,9 @@ proof (induct tr arbitrary: C2 rule: rev_induct)
     by simp 
 next
   case (snoc a' tr')
-  then have IH: "\<And>C2. \<lbrakk>C1 ~~ tr' @ [(s, a)] \<leadsto>* C2; \<And>x. x \<in> set tr' \<Longrightarrow> get_invoc x \<noteq> s; \<And>x. x \<in> set tr' \<Longrightarrow> canSwap t (get_action x) a\<rbrakk> \<Longrightarrow> C1 ~~ [(s, a)] @ tr' \<leadsto>* C2" 
-    and steps: "C1 ~~ (tr' @ [a']) @ [(s, a)] \<leadsto>* C2"
-    and tr_different_session: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> get_invoc x \<noteq> s"
+  then have IH: "\<And>C2. \<lbrakk>C1 ~~ tr' @ [(i, a)] \<leadsto>* C2; \<And>x. x \<in> set tr' \<Longrightarrow> get_invoc x \<noteq> i; \<And>x. x \<in> set tr' \<Longrightarrow> canSwap t (get_action x) a\<rbrakk> \<Longrightarrow> C1 ~~ [(i, a)] @ tr' \<leadsto>* C2" 
+    and steps: "C1 ~~ (tr' @ [a']) @ [(i, a)] \<leadsto>* C2"
+    and tr_different_session: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> get_invoc x \<noteq> i"
     and tr_canSwap: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> canSwap t (get_action x) a"
     and noFail2a: "\<And>i. (i, AFail) \<notin> set (tr' @ [a'])"
     by auto
@@ -40,27 +40,27 @@ next
   from steps
   obtain C'
     where steps1: "C1 ~~ tr' \<leadsto>* C'" 
-      and steps2: "C' ~~ [a', (s, a)] \<leadsto>* C2"
+      and steps2: "C' ~~ [a', (i, a)] \<leadsto>* C2"
     by (auto simp add: steps_append)
 
   have wf': "state_wellFormed C'"
     using local.wf state_wellFormed_combine steps1 noFail2a by auto 
 
   from steps2
-  have steps2': "C' ~~ [(s, a), a'] \<leadsto>* C2"
+  have steps2': "C' ~~ [(i, a), a'] \<leadsto>* C2"
     using tr_canSwap by (metis canSwap_def list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1 tr_different_session wf') 
 
   from steps1 steps2'
-  have "C1 ~~ tr' @  [(s, a), a'] \<leadsto>* C2"
+  have "C1 ~~ tr' @  [(i, a), a'] \<leadsto>* C2"
     using steps_append2 by blast
 
   from this 
   obtain C''
-    where steps1': "C1 ~~ tr' @  [(s, a)] \<leadsto>* C''" and steps2'': "C'' ~~ [a'] \<leadsto>* C2"
+    where steps1': "C1 ~~ tr' @  [(i, a)] \<leadsto>* C''" and steps2'': "C'' ~~ [a'] \<leadsto>* C2"
     by (metis (no_types, hide_lams) append.assoc append_Cons append_Nil steps_append)
 
   from steps1' IH
-  have steps1'': "C1 ~~ [(s, a)] @ tr' \<leadsto>* C''"
+  have steps1'': "C1 ~~ [(i, a)] @ tr' \<leadsto>* C''"
     by (simp add: snoc.prems(2) snoc.prems(3))
 
 

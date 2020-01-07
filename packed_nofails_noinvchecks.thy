@@ -1055,7 +1055,8 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 qed
 
 
-find_consts name: allowed
+
+(* TODO move lemmas below*)
 
 definition noContextSwitchesInTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
   "noContextSwitchesInTransaction tr \<equiv> \<forall>i k invoc. 
@@ -1807,7 +1808,6 @@ next
     qed
   qed
 qed
-
 
 
 
