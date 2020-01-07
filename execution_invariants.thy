@@ -421,7 +421,7 @@ next
 
     from a1 
     have a3: "\<And>k. \<lbrakk>k < length tr; beginPos < k\<rbrakk> \<Longrightarrow> tr ! k \<noteq> (invoc, AEndAtomic)"
-      by (metis butlast_snoc length_append_singleton lessI less_imp_le less_le_trans nth_butlast step.prems(3))
+      by (metis length_append_singleton less_SucI nth_append_first step.prems(3))
 
     from a1 a2 a3 
     have IH: "currentTransaction S' invoc \<noteq> None"
