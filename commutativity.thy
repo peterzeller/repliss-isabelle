@@ -140,6 +140,8 @@ method prove_canSwap'' uses simp  = (
     auto del: ext  simp add: simp step_simps fun_upd_twist intro!: show_state_calls_eq ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
 
 
+lemma not_is_AInvcheck: "\<not>is_AInvcheck a \<Longrightarrow> a \<noteq> AInvcheck i"
+  by (simp add: is_AInvcheck_def) 
 
 
 text "The following are all the relevant cases where canSwap is true:"
@@ -151,195 +153,27 @@ lemma canSwap_cases:
     and no_fail_a: "a \<noteq> AFail"
     and no_fail_b: "b \<noteq> AFail"    
   shows "canSwap t a b"
-proof (cases b)
-  case ALocal
-  hence [simp]: " b = ALocal" .
+proof (cases a; cases b)
+  fix tx txns
+  assume [simp]: "a = ABeginAtomic tx txns" 
+    and [simp]: "b = AEndAtomic"
+  show "canSwap t a b"
+    by (prove_canSwap'' simp:   wellFormed_currentTransactionUncommitted  )
+next 
+  fix tx txns c op r
+  assume [simp]: "a = ABeginAtomic tx txns" 
+    and [simp]: "b = ADbOp c op r"
+  show "canSwap t a b"
+    by (prove_canSwap'' simp: wellFormed_callOrigin_dom2  wellFormed_currentTransactionUncommitted  )
+next 
+  fix c1 op1 r1 c2 op2 r2
+  assume [simp]: "a = ADbOp c1 op1 r1" 
+    and [simp]: "b = ADbOp c2 op2 r2"
+  show "canSwap t a b"
+    by (prove_canSwap'' simp:  getContextH_callsUpdate getContextH_visUpdate wellFormed_visibleCallsSubsetCalls2)  
+next
+qed (auto simp add: assms not_is_AInvcheck, (prove_canSwap'' simp: in_mono)+) \<comment> \<open>Big case analysis, takes around 40 seconds\<close>
 
-  show ?thesis
-  proof (cases a)
-    case ALocal
-    then show ?thesis by prove_canSwap''
-  next
-    case (ANewId x2)
-    then show ?thesis by prove_canSwap''
-  next
-    case (ABeginAtomic x31 x32)
-    then show ?thesis  by prove_canSwap''
-  next
-    case AEndAtomic
-    then show ?thesis  by prove_canSwap''
-  next
-    case (ADbOp x51 x52 x53)
-    then show ?thesis  by prove_canSwap''
-  next
-    case (AInvoc x6)
-    then show ?thesis  by prove_canSwap''
-  next
-    case (AReturn x7)
-    then show ?thesis  by prove_canSwap''
-  next
-    case AFail
-    then show ?thesis  by prove_canSwap''
-  next
-    case (AInvcheck x9)
-    then show ?thesis  by prove_canSwap''
-  qed
-next
-  case (ANewId bid)
-  then have [simp]: "b = ANewId bid" .
-
-  show ?thesis
-  proof (cases a)
-    case ALocal
-    then show ?thesis  by prove_canSwap''
-  next
-    case (ANewId x2)
-    then show ?thesis  by prove_canSwap''
-  next
-    case (ABeginAtomic x31 x32)
-    then show ?thesis  by prove_canSwap''
-  next
-    case AEndAtomic
-    then show ?thesis  by prove_canSwap''
-  next
-    case (ADbOp x51 x52 x53)
-    then show ?thesis  by prove_canSwap''
-  next
-    case (AInvoc x6)
-    then show ?thesis  by prove_canSwap''
-  next
-    case (AReturn x7)
-    then show ?thesis  by prove_canSwap''
-  next
-    case AFail
-    then show ?thesis  by prove_canSwap''
-  next
-    case (AInvcheck x9)
-    then show ?thesis  by prove_canSwap''
-  qed
-
-next
-  case (ABeginAtomic x31 x32)
-  then show ?thesis
-    using no_begin_atomic by blast
-next
-  case AEndAtomic
-  then have [simp]: "b = AEndAtomic" .
-  then show ?thesis 
-  proof (cases a)
-    case ALocal
-    then show ?thesis  by prove_canSwap''
-  next
-    case (ANewId x2)
-    then show ?thesis  by prove_canSwap''
-  next
-    case (ABeginAtomic x31 x32)
-    then show ?thesis 
-      by (prove_canSwap'' simp:   wellFormed_currentTransactionUncommitted  )
-  next
-    case AEndAtomic
-    then show ?thesis 
-      by prove_canSwap''
-  next
-    case (ADbOp )
-    then show ?thesis 
-      by prove_canSwap''
-  next
-    case (AInvoc )
-    then show ?thesis
-      by prove_canSwap''
-  next
-    case (AReturn x7)
-    then show ?thesis by prove_canSwap''
-  next
-    case AFail
-    then show ?thesis by prove_canSwap''
-  next
-    case (AInvcheck r)
-    then show ?thesis
-      using is_AInvcheck_def no_invcheck_a by auto 
-  qed
-next
-  case (ADbOp c op r)
-  then have [simp]: "b = ADbOp c op r" .
-  then show ?thesis 
-  proof (cases a)
-    case ALocal
-    then show ?thesis  by prove_canSwap''
-  next
-    case (ANewId x2)
-    then show ?thesis by prove_canSwap''
-  next
-    case (ABeginAtomic x31 x32)
-    then show ?thesis by (prove_canSwap'' simp: wellFormed_callOrigin_dom2  wellFormed_currentTransactionUncommitted  )
-  next
-    case AEndAtomic
-    then show ?thesis by prove_canSwap''
-  next
-    case (ADbOp )
-    then show ?thesis
-      by (prove_canSwap'' simp:  getContextH_callsUpdate getContextH_visUpdate wellFormed_visibleCallsSubsetCalls2)  
-  next
-    case (AInvoc )
-    then show ?thesis by prove_canSwap''
-  next
-    case (AReturn x7)
-    then show ?thesis by prove_canSwap''
-  next
-    case AFail
-    then show ?thesis
-      using no_fail_a by blast 
-  next
-    case (AInvcheck r)
-    then show ?thesis
-      using is_AInvcheck_def no_invcheck_a by blast 
-  qed
-next
-  case (AInvoc )
-  then show ?thesis
-    using no_invoc by auto
-next
-  case (AReturn res)
-  then have [simp]: "b = AReturn res" .
-  then show ?thesis 
-  proof (cases a)
-    case ALocal
-    then show ?thesis by prove_canSwap''
-  next
-    case (ANewId x2)
-    then show ?thesis by prove_canSwap''
-  next
-    case (ABeginAtomic x31 x32)
-    then show ?thesis by prove_canSwap''
-  next
-    case AEndAtomic
-    then show ?thesis by prove_canSwap''
-  next
-    case (ADbOp)
-    then show ?thesis by prove_canSwap''
-  next
-    case (AInvoc)
-    then show ?thesis by prove_canSwap''
-  next
-    case (AReturn x7)
-    then show ?thesis by prove_canSwap''
-  next
-    case AFail
-    then show ?thesis by prove_canSwap''
-  next
-    case (AInvcheck r)
-    then show ?thesis
-      using is_AInvcheck_def no_invcheck_a by auto 
-  qed
-next
-  case AFail
-  then show ?thesis
-    using no_fail_b by blast 
-next
-  case (AInvcheck r)
-  then show ?thesis
-    using is_AInvcheck_def no_invcheck_b by auto 
-qed
 
 
 end
