@@ -4,6 +4,7 @@ theory single_invocation_reduction
     repliss_sem_single_invocation
     consistency
     packed_nofails_noinvchecks
+    single_invocation_reduction_helper
 begin
 
 
