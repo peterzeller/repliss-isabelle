@@ -11,6 +11,7 @@ theorem show_programCorrect_noTransactionInterleaving:
   assumes packedTracesCorrect: 
     "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
+
   unfolding programCorrect_def proof -
   text "We only have to consider traces without AFail actions"
   show "\<forall>trace\<in>traces program. traceCorrect trace"
@@ -23,16 +24,6 @@ theorem show_programCorrect_noTransactionInterleaving:
     from is_trace 
     obtain s where steps: "initialState program ~~ tr \<leadsto>* s"
       by (auto simp add: traces_def)
-
-(*
-    text "Then there is a reshuffling of the trace, where transactions are not interleaved"
-    then obtain tr' s'
-      where steps': "initialState program ~~ tr' \<leadsto>* s'" 
-        and txpacked': "transactionsArePacked tr'"
-        and correct': "traceCorrect tr' \<longleftrightarrow> traceCorrect tr"
-        and nofail': "\<forall>s. (s, AFail) \<notin> set tr'"
-      using canPackTransactions noFail by blast
-    *)
 
     show "traceCorrect tr" 
     proof (rule ccontr)

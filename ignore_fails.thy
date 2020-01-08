@@ -59,9 +59,9 @@ proof (rule iffI2; clarsimp)
            \<and> currentProc S'' s = currentProc S' s
            \<and> visibleCalls S'' s = visibleCalls S' s 
          ))
-        )"
+        )"                      
     proof (induct rule: trace_simulationProof)
-      case initial
+      case initial                    
       then show ?case by auto
     next
       case f_empty_to_empty
