@@ -5,6 +5,7 @@ theory single_invocation_reduction
     consistency
     packed_nofails_noinvchecks
     single_invocation_reduction_helper
+state_monotonicGrowth_invariants
 begin
 
 
@@ -15,19 +16,13 @@ We reduce the verification problem from the interleaving semantics to the single
 
 text \<open>Coupling invariant: S is state from distributed execution and S is state from single-invocId execution.\<close>
 definition state_coupling :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> invocId \<Rightarrow> bool \<Rightarrow> bool" where
-  "state_coupling S S' i sameSession \<equiv> 
-   if sameSession then
+  "state_coupling S S' i sameInvoc \<equiv> 
+   if sameInvoc then
       \<comment> \<open>  did a step in the same invocId  \<close>
       S' = S
    else 
       \<comment> \<open>  did step in a different invocId  \<close>
         state_monotonicGrowth i S' S
-      \<comment> \<open>  local state on s unchanged  \<close>
-      \<and> localState S i = localState S' i
-      \<and> currentProc S i = currentProc S' i
-      \<and> currentTransaction S i = currentTransaction S' i
-      \<and> visibleCalls S i = visibleCalls S' i
-      \<and> (\<forall>t. transactionOrigin S' t \<triangleq> i \<longleftrightarrow> transactionOrigin S t \<triangleq> i)
       "
 
 
@@ -874,12 +869,18 @@ next
       then have ih3: "state_coupling S' S2 s  False" using ih3' by simp
 
       from ih3  
-      have S2_simps: "state_monotonicGrowth s S2 S'" 
-        "localState S2 s = localState S' s" 
-        "currentProc S2 s = currentProc S' s" 
-        "currentTransaction S2 s = currentTransaction S' s" 
-        "visibleCalls S2 s = visibleCalls S' s"
+      have growth: "state_monotonicGrowth s S2 S'" 
         by (auto simp add: state_coupling_def)
+
+
+      from this 
+      have  ls_same: "localState S2 s = localState S' s" 
+        and proc_same: "currentProc S2 s = currentProc S' s" 
+        and tx_same: "currentTransaction S2 s = currentTransaction S' s" 
+        and visible_same: "visibleCalls S2 s = visibleCalls S' s"
+        by (auto simp add:  state_monotonicGrowth_localState state_monotonicGrowth_currentProc state_monotonicGrowth_currentTransaction state_monotonicGrowth_visibleCalls)
+
+
 
 
       text \<open>Because the trace is packed, there can only be two cases where we can go from another invocId to s:\<close>
@@ -960,12 +961,12 @@ next
           have "S2 ~~ (s, ABeginAtomic tx snapshot, True) \<leadsto>\<^sub>S S''"
           proof (rule step_s.beginAtomic)
             show "localState S2 s \<triangleq> ls"
-              using a2 ih3 by (simp add: state_coupling_def) 
-            show "currentProc S2 s \<triangleq> f"  
-              using a3 ih3  by (simp add: state_coupling_def)
+              by (simp add: a2 ls_same)
+            show "currentProc S2 s \<triangleq> f"
+              by (simp add: a3 proc_same)  
             show "f ls = BeginAtomic ls'" using a4 .
             show "currentTransaction S2 s = None"
-              using a5 ih3  by (auto simp add: state_coupling_def)
+              using a5 tx_same by auto
             show "transactionStatus S2 tx = None"
             proof -
               from ih3 have "transactionStatus S2 tx \<le> transactionStatus S' tx"
@@ -1057,11 +1058,11 @@ next
 
             from \<open>visibleCalls S' s \<triangleq> vis\<close>
             show "visibleCalls S2 s \<triangleq> vis"
-              by (auto simp add: S2_simps)
+              using visible_same by auto
 
 
             show " \<And>t. transactionOrigin S2 t \<triangleq> s = transactionOrigin S' t \<triangleq> s"
-              using ih3 state_coupling_def by force
+              using growth state_monotonicGrowth_transactionOrigin_i by blast
 
             have wf_S': "state_wellFormed S'"
               using S_wf noFails_tr state_wellFormed_combine steps by auto
@@ -1203,8 +1204,7 @@ next
     next
       case (beginAtomic C s' ls f ls' t vis  vis')
       then show ?case using old_coupling different_session wf_S''
-        apply (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="get_invoc a" and a="get_action a"])
-        using \<open>state_wellFormed S'\<close> wf_transaction_status_iff_origin by force
+        by (auto simp add: state_coupling_def step_simps intro: state_monotonicGrowth_step[OF wf_S2, where i'="get_invoc a" and a="get_action a"])
     next
       case (endAtomic C s ls f ls' t)
       then show ?case using old_coupling different_session wf_S'' 
@@ -1364,7 +1364,8 @@ next
   proof (rule step_s.intros)
     
     have "localState S2 s = None"
-      using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
+      using invocation coupling
+      by (metis state_coupling_def state_monotonicGrowth_localState)
     have "\<And>x. invocationOp S2 s \<noteq> Some x"      
       using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_invocationOp split: if_splits)
     then show "invocationOp S2 s = None" by blast     
