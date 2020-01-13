@@ -5,7 +5,7 @@ theory single_invocation_reduction
     consistency
     packed_nofails_noinvchecks
     single_invocation_reduction_helper
-state_monotonicGrowth_invariants
+    state_monotonicGrowth_invariants
 begin
 
 
@@ -25,6 +25,10 @@ definition state_coupling :: "('proc::valueType, 'ls, 'operation, 'any::valueTyp
         state_monotonicGrowth i S' S
       "
 
+lemma state_coupling_refl: 
+  assumes "state_wellFormed S"
+  shows "state_coupling S S i s"
+  by (auto simp add: state_coupling_def  state_monotonicGrowth_def assms steps_empty intro: exI[where x="[]"])
 
 
 
@@ -46,6 +50,11 @@ proof -
   show "invariant_all S' \<longleftrightarrow> invariant_all S"
     by  (auto simp add:  consistentSnapshotH_def)
 qed    
+
+
+lemma state_monotonicGrowth_refl2:
+  shows "state_wellFormed S \<and> S = S' \<Longrightarrow> state_monotonicGrowth i S S'"
+  using state_monotonicGrowth_refl by blast
 
 
 text \<open>
@@ -219,109 +228,38 @@ next
         using steps_step.prems(4) by auto
 
 
+      obtain action where a_def: "a = (i, action)"
+        using \<open>get_invoc a = i\<close> surjective_pairing by blast
+
+
+
+      from ` S' ~~ a \<leadsto> S''`
+      have "S' ~~ (i,get_action a) \<leadsto> S''"
+        by (simp add: a_def)
+
+
+
+
+
       show ?goal
       proof (cases "get_action a")
         case ALocal
-        then have "a = (i, ALocal)"
+        then have [simp]: "a = (i, ALocal)"
           by (simp add: prod.expand) 
 
-        with step
-        have step': "S' ~~ (i, ALocal) \<leadsto> S''" by simp
 
-        from step_elim_ALocal[OF step']
-        obtain ls f ls' 
-          where a1: "S'' = S'\<lparr>localState := localState S'(i \<mapsto> ls')\<rparr>"
-            and a2: "localState S' i \<triangleq> ls"
-            and a3: "currentProc S' i \<triangleq> f"
-            and a4: "f ls = LocalStep ls'"
-          by metis
-
-        have a2': "localState S2 i \<triangleq> ls" 
-          using a2 ih3 by (auto simp add: state_coupling_def split: if_splits)
-        have a3': "currentProc S2 i \<triangleq> f" 
-          using a3 ih3 by (auto simp add: state_coupling_def split: if_splits)
-        from a2' a3' a4
-        have step_s: "S2 ~~ (i,(ALocal,True)) \<leadsto>\<^sub>S S2\<lparr>localState := localState S2(i \<mapsto> ls')\<rparr>"
-          by (rule step_s.local)
-
-        have S''_S2: "S'' = S2\<lparr>localState := localState S2(i \<mapsto> ls'), visibleCalls := visibleCalls S''\<rparr>"  
-          by (auto simp add: state_ext \<open>S2 = S'\<close>  a1)
-
-        then have S''_S2_a: "S2\<lparr>localState := localState S2(i \<mapsto> ls')\<rparr> = S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"  
-          by (auto simp add: state_ext)
-
-        from ih1
-        have steps_s: "S ~~ (i, tr'@[(ALocal, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"
-        proof (rule steps_s_step)
-          from step_s
-          show "S2 ~~ (i, ALocal, True) \<leadsto>\<^sub>S S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"
-            using a1 S''_S2_a by auto
-        qed  
-
-        show ?thesis 
-        proof (intro exI conjI)
-          show "S ~~ (i, tr'@[(ALocal, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>" using steps_s .
-          show "\<forall>a. (a, False) \<notin> set (tr' @ [(ALocal, True)])"
-            by (simp add: ih2) 
-          show "state_coupling S'' (S''\<lparr>visibleCalls := visibleCalls S2\<rparr>) i True"
-            (*show "if currentTransaction S'' s = None 
-            then \<exists>vis'. vis' orElse {} \<subseteq> visibleCalls S'' s orElse {} \<and> S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''\<lparr>visibleCalls := (visibleCalls S'')(s := vis')\<rparr>
-            else S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"*)
-            unfolding state_coupling_def
-          proof auto
-            show " S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S''"
-              by (auto simp add: ih3_tx a1)
-          qed
-        qed
+        show ?thesis
+          using step
+          by (intro exI[where x="tr'@[(ALocal, True)]"] exI[where x=S''],
+              auto simp add: state_coupling_def ih2 step_s.simps step.simps ih3_tx intro!: steps_s_step[OF ih1])
       next
         case (ANewId uid)
         then have [simp]: "a = (i, ANewId uid)"
           by (simp add: prod_eqI steps_step.prems) 
-
-        with step
-        have step': "S' ~~ (i, ANewId uid) \<leadsto> S''" by simp
-
-        from step_elim_ANewId[OF step']
-        obtain ls f ls' ls''
-          where a1: "S'' = S'\<lparr>localState := localState S'(i \<mapsto> ls''), generatedIds :=  generatedIds S'(to_nat uid \<mapsto> i)\<rparr>"
-            and a2: "localState S' i \<triangleq> ls"
-            and a3: "currentProc S' i \<triangleq> f"
-            and a4: "f ls = NewId ls'"
-            and a5: "generatedIds S' (to_nat uid) = None"
-            and a6: "uniqueIds uid = {to_nat uid}"
-            and a7: "ls' uid \<triangleq> ls''"
-          by metis  
-
-        have a2':  "localState S2 i \<triangleq> ls" using a2 by (simp add: S2_localState) 
-        have a3':  "currentProc S2 i \<triangleq> f" using a3 by (simp add: S2_currentProc)
-        have a5':  "generatedIds S2 (to_nat uid) = None" using a5 by (simp add: S2_generatedIds)
-
-        from a2' a3' a4 a5' a6 a7
-        have step_s: "S2 ~~ (i,(ANewId uid,True)) \<leadsto>\<^sub>S S2\<lparr>localState := localState S2(i \<mapsto> ls''), generatedIds :=  generatedIds S2(to_nat uid \<mapsto> i)\<rparr>"
-          by (metis step_s.newId)
-
-        have S''_S2: "S''\<lparr>visibleCalls := visibleCalls S2\<rparr> = S2\<lparr>localState := localState S2(i \<mapsto> ls''), generatedIds := generatedIds S2(to_nat uid \<mapsto> i)\<rparr>" 
-          by (auto simp add: a1 S2_simps)
-
-
-        from ih1
-        have steps_s: "S ~~ (i, tr'@[(ANewId uid, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"
-        proof (rule steps_s_step)
-          from step_s
-          show "S2 ~~ (i, ANewId uid, True) \<leadsto>\<^sub>S S''\<lparr>visibleCalls := visibleCalls S2\<rparr>"
-            using S''_S2 by auto
-        qed  
-
-        show ?thesis 
-        proof (intro exI conjI)
-          show "S ~~ (i, tr'@[(ANewId uid, True)]) \<leadsto>\<^sub>S* S''\<lparr>visibleCalls := visibleCalls S2\<rparr>" using steps_s .
-          show "\<forall>a. (a, False) \<notin> set (tr' @ [(ANewId uid, True)])"
-            by (simp add: ih2) 
-          show "state_coupling S'' (S''\<lparr>visibleCalls := visibleCalls S2\<rparr>) i True"
-            unfolding state_coupling_def
-            by (simp add: a1 ih3_tx)
-
-        qed  
+        show ?thesis
+          using step
+          by (intro exI[where x="tr'@[(ANewId uid, True)]"] exI[where x=S''],
+              auto simp add: state_coupling_def ih2 step_s.simps step.simps ih3_tx intro!: steps_s_step[OF ih1])
 
       next
         case (ABeginAtomic txId snapshot)
