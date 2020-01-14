@@ -326,6 +326,14 @@ definition allowed_context_switch where
             (\<exists>txId txns. action = ABeginAtomic txId txns) 
           \<or> (\<exists>p. action = AInvoc p)"
 
+lemma allowed_context_switch_cases[elim, case_names invoc beginAtomic]:
+  assumes "allowed_context_switch action"
+    and "\<And>p. action = AInvoc p \<Longrightarrow> P"
+    and "\<And>txId txns. action = ABeginAtomic txId txns \<Longrightarrow> P"
+  shows P
+  using allowed_context_switch_def assms by blast
+
+
 
 lemma allowed_context_switch_simps:
   shows "\<not>allowed_context_switch ALocal" 

@@ -1164,6 +1164,31 @@ proof (rule ccontr)
     by (auto, smt a min_nat_induct not_le_imp_less)
 qed
 
+text "Case distinctions with different number of cases"
+
+lemma cases_3[case_names case1 case2 case3]: 
+  assumes "A \<Longrightarrow> P"
+    and "B \<Longrightarrow> P"
+    and "\<not>A \<Longrightarrow> \<not>B \<Longrightarrow> P"
+  shows "P"
+  using assms by auto
+
+lemma cases_4[case_names case1 case2 case3 case4]: 
+  assumes "A \<Longrightarrow> P"
+    and "B \<Longrightarrow> P"
+    and "C \<Longrightarrow> P"
+    and "\<not>A \<Longrightarrow> \<not>B \<Longrightarrow> \<not>C \<Longrightarrow> P"
+  shows "P"
+  using assms by auto
+
+lemma cases_5[case_names case1 case2 case3 case4 case5]: 
+  assumes "A \<Longrightarrow> P"
+    and "B \<Longrightarrow> P"
+    and "C \<Longrightarrow> P"
+    and "D \<Longrightarrow> P"
+    and "\<not>A \<Longrightarrow> \<not>B \<Longrightarrow> \<not>C \<Longrightarrow> \<not>D \<Longrightarrow> P"
+  shows "P"
+  using assms by auto
 
 
 end
