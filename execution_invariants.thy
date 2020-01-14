@@ -2122,5 +2122,23 @@ next
 qed
 
 
+lemma no_steps_in_i:
+  assumes steps: "S ~~ tr \<leadsto>* S'" 
+    and no_invoc: "invocationOp S' i = None"
+    and a_from_tr: "a \<in> set tr"
+and wf: "state_wellFormed S"
+and noCrash: "\<And>i. (i, ACrash) \<notin> set tr"
+and noInvcheck: "\<And>i r. (i, AInvcheck r) \<notin> set tr" 
+shows "get_invoc a \<noteq> i"
+ using assms proof (induct  rule: steps_induct)
+case initial
+  then show ?case 
+    by simp
+next
+  case (step S' tr a S'')
+  then show ?case
+    by (auto simp add: step.simps state_wellFormed_combine wf_localState_to_invocationOp split: if_splits)
+
+qed
 
 end

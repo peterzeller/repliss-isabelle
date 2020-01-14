@@ -56,8 +56,52 @@ lemma state_monotonicGrowth_refl2:
   shows "state_wellFormed S \<and> S = S' \<Longrightarrow> state_monotonicGrowth i S S'"
   using state_monotonicGrowth_refl by blast
 
-thm step_s.simps
+lemma no_current_transactions:
+  assumes steps: "S ~~ tr \<leadsto>* S'"
+    and S_wf: "state_wellFormed S"
+    and packed: "packed_trace tr"
+    and noChrash: "\<And>i. (i, ACrash) \<notin> set tr"
+    and noUncommitted: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+    and noContextSwitch: "noContextSwitchesInTransaction tr"
+    and ls_None: "localState S' i = None"
+    and i_is_last: "tr = [] \<or> get_invoc (last tr) = i"
+  shows "currentTransaction S' i' = None"
+proof -
 
+  have S'_wf: "state_wellFormed S'"
+    using S_wf noChrash state_wellFormed_combine steps by blast
+
+
+  have vis_None: "visibleCalls S' i = None"
+    using S'_wf ls_None state_wellFormed_ls_visibleCalls by blast
+
+
+  have at_most_one_tx: "(\<forall>i tx. ((i, tx) \<in> openTransactions tr) = currentTransaction S' i \<triangleq> tx) \<and> (\<forall>i j. currentTransaction S' i \<noteq> None \<and> currentTransaction S' j \<noteq> None \<longrightarrow> i = j)"
+  proof (rule at_most_one_active_tx[OF \<open> S ~~ tr \<leadsto>* S'\<close>])
+    show "state_wellFormed S"
+      using S_wf by auto
+    show "packed_trace tr"
+      by (simp add: packed)
+    show " \<And>s. (s, ACrash) \<notin> set tr"
+      using noChrash by auto
+    show  " \<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+      using noUncommitted by blast
+    show  "noContextSwitchesInTransaction tr"
+      by (simp add: noContextSwitch)
+  qed
+
+
+  have noCurrentTransactionI: "currentTransaction S' i = None"
+    by (meson S'_wf option.exhaust_sel state_wellFormed_tx_to_visibleCalls vis_None)
+
+
+  show noCurrentTransaction: "currentTransaction S' i' = None" 
+    using at_most_one_current_tx[OF \<open>S ~~ tr \<leadsto>* S'\<close> \<open>noContextSwitchesInTransaction tr\<close> \<open>packed_trace tr\<close> \<open>state_wellFormed S\<close> \<open>\<And>s. (s, ACrash) \<notin> set tr\<close> noUncommitted]
+    using i_is_last noCurrentTransactionI
+    by (metis S'_wf noUncommitted option.exhaust steps steps_empty wellFormed_currentTransaction_unique_h(2)) 
+
+
+qed
 
 text \<open>
 If we have an execution on a a single invocId starting with state satisfying the invariant, then we can convert 
@@ -254,6 +298,7 @@ next
         case True
         from this obtain proc where "get_action a = AInvoc proc" by blast
 
+
         show ?thesis
         proof (intro exI conjI)
           show "\<forall>a. (a, False) \<notin> set [(AInvoc proc, True)]"
@@ -295,53 +340,14 @@ next
               by (simp add: ih3_tx vis_None)
 
 
-
             then have invContextSame: "invContext S2 =  invContext S'"
               by (auto simp add: S2_simps vis_None invContextH_def)
 
 
-
-
-
-            have at_most_one_tx: "(\<forall>i tx. ((i, tx) \<in> openTransactions tr) = currentTransaction S' i \<triangleq> tx) \<and> (\<forall>i j. currentTransaction S' i \<noteq> None \<and> currentTransaction S' j \<noteq> None \<longrightarrow> i = j)"
-            proof (rule at_most_one_active_tx[OF \<open> S ~~ tr \<leadsto>* S'\<close>])
-              show "state_wellFormed S"
-                using S_wf by auto
-              show "packed_trace tr"
-                using packed packed_trace_prefix by auto
-              show " \<And>s. (s, ACrash) \<notin> set tr"
-                using steps_step.prems(4) by auto
-              show  " \<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-                using steps_step.prems(5) by blast
-              show  "noContextSwitchesInTransaction tr"
-                using isPrefix_appendI noContextSwitch prefixes_noContextSwitchesInTransaction by blast
-            qed
-
-
-            have noCurrentTransaction_s: "currentTransaction S' i = None"
-              using vis_None vis_defined by blast 
-
-
-
-
-
-            have noCurrentTransaction: "currentTransaction S' i' = None" for i'
-              using \<open>S' ~~ a \<leadsto> S''\<close>
-              using \<open>get_invoc a = i\<close> a2 \<open>get_action a = AInvoc proc\<close> apply (auto simp add: step.simps)
-
-              using at_most_one_current_tx[OF \<open>S ~~ tr \<leadsto>* S'\<close> \<open>noContextSwitchesInTransaction tr\<close> \<open>packed_trace tr\<close> \<open>state_wellFormed S\<close> \<open>\<And>s. (s, ACrash) \<notin> set tr\<close>]
-              by (metis S'_wf \<open>\<And>P. (\<And>initialState impl. \<lbrakk>S'' = S' \<lparr>localState := localState S'(i \<mapsto> initialState), currentProc := currentProc S'(i \<mapsto> impl), visibleCalls := visibleCalls S'(i \<mapsto> {}), invocationOp := invocationOp S'(i \<mapsto> proc)\<rparr>; localState S' i = None; procedure (prog S') proc = (initialState, impl); uniqueIds proc \<subseteq> knownIds S'; invocationOp S' i = None\<rbrakk> \<Longrightarrow> P) \<Longrightarrow> P\<close> \<open>tr = [] \<or> get_invoc (last tr) = i\<close> option.exhaust steps steps_empty steps_step.prems(5) wellFormed_currentTransaction_unique_h(2) wellFormed_invoc_notStarted(1))
-
-            from at_most_one_tx and noCurrentTransaction
-            have noOpenTxns: "openTransactions tr = {}" \<comment> \<open>TODO allgemeines lemma raus ziehen\<close>
-              by auto
-
-
-
-            with at_most_one_tx
             have currentTxNone: "\<And>i. currentTransaction S' i = None"
-              by auto
-
+              using `S ~~ tr \<leadsto>* S'` S_wf tr_packed tr_noFail `\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted`
+                tr_noSwitch `localState S' i = None` \<open>tr = [] \<or> get_invoc (last tr) = i\<close>
+              by (rule no_current_transactions)
 
 
             have step_s': "S ~~ (i, (AInvoc proc, True)) \<leadsto>\<^sub>S S'' "
@@ -363,7 +369,7 @@ next
               show "invariant_all S'"
                 using ih3' inv_S' state_coupling_same_inv by auto
               show "True = invariant_all S''"
-                by (metis append.right_neutral isPrefix_appendI local.step prefix_invariant steps steps.steps_step)
+                using inv_S'' by blast
               show "prog S' = prog S"
                 using steps steps_do_not_change_prog by blast
               show "state_wellFormed S'"
@@ -371,8 +377,7 @@ next
 
 
               show "\<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
-                using currentTxNone \<open>state_wellFormed S'\<close> wellFormed_currentTransaction_back
-                by (metis S_wf butlast_snoc in_set_butlastD option.distinct(1) steps steps_step.prems(4) steps_step.prems(5))
+                by (simp add: S'_wf currentTxNone wellFormed_currentTransaction_back4)
 
               have "\<And>tx. transactionOrigin S' tx \<noteq> Some i"
                 by (simp add: S'_wf a5 wf_no_invocation_no_origin)
