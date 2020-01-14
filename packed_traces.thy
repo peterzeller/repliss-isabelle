@@ -326,7 +326,7 @@ definition allowed_context_switch where
             (\<exists>txId txns. action = ABeginAtomic txId txns) 
           \<or> (\<exists>p. action = AInvoc p)"
 
-lemma allowed_context_switch_cases[elim, case_names invoc beginAtomic]:
+lemma allowed_context_switch_cases[consumes 1, elim, case_names invoc beginAtomic]:
   assumes "allowed_context_switch action"
     and "\<And>p. action = AInvoc p \<Longrightarrow> P"
     and "\<And>txId txns. action = ABeginAtomic txId txns \<Longrightarrow> P"
