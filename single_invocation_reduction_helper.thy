@@ -112,7 +112,7 @@ lemma packed_trace_drop:
 lemma noContextSwitchAllowedInTransaction:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and  packed: "packed_trace tr"
-    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
+    and noFail: "\<And>i. (i, ACrash) \<notin> set tr"
     and beginAtomic: "tr ! i = (invoc, ABeginAtomic tx txns)"
     and noEndAtomic: "\<forall>j. i < j \<and> j < k \<longrightarrow> get_action (tr!j) \<noteq> AEndAtomic"
     and sameInvoc: "get_invoc (tr!j) = invoc"
@@ -138,7 +138,7 @@ proof
             \<not> (z ~~ ps \<leadsto>* za) 
           \<or> \<not> n < length ps 
           \<or> ps ! n \<noteq> (i, ABeginAtomic t C) 
-          \<or> (\<exists>na. (n < na \<and> na < length ps) \<and> ps ! na = (i, AFail)) 
+          \<or> (\<exists>na. (n < na \<and> na < length ps) \<and> ps ! na = (i, ACrash)) 
           \<or> (\<exists>na. (n < na \<and> na < length ps) \<and> ps ! na = (i, AEndAtomic)) 
           \<or> currentTransaction za i \<triangleq> t"
     by (meson currentTransaction2)
@@ -154,7 +154,7 @@ proof
       using i_less_j k_length k_less_k by auto
     show "take j tr ! i = (invoc, ABeginAtomic tx txns)"
       by (simp add: i_less_j local.beginAtomic)
-    show "\<And>ja. \<lbrakk>i < ja; ja < length (take j tr)\<rbrakk> \<Longrightarrow> take j tr ! ja \<noteq> (invoc, AFail)"
+    show "\<And>ja. \<lbrakk>i < ja; ja < length (take j tr)\<rbrakk> \<Longrightarrow> take j tr ! ja \<noteq> (invoc, ACrash)"
       using noFail nth_mem by fastforce
     show " \<And>ja. \<lbrakk>i < ja; ja < length (take j tr)\<rbrakk> \<Longrightarrow> take j tr ! ja \<noteq> (invoc, AEndAtomic)"
       using k_less_k noEndAtomic by auto
@@ -173,7 +173,7 @@ lemma noContextSwitchesInTransaction_when_packed_and_all_end:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and "allTransactionsEnd tr"
     and "packed_trace tr"
-    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
+    and noFail: "\<And>i. (i, ACrash) \<notin> set tr"
     and wf: "state_wellFormed S"
   shows "noContextSwitchesInTransaction tr"
 proof (auto simp add: noContextSwitchesInTransaction_def)
@@ -230,7 +230,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
       using \<open>i < length (take j_min tr)\<close> a1 by auto
 
     show " \<forall>j. i < j \<and> j < length (take j_min tr) \<longrightarrow>
-        take j_min tr ! j \<noteq> (invoc, AEndAtomic) \<and> take j_min tr ! j \<noteq> (invoc, AFail)"
+        take j_min tr ! j \<noteq> (invoc, AEndAtomic) \<and> take j_min tr ! j \<noteq> (invoc, ACrash)"
       using a3 a5_min noFail nth_mem by fastforce
   qed
 
@@ -377,7 +377,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
       show " S ~~ take j_min tr @ [tr ! j_min] \<leadsto>* S_j_min"
         using \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> \<open>S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min\<close>
         using steps_step by blast 
-      show "\<And>i. (i, AFail) \<notin> set (take j_min tr @ [tr ! j_min])"
+      show "\<And>i. (i, ACrash) \<notin> set (take j_min tr @ [tr ! j_min])"
         using noFail \<open>back_min < length tr\<close> \<open>j_min < back_min\<close> 
         by (auto, metis a6_min allowed_context_switch_simps(8) snd_conv, meson in_set_takeD)
     qed
@@ -386,7 +386,7 @@ proof (auto simp add: noContextSwitchesInTransaction_def)
       by (auto simp add: in_set_conv_nth,
        metis add.commute add_Suc back_min_min fst_conv less_add_Suc1 less_diff_conv linorder_not_le)
 
-    show "\<And>a. a \<in> set (take (back_min - Suc j_min) (drop (Suc j_min) tr)) \<Longrightarrow> a \<noteq> (invoc, AFail)"
+    show "\<And>a. a \<in> set (take (back_min - Suc j_min) (drop (Suc j_min) tr)) \<Longrightarrow> a \<noteq> (invoc, ACrash)"
       by (meson in_set_dropD in_set_takeD noFail)
   qed
 
@@ -419,7 +419,7 @@ lemma only_one_commmitted_transaction_h:
     and wf: "state_wellFormed S"
     and packed: "packed_trace tr"
     and status: "transactionStatus S' tx \<triangleq> Uncommitted"
-    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noSwitch: "noContextSwitchesInTransaction tr"
     and initial: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
   shows "(currentTransaction S' (get_invoc (last tr)) \<triangleq> tx) 
@@ -441,7 +441,7 @@ next
     have IH: "currentTransaction S' (get_invoc (last tr)) \<triangleq> tx 
           \<and> (\<exists>i txns. i<length tr \<and> tr!i = (get_invoc (last tr), ABeginAtomic tx txns)
                    \<and> (\<forall>j. i<j \<and> j<length tr \<longrightarrow> tr!j \<noteq> (get_invoc (last tr), AEndAtomic)))"
-      using isPrefix_appendI prefixes_are_packed step.IH \<open>\<And>s. (s, AFail) \<notin> set (tr @ [a])\<close> \<open>packed_trace (tr @ [a])\<close> noContextSwitch
+      using isPrefix_appendI prefixes_are_packed step.IH \<open>\<And>s. (s, ACrash) \<notin> set (tr @ [a])\<close> \<open>packed_trace (tr @ [a])\<close> noContextSwitch
       by (metis butlast_snoc in_set_butlastD) 
 
 
@@ -496,7 +496,7 @@ next
 
     from \<open>S' ~~ a \<leadsto> S''\<close> IH1
     have "currentTransaction S'' (get_invoc (last (tr@[a]))) \<triangleq> tx"
-      using \<open>a \<noteq> (get_invoc (last tr), AEndAtomic)\<close>  \<open>\<And>s. (s, AFail) \<notin> set (tr @ [a])\<close> by (auto simp add: step.simps  i'_simps)
+      using \<open>a \<noteq> (get_invoc (last tr), AEndAtomic)\<close>  \<open>\<And>s. (s, ACrash) \<notin> set (tr @ [a])\<close> by (auto simp add: step.simps  i'_simps)
 
     moreover have "(\<exists>i txns. i < length (tr @ [a]) \<and>
                      (tr @ [a]) ! i = (get_invoc (last (tr @ [a])), ABeginAtomic tx txns) \<and>
@@ -538,7 +538,7 @@ lemma at_most_one_active_tx:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
-    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
     and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
   shows "(\<forall>i tx. (i,tx) \<in> openTransactions tr \<longleftrightarrow> currentTransaction S' i = Some tx)
@@ -556,7 +556,7 @@ next
   proof (rule step)
     show "packed_trace tr"
       using packed_trace_prefix step.prems(1) by auto
-    show "\<And>s. (s, AFail) \<notin> set tr"
+    show "\<And>s. (s, ACrash) \<notin> set tr"
       using step.prems(2) by auto
     show "noContextSwitchesInTransaction tr"
       using isPrefix_appendI prefixes_noContextSwitchesInTransaction step.prems(3) by blast
@@ -633,7 +633,7 @@ lemma at_most_one_current_tx:
     and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
     and packed: "packed_trace tr"
     and wf: "state_wellFormed S"
-    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
   shows "\<forall>i. currentTransaction S' i \<noteq> None \<longrightarrow> i = get_invoc (last tr)"
   using steps noCtxtSwitchInTx packed  noFails
@@ -652,14 +652,14 @@ next
       using isPrefix_appendI prefixes_noContextSwitchesInTransaction step.prems(1) by blast
     show "packed_trace tr"
       using packed_trace_prefix step.prems(2) by blast
-    show "\<And>s. (s, AFail) \<notin> set tr"
+    show "\<And>s. (s, ACrash) \<notin> set tr"
       using step.prems(3) by auto
   qed
 
-  have noFail_tr: "(i, AFail) \<notin> set tr" for i
+  have noFail_tr: "(i, ACrash) \<notin> set tr" for i
     using step.prems(3) by auto
 
-  have noFail_a: "get_action a \<noteq> AFail"
+  have noFail_a: "get_action a \<noteq> ACrash"
     using step.prems(3)
     by (metis list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1) 
 

@@ -53,7 +53,7 @@ proof -
     case (AReturn x7)
     then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
   next
-    case AFail
+    case ACrash
     then show ?thesis by (auto simp add: openTransactions_def nth_append split: prod.splits action.splits, blast)
   next
     case (AInvcheck r)

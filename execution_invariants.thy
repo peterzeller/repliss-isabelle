@@ -9,7 +9,7 @@ text \<open>This theory includes proofs for invariants that hold for all executi
 
 
 definition state_wellFormed :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> bool" where
-  "state_wellFormed state \<equiv> \<exists>tr. (\<forall>i. (i, AFail) \<notin> set tr) \<and>  initialState (prog state) ~~ tr \<leadsto>* state"
+  "state_wellFormed state \<equiv> \<exists>tr. (\<forall>i. (i, ACrash) \<notin> set tr) \<and>  initialState (prog state) ~~ tr \<leadsto>* state"
 
 lemma state_wellFormed_init:
   "state_wellFormed (initialState program)"
@@ -33,19 +33,19 @@ qed
 lemma state_wellFormed_combine_step:
   assumes wf: "state_wellFormed S"
     and step: "S ~~ a \<leadsto> S'"
-    and noFails: "get_action a \<noteq> AFail"
+    and noFails: "get_action a \<noteq> ACrash"
   shows "state_wellFormed S'"
   using wf step noFails  proof (auto simp add: state_wellFormed_def)
 
-  show "\<exists>tr. (\<forall>i. (i, AFail) \<notin> set tr) \<and> initialState (prog S') ~~ tr \<leadsto>* S'"
+  show "\<exists>tr. (\<forall>i. (i, ACrash) \<notin> set tr) \<and> initialState (prog S') ~~ tr \<leadsto>* S'"
     if c0: "S ~~ a \<leadsto> S'"
-      and c1: "get_action a \<noteq> AFail"
-      and c2: "\<forall>i. (i, AFail) \<notin> set tr"
+      and c1: "get_action a \<noteq> ACrash"
+      and c2: "\<forall>i. (i, ACrash) \<notin> set tr"
       and c3: "initialState (prog S) ~~ tr \<leadsto>* S"
     for  tr
   proof (rule exI[where x="tr@[a]"], auto)
-    show "\<And>i. a = (i, AFail) \<Longrightarrow> False" using noFails by auto
-    show "\<And>i. (i, AFail) \<in> set tr \<Longrightarrow> False" using c2 by auto 
+    show "\<And>i. a = (i, ACrash) \<Longrightarrow> False" using noFails by auto
+    show "\<And>i. (i, ACrash) \<in> set tr \<Longrightarrow> False" using c2 by auto 
     show "initialState (prog S') ~~ tr @ [a] \<leadsto>* S'"
       by (metis c3 local.step steps_do_not_change_prog steps_step)
   qed
@@ -55,22 +55,22 @@ qed
 lemma state_wellFormed_combine:
   assumes wf: "state_wellFormed S"
     and steps: "S ~~ tr \<leadsto>* S'"
-    and noFails: "\<And>i. (i, AFail) \<notin> set tr"
+    and noFails: "\<And>i. (i, ACrash) \<notin> set tr"
   shows "state_wellFormed S'"
 proof -
   from steps 
   have "prog S' = prog S"
     using steps_do_not_change_prog by auto
 
-  from wf obtain tr1 where "initialState (prog S) ~~ tr1 \<leadsto>* S" and "(\<forall>i. (i, AFail) \<notin> set tr1)"
+  from wf obtain tr1 where "initialState (prog S) ~~ tr1 \<leadsto>* S" and "(\<forall>i. (i, ACrash) \<notin> set tr1)"
     using state_wellFormed_def by blast 
   with steps
   have "initialState (prog S) ~~ tr1@tr \<leadsto>* S'"
     using steps_append by blast
   with \<open>prog S' = prog S\<close>
   have "initialState (prog S') ~~ tr1@tr \<leadsto>* S'" by simp
-  moreover have "(\<forall>i. (i, AFail) \<notin> set (tr1@tr))"
-    by (simp add: \<open>\<forall>i. (i, AFail) \<notin> set tr1\<close> noFails)
+  moreover have "(\<forall>i. (i, ACrash) \<notin> set (tr1@tr))"
+    by (simp add: \<open>\<forall>i. (i, ACrash) \<notin> set tr1\<close> noFails)
   ultimately show "state_wellFormed S'"
     using state_wellFormed_def by blast
 qed  
@@ -132,11 +132,11 @@ lemma steps_induct2[consumes 1, case_names initial step[steps IH step]]:
 lemma wellFormed_induct[consumes 1, case_names initial step]:
   assumes wf: "state_wellFormed s"
     and P_initial: "P (initialState (prog s))"
-    and P_step: "\<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s; get_action a \<noteq> AFail\<rbrakk> \<Longrightarrow> P s"
+    and P_step: "\<And>t a s. \<lbrakk>state_wellFormed t; P t; t ~~ a \<leadsto> s; get_action a \<noteq> ACrash\<rbrakk> \<Longrightarrow> P s"
   shows "P s"
   using wf proof (auto simp add: state_wellFormed_def)
   fix tr 
-  assume noFail: "\<forall>i. (i, AFail) \<notin> set tr"
+  assume noFail: "\<forall>i. (i, ACrash) \<notin> set tr"
   and steps: "initialState (prog s) ~~ tr \<leadsto>* s"
 
   from steps noFail
@@ -154,7 +154,7 @@ lemma wellFormed_induct[consumes 1, case_names initial step]:
         by (metis butlast_snoc in_set_butlastD state_wellFormed_combine state_wellFormed_init step.prems step.steps) 
       show "P S'"
         using step.IH step.prems by auto 
-      show "get_action a \<noteq> AFail"
+      show "get_action a \<noteq> ACrash"
         by (metis append_is_Nil_conv last_in_set last_snoc list.distinct(1) step.prems surjective_pairing)
     qed
   qed
@@ -207,7 +207,7 @@ lemmas wellFormed_currentTransactionUncommitted = wellFormed_currentTransaction_
 
 lemma wellFormed_currentTransaction_back:
   assumes steps: "steps  S_init tr S"
-    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFail: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommitted: "\<And>tx. transactionStatus S_init tx \<noteq> Some Uncommitted"
     and wf: "state_wellFormed S_init"
   shows "transactionStatus S t \<triangleq> Uncommitted \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
@@ -268,7 +268,7 @@ qed
 
 lemma wellFormed_currentTransaction_back2:
   assumes steps: "steps  (initialState progr) tr S"
-    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFail: "\<And>s. (s, ACrash) \<notin> set tr"
   shows "transactionStatus S t \<triangleq> Uncommitted \<longrightarrow> (\<exists>!i. currentTransaction S i \<triangleq> t)"
   using steps noFail  by (rule wellFormed_currentTransaction_back, simp add: initialState_def, simp add: state_wellFormed_init)
 
@@ -406,7 +406,7 @@ and beginPos: "trace ! beginPos = (invoc, ABeginAtomic tx txns)"
 and beginPosBound: "beginPos < length trace"
 and noEnd: "\<And>k. \<lbrakk>k < length trace; beginPos < k\<rbrakk> \<Longrightarrow> trace ! k \<noteq> (invoc, AEndAtomic)"
 
-and noFail: "\<And>i. (i, AFail)\<notin>set trace"
+and noFail: "\<And>i. (i, ACrash)\<notin>set trace"
 shows "currentTransaction S' invoc \<noteq> None"
   using steps beginPos beginPosBound noEnd noFail proof (induct rule: steps_induct)
 case initial
@@ -514,7 +514,7 @@ lemma no_new_calls_in_committed_transactions:
     and "callOrigin S' c \<triangleq> tx"
     and "calls S c = None"
     and "state_wellFormed S"
-    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+    and "(\<forall>i. (i, ACrash) \<notin> set tr)"
   shows "transactionStatus S tx \<noteq> Some Committed"
   using assms proof (induct rule: steps_induct)
   case initial
@@ -525,9 +525,9 @@ next
   case (step S' tr a S'')
   have "state_wellFormed S'"
     using \<open>S ~~ tr \<leadsto>* S'\<close> and \<open>state_wellFormed S\<close>
-     state_wellFormed_combine \<open>\<forall>i. (i, AFail) \<notin> set (tr @ [a])\<close> by fastforce
+     state_wellFormed_combine \<open>\<forall>i. (i, ACrash) \<notin> set (tr @ [a])\<close> by fastforce
 
-  have [simp]: "(i, AFail) \<notin> set tr" for i
+  have [simp]: "(i, ACrash) \<notin> set tr" for i
     using step.prems(4) by auto
 
 
@@ -567,7 +567,7 @@ qed
 lemma callOrigin_mono: 
   assumes "S ~~ tr \<leadsto>* S'"
     and "state_wellFormed S"
-    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+    and "(\<forall>i. (i, ACrash) \<notin> set tr)"
   shows "callOrigin S c \<triangleq> tx \<Longrightarrow> callOrigin S' c \<triangleq> tx"
   using assms proof (induct rule: steps_induct)
   case initial
@@ -576,11 +576,11 @@ lemma callOrigin_mono:
 next
   case (step S' tr a S'')
 
-  have [simp]: "(i, AFail) \<notin> set tr" for i
+  have [simp]: "(i, ACrash) \<notin> set tr" for i
     using step by auto
 
   have "state_wellFormed S'"
-    using \<open>\<And>i. (i, AFail) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
+    using \<open>\<And>i. (i, ACrash) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
 
   from step.IH \<open>S ~~ tr \<leadsto>* S'\<close> \<open>S' ~~ a \<leadsto> S''\<close>
     \<open>callOrigin S c \<triangleq> tx\<close> \<open>state_wellFormed S\<close>  \<open>state_wellFormed S'\<close>
@@ -690,7 +690,7 @@ qed
 lemma invocationRes_mono: 
   assumes "S ~~ tr \<leadsto>* S'"
     and "state_wellFormed S"
-    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+    and "(\<forall>i. (i, ACrash) \<notin> set tr)"
   shows "invocationRes S i \<triangleq> ops \<Longrightarrow> invocationRes S' i \<triangleq> ops"
   using assms proof (induct rule: steps_induct)
   case initial
@@ -699,11 +699,11 @@ lemma invocationRes_mono:
 next
   case (step S' tr a S'')
 
-  have [simp]: "(i, AFail) \<notin> set tr" for i
+  have [simp]: "(i, ACrash) \<notin> set tr" for i
     using step by auto
 
   have "state_wellFormed S'"
-    using \<open>\<And>i. (i, AFail) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
+    using \<open>\<And>i. (i, ACrash) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
 
   from \<open>S ~~ tr \<leadsto>* S'\<close> step.IH
     \<open>S' ~~ a \<leadsto> S''\<close>
@@ -719,7 +719,7 @@ lemma transactionOrigin_mono:
   assumes "S ~~ tr \<leadsto>* S'"
     and "transactionOrigin S t \<triangleq> i"
     and "state_wellFormed S"
-    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+    and "(\<forall>i. (i, ACrash) \<notin> set tr)"
   shows "transactionOrigin S' t \<triangleq> i"
   using assms proof (induct rule: steps_induct)
   case initial
@@ -728,11 +728,11 @@ lemma transactionOrigin_mono:
 next
   case (step S' tr a S'')
 
-  have [simp]: "(i, AFail) \<notin> set tr" for i
+  have [simp]: "(i, ACrash) \<notin> set tr" for i
     using step by auto
 
   have "state_wellFormed S'"
-    using \<open>\<And>i. (i, AFail) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
+    using \<open>\<And>i. (i, ACrash) \<notin> set tr\<close> state_wellFormed_combine step.prems(2) step.steps by blast
 
 
   from \<open>S' ~~ a \<leadsto> S''\<close> step.IH \<open>transactionOrigin S t \<triangleq> i\<close> \<open>state_wellFormed S\<close>
@@ -747,7 +747,7 @@ lemma steps_transactions_stable:
     and "callOrigin S' c \<triangleq> tx"
     and "transactionStatus S tx \<triangleq> Committed"
     and "state_wellFormed S"
-    and "(\<forall>i. (i, AFail) \<notin> set tr)"
+    and "(\<forall>i. (i, ACrash) \<notin> set tr)"
   shows "callOrigin S c \<triangleq> tx"
   using assms proof (induct rule: steps_induct)
   case initial
@@ -755,7 +755,7 @@ lemma steps_transactions_stable:
 next
   case (step S' tr a S'')
 
-  have [simp]: "(i, AFail) \<notin> set tr" for i
+  have [simp]: "(i, ACrash) \<notin> set tr" for i
     using step by auto
 
   have "state_wellFormed S'"
@@ -972,7 +972,7 @@ text \<open>
 \<close>
 lemma everything_starts_with_an_invocation:
   assumes steps: "initialState program ~~ tr \<leadsto>* S"
-    and fail_or_return: "tr!i = (s, AFail) \<or> tr!i = (s, AReturn res)"
+    and fail_or_return: "tr!i = (s, ACrash) \<or> tr!i = (s, AReturn res)"
     and i_in_range: "i < length tr"
   shows "localState S s = None \<and> invocationOp S s \<noteq> None" 
   using steps fail_or_return i_in_range
@@ -991,8 +991,8 @@ next
   show ?case 
   proof (cases "i < length tr")
     case True
-    then have "tr ! i = (s, AFail) \<or> tr ! i = (s, AReturn res)"
-      using \<open>(tr @ [a]) ! i = (s, AFail) \<or> (tr @ [a]) ! i = (s, AReturn res)\<close>
+    then have "tr ! i = (s, ACrash) \<or> tr ! i = (s, AReturn res)"
+      using \<open>(tr @ [a]) ! i = (s, ACrash) \<or> (tr @ [a]) ! i = (s, AReturn res)\<close>
       by (auto simp add: nth_append)
     then have "localState S' s = None"
       by (simp add: True step.IH) 
@@ -1000,40 +1000,40 @@ next
     show ?thesis 
       using \<open>S' ~~ a \<leadsto> S''\<close> 
       by (induct rule: step.cases;
-          insert True \<open>tr ! i = (s, AFail) \<or> tr ! i = (s, AReturn res)\<close> step.IH,
+          insert True \<open>tr ! i = (s, ACrash) \<or> tr ! i = (s, AReturn res)\<close> step.IH,
           auto)
   next
     case False
     show ?thesis 
     proof (cases "i = length tr")
       case True
-      with \<open>(tr @ [a]) ! i = (s, AFail) \<or> (tr @ [a]) ! i = (s, AReturn res)\<close>
-      have cases: "a = (s, AFail) \<or> a = (s, AReturn res)"
+      with \<open>(tr @ [a]) ! i = (s, ACrash) \<or> (tr @ [a]) ! i = (s, AReturn res)\<close>
+      have cases: "a = (s, ACrash) \<or> a = (s, AReturn res)"
         by simp
 
 
       then show ?thesis 
       proof (rule; intro conjI)
-        assume "a = (s, AFail)"
-        then have "S' ~~ (s, AFail) \<leadsto> S''"
+        assume "a = (s, ACrash)"
+        then have "S' ~~ (s, ACrash) \<leadsto> S''"
           using step.step by auto
 
 
         then show "localState S'' s = None"
-          by (auto simp add: step_simp_AFail)
+          by (auto simp add: step_simp_ACrash)
             (*
         hence "invocationOp S'' s \<noteq> None" 
           using invocation_ops_if_localstate_nonempty[OF steps'']
           *)
 
         have "localState S' s \<noteq> None"
-          using \<open>S' ~~ (s, AFail) \<leadsto> S''\<close> 
+          using \<open>S' ~~ (s, ACrash) \<leadsto> S''\<close> 
           by (induct rule: step.cases, auto)
 
         then have "invocationOp S' s \<noteq> None"
           using invocation_ops_if_localstate_nonempty step.steps by blast
         then show "invocationOp S'' s \<noteq> None"  
-          using \<open>S' ~~ (s, AFail) \<leadsto> S''\<close> invation_info_set_iff_invocation_happened(1) step.steps steps''
+          using \<open>S' ~~ (s, ACrash) \<leadsto> S''\<close> invation_info_set_iff_invocation_happened(1) step.steps steps''
           by (metis butlast_snoc in_set_butlastD)  
       next 
         assume "a = (s, AReturn res)"
@@ -1352,7 +1352,7 @@ next
   case (AReturn x8)
   then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
 next
-  case AFail
+  case ACrash
   then show ?thesis using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
 next
   case (AInvcheck x10)
@@ -1400,7 +1400,7 @@ lemma currentTransaction_unchangedInternalSteps:
   assumes "S ~~ tr \<leadsto>* S'"
     and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> AEndAtomic"
     and "\<And>a tx ntxns.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> ABeginAtomic tx ntxns"
-    and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> AFail"
+    and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> ACrash"
   shows "currentTransaction S' s = currentTransaction S s"  
   using assms proof (induct rule: steps.induct)
   case (steps_refl S)
@@ -1430,7 +1430,7 @@ next
     case (AReturn x8)
     then show ?thesis using steps_step by (cases a, cases "currentTransaction S s", auto elim: step_elims)
   next
-    case AFail
+    case ACrash
     then show ?thesis using steps_step
       by auto
   next
@@ -1447,7 +1447,7 @@ qed
 lemma currentTransaction_unchangedInternalSteps2:
   assumes "S ~~ tr \<leadsto>* S'"
     and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> AEndAtomic"
-    and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> AFail"
+    and "\<And>a.  a \<in> set tr \<Longrightarrow> get_action a \<noteq> ACrash"
     and "currentTransaction S s = Some t"  
     and wf: "state_wellFormed S"
   shows "currentTransaction S' s = Some t"  and "a \<in> set tr \<Longrightarrow> a \<noteq> (s, ABeginAtomic tx ntxn)" 
@@ -1457,7 +1457,7 @@ lemma currentTransaction_unchangedInternalSteps2:
 lemma currentTransaction_unchangedInternalSteps4:
   assumes "S ~~ tr \<leadsto>* S'"
     and "\<And>a.  a \<in> set tr \<Longrightarrow> a \<noteq> (s, AEndAtomic)"
-    and "\<And>a.  a \<in> set tr \<Longrightarrow> a \<noteq> (s, AFail)"
+    and "\<And>a.  a \<in> set tr \<Longrightarrow> a \<noteq> (s, ACrash)"
     and "currentTransaction S s = Some t"  
     and wf: "state_wellFormed S"
   shows "currentTransaction S' s = Some t"  and "a \<in> set tr \<Longrightarrow> a \<noteq> (s, ABeginAtomic tx ntxn)" 
@@ -1470,7 +1470,7 @@ lemma currentTransaction_unchangedInternalSteps4:
 
 lemma currentTransaction_unchangedInternalSteps3:
   assumes a1: "s_init ~~ (s, ABeginAtomic tx ntxns) # as \<leadsto>* S'"
-    and a2: "\<And>st at.  (st, at) \<in> set as \<Longrightarrow> st = s \<and> at \<noteq> AEndAtomic \<and> at \<noteq> AFail"
+    and a2: "\<And>st at.  (st, at) \<in> set as \<Longrightarrow> st = s \<and> at \<noteq> AEndAtomic \<and> at \<noteq> ACrash"
     and wf: "state_wellFormed s_init"
   shows "currentTransaction S' s \<triangleq> tx"
 proof -
@@ -1481,7 +1481,7 @@ proof -
   show "currentTransaction S' s \<triangleq> tx"
   proof (rule currentTransaction_unchangedInternalSteps2)
     from a2
-    show "\<And>a. a \<in> set as \<Longrightarrow> get_action a \<noteq> AEndAtomic" and "\<And>a. a \<in> set as \<Longrightarrow> get_action a \<noteq> AFail"
+    show "\<And>a. a \<in> set as \<Longrightarrow> get_action a \<noteq> AEndAtomic" and "\<And>a. a \<in> set as \<Longrightarrow> get_action a \<noteq> ACrash"
       by auto    
     from 1
     show "currentTransaction S s \<triangleq> tx"
@@ -1526,7 +1526,7 @@ lemma currentTransaction:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and "i < length tr"
     and "tr!i = (s, ABeginAtomic txi ntxns)"
-  shows "(\<forall>j. i<j \<and> j<length tr \<longrightarrow> tr!j \<noteq> (s, AEndAtomic) \<and> tr!j \<noteq> (s, AFail)) \<longleftrightarrow> currentTransaction S' s \<triangleq> txi"
+  shows "(\<forall>j. i<j \<and> j<length tr \<longrightarrow> tr!j \<noteq> (s, AEndAtomic) \<and> tr!j \<noteq> (s, ACrash)) \<longleftrightarrow> currentTransaction S' s \<triangleq> txi"
   using assms proof (induct arbitrary: txi i ntxns rule: steps.induct)
   case (steps_refl S)
   then show ?case by simp
@@ -1537,15 +1537,15 @@ next
   {
   assume "i < length tr"
 
-  have IH: "(\<forall>j. i < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic) \<and> tr ! j \<noteq> (s, AFail)) =
+  have IH: "(\<forall>j. i < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (s, AEndAtomic) \<and> tr ! j \<noteq> (s, ACrash)) =
         currentTransaction S' s \<triangleq> txi"
     by (metis \<open>i < length tr\<close> nth_append steps_step.hyps(2) steps_step.prems(2))
 
   have IH2: "(\<forall>j. i < j \<and> j < length (tr @ [a]) \<longrightarrow>
-         (tr @ [a]) ! j \<noteq> (s, AEndAtomic) \<and> (tr @ [a]) ! j \<noteq> (s, AFail)) =
+         (tr @ [a]) ! j \<noteq> (s, AEndAtomic) \<and> (tr @ [a]) ! j \<noteq> (s, ACrash)) =
     currentTransaction S'' s \<triangleq> txi"
     if "a \<noteq> (s, AEndAtomic)"
-      and "a \<noteq> (s, AFail)"
+      and "a \<noteq> (s, ACrash)"
       and "currentTransaction S'' s = currentTransaction S' s"
     using IH that by (auto simp add: nth_append)
 
@@ -1554,27 +1554,27 @@ next
 
 
   have IH4: "(\<forall>j. i < j \<and> j < length (tr @ [a]) \<longrightarrow>
-         (tr @ [a]) ! j \<noteq> (s, AEndAtomic) \<and> (tr @ [a]) ! j \<noteq> (s, AFail)) =
+         (tr @ [a]) ! j \<noteq> (s, AEndAtomic) \<and> (tr @ [a]) ! j \<noteq> (s, ACrash)) =
     currentTransaction S'' s \<triangleq> txi"
     if "a = (s, AEndAtomic)"
     using `S' ~~ a \<leadsto> S''`
     using  that \<open>i < length tr\<close> by (auto simp add: nth_append step_simps)
 
   have IH5: "(\<forall>j. i < j \<and> j < length (tr @ [a]) \<longrightarrow>
-         (tr @ [a]) ! j \<noteq> (s, AEndAtomic) \<and> (tr @ [a]) ! j \<noteq> (s, AFail)) =
+         (tr @ [a]) ! j \<noteq> (s, AEndAtomic) \<and> (tr @ [a]) ! j \<noteq> (s, ACrash)) =
     currentTransaction S'' s \<triangleq> txi"
-    if "a = (s, AFail)"
+    if "a = (s, ACrash)"
     using `S' ~~ a \<leadsto> S''`
     using IH that \<open>i < length tr\<close> by (auto simp add: nth_append step_simps)
 
   have IH6: "(\<forall>j. i < j \<and> j < length (tr @ [a]) \<longrightarrow>
-         (tr @ [a]) ! j \<noteq> (s, AEndAtomic) \<and> (tr @ [a]) ! j \<noteq> (s, AFail)) =
+         (tr @ [a]) ! j \<noteq> (s, AEndAtomic) \<and> (tr @ [a]) ! j \<noteq> (s, ACrash)) =
     currentTransaction S'' s \<triangleq> txi"
     if "a = (s, ABeginAtomic t nt)" for t nt
     using `S' ~~ a \<leadsto> S''`
     using IH that \<open>i < length tr\<close> cannot_start_again by (auto simp add: nth_append step_simps, blast+)
 
-  have "a = (s, AFail) \<or> a = (s, AEndAtomic) \<or> (\<exists>t nt. a = (s, ABeginAtomic t nt)) \<or> currentTransaction S'' s = currentTransaction S' s"
+  have "a = (s, ACrash) \<or> a = (s, AEndAtomic) \<or> (\<exists>t nt. a = (s, ABeginAtomic t nt)) \<or> currentTransaction S'' s = currentTransaction S' s"
     by (rule step.cases[OF `S' ~~ a \<leadsto> S''`], auto)
 
   hence ?case
@@ -1598,7 +1598,7 @@ lemma currentTransaction2:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and "i < length tr"
     and "tr!i = (s, ABeginAtomic txi ntxns)"
-    and "\<And>j. \<lbrakk>i<j; j<length tr\<rbrakk> \<Longrightarrow> tr!j \<noteq> (s, AFail)"
+    and "\<And>j. \<lbrakk>i<j; j<length tr\<rbrakk> \<Longrightarrow> tr!j \<noteq> (s, ACrash)"
     and "\<And>j. \<lbrakk>i<j; j<length tr\<rbrakk> \<Longrightarrow> tr!j \<noteq> (s, AEndAtomic)"
   shows "currentTransaction S' s \<triangleq> txi"
   using assms currentTransaction by blast
@@ -1610,7 +1610,7 @@ lemma noNestedTransactions:
     and "i<j"
     and "j < length tr" 
     and "tr!j = (s, ABeginAtomic txj ntxnsj)"
-  shows "\<exists>k. i<k \<and> k < j \<and> (tr!k = (s, AEndAtomic) \<or> tr!k = (s, AFail))"  
+  shows "\<exists>k. i<k \<and> k < j \<and> (tr!k = (s, AEndAtomic) \<or> tr!k = (s, ACrash))"  
   using assms proof (induct rule: steps.induct)
   case (steps_refl S)
   then show ?case by simp
@@ -1657,12 +1657,12 @@ next
     have " a = (s, ABeginAtomic txj ntxnsj)"
       by auto
 
-    have "\<exists>k>i. k < j \<and> ((tr) ! k = (s, AEndAtomic) \<or> (tr) ! k = (s, AFail))"
+    have "\<exists>k>i. k < j \<and> ((tr) ! k = (s, AEndAtomic) \<or> (tr) ! k = (s, ACrash))"
       using currentTransaction[OF \<open>S ~~ tr \<leadsto>* S'\<close> \<open>i < length tr\<close> \<open>tr ! i = (s, ABeginAtomic txi ntxnsi)\<close>] 
       using `S' ~~ a \<leadsto> S''` ` a = (s, ABeginAtomic txj ntxnsj)`
       by (auto simp add: step_simps)
 
-    thus "\<exists>k>i. k < j \<and> ((tr @ [a]) ! k = (s, AEndAtomic) \<or> (tr @ [a]) ! k = (s, AFail))"
+    thus "\<exists>k>i. k < j \<and> ((tr @ [a]) ! k = (s, AEndAtomic) \<or> (tr @ [a]) ! k = (s, ACrash))"
       by (metis \<open>j = length tr\<close> butlast_snoc nth_butlast)
 
   qed      
@@ -1676,7 +1676,7 @@ lemma noNestedTransactions':
     and "i<j"
     and "j < length tr" 
     and "tr!j = (s, ABeginAtomic txj ntxnsj)"
-    and "(s, AFail) \<notin> set tr"
+    and "(s, ACrash) \<notin> set tr"
   shows "\<exists>k. i<k \<and> k < j \<and> tr!k = (s, AEndAtomic) "
   using noNestedTransactions[OF steps assms(2) assms(3) assms(4) assms(5) ] assms(6)
   by (metis assms(4) dual_order.strict_trans nth_mem)
@@ -1908,7 +1908,7 @@ next
   case (step S a S')
   show ?case 
     by (rule step.cases[OF `S ~~ a \<leadsto> S'`],
-        insert `(localState S s = None) = (visibleCalls S s = None)` `get_action a \<noteq> AFail`,
+        insert `(localState S s = None) = (visibleCalls S s = None)` `get_action a \<noteq> ACrash`,
         auto)
 
 qed
@@ -1928,7 +1928,7 @@ next
   from `S ~~ a \<leadsto> S'`
   show ?case
     by (rule step.cases, 
-        insert  `currentTransaction S' s \<triangleq> tx` ` get_action a \<noteq> AFail` `currentTransaction S s \<triangleq> tx \<Longrightarrow> localState S s \<noteq> None`,
+        insert  `currentTransaction S' s \<triangleq> tx` ` get_action a \<noteq> ACrash` `currentTransaction S s \<triangleq> tx \<Longrightarrow> localState S s \<noteq> None`,
         auto split: if_splits)
 qed
 
@@ -1986,7 +1986,7 @@ lemma currentTransaction_exists_beginAtomic:
     and inTx: "currentTransaction S' i \<triangleq> tx"
     and noTx: "currentTransaction S i = None"
     and wf: "state_wellFormed S"
-    and noFails: "\<And>i. (i, AFail) \<notin> set tr"
+    and noFails: "\<And>i. (i, ACrash) \<notin> set tr"
   shows "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
   using steps inTx noFails proof (induct arbitrary: tx rule: steps_induct)
   case initial
@@ -2009,7 +2009,7 @@ next
     proof (rule step)
       show "currentTransaction S' i \<triangleq> tx"
         using \<open>currentTransaction S'' i \<triangleq> tx\<close> by (simp add:  local)
-      show "\<And>i. (i, AFail) \<notin> set tr"
+      show "\<And>i. (i, ACrash) \<notin> set tr"
         using step.prems(2) by auto
 
     qed
@@ -2023,7 +2023,7 @@ next
     proof (rule step)
       show "currentTransaction S' i \<triangleq> tx"
         using \<open>currentTransaction S'' i \<triangleq> tx\<close> by (simp add:  newId)
-      show "\<And>i. (i, AFail) \<notin> set tr"
+      show "\<And>i. (i, ACrash) \<notin> set tr"
         using step.prems(2) by auto
     qed
 
@@ -2047,7 +2047,7 @@ next
       proof (rule step)
         show "currentTransaction S' i \<triangleq> tx"
           using \<open>currentTransaction S'' i \<triangleq> tx\<close> by (auto simp add: False  beginAtomic split: if_splits)
-        show " \<And>i. (i, AFail) \<notin> set tr"
+        show " \<And>i. (i, ACrash) \<notin> set tr"
           using step.prems(2) by auto
 
       qed

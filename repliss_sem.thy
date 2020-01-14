@@ -543,7 +543,7 @@ datatype ('proc, 'operation, 'any) action =
   | ADbOp callId 'operation 'any
   | AInvoc 'proc
   | AReturn 'any
-  | AFail  
+  | ACrash  
   | AInvcheck bool
 
 
@@ -551,17 +551,17 @@ definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 
 
 definition 
-  "isAFail a \<equiv> case a of AFail \<Rightarrow> True | _ \<Rightarrow> False"
+  "isACrash a \<equiv> case a of ACrash \<Rightarrow> True | _ \<Rightarrow> False"
 
-schematic_goal [simp]: "isAFail (ALocal) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (ANewId u) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (ABeginAtomic t newTxns) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (AEndAtomic) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (ADbOp c oper res) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (AInvoc proc) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (AReturn res) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (AFail) = ?x" by (auto simp add: isAFail_def)
-schematic_goal [simp]: "isAFail (AInvcheck c) = ?x" by (auto simp add: isAFail_def) 
+schematic_goal [simp]: "isACrash (ALocal) = ?x" by (auto simp add: isACrash_def)
+schematic_goal [simp]: "isACrash (ANewId u) = ?x" by (auto simp add: isACrash_def)
+schematic_goal [simp]: "isACrash (ABeginAtomic t newTxns) = ?x" by (auto simp add: isACrash_def)
+schematic_goal [simp]: "isACrash (AEndAtomic) = ?x" by (auto simp add: isACrash_def)
+schematic_goal [simp]: "isACrash (ADbOp c oper res) = ?x" by (auto simp add: isACrash_def)
+schematic_goal [simp]: "isACrash (AInvoc proc) = ?x" by (auto simp add: isACrash_def)
+schematic_goal [simp]: "isACrash (AReturn res) = ?x" by (auto simp add: isACrash_def)
+schematic_goal [simp]: "isACrash (ACrash) = ?x" by (auto simp add: isACrash_def)
+schematic_goal [simp]: "isACrash (AInvcheck c) = ?x" by (auto simp add: isACrash_def) 
 
 
 definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> bool" where
@@ -647,7 +647,7 @@ inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>)"                
 | fail:
   "localState S i \<triangleq> ls
-   \<Longrightarrow> S ~~ (i, AFail) \<leadsto> (S\<lparr>localState := (localState S)(i := None),
+   \<Longrightarrow> S ~~ (i, ACrash) \<leadsto> (S\<lparr>localState := (localState S)(i := None),
                  currentTransaction := (currentTransaction S)(i := None),
                  currentProc := (currentProc S)(i := None),
                  visibleCalls := (visibleCalls S)(i := None) \<rparr>)"                  
@@ -662,7 +662,7 @@ inductive_simps step_simp_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
 inductive_simps step_simp_ADbOp: "A ~~ (s, ADbOp c oper res) \<leadsto> B "
 inductive_simps step_simp_AInvoc: "A ~~ (s, AInvoc proc) \<leadsto> B "
 inductive_simps step_simp_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
-inductive_simps step_simp_AFail: "A ~~ (s, AFail) \<leadsto> B "
+inductive_simps step_simp_ACrash: "A ~~ (s, ACrash) \<leadsto> B "
 inductive_simps step_simp_AInvcheck: "A ~~ (s, AInvcheck res) \<leadsto> B "
 inductive_simps step_simps_all: "A ~~ b \<leadsto> B "
 
@@ -674,7 +674,7 @@ lemmas step_simps =
   step_simp_ADbOp
   step_simp_AInvoc
   step_simp_AReturn
-  step_simp_AFail
+  step_simp_ACrash
   step_simp_AInvcheck
 
 inductive_cases step_elim_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
@@ -684,7 +684,7 @@ inductive_cases step_elim_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
 inductive_cases step_elim_ADbOp: "A ~~ (s, ADbOp c oper res) \<leadsto> B "
 inductive_cases step_elim_AInvoc: "A ~~ (s, AInvoc procname) \<leadsto> B "
 inductive_cases step_elim_AReturn: "A ~~ (s, AReturn res) \<leadsto> B "
-inductive_cases step_elim_AFail: "A ~~ (s, AFail) \<leadsto> B "
+inductive_cases step_elim_ACrash: "A ~~ (s, ACrash) \<leadsto> B "
 inductive_cases step_elim_AInvcheck: "A ~~ (s, AInvcheck i) \<leadsto> B "
 inductive_cases step_elim_general: "A ~~ (s, a) \<leadsto> B "
 
@@ -696,7 +696,7 @@ lemmas step_elims =
   step_elim_ADbOp
   step_elim_AInvoc
   step_elim_AReturn
-  step_elim_AFail
+  step_elim_ACrash
   step_elim_AInvcheck
 
 inductive steps :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'operation, 'any) action) list \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
@@ -921,7 +921,7 @@ schematic_goal steps_simp_AEndAtomic: "(A ~~ (i, AEndAtomic)#rest \<leadsto>* B)
 schematic_goal steps_simp_ADbOp: "(A ~~ (i, ADbOp c oper res)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_AInvoc: "(A ~~ (i, AInvoc procname)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_AReturn: "(A ~~ (i, AReturn res)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
-schematic_goal steps_simp_AFail: "(A ~~ (i, AFail)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_ACrash: "(A ~~ (i, ACrash)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_AInvcheck: "(A ~~ (i, AInvcheck invi)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 
 lemmas steps_simps =
@@ -932,7 +932,7 @@ lemmas steps_simps =
   steps_simp_ADbOp
   steps_simp_AInvoc
   steps_simp_AReturn
-  steps_simp_AFail
+  steps_simp_ACrash
   steps_simp_AInvcheck
 
 

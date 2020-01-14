@@ -9,17 +9,17 @@ text \<open>
 \<close>
 theorem show_programCorrect_noTransactionInterleaving:
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, ACrash) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 
   unfolding programCorrect_def proof -
-  text "We only have to consider traces without AFail actions"
+  text "We only have to consider traces without ACrash actions"
   show "\<forall>trace\<in>traces program. traceCorrect trace"
   proof (subst can_ignore_fails, clarsimp)
     text "Let tr be some trace such that program executes trace to s."
     fix tr
     assume is_trace: "tr \<in> traces program" 
-      and noFail: "\<forall>s. (s, AFail) \<notin> set tr"
+      and noFail: "\<forall>s. (s, ACrash) \<notin> set tr"
 
     from is_trace 
     obtain s where steps: "initialState program ~~ tr \<leadsto>* s"
@@ -33,7 +33,7 @@ theorem show_programCorrect_noTransactionInterleaving:
         where "initialState program ~~ tr'' \<leadsto>* s''" 
           and "packed_trace tr''"
           and "\<not>traceCorrect tr''"
-          and "\<forall>s. (s, AFail) \<notin> set tr''"
+          and "\<forall>s. (s, ACrash) \<notin> set tr''"
         using pack_incorrect_trace
         by blast 
       then show False

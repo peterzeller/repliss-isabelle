@@ -162,7 +162,7 @@ lemma packedTraces_stay_in_transaction:
     and "currentTransaction S invoc \<triangleq> tx"
     and "tr \<noteq> [] \<Longrightarrow> get_invoc (hd tr) = invoc"
     and "(invoc, AEndAtomic) \<notin> set tr"
-    and "\<And>i. (i, AFail) \<notin> set tr"
+    and "\<And>i. (i, ACrash) \<notin> set tr"
     and "\<And>a. a\<in>set tr \<Longrightarrow> \<not>allowed_context_switch (get_action a)"
     and "j < length tr"
   shows "currentTransaction S' invoc \<triangleq> tx \<and> get_invoc (tr ! j) = invoc"
@@ -223,7 +223,7 @@ lemmas packedTraces_stay_in_transaction2 = packedTraces_stay_in_transaction[THEN
 lemma packedTraces_transactions_same_invocation:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and "packed_trace tr"
-    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
+    and noFail: "\<And>i. (i, ACrash) \<notin> set tr"
     and beginTx: "tr ! i = (invoc, ABeginAtomic tx txns)"
     and noEndTx: "\<forall>j. i < j \<and> j < k \<longrightarrow> tr ! j \<noteq> (invoc, AEndAtomic)"
     and noContextSwitch: "\<forall>j. i < j \<and> j < k \<longrightarrow> \<not>allowed_context_switch (get_action (tr!j))"
@@ -266,7 +266,7 @@ proof -
     show  "(invoc, AEndAtomic) \<notin> set (drop (Suc i) (take k tr))"
       by (auto simp add: in_set_conv_nth take_nth drop_nth noEndTx)
 
-    show  "\<And>ia. (ia, AFail) \<notin> set (drop (Suc i) (take k tr))"
+    show  "\<And>ia. (ia, ACrash) \<notin> set (drop (Suc i) (take k tr))"
       using noFail by (meson in_set_dropD in_set_takeD )
 
     show  "\<And>a. a \<in> set (drop (Suc i) (take k tr)) \<Longrightarrow> \<not> allowed_context_switch (get_action a)"

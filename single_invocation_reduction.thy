@@ -71,7 +71,7 @@ lemma convert_to_single_session_trace:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
-    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
     and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
     \<comment> \<open>invariant holds on all states in the execution\<close>
@@ -102,11 +102,11 @@ next
     and  step: "S' ~~ a \<leadsto> S''"
     and  packed: "packed_trace (tr @ [a])"
     and prefix_invariant: "\<And>tr' S'.  \<lbrakk>isPrefix tr' (tr @ [a]); S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
-    and noFails: "\<And>s. (s, AFail) \<notin> set (tr @ [a])"
+    and noFails: "\<And>s. (s, ACrash) \<notin> set (tr @ [a])"
     and noContextSwitch: "noContextSwitchesInTransaction (tr @ [a])"
     using isPrefix_appendI prefixes_noContextSwitchesInTransaction by (auto, blast)
 
-  have noFails_tr: "\<And>i. (i, AFail) \<notin> set tr"
+  have noFails_tr: "\<And>i. (i, ACrash) \<notin> set tr"
     using steps_step.prems(4) by auto
 
   have steps': "S ~~ tr @ [a] \<leadsto>* S''"
@@ -226,7 +226,7 @@ next
       have tr_packed: "packed_trace tr"
         using packed packed_trace_prefix by blast
 
-      have tr_noFail: "\<And>s. (s, AFail) \<notin> set tr"
+      have tr_noFail: "\<And>s. (s, ACrash) \<notin> set tr"
         using steps_step.prems(4) by auto
 
 
@@ -309,7 +309,7 @@ next
                 using S_wf by auto
               show "packed_trace tr"
                 using packed packed_trace_prefix by auto
-              show " \<And>s. (s, AFail) \<notin> set tr"
+              show " \<And>s. (s, ACrash) \<notin> set tr"
                 using steps_step.prems(4) by auto
               show  " \<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
                 using steps_step.prems(5) by blast
@@ -329,7 +329,7 @@ next
               using \<open>S' ~~ a \<leadsto> S''\<close>
               using \<open>get_invoc a = i\<close> a2 \<open>get_action a = AInvoc proc\<close> apply (auto simp add: step.simps)
 
-              using at_most_one_current_tx[OF \<open>S ~~ tr \<leadsto>* S'\<close> \<open>noContextSwitchesInTransaction tr\<close> \<open>packed_trace tr\<close> \<open>state_wellFormed S\<close> \<open>\<And>s. (s, AFail) \<notin> set tr\<close>]
+              using at_most_one_current_tx[OF \<open>S ~~ tr \<leadsto>* S'\<close> \<open>noContextSwitchesInTransaction tr\<close> \<open>packed_trace tr\<close> \<open>state_wellFormed S\<close> \<open>\<And>s. (s, ACrash) \<notin> set tr\<close>]
               by (metis S'_wf \<open>\<And>P. (\<And>initialState impl. \<lbrakk>S'' = S' \<lparr>localState := localState S'(i \<mapsto> initialState), currentProc := currentProc S'(i \<mapsto> impl), visibleCalls := visibleCalls S'(i \<mapsto> {}), invocationOp := invocationOp S'(i \<mapsto> proc)\<rparr>; localState S' i = None; procedure (prog S') proc = (initialState, impl); uniqueIds proc \<subseteq> knownIds S'; invocationOp S' i = None\<rbrakk> \<Longrightarrow> P) \<Longrightarrow> P\<close> \<open>tr = [] \<or> get_invoc (last tr) = i\<close> option.exhaust steps steps_empty steps_step.prems(5) wellFormed_currentTransaction_unique_h(2) wellFormed_invoc_notStarted(1))
 
             from at_most_one_tx and noCurrentTransaction
@@ -468,10 +468,10 @@ next
 
 
             next
-              case AFail
-              then have "a = (i, AFail)"
+              case ACrash
+              then have "a = (i, ACrash)"
                 by (simp add: prod_eqI steps_step.prems(2))
-              with \<open>\<And>i. (i, AFail) \<notin> set (tr @ [a])\<close>  have "False"
+              with \<open>\<And>i. (i, ACrash) \<notin> set (tr @ [a])\<close>  have "False"
                 by auto
               then show ?thesis ..
             next
@@ -546,9 +546,9 @@ next
 
 
 
-                have noFail1: "(i, AFail) \<notin> set (tr @ [a])" for i
+                have noFail1: "(i, ACrash) \<notin> set (tr @ [a])" for i
                   using steps_step.prems by blast
-                then have noFail2: "(i, AFail) \<notin> set tr" for i
+                then have noFail2: "(i, ACrash) \<notin> set tr" for i
                   by force
 
 
@@ -602,8 +602,8 @@ next
                         by (simp add: a)
 
 
-                      show "\<And>s. (s, AFail) \<notin> set tr"
-                        using \<open>\<And>s. (s, AFail) \<notin> set (tr@[a])\<close> by auto
+                      show "\<And>s. (s, ACrash) \<notin> set tr"
+                        using \<open>\<And>s. (s, ACrash) \<notin> set (tr@[a])\<close> by auto
 
                       show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
                         using \<open>\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted\<close> .
@@ -828,7 +828,7 @@ next
                 using packed by blast
               show "state_wellFormed S"
                 by (simp add: S_wf)
-              show "\<And>s. (s, AFail) \<notin> set (tr@[a])"
+              show "\<And>s. (s, ACrash) \<notin> set (tr@[a])"
                 using noFails by blast
               show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
                 by (simp add: steps_step.prems(5))
@@ -956,7 +956,7 @@ next
             have "currentTransaction S' i = None"
               by (simp add: \<open>state_wellFormed S'\<close> a5 wellFormed_invoc_notStarted(1))
 
-            have "\<And>s. (s, AFail) \<notin> set tr"
+            have "\<And>s. (s, ACrash) \<notin> set tr"
               using steps_step.prems(4) by auto
 
 
@@ -965,7 +965,7 @@ next
 
             from this
             show "\<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
-              using wellFormed_currentTransaction_back[OF steps \<open>\<And>s. (s, AFail) \<notin> set tr\<close> \<open>\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted\<close> \<open>state_wellFormed S\<close>]
+              using wellFormed_currentTransaction_back[OF steps \<open>\<And>s. (s, ACrash) \<notin> set tr\<close> \<open>\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted\<close> \<open>state_wellFormed S\<close>]
               by auto
 
 
@@ -995,7 +995,7 @@ lemma convert_to_single_session_trace_invFail_step:
     and S S' :: "('proc, 'ls, 'operation, 'any) state"
   assumes step: "S ~~ (s,a) \<leadsto> S'"
     and S_wellformed: "state_wellFormed S"
-    and noFails: "a \<noteq> AFail"
+    and noFails: "a \<noteq> ACrash"
     \<comment> \<open>invariant holds in the initial state\<close>
     and inv: "invariant_all S"
     \<comment> \<open>invariant no longer holds\<close>
@@ -1203,7 +1203,7 @@ qed
 lemma uncommitted_tx_is_current_somewhere:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
-    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommittedTx: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
     and tx_uncommitted: "transactionStatus S' tx \<triangleq> Uncommitted"
   shows "\<exists>invoc. currentTransaction S' invoc \<triangleq> tx" 
@@ -1374,7 +1374,7 @@ lemma convert_to_single_session_trace_invFail:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
-    and noFails: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommittedTx: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
     and noContextSwitches: "noContextSwitchesInTransaction tr"
     \<comment> \<open>invariant holds in the initial state\<close>
@@ -1455,10 +1455,10 @@ proof -
     by force
 
 
-  have noFails_tr1: "\<And>i. (i, AFail) \<notin> set tr1"
+  have noFails_tr1: "\<And>i. (i, ACrash) \<notin> set tr1"
     using noFails tr_split by auto
 
-  have noFails_tr2: "\<And>i. (i, AFail) \<notin> set tr2"
+  have noFails_tr2: "\<And>i. (i, ACrash) \<notin> set tr2"
     using noFails tr_split by auto
 
 
@@ -1472,7 +1472,7 @@ proof -
     show "state_wellFormed S" using S_wellformed .
     show "packed_trace tr1"
       using isPrefix_appendI packed prefixes_are_packed tr_split by blast 
-    show "\<And>s. (s, AFail) \<notin> set tr1"
+    show "\<And>s. (s, ACrash) \<notin> set tr1"
       using noFails tr_split by auto
     show "\<And>S' tr1'. \<lbrakk>isPrefix tr1' tr1; S ~~ tr1' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
       using inv_before by auto
@@ -1498,7 +1498,7 @@ proof -
       using a_def stepA by blast
     show "state_wellFormed S1"
       using S_wellformed state_wellFormed_combine steps1 noFails_tr1 by blast
-    show "aa \<noteq> AFail"
+    show "aa \<noteq> ACrash"
       using a_def noFails tr_split by auto
     show "invariant_all S1"
       using inv_before isPrefix_refl steps1 by blast
@@ -1511,7 +1511,7 @@ proof -
 
     show "\<forall>tx. transactionStatus S1 tx \<noteq> Some Uncommitted " if "aa \<noteq> AEndAtomic"
     proof -
-      have  noFails_tr1: "\<And>s. (s, AFail) \<notin> set tr1"
+      have  noFails_tr1: "\<And>s. (s, ACrash) \<notin> set tr1"
         using noFails tr_split by auto
 
       have current_tx:  "\<forall>i. currentTransaction S1 i \<noteq> None \<longrightarrow> i = get_invoc (last tr1)"
@@ -1525,7 +1525,7 @@ proof -
         show "state_wellFormed S"
           by (simp add: S_wellformed)
 
-        show "\<And>s. (s, AFail) \<notin> set tr1" using noFails_tr1 .
+        show "\<And>s. (s, ACrash) \<notin> set tr1" using noFails_tr1 .
 
         show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
           by (simp add: noUncommittedTx)
@@ -1580,7 +1580,7 @@ proof -
                 by (metis S_wellformed noUncommittedTx option.exhaust wellFormed_currentTransaction_unique_h(2))
               show "state_wellFormed S"
                 by (metis S_wellformed)
-              show "\<And>i. (i, AFail) \<notin> set tr1"
+              show "\<And>i. (i, ACrash) \<notin> set tr1"
                 by (simp add: noFails_tr1) 
             qed
             from this obtain ib txns 
@@ -1680,7 +1680,7 @@ lemma invCheck_to_failing_state:
   assumes steps: "S ~~ trace \<leadsto>* S'"
     and inv_fail: "(s, AInvcheck False) \<in> set trace"
     and state_wf: "state_wellFormed S"
-    and noFail: "\<And>i. (i, AFail) \<notin> set trace"
+    and noFail: "\<And>i. (i, ACrash) \<notin> set trace"
   shows "\<exists>tr' S_fail. isPrefix tr' trace \<and> (S ~~ tr' \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail" 
   using steps inv_fail noFail proof (induct rule: steps_induct)
   case initial
@@ -1689,7 +1689,7 @@ lemma invCheck_to_failing_state:
 next
   case (step S' tr a S'')
 
-  have noFail_tr: "\<And>i. (i, AFail) \<notin> set tr"
+  have noFail_tr: "\<And>i. (i, ACrash) \<notin> set tr"
     using step by auto
 
 
@@ -1838,7 +1838,7 @@ theorem show_correctness_via_single_session:
     and inv_init: "invariant_all (initialState program)"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving'')
-  (* \<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace *)
+  (* \<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, ACrash) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace *)
   thm show_programCorrect_noTransactionInterleaving''
   text \<open>Assume we have a trace and a final state S\<close>
   fix trace S
@@ -1849,7 +1849,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
   assume packed: "packed_trace trace"
 
   text \<open>We may also assume that there are no failures\<close>
-  assume noFail: "\<And>s. (s, AFail) \<notin> set trace"
+  assume noFail: "\<And>s. (s, ACrash) \<notin> set trace"
 
   assume "allTransactionsEnd trace"
 
@@ -1894,7 +1894,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
           by (simp add: state_wellFormed_init)
         show "packed_trace tr'"
           using \<open>isPrefix tr' trace\<close> packed prefixes_are_packed by blast
-        show "\<And>s'. (s', AFail) \<notin> set tr'"
+        show "\<And>s'. (s', ACrash) \<notin> set tr'"
           using \<open>isPrefix tr' trace\<close> noFail apply (auto simp add: isPrefix_def) (* IMPROVE extract lemma for isPrefix with \<in> or \<subseteq> *)
           by (metis in_set_takeD)
         show "invariant_all (initialState program)"

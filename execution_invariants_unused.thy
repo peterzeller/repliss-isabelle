@@ -92,7 +92,7 @@ text \<open>
 \<close>
 lemma nothing_after_fail_or_return:
   assumes steps: "initialState program ~~ tr \<leadsto>* S"
-    and fail_or_return: "tr!i = (s, AFail) \<or> tr!i = (s, AReturn res)"
+    and fail_or_return: "tr!i = (s, ACrash) \<or> tr!i = (s, AReturn res)"
     and i_in_range: "i < length tr"
   shows "\<nexists>j. j>i \<and> j<length tr \<and> get_invoc(tr!j) = s \<and> \<not>is_AInvcheck (get_action (tr!j))" 
   using steps fail_or_return i_in_range proof (induct rule: steps_induct)
@@ -122,7 +122,7 @@ next
 
 
 
-    from \<open>(tr @ [a]) ! i = (s, AFail) \<or> (tr @ [a]) ! i = (s, AReturn res)\<close>
+    from \<open>(tr @ [a]) ! i = (s, ACrash) \<or> (tr @ [a]) ! i = (s, AReturn res)\<close>
     have no_ls: "localState S' s = None" 
       and op: "invocationOp S' s \<noteq> None"  
        apply (metis a2 everything_starts_with_an_invocation j_def nth_append step.steps)

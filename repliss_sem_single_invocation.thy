@@ -11,7 +11,7 @@ definition
 "state_monotonicGrowth_txStable callOrigin_S callOrigin_S' transactionStatus_S' \<equiv> (\<forall>c tx. callOrigin_S c \<triangleq> tx \<and> transactionStatus_S' tx \<triangleq> Committed \<longrightarrow> callOrigin_S' c \<triangleq> tx)"
 
 definition state_monotonicGrowth :: "invocId \<Rightarrow> ('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" where
-"state_monotonicGrowth i S S' \<equiv> state_wellFormed S \<and> (\<exists>tr. (S ~~ tr \<leadsto>* S') \<and> (\<forall>(i',a)\<in>set tr. i' \<noteq> i) \<and> (\<forall>i. (i, AFail) \<notin> set tr))"
+"state_monotonicGrowth i S S' \<equiv> state_wellFormed S \<and> (\<exists>tr. (S ~~ tr \<leadsto>* S') \<and> (\<forall>(i',a)\<in>set tr. i' \<noteq> i) \<and> (\<forall>i. (i, ACrash) \<notin> set tr))"
 
 
 
@@ -309,12 +309,12 @@ qed
 
 lemma step_s_no_Fail: 
   assumes "S ~~ (i, a) \<leadsto>\<^sub>S S'"
-  shows "a \<noteq> (AFail, t)"
+  shows "a \<noteq> (ACrash, t)"
   using assms  by (auto simp add: step_s.simps)
 
 lemma steps_s_no_Fail: 
   assumes "S ~~ (i, tr) \<leadsto>\<^sub>S* S'"
-  shows "(AFail, t) \<notin> set tr"
+  shows "(ACrash, t) \<notin> set tr"
   using assms apply (induct rule: step_s_induct)
   using step_s_no_Fail by (auto, blast)
 

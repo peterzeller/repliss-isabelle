@@ -21,7 +21,7 @@ lemma swapMany:
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> i"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) a"
     and wf: "state_wellFormed C1"
-    and noFail: "\<And>i. (i, AFail) \<notin> set tr"
+    and noFail: "\<And>i. (i, ACrash) \<notin> set tr"
   shows "C1 ~~ [(i,a)] @ tr \<leadsto>* C2"
   using steps tr_different_session tr_canSwap noFail
 proof (induct tr arbitrary: C2 rule: rev_induct)
@@ -34,7 +34,7 @@ next
     and steps: "C1 ~~ (tr' @ [a']) @ [(i, a)] \<leadsto>* C2"
     and tr_different_session: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> get_invoc x \<noteq> i"
     and tr_canSwap: "\<And>x. x \<in> set (tr' @ [a']) \<Longrightarrow> canSwap t (get_action x) a"
-    and noFail2a: "\<And>i. (i, AFail) \<notin> set (tr' @ [a'])"
+    and noFail2a: "\<And>i. (i, ACrash) \<notin> set (tr' @ [a'])"
     by auto
 
   from steps
@@ -76,8 +76,8 @@ lemma swapMany_middle:
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> s"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) a"
     and wf: "state_wellFormed C1"
-    and nofail1: "\<And>i. (i,AFail)\<notin> set tr_start"
-    and nofail2: "\<And>i. (i,AFail)\<notin> set tr"
+    and nofail1: "\<And>i. (i,ACrash)\<notin> set tr_start"
+    and nofail2: "\<And>i. (i,ACrash)\<notin> set tr"
   shows "C1 ~~ tr_start @ [(s,a)] @ tr @ tr_end \<leadsto>* C2"
 proof -
   from steps
@@ -99,8 +99,8 @@ lemma swapMany_middle':
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> (get_invoc a)"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) (get_action a)"
     and wf: "state_wellFormed C1"
-    and nofail1: "\<And>i. (i,AFail)\<notin> set tr_start"
-    and nofail2: "\<And>i. (i,AFail)\<notin> set tr"
+    and nofail1: "\<And>i. (i,ACrash)\<notin> set tr_start"
+    and nofail2: "\<And>i. (i,ACrash)\<notin> set tr"
   shows "C1 ~~ tr_start @ [a] @ tr @ tr_end \<leadsto>* C2"
   by (insert assms, cases a, rule ssubst, assumption, rule swapMany_middle, auto)
 
@@ -150,8 +150,8 @@ lemma canSwap_cases:
     and no_invoc: "\<And>p. b \<noteq> AInvoc p"
     and no_invcheck_a: "\<not>is_AInvcheck a"
     and no_invcheck_b: "\<not>is_AInvcheck b"  
-    and no_fail_a: "a \<noteq> AFail"
-    and no_fail_b: "b \<noteq> AFail"    
+    and no_fail_a: "a \<noteq> ACrash"
+    and no_fail_b: "b \<noteq> ACrash"    
   shows "canSwap t a b"
 proof (cases a; cases b)
   fix tx txns

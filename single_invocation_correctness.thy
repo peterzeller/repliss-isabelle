@@ -341,14 +341,14 @@ qed
 lemma state_wellFormed_combine1:
   assumes "state_wellFormed S"
   and "S ~~ (i, a) \<leadsto> S'"
-  and "a\<noteq>AFail"
+  and "a\<noteq>ACrash"
 shows "state_wellFormed S'"
   using \<open>state_wellFormed S\<close> proof (rule state_wellFormed_combine)
   from \<open>S ~~ (i, a) \<leadsto> S'\<close>
   show "S ~~ [(i,a)] \<leadsto>* S'"
     by (simp add: steps_single)
-  show "\<And>ia. (ia, AFail) \<notin> set [(i, a)]"
-    using \<open>a\<noteq>AFail\<close> by simp
+  show "\<And>ia. (ia, ACrash) \<notin> set [(i, a)]"
+    using \<open>a\<noteq>ACrash\<close> by simp
 qed
 
 lemma state_wellFormed_combine_s1:

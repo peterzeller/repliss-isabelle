@@ -5,14 +5,14 @@ theory ignore_fails
 begin
 
 
-text "In this section we show that we do not handle crashes (action @{term AFail}) in order to prove 
+text "In this section we show that we do not handle crashes (action @{term ACrash}) in order to prove 
 correctness.
 The main idea is that we we cannot distinguish a crash from arbitrary long waiting."
 
 
 lemma can_ignore_fails:
   shows "(\<forall>tr\<in>traces program. traceCorrect tr) 
-  \<longleftrightarrow> (\<forall>tr\<in>traces program. (\<nexists>s. (s, AFail) \<in> set tr) \<longrightarrow>  traceCorrect tr)"
+  \<longleftrightarrow> (\<forall>tr\<in>traces program. (\<nexists>s. (s, ACrash) \<in> set tr) \<longrightarrow>  traceCorrect tr)"
 proof (rule iffI2; clarsimp)
   fix tr
   assume is_trace: "tr \<in> traces program"
@@ -29,19 +29,19 @@ proof (rule iffI2; clarsimp)
   1) state is different after failure
 \<close>
 
-  show "\<exists>tr\<in>traces program. (\<forall>s. (s, AFail) \<notin> set tr) \<and> \<not> traceCorrect tr"
-  proof (rule bexI[where x="[x\<leftarrow>tr . \<not>isAFail (get_action x)]"], intro conjI allI)
+  show "\<exists>tr\<in>traces program. (\<forall>s. (s, ACrash) \<notin> set tr) \<and> \<not> traceCorrect tr"
+  proof (rule bexI[where x="[x\<leftarrow>tr . \<not>isACrash (get_action x)]"], intro conjI allI)
 
-    show "\<And>s. (s, AFail) \<notin> set [x\<leftarrow>tr . \<not>isAFail (get_action x)]"
-      by (auto simp add: isAFail_def)
+    show "\<And>s. (s, ACrash) \<notin> set [x\<leftarrow>tr . \<not>isACrash (get_action x)]"
+      by (auto simp add: isACrash_def)
 
-    show "\<not> traceCorrect [tr\<leftarrow>tr . \<not> isAFail (get_action tr)]"
-      using tr_fail by (auto simp add: traceCorrect_def isAFail_def) 
+    show "\<not> traceCorrect [tr\<leftarrow>tr . \<not> isACrash (get_action tr)]"
+      using tr_fail by (auto simp add: traceCorrect_def isACrash_def) 
 
     thm state_ext  
 
     from \<open>initialState program ~~ tr \<leadsto>* S'\<close>
-    have "\<exists>S''. (initialState program ~~ [tr\<leftarrow>tr . \<not> isAFail (get_action tr)] \<leadsto>* S'') 
+    have "\<exists>S''. (initialState program ~~ [tr\<leftarrow>tr . \<not> isACrash (get_action tr)] \<leadsto>* S'') 
         \<and> (
            calls S'' = calls S'
          \<and> happensBefore S'' = happensBefore S'
@@ -53,7 +53,7 @@ proof (rule iffI2; clarsimp)
          \<and> knownIds S'' = knownIds S' 
          \<and> invocationOp S'' = invocationOp S' 
          \<and> invocationRes S'' = invocationRes S'
-         \<and> (\<forall>s. (s, AFail) \<notin> set tr \<longrightarrow> ( 
+         \<and> (\<forall>s. (s, ACrash) \<notin> set tr \<longrightarrow> ( 
              localState S'' s = localState S' s
            \<and> currentTransaction S'' s = currentTransaction S' s
            \<and> currentProc S'' s = currentProc S' s
@@ -69,7 +69,7 @@ proof (rule iffI2; clarsimp)
     next
       case (induct_step tr a S1 S2 S1')
       from steps_append2[OF induct_step.steps2]
-      have [simp]: "(initialState program ~~ [tr\<leftarrow>tr . \<not> isAFail (get_action tr)] @ trb \<leadsto>* C) \<longleftrightarrow> (S2 ~~ trb \<leadsto>* C)" for trb C .
+      have [simp]: "(initialState program ~~ [tr\<leftarrow>tr . \<not> isACrash (get_action tr)] @ trb \<leadsto>* C) \<longleftrightarrow> (S2 ~~ trb \<leadsto>* C)" for trb C .
 
 
       from \<open>S1 ~~ a \<leadsto> S1'\<close>
@@ -78,7 +78,7 @@ proof (rule iffI2; clarsimp)
         case (local s ls f ls')
 
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
-        have no_fail: "(s, AFail) \<notin> set tr"
+        have no_fail: "(s, ACrash) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
@@ -89,7 +89,7 @@ proof (rule iffI2; clarsimp)
       next
         case (newId s ls f ls' uid uidv ls'')
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
-        have no_fail: "(s, AFail) \<notin> set tr"
+        have no_fail: "(s, ACrash) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
@@ -100,7 +100,7 @@ proof (rule iffI2; clarsimp)
       next
         case (beginAtomic s ls f ls' t vis snapshot)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
-        have no_fail: "(s, AFail) \<notin> set tr"
+        have no_fail: "(s, ACrash) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
 
@@ -119,7 +119,7 @@ proof (rule iffI2; clarsimp)
       next
         case (endAtomic s ls f ls' t)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
-        have no_fail: "(s, AFail) \<notin> set tr"
+        have no_fail: "(s, ACrash) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
@@ -129,7 +129,7 @@ proof (rule iffI2; clarsimp)
       next
         case (dbop s ls f Op ls' t c res vis)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
-        have no_fail: "(s, AFail) \<notin> set tr"
+        have no_fail: "(s, ACrash) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
@@ -140,7 +140,7 @@ proof (rule iffI2; clarsimp)
       next
         case (invocation s procName initialLocalState impl)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>invocationOp S1 s = None\<close>
-        have no_fail: "(s, AFail) \<notin> set tr"
+        have no_fail: "(s, ACrash) \<notin> set tr"
           by (meson everything_starts_with_an_invocation in_set_conv_nth)
 
         show ?thesis 
@@ -150,7 +150,7 @@ proof (rule iffI2; clarsimp)
       next
         case (return s ls f res)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
-        have no_fail: "(s, AFail) \<notin> set tr"
+        have no_fail: "(s, ACrash) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
@@ -160,7 +160,7 @@ proof (rule iffI2; clarsimp)
       next
         case (fail s ls)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
-        have no_fail: "(s, AFail) \<notin> set tr"
+        have no_fail: "(s, ACrash) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
         show ?thesis 
           by (rule exI[where x="S2"],
@@ -177,7 +177,7 @@ proof (rule iffI2; clarsimp)
     qed
 
 
-    then show "[tr\<leftarrow>tr . \<not> isAFail (get_action tr)] \<in> traces program"
+    then show "[tr\<leftarrow>tr . \<not> isACrash (get_action tr)] \<in> traces program"
       by (auto simp add: traces_def)
   qed
 qed

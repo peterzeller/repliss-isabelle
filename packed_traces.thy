@@ -335,7 +335,7 @@ lemma allowed_context_switch_simps:
     and "\<not>allowed_context_switch (ADbOp c x ar)" 
     and "allowed_context_switch (AInvoc p)"
     and "\<not>allowed_context_switch (AReturn ir)" 
-    and "\<not>allowed_context_switch AFail" 
+    and "\<not>allowed_context_switch ACrash" 
     and "\<not>allowed_context_switch (AInvcheck invr)" by (auto simp add: allowed_context_switch_def)
 
 
@@ -345,8 +345,8 @@ lemma canSwap_when_allowed:
   assumes no_ctxt_switch: "\<not>allowed_context_switch b"
     and no_invcheck_a: "\<not>is_AInvcheck a"
     and no_invcheck_b: "\<not>is_AInvcheck b"  
-    and no_fail_a: "a \<noteq> AFail"
-    and no_fail_b: "b \<noteq> AFail"    
+    and no_fail_a: "a \<noteq> ACrash"
+    and no_fail_b: "b \<noteq> ACrash"    
   shows "canSwap t a b"
   by (metis allowed_context_switch_def canSwap_cases no_ctxt_switch no_fail_a no_fail_b no_invcheck_a no_invcheck_b)
 
@@ -408,12 +408,12 @@ definition packed_trace_i :: "('proc, 'operation, 'any) trace \<Rightarrow> invo
 
 lemma pack_trace_for_one_session:
   assumes steps: "initialState program ~~ tr1 \<leadsto>* C"
-    and noFail: "\<And>s. (s, AFail) \<notin> set tr1" (is "\<And>s. _ \<notin> set ?tr")
+    and noFail: "\<And>s. (s, ACrash) \<notin> set tr1" (is "\<And>s. _ \<notin> set ?tr")
     and noInvcheck: "\<And>s a. (s, a)\<in>set tr1 \<Longrightarrow> \<not>is_AInvcheck a "
   shows "\<exists>tr'. packed_trace_i tr' s
         \<and> (initialState program ~~ tr' \<leadsto>* C)
         \<and> (\<forall>s. packed_trace_i tr1 s \<longrightarrow> packed_trace_i tr' s)
-        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (\<forall>s. (s, ACrash) \<notin> set tr')
         \<and> (\<forall>s a. (s,a)\<in>set tr' \<longrightarrow> \<not>is_AInvcheck a)"
   text \<open>By induction over the minimal index that is not packed.\<close>
 proof -
@@ -426,11 +426,11 @@ proof -
         \<and> (initialState program ~~ tr' \<leadsto>* C)
         \<and> (length tr' = length tr1)
         \<and> (\<forall>s. packed_trace_i tr1 s \<longrightarrow> packed_trace_i tr' s)
-        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (\<forall>s. (s, ACrash) \<notin> set tr')
         \<and> (\<forall>s a. (s,a)\<in>set tr' \<longrightarrow> \<not>is_AInvcheck a)" (is "\<exists>tr'. ?P tr'")
   proof (rule fix_smallest_induct, auto simp add: assms disj_imp rewrite_and_implies, rename_tac tr i)
 
-    show "\<exists>tr'. (\<forall>j\<le>i. 0 < j \<longrightarrow> get_invoc (tr' ! (j - Suc 0)) \<noteq> get_invoc (tr ! i) \<longrightarrow> get_invoc (tr' ! j) = get_invoc (tr ! i) \<longrightarrow> allowed_context_switch (get_action (tr' ! j))) \<and> (initialState program ~~ tr' \<leadsto>* C) \<and> length tr' = length tr1 \<and> (\<forall>s. packed_trace_i tr1 s \<longrightarrow> packed_trace_i tr' s) \<and> (\<forall>s. (s, AFail) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"
+    show "\<exists>tr'. (\<forall>j\<le>i. 0 < j \<longrightarrow> get_invoc (tr' ! (j - Suc 0)) \<noteq> get_invoc (tr ! i) \<longrightarrow> get_invoc (tr' ! j) = get_invoc (tr ! i) \<longrightarrow> allowed_context_switch (get_action (tr' ! j))) \<and> (initialState program ~~ tr' \<leadsto>* C) \<and> length tr' = length tr1 \<and> (\<forall>s. packed_trace_i tr1 s \<longrightarrow> packed_trace_i tr' s) \<and> (\<forall>s. (s, ACrash) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"
       if c0: "\<And>j. j < i \<Longrightarrow> 0 < j \<longrightarrow> get_invoc (tr ! (j - Suc 0)) \<noteq> get_invoc (tr ! i) \<longrightarrow> get_invoc (tr ! j) = get_invoc (tr ! i) \<longrightarrow> allowed_context_switch (get_action (tr ! j))"
         and c1: "i < length tr1"
         and c2: "initialState program ~~ tr \<leadsto>* C"
@@ -440,7 +440,7 @@ proof -
         and c6: "\<forall>s. packed_trace_i tr1 s \<longrightarrow> packed_trace_i tr s"
         and i5: "\<not> allowed_context_switch (get_action (tr ! i))"
         and c8: "s = get_invoc (tr ! i)"
-        and c9: "\<forall>s. (s, AFail) \<notin> set tr"
+        and c9: "\<forall>s. (s, ACrash) \<notin> set tr"
         and c10: "\<forall>s a. (s, a) \<in> set tr \<longrightarrow> \<not> is_AInvcheck a"
       for  tr i
 
@@ -553,9 +553,9 @@ proof -
             by (metis c10 k4 prod.collapse)
           show "\<not> is_AInvcheck (get_action (tr ! i))"
             by (metis i2 c10 nth_mem snd_conv surj_pair)
-          show "get_action x \<noteq> AFail"
+          show "get_action x \<noteq> ACrash"
             by (metis c9 k4 prod.collapse)
-          show "get_action (tr ! i) \<noteq> AFail"
+          show "get_action (tr ! i) \<noteq> ACrash"
             by (metis c9 i2 nth_mem prod.collapse)
         qed  
 
@@ -563,10 +563,10 @@ proof -
           by (simp add: state_wellFormed_init)
 
         from noFail
-        show "\<And>i. (i, AFail) \<notin> set (take prev tr @ [tr ! prev])"
+        show "\<And>i. (i, ACrash) \<notin> set (take prev tr @ [tr ! prev])"
           by (metis Un_iff set_append c9 tr_split)
         from noFail
-        show "\<And>ia. (ia, AFail) \<notin> set (drop (Suc prev) (take i tr))"
+        show "\<And>ia. (ia, ACrash) \<notin> set (drop (Suc prev) (take i tr))"
           by (meson in_set_dropD in_set_takeD c9)
       qed    
 
@@ -586,13 +586,13 @@ proof -
           (initialState program ~~ tr' \<leadsto>* C) \<and>
           length tr' = length tr1 \<and>
           (\<forall>s. packed_trace_i tr1 s \<longrightarrow> packed_trace_i tr' s) \<and>
-          (\<forall>s. (s, AFail) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"
+          (\<forall>s. (s, ACrash) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"
       proof (rule exI[where x=tr'], intro conjI impI allI)
 
 
         show "initialState program ~~ tr' \<leadsto>* C"
           by (simp add: \<open>initialState program ~~ tr' \<leadsto>* C\<close>)
-        show "\<And>s. (s, AFail) \<notin> set tr'"
+        show "\<And>s. (s, ACrash) \<notin> set tr'"
           by (simp add: c9 tr'_sameSet)
         show "\<And>s a. (s, a) \<in> set tr' \<Longrightarrow> \<not> is_AInvcheck a"
           using c10 tr'_sameSet by auto
@@ -640,11 +640,11 @@ lemma packed_trace_iff_all_sessions_packed:
 text \<open>Now we can just repeat fixing invocId by invocId, until all sessions are packed.\<close>
 lemma pack_trace:
   assumes steps: "initialState program ~~ tr \<leadsto>* C"
-    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFail: "\<And>s. (s, ACrash) \<notin> set tr"
     and noInvcheck: "\<And>s a. (s, a)\<in>set tr \<Longrightarrow> \<not>is_AInvcheck a "
   shows "\<exists>tr'. packed_trace tr'
         \<and> (initialState program ~~ tr' \<leadsto>* C)
-        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (\<forall>s. (s, ACrash) \<notin> set tr')
         \<and> (\<forall>s a. (s,a)\<in>set tr' \<longrightarrow> \<not>is_AInvcheck a)"
 proof -
   have "{s. \<not>packed_trace_i tr s } \<subseteq> set (map get_invoc tr)"
@@ -671,8 +671,8 @@ proof -
         by blast
 
 
-      from \<open>initialState program ~~ tr \<leadsto>* C\<close> \<open>\<And>s. (s, AFail) \<notin> set tr\<close> \<open>\<And>s a. (s, a) \<in> set tr \<Longrightarrow> \<not> is_AInvcheck a\<close>
-      have "\<exists>tr'. packed_trace_i tr' s \<and> (initialState program ~~ tr' \<leadsto>* C) \<and> (\<forall>s. packed_trace_i tr s \<longrightarrow> packed_trace_i tr' s) \<and> (\<forall>s. (s, AFail) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"  
+      from \<open>initialState program ~~ tr \<leadsto>* C\<close> \<open>\<And>s. (s, ACrash) \<notin> set tr\<close> \<open>\<And>s a. (s, a) \<in> set tr \<Longrightarrow> \<not> is_AInvcheck a\<close>
+      have "\<exists>tr'. packed_trace_i tr' s \<and> (initialState program ~~ tr' \<leadsto>* C) \<and> (\<forall>s. packed_trace_i tr s \<longrightarrow> packed_trace_i tr' s) \<and> (\<forall>s. (s, ACrash) \<notin> set tr') \<and> (\<forall>s a. (s, a) \<in> set tr' \<longrightarrow> \<not> is_AInvcheck a)"  
         by (rule pack_trace_for_one_session; force)
 
       from this
@@ -680,7 +680,7 @@ proof -
         where tr'1: "packed_trace_i tr' s"
           and tr'2: "initialState program ~~ tr' \<leadsto>* C"
           and tr'3: "\<forall>s. packed_trace_i tr s \<longrightarrow> packed_trace_i tr' s"
-          and tr'4: "\<And>s. (s, AFail) \<notin> set tr'"
+          and tr'4: "\<And>s. (s, ACrash) \<notin> set tr'"
           and tr'5: "\<And>s a. (s, a) \<in> set tr' \<Longrightarrow> \<not> is_AInvcheck a"
         by blast
 
@@ -700,11 +700,11 @@ qed
 
 lemma pack_incorrect_trace:
   assumes steps: "initialState program ~~ tr \<leadsto>* C"
-    and noFail: "\<And>s. (s, AFail) \<notin> set tr"
+    and noFail: "\<And>s. (s, ACrash) \<notin> set tr"
     and notCorrect: "\<not>traceCorrect tr"
   shows "\<exists>tr' C'. packed_trace tr' 
         \<and> (initialState program ~~ tr' \<leadsto>* C')
-        \<and> (\<forall>s. (s, AFail) \<notin> set tr')
+        \<and> (\<forall>s. (s, ACrash) \<notin> set tr')
         \<and> \<not>traceCorrect tr'"
 proof -
   text \<open>As the trace is not correct, there must be a failing invariant:\<close> 
@@ -756,9 +756,9 @@ proof -
 
 
   from tr''_steps
-  have "\<exists>tr'''. packed_trace tr''' \<and> (initialState program ~~ tr''' \<leadsto>* C') \<and> (\<forall>s. (s, AFail) \<notin> set tr''') \<and> (\<forall>s a. (s, a) \<in> set tr''' \<longrightarrow> \<not> is_AInvcheck a)"
+  have "\<exists>tr'''. packed_trace tr''' \<and> (initialState program ~~ tr''' \<leadsto>* C') \<and> (\<forall>s. (s, ACrash) \<notin> set tr''') \<and> (\<forall>s a. (s, a) \<in> set tr''' \<longrightarrow> \<not> is_AInvcheck a)"
   proof (rule pack_trace)
-    show "\<And>s. (s, AFail) \<notin> set tr''"
+    show "\<And>s. (s, ACrash) \<notin> set tr''"
       using noFail by (auto simp add: tr'_def tr''_def dest: in_set_takeD)
     show "\<And>s a. (s, a) \<in> set tr'' \<Longrightarrow> \<not> is_AInvcheck a"
       by (auto simp add: tr''_def)
@@ -768,7 +768,7 @@ proof -
   obtain tr'''
     where tr'''1: "packed_trace tr'''"
       and tr'''2: "initialState program ~~ tr''' \<leadsto>* C'"
-      and tr'''3: "\<forall>s. (s, AFail) \<notin> set tr'''"
+      and tr'''3: "\<forall>s. (s, ACrash) \<notin> set tr'''"
       and tr'''4: "\<forall>s a. (s, a) \<in> set tr''' \<longrightarrow> \<not> is_AInvcheck a"
     by blast
 
@@ -782,7 +782,7 @@ proof -
 
   moreover have "initialState program ~~ tr4 \<leadsto>* C'"
     using C'_fails steps_append2 steps_single tr'''2 tr4_def by blast
-  moreover have "\<forall>s. (s, AFail) \<notin> set tr4"
+  moreover have "\<forall>s. (s, ACrash) \<notin> set tr4"
     by (simp add: tr4_def tr'''3)
   moreover have "\<not> traceCorrect tr4"
     by (auto simp add: traceCorrect_def tr4_def)

@@ -16,7 +16,7 @@ lemma state_monotonicGrowth_localState:
     if c0: "state_wellFormed S"
       and steps: "S ~~ tr \<leadsto>* S'"
       and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
-      and c3: "\<forall>i. (i, AFail) \<notin> set tr"
+      and c3: "\<forall>i. (i, ACrash) \<notin> set tr"
     for  tr
     using steps no_i by (induct rule: steps.induct, auto simp add: step.simps)
 qed
@@ -32,7 +32,7 @@ lemma state_monotonicGrowth_currentProc:
     if c0: "state_wellFormed S"
       and steps: "S ~~ tr \<leadsto>* S'"
       and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
-      and c3: "\<forall>i. (i, AFail) \<notin> set tr"
+      and c3: "\<forall>i. (i, ACrash) \<notin> set tr"
     for  tr
     using steps no_i by (induct rule: steps.induct, auto simp add: step.simps)
 qed
@@ -47,7 +47,7 @@ lemma state_monotonicGrowth_currentTransaction:
     if c0: "state_wellFormed S"
       and steps: "S ~~ tr \<leadsto>* S'"
       and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
-      and c3: "\<forall>i. (i, AFail) \<notin> set tr"
+      and c3: "\<forall>i. (i, ACrash) \<notin> set tr"
     for  tr
     using steps no_i by (induct rule: steps.induct, auto simp add: step.simps)
 qed
@@ -62,7 +62,7 @@ lemma state_monotonicGrowth_visibleCalls:
     if c0: "state_wellFormed S"
       and steps: "S ~~ tr \<leadsto>* S'"
       and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
-      and c3: "\<forall>i. (i, AFail) \<notin> set tr"
+      and c3: "\<forall>i. (i, ACrash) \<notin> set tr"
     for  tr
     using steps no_i by (induct rule: steps.induct, auto simp add: step.simps)
 qed
@@ -77,7 +77,7 @@ lemma state_monotonicGrowth_transactionOrigin_i:
     if wf: "state_wellFormed S"
       and steps: "S ~~ tr \<leadsto>* S'"
       and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
-      and c3: "\<forall>i. (i, AFail) \<notin> set tr"
+      and c3: "\<forall>i. (i, ACrash) \<notin> set tr"
     for  tr
     using steps wf no_i by (induct rule: steps.induct, 
         auto simp add: step.simps split: if_splits,
@@ -96,7 +96,7 @@ lemma state_monotonicGrowth_step:
     and "state_monotonicGrowth i S S'"
     and "S' ~~ (i',a) \<leadsto> S''"
     and "i' \<noteq> i"
-    and "a \<noteq> AFail"
+    and "a \<noteq> ACrash"
   shows "state_monotonicGrowth i S S''"
   using assms proof (auto simp add: state_monotonicGrowth_def, goal_cases G )
   case (G tr)
@@ -196,7 +196,7 @@ lemma state_monotonicGrowth_invocationOp_i:
   assume a0: "state_wellFormed S'"
     and steps: "S' ~~ tr \<leadsto>* S"
     and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
-    and a3: "\<forall>i. (i, AFail) \<notin> set tr"
+    and a3: "\<forall>i. (i, ACrash) \<notin> set tr"
 
   from steps no_i
   show "invocationOp S i = invocationOp S' i"

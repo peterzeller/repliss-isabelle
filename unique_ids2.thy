@@ -130,7 +130,7 @@ proof -
 
 
 
-  have S'_wf: "state_wellFormed S'" if noFail: "a \<noteq> AFail"
+  have S'_wf: "state_wellFormed S'" if noFail: "a \<noteq> ACrash"
     using S_wf local.step noFail state_wellFormed_combine1 by blast
 
 
@@ -273,7 +273,7 @@ lemma growth_still_hidden_steps_other:
     and p1: "uid_is_private i (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S) (localState S) (currentProc S) uidv"
     and steps: "S ~~ tr \<leadsto>* S'"
     and other: "\<forall>(i',a)\<in>set tr. i' \<noteq> i"
-    and no_fail: "\<forall>i. (i, AFail) \<notin> set tr"
+    and no_fail: "\<forall>i. (i, ACrash) \<notin> set tr"
   shows "uid_is_private i (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S') (localState S') (currentProc S') uidv"
 using steps   p1 other no_fail proof (induct rule: steps_induct)
   case initial
@@ -310,7 +310,7 @@ proof -
     where wf: "state_wellFormed S"
       and steps: "S ~~ tr \<leadsto>* S'"
       and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
-      and no_fail: "\<forall>i. (i, AFail) \<notin> set tr"
+      and no_fail: "\<forall>i. (i, ACrash) \<notin> set tr"
     by (auto simp add: state_monotonicGrowth_def)
 
 

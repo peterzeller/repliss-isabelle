@@ -100,14 +100,14 @@ qed
 
 theorem show_programCorrect_noTransactionInterleaving_no_passing_invchecks:
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; \<And>s. (s, AInvcheck True) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, ACrash) \<notin> set trace; \<And>s. (s, AInvcheck True) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving)
   fix trace
   fix S
   assume steps: "initialState program ~~ trace \<leadsto>* S"
     and packed: "packed_trace trace" 
-    and nofail: "\<And>s. (s, AFail) \<notin> set trace"
+    and nofail: "\<And>s. (s, ACrash) \<notin> set trace"
 
   show "traceCorrect trace"
   proof (rule ccontr)
@@ -153,7 +153,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
       then show "packed_trace trace'"
         unfolding trace'_def by simp
         
-      show " \<And>s. (s, AFail) \<notin> set trace'"
+      show " \<And>s. (s, ACrash) \<notin> set trace'"
         by (auto simp add: trace'_def nofail)
 
       show "\<And>s. (s, AInvcheck True) \<notin> set trace'"
@@ -170,7 +170,7 @@ qed
 lemma move_invariant_checks_out_of_transactions:
   assumes "initialState program ~~ trace \<leadsto>* S"
     and "packed_trace trace"
-    and "\<And>s. (s, AFail) \<notin> set trace"
+    and "\<And>s. (s, ACrash) \<notin> set trace"
     and "\<And>s. (s, AInvcheck True) \<notin> set trace"
     and "length trace > 0"
     and "last trace = (s, AInvcheck False)"
@@ -178,7 +178,7 @@ lemma move_invariant_checks_out_of_transactions:
   shows "\<exists>trace' s'. 
           (\<exists>S'. initialState program ~~ trace' \<leadsto>* S')
         \<and> packed_trace trace'
-        \<and> (\<forall>s. (s, AFail) \<notin> set trace')
+        \<and> (\<forall>s. (s, ACrash) \<notin> set trace')
         \<and> (\<forall>s. (s, AInvcheck True) \<notin> set trace')
         \<and> (last trace' = (s', AInvcheck False))
         \<and> length trace' > 0
@@ -298,7 +298,7 @@ lemma move_invariant_checks_out_of_transactions:
 
         show "ib < length (take (length trace - 2) trace)"
           using ib2 by auto
-        show "\<And>j. \<lbrakk>ib < j; j < length (take (length trace - 2) trace)\<rbrakk> \<Longrightarrow> take (length trace - 2) trace ! j \<noteq> (s, AFail)"
+        show "\<And>j. \<lbrakk>ib < j; j < length (take (length trace - 2) trace)\<rbrakk> \<Longrightarrow> take (length trace - 2) trace ! j \<noteq> (s, ACrash)"
           using less.prems(3) nth_mem by fastforce 
         show "\<And>j. \<lbrakk>ib < j; j < length (take (length trace - 2) trace)\<rbrakk> \<Longrightarrow> take (length trace - 2) trace ! j \<noteq> (s, AEndAtomic)"
           using noEndAtomic by auto
@@ -365,7 +365,7 @@ lemma move_invariant_checks_out_of_transactions:
         then show ?thesis 
           using invariant_fail_S2 \<open>S1 ~~ (s, action) \<leadsto> S2\<close>  by (auto simp add: step_simps ls_none currentTx)
       next
-        case AFail
+        case ACrash
         then show ?thesis
           by (metis action_def diff_less less.prems(3) `0 < length trace` nth_mem zero_less_numeral)
       next
@@ -423,7 +423,7 @@ lemma move_invariant_checks_out_of_transactions:
         show "\<And>s'. (s', AInvcheck True) \<notin> set (take (length trace - 2) trace @ [(s, AInvcheck False)])"
           by (auto, meson in_set_takeD less.prems(4))
 
-        show "\<And>s'. (s', AFail) \<notin> set (take (length trace - 2) trace @ [(s, AInvcheck False)])"
+        show "\<And>s'. (s', ACrash) \<notin> set (take (length trace - 2) trace @ [(s, AInvcheck False)])"
           by (auto, meson in_set_takeD less.prems(3))
 
         show "last (take (length trace - 2) trace @ [(s, AInvcheck False)]) = (s, AInvcheck False)"
@@ -472,7 +472,7 @@ lemma move_invariant_checks_out_of_transactions:
         show "\<And>s'. (s', AInvcheck True) \<notin> set (take (length trace - 2) trace @ [(new_s, AInvcheck False)])"
           by (auto, meson in_set_takeD less.prems(4))
 
-        show "\<And>s'. (s', AFail) \<notin> set (take (length trace - 2) trace @ [(new_s, AInvcheck False)])"
+        show "\<And>s'. (s', ACrash) \<notin> set (take (length trace - 2) trace @ [(new_s, AInvcheck False)])"
           by (auto, meson in_set_takeD less.prems(3))
 
         show "last (take (length trace - 2) trace @ [(new_s, AInvcheck False)]) = (new_s, AInvcheck False)"
@@ -496,14 +496,14 @@ text \<open>
 \<close>
 theorem show_programCorrect_noTransactionInterleaving':
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, ACrash) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
   fix trace
   fix S
   assume steps: "initialState program ~~ trace \<leadsto>* S"
     and packed: "packed_trace trace" 
-    and nofail: "\<And>s. (s, AFail) \<notin> set trace"
+    and nofail: "\<And>s. (s, ACrash) \<notin> set trace"
     and noTrueInvs: "\<And>s. (s, AInvcheck True) \<notin> set trace"
 
 
@@ -540,12 +540,12 @@ proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
 
     have "\<exists>trace' s'. (\<exists>S'. initialState program ~~ trace' \<leadsto>* S') \<and>
                   packed_trace trace' \<and>
-                  (\<forall>s. (s, AFail) \<notin> set trace') \<and>
+                  (\<forall>s. (s, ACrash) \<notin> set trace') \<and>
                   (\<forall>s. (s, AInvcheck True) \<notin> set trace') \<and> last trace' = (s', AInvcheck False) \<and> 0 < length trace' \<and> no_invariant_checks_in_transaction trace'"
     proof (rule  move_invariant_checks_out_of_transactions[OF steps_Si])
       show "packed_trace (take (Suc i) trace)"
         by (metis isPrefix_appendI packed prefixes_are_packed trace_split3)
-      show "\<And>s. (s, AFail) \<notin> set (take (Suc i) trace)"
+      show "\<And>s. (s, ACrash) \<notin> set (take (Suc i) trace)"
         by (meson in_set_takeD nofail)
       show "\<And>s. (s, AInvcheck True) \<notin> set (take (Suc i) trace)"
         by (meson in_set_takeD noTrueInvs)
@@ -575,14 +575,14 @@ text \<open>
 \<close>
 theorem show_programCorrect_noTransactionInterleaving'':
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, ACrash) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving')
   fix trace 
   fix s
   assume steps: "initialState program ~~ trace \<leadsto>* s"
     and packed: "packed_trace trace" 
-    and nofail: "\<And>s. (s, AFail) \<notin> set trace"
+    and nofail: "\<And>s. (s, ACrash) \<notin> set trace"
     and no_inv_checks: "no_invariant_checks_in_transaction trace"
 
 
@@ -650,7 +650,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
       have newTraceIth: "newTrace!i = (if i<pos then trace'!i else trace'!Suc i)" if "i<length newTrace"  for i
         using that \<open>pos < length trace'\<close> by (auto simp add: newTrace_def nth_append)
 
-      have IH: " \<lbrakk>Greatest (induct_measure trace) < Greatest (induct_measure trace'); \<exists>S. initialState program ~~ trace \<leadsto>* S; packed_trace trace; \<And>s. (s, AFail) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk>
+      have IH: " \<lbrakk>Greatest (induct_measure trace) < Greatest (induct_measure trace'); \<exists>S. initialState program ~~ trace \<leadsto>* S; packed_trace trace; \<And>s. (s, ACrash) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk>
      \<Longrightarrow> traceCorrect trace" for trace
         using less.hyps   by auto 
 
@@ -788,7 +788,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
             show "\<And>k. \<lbrakk>k < length (take (Suc pos) trace'); j < k\<rbrakk> \<Longrightarrow> take (Suc pos) trace' ! k \<noteq> (invoc, AEndAtomic)"
               by (simp add: noEndAtomic)
 
-            show "\<And>i. (i, AFail) \<notin> set (take (Suc pos) trace')"
+            show "\<And>i. (i, ACrash) \<notin> set (take (Suc pos) trace')"
               by (meson in_set_takeD less.prems(3))
           qed
 
@@ -892,9 +892,9 @@ proof (rule show_programCorrect_noTransactionInterleaving')
             then show ?thesis 
               using S_pos_step inTx by (auto simp add: step.simps inTx)
           next
-            case AFail
+            case ACrash
             then show ?thesis
-              using \<open>pos < length trace'\<close> \<open>\<And>s. (s, AFail) \<notin> set trace'\<close> nth_mem by fastforce
+              using \<open>pos < length trace'\<close> \<open>\<And>s. (s, ACrash) \<notin> set trace'\<close> nth_mem by fastforce
           next
             case (AInvcheck x92)
             then have "S_pos2 = S_pos"
@@ -933,8 +933,8 @@ proof (rule show_programCorrect_noTransactionInterleaving')
             for  i
             using that by (metis (no_types, hide_lams) Suc_pred diff_Suc_Suc diff_zero less_add_same_cancel1 maxPos not_gr_zero not_less_eq not_less_less_Suc_eq zero_less_Suc zero_less_diff)
         qed
-        show " \<And>s. (s, AFail) \<notin> set newTrace"
-          using \<open>\<And>s. (s, AFail) \<notin> set trace'\<close> by (auto simp add: newTrace_def dest: in_set_takeD in_set_dropD )
+        show " \<And>s. (s, ACrash) \<notin> set newTrace"
+          using \<open>\<And>s. (s, ACrash) \<notin> set trace'\<close> by (auto simp add: newTrace_def dest: in_set_takeD in_set_dropD )
 
         show "no_invariant_checks_in_transaction newTrace"
         proof (cases "get_action (trace' ! pos) \<noteq> AEndAtomic")
