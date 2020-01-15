@@ -254,8 +254,6 @@ proof -
     by (simp add: impl)
 qed
 
-thm GreatestI_nat
-
 lemma check_fail_least: "check_fail \<le> x"
   by (simp add: less_eq_check_result_def)
 

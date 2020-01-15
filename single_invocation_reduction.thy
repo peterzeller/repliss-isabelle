@@ -1145,7 +1145,6 @@ proof -
     using noFails tr_split by auto
 
 
-  thm convert_to_single_session_trace
   obtain tr1' S1' 
     where tr1'_steps: "S ~~ (as, tr1') \<leadsto>\<^sub>S* S1'"
       and tr1'_ok: "\<forall>a. (a, False)\<notin>set tr1'"
@@ -1521,8 +1520,6 @@ theorem show_correctness_via_single_session:
     and inv_init: "invariant_all (initialState program)"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving'')
-  (* \<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, ACrash) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace *)
-  thm show_programCorrect_noTransactionInterleaving''
   text \<open>Assume we have a trace and a final state S\<close>
   fix trace S
   text \<open>Such that executing the trace finishes in state S.\<close>

@@ -723,7 +723,6 @@ lemma traceDeterministic:
     and e2: "S ~~ tr \<leadsto>* Sb"
   shows "Sa = Sb"
   using e1 e2 proof (induct S tr Sa arbitrary: Sb rule: steps.induct)
-  thm steps.induct
   case (steps_refl S)
   then show ?case
     using steps.cases by fastforce 

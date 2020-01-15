@@ -861,7 +861,6 @@ lemma sub_context_id:
   assumes calls_sub: "dom (calls ctxt) \<subseteq> c_calls"
     and hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
   shows "(sub_context Some c_calls ctxt) = ctxt"
-  find_theorems "calls" "happensBefore _ = happensBefore _"
   apply (auto simp add: operationContext_ext calls_sub_context happens_before_sub_context restrict_map_def intro!: ext)
   using calls_sub domIff apply force
   apply (meson FieldI1 hb_wf in_dom)

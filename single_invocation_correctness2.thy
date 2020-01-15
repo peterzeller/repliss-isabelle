@@ -33,7 +33,6 @@ proof (auto simp add: programCorrect_s_def)
 
     
 
-    thm invocations_only_in_beginning[OF steps, where j=0, simplified]
     have "isAInvoc (fst (trace ! 0))"
     proof (rule invocations_only_in_beginning[OF steps, where j=0, simplified])
       show "state_wellFormed_s (initialState program) i"

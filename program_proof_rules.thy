@@ -121,8 +121,6 @@ proof (auto simp add:  execution_s_correct_def)
   assume a0: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
 
 
-  thm c[simplified execution_s_check_def]
-
   from a0
   show "traceCorrect_s  trace"
   proof (rule c[simplified execution_s_check_def, rule_format]; force?)
@@ -1219,7 +1217,6 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
     show "traceCorrect_s trace'"
       using `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S_end`
     proof (rule use_execution_s_check)
-      thm use_execution_s_check
       show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
         using Step by auto
 
@@ -1357,7 +1354,6 @@ proof show_proof_rule
     show "traceCorrect_s trace'"
       using `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S_end`
     proof (rule use_execution_s_check)
-      thm use_execution_s_check
       show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
         using Step by auto
 
@@ -1486,7 +1482,6 @@ proof show_proof_rule
     show "traceCorrect_s trace'"
       using `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S_end`
     proof (rule use_execution_s_check)
-      thm use_execution_s_check
       show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
         using Step by auto
 

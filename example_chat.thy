@@ -1091,7 +1091,6 @@ proof M_show_programCorrect
 
                   have [simp]: "upda_c \<noteq> c"
                     by (metis Exists_AtReturn(9) inv1(12) invariantContext.simps(1) operationContext.simps(1) option.simps(3) upda_call wellFormed_callOrigin_dom3)
-                  find_theorems crdtSpec "MessageId m" "Author Read"
 
                   from \<open>crdtSpec (Message (NestedOp (MessageId m) (Author Read)))
                    \<lparr>calls = (s_calls' |` (vis'))(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True)),
@@ -1122,7 +1121,6 @@ proof M_show_programCorrect
                        (insert c (dom s_calls' \<inter> (vis')))
                        ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                        (updateHb s_happensBefore' vis' [c]) id resa"
-                    thm use_ccrdtSpec_wf1[OF crdtSpec'_wf ]
                   proof (rule use_ccrdtSpec_wf1[OF crdtSpec'_wf, rotated -1, OF spec1])
 
                     show " map_same_on (insert c (dom s_calls' \<inter> (vis' )))
@@ -1301,7 +1299,6 @@ proof M_show_programCorrect
                       )
                     by blast
 
-                  find_theorems querySpec state_wellFormed
                   from updb_c_call
                   have "\<exists>ctxt. querySpec progr (Message (NestedOp (MessageId m) (Author (Assign (String author))))) ctxt updb_res"
                     by (meson get_query_spec inv1(17))

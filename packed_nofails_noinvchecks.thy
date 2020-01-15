@@ -253,8 +253,6 @@ lemma move_invariant_checks_out_of_transactions:
         and step_inv: "S2 ~~ last trace \<leadsto> S"
       by (metis (no_types, lifting) butlast.simps(2) butlast_append butlast_snoc last_snoc `0 < length trace` less_numeral_extra(3) list.simps(3) list.size(3) steps.cases steps_appendBack trace_split)
 
-    thm less
-
     from step_inv 
     have step_inv': "S2 ~~ (s, AInvcheck False) \<leadsto> S"
       by (auto simp add: \<open>last trace = (s, AInvcheck False)\<close>)
@@ -569,7 +567,6 @@ definition "induct_measure" where "induct_measure  \<equiv> \<lambda>trace. \<la
       | Suc pos \<Rightarrow>  pos<length trace \<and> (\<exists>i j tx txns. get_invoc(trace!pos) = i \<and>  j\<le>pos \<and> trace!j = (i, ABeginAtomic tx txns) \<and> (\<nexists>k. k>j \<and> k<length trace \<and> trace!k = (i, AEndAtomic)))" 
 
 
-thm show_programCorrect_noTransactionInterleaving'
 text \<open>
  To show that a program is correct, we only have to consider packed and finished transactions
 \<close>
@@ -812,8 +809,6 @@ proof (rule show_programCorrect_noTransactionInterleaving')
           have other_invocation'[simp]: "\<And>a. (invoc, a) \<notin> set (drop (Suc pos) trace')" 
             by (meson fst_conv other_invocation)
 
-
-          thm S_pos2_steps
 
           from \<open>S_pos2 ~~ drop (Suc pos) trace' \<leadsto>* S_end\<close>
           have S_pos_steps_to_S_end: "S_pos ~~ (invoc, pos_action) # drop (Suc pos) trace' \<leadsto>* S_end"

@@ -79,8 +79,6 @@ lemma step_prog_invariant:
   "S ~~ tr \<leadsto>* S' \<Longrightarrow> prog S' = prog S"
   by (induct rule: steps.induct, auto, erule step.cases, auto)
 
-thm full_nat_induct
-
 
 lemma steps_induct[consumes 1, case_names initial step[steps IH step]]:
   assumes a1: "init ~~ tr \<leadsto>*  S"
@@ -1646,12 +1644,6 @@ next
     have "tr ! i = (s, ABeginAtomic txi ntxnsi)"
       by (metis \<open>i < length tr\<close> nth_append steps_step.prems(1))  
 
-    (*from \<open>S' ~~ a \<leadsto> S''\<close>  
-    have "precondition (s, ABeginAtomic txj ntxnsj) S'"
-      by (simp add: \<open>a = (s, ABeginAtomic txj ntxnsj)\<close> preconditionI)
-*)
-
-    thm nth_append_length option.simps(3)   steps_step.hyps(3) steps_step.prems(4)
 
     from `(tr @ [a]) ! j = (s, ABeginAtomic txj ntxnsj)` and \<open>j = length tr\<close>
     have " a = (s, ABeginAtomic txj ntxnsj)"

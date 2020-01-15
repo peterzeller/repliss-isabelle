@@ -366,7 +366,6 @@ proof M_show_programCorrect
           proof (repliss_vcg, goal_cases "AtCommit" "AtReturn" )
             case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
 
-            find_theorems uid_is_private
 
 
 
@@ -769,7 +768,6 @@ proof M_show_programCorrect
                     and c3: "i_callOriginI_h s_callOrigin' s_transactionOrigin' c' \<triangleq> r"
                     and c4: "c' \<in> vis'"
                   for  r c'
-                  thm inv1(18)
                   using c0 c1 c3 state_monotonicGrowth_invocationOp_i[OF inv1(18)]
                     ` inv2 (s_invocationOp'(i \<mapsto> GetUser user)) (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
                     use_inv3'[OF `inv3 s_calls' s_happensBefore'`]

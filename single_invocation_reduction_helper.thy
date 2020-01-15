@@ -702,7 +702,6 @@ next
           and ib_no_end: "\<forall>j. ib<j \<and> j<length tr \<longrightarrow> tr!j \<noteq> (i, AEndAtomic)"
         using \<open>currentTransaction S i = None\<close> \<open>S ~~ tr \<leadsto>* S'\<close> currentTransaction_exists_beginAtomic local.wf  noFail_tr by blast
 
-      thm step.prems(3)
 
       have "\<not> allowed_context_switch (get_action ((tr @ [a]) ! length tr))"
       proof (rule use_noContextSwitchesInTransaction[OF \<open>noContextSwitchesInTransaction (tr @ [a])\<close>, where j="length tr"])

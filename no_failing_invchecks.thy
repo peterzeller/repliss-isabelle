@@ -284,8 +284,6 @@ proof -
     using a_def no_i steps transactionIdsUnique2 by fastforce
 
 
-  thm show_state_transfer
-
   from steps_tr
   have "(T S_mid ~~ tr \<leadsto>* T S_end) \<and> P S_end"
   proof (rule show_state_transfer)

@@ -291,7 +291,6 @@ proof -
       using steps_s_cons_simp
       by (meson steps_s_append_simp steps_s_single)   
       
-    thm snoc.hyps
     from \<open>S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1\<close> and \<open>P [] S_init\<close>
     have "P tr S1 \<and> S_init ~~ (i, tr) \<leadsto>\<^sub>S* S1" 
       by (rule snoc.hyps)
