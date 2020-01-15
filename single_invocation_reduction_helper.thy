@@ -109,66 +109,6 @@ lemma packed_trace_drop:
 
 
 
-lemma noContextSwitchAllowedInTransaction:
-  assumes steps: "S ~~ tr \<leadsto>* S'"
-    and  packed: "packed_trace tr"
-    and noFail: "\<And>i. (i, ACrash) \<notin> set tr"
-    and beginAtomic: "tr ! i = (invoc, ABeginAtomic tx txns)"
-    and noEndAtomic: "\<forall>j. i < j \<and> j < k \<longrightarrow> get_action (tr!j) \<noteq> AEndAtomic"
-    and sameInvoc: "get_invoc (tr!j) = invoc"
-    and i_less_j: "i<j" 
-    and k_less_k: "j<k"
-    and k_length: "k\<le>length tr"
-    and wf: "state_wellFormed S"
-  shows "\<not>allowed_context_switch (get_action (tr ! j))"
-proof 
-  assume a0: "allowed_context_switch (get_action (tr ! j))"
-
-  from steps
-  have "S ~~ take j tr @ (tr!j # drop (Suc j) tr) \<leadsto>* S'"
-    by (metis id_take_nth_drop k_length k_less_k less_le_trans)
-
-  from this
-  obtain S1 S2
-    where "S ~~ take j tr \<leadsto>* S1"
-      and "S1 ~~ tr!j \<leadsto> S2"
-    using steps_append steps_appendFront by blast 
-
-  have h: "\<forall>z ps za n i t C. 
-            \<not> (z ~~ ps \<leadsto>* za) 
-          \<or> \<not> n < length ps 
-          \<or> ps ! n \<noteq> (i, ABeginAtomic t C) 
-          \<or> (\<exists>na. (n < na \<and> na < length ps) \<and> ps ! na = (i, ACrash)) 
-          \<or> (\<exists>na. (n < na \<and> na < length ps) \<and> ps ! na = (i, AEndAtomic)) 
-          \<or> currentTransaction za i \<triangleq> t"
-    by (meson currentTransaction2)
-
-
-  have "get_invoc (tr!j) = invoc"
-    using i_less_j k_less_k sameInvoc by blast
-
-  moreover have "currentTransaction S1 invoc \<triangleq> tx"
-    using `S ~~ take j tr \<leadsto>* S1`
-  proof (rule currentTransaction2)
-    show "i < length (take j tr)"
-      using i_less_j k_length k_less_k by auto
-    show "take j tr ! i = (invoc, ABeginAtomic tx txns)"
-      by (simp add: i_less_j local.beginAtomic)
-    show "\<And>ja. \<lbrakk>i < ja; ja < length (take j tr)\<rbrakk> \<Longrightarrow> take j tr ! ja \<noteq> (invoc, ACrash)"
-      using noFail nth_mem by fastforce
-    show " \<And>ja. \<lbrakk>i < ja; ja < length (take j tr)\<rbrakk> \<Longrightarrow> take j tr ! ja \<noteq> (invoc, AEndAtomic)"
-      using k_less_k noEndAtomic by auto
-  qed
-
-  moreover have "localState S1 invoc \<noteq> None"
-    using \<open>S ~~ take j tr \<leadsto>* S1\<close> \<open>currentTransaction S1 invoc \<triangleq> tx\<close> inTransaction_localState local.wf state_wellFormed_combine
-    by (metis noFail set_rev_mp set_take_subset) 
-  ultimately 
-  show False
-    using  \<open>S1 ~~ tr!j \<leadsto> S2\<close> and \<open>allowed_context_switch (get_action (tr ! j))\<close>
-    by (auto simp add: step.simps allowed_context_switch_def)
-qed
-
 lemma noContextSwitchesInTransaction_when_packed_and_all_end:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and "allTransactionsEnd tr"
@@ -627,7 +567,6 @@ next
 qed
 
 
-
 lemma at_most_one_current_tx:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
@@ -646,6 +585,9 @@ proof (induct rule: steps_induct)
     by simp
 next
   case (step S' tr a S'')
+  have noFail_tr: "(i, ACrash) \<notin> set tr" for i
+    using  `\<And>s. (s, ACrash) \<notin> set (tr@[a])` by auto
+
   have IH: "\<forall>i. currentTransaction S' i \<noteq> None \<longrightarrow> i = get_invoc (last tr)"
   proof (rule step)
     show " noContextSwitchesInTransaction tr"
@@ -653,14 +595,13 @@ next
     show "packed_trace tr"
       using packed_trace_prefix step.prems(2) by blast
     show "\<And>s. (s, ACrash) \<notin> set tr"
-      using step.prems(3) by auto
+      using noFail_tr by auto
   qed
 
-  have noFail_tr: "(i, ACrash) \<notin> set tr" for i
-    using step.prems(3) by auto
+  
 
   have noFail_a: "get_action a \<noteq> ACrash"
-    using step.prems(3)
+    using  `\<And>s. (s, ACrash) \<notin> set (tr@[a])`
     by (metis list.set_intros(1) prod.collapse rotate1.simps(2) set_rotate1) 
 
 
@@ -721,35 +662,8 @@ next
 
     from \<open>S' ~~ a \<leadsto> S''\<close>
     show ?thesis
-    proof (cases rule: step.cases)
-      case (local s ls f ls')
-      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
-    next
-      case (newId s ls f ls' uid)
-      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
-    next
-      case (beginAtomic s ls f ls' t vis snapshot)
-      then show ?thesis using IH no_tx_if_context_switch by (auto simp add: allowed_context_switch_simps)
-    next
-      case (endAtomic s ls f ls' t)
-      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
-    next
-      case (dbop s ls f Op ls' t c res vis)
-      then show ?thesis using IH by auto
-    next
-      case (invocation s proc  initialState impl)
-      then show ?thesis using IH no_tx_if_context_switch by (auto simp add: allowed_context_switch_simps)
-    next
-      case (return s ls f res)
-      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
-    next
-      case (fail s ls)
-      then show ?thesis using IH
-        using step.prems(3) by auto
-    next
-      case (invCheck res s)
-      then show ?thesis using IH last_same by (auto simp add: allowed_context_switch_simps)
-    qed
+      using IH last_same no_tx_if_context_switch
+      by (auto simp add: step.simps allowed_context_switch_simps split: if_splits)
   qed
 qed
 
