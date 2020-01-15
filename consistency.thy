@@ -522,7 +522,7 @@ shows "transactionConsistent origin txStatus vis"
 lemma wellFormed_state_consistent_snapshot:
 assumes wf: "state_wellFormed S"
 assumes vis: "visibleCalls S s \<triangleq> vis"
-assumes noTx: "currentTransaction S s = None" 
+assumes noTx: "\<And>c tx. currentTransaction S s \<triangleq> tx \<Longrightarrow> callOrigin S c \<noteq> Some tx" 
 shows "consistentSnapshot S vis"
 unfolding consistentSnapshotH_def proof (intro conjI)
   show "vis \<subseteq> dom (calls S)"

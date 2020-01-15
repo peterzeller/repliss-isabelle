@@ -395,8 +395,16 @@ next
               using ih3 by (auto simp add: state_coupling_def)
             show "currentProc S' i \<triangleq> f"
               by (simp add: a1 a3)
+
+            have "state_wellFormed S2"
+              using growth state_monotonicGrowth_wf1 by blast 
+            have "state_wellFormed S'"
+              using growth state_monotonicGrowth_wf2 by auto
+
+
             show "\<And>c. callOrigin S' c \<noteq> Some tx"
-              using S_wf a6 state_wellFormed_combine steps wf_callOrigin_implies_transactionStatus_defined a1 noFails by (auto, blast)
+              using `transactionStatus S' tx = None`
+                and wf_no_transactionStatus_origin_for_nothing[OF \<open>state_wellFormed S'\<close>] by simp
 
 
             have "\<forall>i. currentTransaction S'' i \<noteq> None \<longrightarrow> i = get_invoc (last (tr@[a]))"
@@ -467,23 +475,18 @@ next
             have wf_S': "state_wellFormed S'"
               using S_wf noFails_tr state_wellFormed_combine steps by auto
 
-
-            from a9
-            show "consistentSnapshot S' snapshot"
-            proof (rule chooseSnapshot_consistentSnapshot_preserve)
-              show "\<And>x y z tx. \<lbrakk>(x, z) \<in> happensBefore S'; callOrigin S' x \<triangleq> tx; callOrigin S' y \<triangleq> tx; callOrigin S' z \<noteq> Some tx\<rbrakk> \<Longrightarrow> (y, z) \<in> happensBefore S'"
-                by (simp add: wf_S' wf_happensBefore_txns_left)
-              show "\<And>c tx. callOrigin S' c \<triangleq> tx \<Longrightarrow> transactionStatus S' tx \<triangleq> Committed"
-                by (metis (full_types) \<open>\<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted\<close> domD domIff transactionStatus.exhaust wf_S' wf_no_transactionStatus_origin_for_nothing)
-              show "\<And>ca cb tx. \<lbrakk>callOrigin S' ca \<triangleq> tx; (cb, ca) \<in> happensBefore S'\<rbrakk> \<Longrightarrow> \<exists>tx. callOrigin S' cb \<triangleq> tx"
-                by (simp add: domD happensBefore_in_calls_left wellFormed_callOrigin_dom wf_S')
-              show "trans (happensBefore S')"
-                using happensBefore_transitive wf_S' by blast
-              show "\<And>c tx. callOrigin S' c \<triangleq> tx \<Longrightarrow> \<exists>ci. calls S' c \<triangleq> ci"
-                using wellFormed_callOrigin_dom wf_S' by fastforce
-              show "consistentSnapshot S' vis"
-                using a5 a7 wellFormed_state_consistent_snapshot wf_S' by blast
+            have "consistentSnapshot S'' snapshot"
+              using \<open>state_wellFormed S''\<close>
+            proof (rule wellFormed_state_consistent_snapshot)
+              show "visibleCalls S'' i \<triangleq> snapshot"
+                by (auto simp add: a1)
+              show "\<And>c tx. currentTransaction S'' i \<triangleq> tx \<Longrightarrow> callOrigin S'' c \<noteq> Some tx"
+                using \<open>\<And>c. callOrigin S' c \<noteq> Some tx\<close> by (auto simp add: a1)
             qed
+
+            from this
+            show "consistentSnapshot S' snapshot"
+              by (auto simp add: a1 consistentSnapshotH_def transactionConsistent_def transactionConsistent_committed_def split: if_splits)
           qed
 
           then show "S ~~ (i, tr'@[(ABeginAtomic tx snapshot, True)]) \<leadsto>\<^sub>S*  S''"
