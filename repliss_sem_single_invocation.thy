@@ -171,16 +171,10 @@ inductive steps_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state
 \<comment> \<open>Add some nicer syntax for Latex output:\<close>
 
 
-syntax (latex output)
-  "_step_s" :: "('c, 'd, 'a, 'b) state \<Rightarrow> invocId \<times> ('c, 'a, 'b) action \<times> bool \<Rightarrow> ('c, 'd, 'a, 'b) state \<Rightarrow> bool" 
-      ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}_{S}}\<close> (_)" [5,5,5]65)
-  "_steps_s" :: "('c, 'd, 'a, 'b) state \<Rightarrow> invocId \<times> (('c, 'a, 'b) action \<times> bool) list \<Rightarrow> ('c, 'd, 'a, 'b) state \<Rightarrow> bool" 
-      ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}_{S}^*}\<close> (_)" [5,5,5]65)
-translations
-  "_step_s x y z" <= "CONST step_s x y z"
-  "_step_s x y z" <= "x ~~ y \<leadsto>\<^sub>S z"
-  "_steps_s x y z" <= "CONST steps_s x y z"
-  "_steps_s x y z" <= "x ~~ y \<leadsto>\<^sub>S* z"
+notation (latex output)
+  step_s ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}_{S}}\<close> (_)" [5,5,5]65)
+notation (latex output)
+  steps_s ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}_{S}^*}\<close> (_)" [5,5,5]65)
 
 
 definition traceCorrect_s where
