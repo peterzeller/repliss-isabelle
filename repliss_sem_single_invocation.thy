@@ -168,6 +168,19 @@ inductive steps_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state
   "\<lbrakk>S ~~ (s, tr) \<leadsto>\<^sub>S* S'; S' ~~ (s,a) \<leadsto>\<^sub>S S''\<rbrakk> \<Longrightarrow> S ~~ (s, tr@[a]) \<leadsto>\<^sub>S* S''"
   
 
+\<comment> \<open>Add some nicer syntax for Latex output:\<close>
+
+
+syntax (latex output)
+  "_step_s" :: "('c, 'd, 'a, 'b) state \<Rightarrow> invocId \<times> ('c, 'a, 'b) action \<times> bool \<Rightarrow> ('c, 'd, 'a, 'b) state \<Rightarrow> bool" 
+      ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}_{S}}\<close> (_)" [5,5,5]65)
+  "_steps_s" :: "('c, 'd, 'a, 'b) state \<Rightarrow> invocId \<times> (('c, 'a, 'b) action \<times> bool) list \<Rightarrow> ('c, 'd, 'a, 'b) state \<Rightarrow> bool" 
+      ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}_{S}^*}\<close> (_)" [5,5,5]65)
+translations
+  "_step_s x y z" <= "CONST step_s x y z"
+  "_steps_s x y z" <= "CONST steps_s x y z"
+
+
 definition traceCorrect_s where
 "traceCorrect_s trace \<equiv> (\<forall>a. (a, False) \<notin> set trace)"
 

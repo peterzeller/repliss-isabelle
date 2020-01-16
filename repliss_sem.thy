@@ -706,6 +706,18 @@ inductive steps :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \
   "\<lbrakk>S ~~ tr \<leadsto>* S'; S' ~~ a \<leadsto> S''\<rbrakk> \<Longrightarrow> S ~~ tr@[a] \<leadsto>* S''"
 
 
+\<comment> \<open>Add some nicer syntax for Latex output:\<close>
+
+syntax (latex output)
+  "_step" :: "('c, 'd, 'a, 'b) state \<Rightarrow> invocId \<times> ('c, 'a, 'b) action \<Rightarrow> ('c, 'd, 'a, 'b) state \<Rightarrow> bool" 
+      ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}}\<close> (_)" [5,5,5]65)
+  "_steps" :: "('c, 'd, 'a, 'b) state \<Rightarrow> (invocId \<times> ('c, 'a, 'b) action) list \<Rightarrow> ('c, 'd, 'a, 'b) state \<Rightarrow> bool" 
+      ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}^*}\<close> (_)" [5,5,5]65)
+translations
+  "_step x y z" <= "CONST step x y z"
+  "_steps x y z" <= "CONST steps x y z"
+
+
 
 
 

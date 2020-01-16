@@ -1468,7 +1468,7 @@ lemma currentTransaction_unchangedInternalSteps4:
 
 lemma currentTransaction_unchangedInternalSteps3:
   assumes a1: "s_init ~~ (s, ABeginAtomic tx ntxns) # as \<leadsto>* S'"
-    and a2: "\<And>st at.  (st, at) \<in> set as \<Longrightarrow> st = s \<and> at \<noteq> AEndAtomic \<and> at \<noteq> ACrash"
+    and a2: "\<And>st act.  (st, act) \<in> set as \<Longrightarrow> st = s \<and> act \<noteq> AEndAtomic \<and> act \<noteq> ACrash"
     and wf: "state_wellFormed s_init"
   shows "currentTransaction S' s \<triangleq> tx"
 proof -
