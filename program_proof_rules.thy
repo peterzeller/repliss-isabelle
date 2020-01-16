@@ -888,7 +888,7 @@ proof show_proof_rule
       from `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed)`
       show "firstTx = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> transactionOrigin S'a tx \<triangleq> i \<and> transactionStatus S'a tx \<triangleq> Committed)"
         apply (auto simp add: S'a_def)
-        apply (smt Step(1) c15 c16 c17 c4 c8 consistentSnapshotH_def growth in_dom state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin wellFormed_callOrigin_dom wellFormed_currentTransaction_unique_h(2) wellFormed_state_consistent_snapshot wellFormed_state_transaction_consistent(1) wf_S')
+        apply (smt Step(1) c15 c16 c17 c4 c8 growth in_dom state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin wellFormed_callOrigin_dom wellFormed_currentTransactionUncommitted wellFormed_state_transaction_consistent(1) wellFormed_visibleCallsSubsetCalls_h(2) wf_S')
         by (metis Step(1) c5 growth state_monotonicGrowth_callOrigin state_monotonicGrowth_transactionOrigin state_monotonicGrowth_transactionStatus2 wf_callOrigin_implies_transactionStatus_defined)
 
       show "\<And>c. i_callOriginI S'a c \<triangleq> i \<Longrightarrow> c \<in> vis''"
