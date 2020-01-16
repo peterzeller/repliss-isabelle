@@ -178,7 +178,9 @@ syntax (latex output)
       ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}_{S}^*}\<close> (_)" [5,5,5]65)
 translations
   "_step_s x y z" <= "CONST step_s x y z"
+  "_step_s x y z" <= "x ~~ y \<leadsto>\<^sub>S z"
   "_steps_s x y z" <= "CONST steps_s x y z"
+  "_steps_s x y z" <= "x ~~ y \<leadsto>\<^sub>S* z"
 
 
 definition traceCorrect_s where

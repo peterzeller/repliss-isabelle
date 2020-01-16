@@ -715,7 +715,9 @@ syntax (latex output)
       ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}^*}\<close> (_)" [5,5,5]65)
 translations
   "_step x y z" <= "CONST step x y z"
+  "_step x y z" <= "x ~~ y \<leadsto> z"
   "_steps x y z" <= "CONST steps x y z"
+  "_steps x y z" <= "x ~~ y \<leadsto>* z"
 
 
 
