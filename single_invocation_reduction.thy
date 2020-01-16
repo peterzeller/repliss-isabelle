@@ -674,217 +674,120 @@ next
   qed
 qed
 
+lemma invContext_unchanged:
+assumes step: "S ~~ (i,a) \<leadsto> S'"
+and cases:"a = ALocal \<or> a = ANewId uidv \<or> a = ABeginAtomic t snapshot \<or> a = ADbOp c Op res"
+and S_wellformed: "state_wellFormed S"
+and noUncommitted:  "\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+shows "invContext S' = invContext S"
+  using step cases apply (auto simp add: step.simps)
+   apply (auto simp add: invContextH_def restrict_map_def committedCallsH_update_uncommitted 
+      S_wellformed committedCalls_unchanged_callOrigin wellFormed_committedCallsExist wellFormed_currentTransaction_unique_h(2) wf_callOrigin_and_calls
+      intro!: ext)
+  using S_wellformed noUncommitted wellFormed_currentTransaction_unique_h(2) by blast+
+
+
+lemma inv_unchanged:
+assumes step: "S ~~ (i,a) \<leadsto> S'"
+and S_wellformed: "state_wellFormed S"
+and noUncommitted:  "\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+and cases:"a = ALocal \<or> a = ANewId uidv \<or> a = ABeginAtomic t snapshot \<or> a = ADbOp c Op res"
+shows "invariant_all S' = invariant_all S"
+  using invContext_unchanged[OF step cases S_wellformed noUncommitted] prog_inv[OF step] by auto
+
+lemma inv_unchanged2:
+assumes step: "S ~~ (i,a) \<leadsto> S'"
+and S_wellformed: "state_wellFormed S"
+and noUncommitted:  "\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+shows "a = ALocal  \<Longrightarrow> invariant_all S' = invariant_all S"
+and "a = ANewId uidv \<Longrightarrow> invariant_all S' = invariant_all S"
+and "a = ABeginAtomic t snapshot  \<Longrightarrow> invariant_all S' = invariant_all S"
+and " a = ADbOp c Op res \<Longrightarrow> invariant_all S' = invariant_all S"
+  using inv_unchanged[OF step S_wellformed noUncommitted] by auto
+
 
 lemma convert_to_single_session_trace_invFail_step:
   fixes tr :: "('proc::valueType, 'operation, 'any::valueType) trace"
-    and s :: invocId      
+    and i :: invocId      
     and S S' :: "('proc, 'ls, 'operation, 'any) state"
-  assumes step: "S ~~ (s,a) \<leadsto> S'"
+  assumes step: "S ~~ (i,a) \<leadsto> S'"
     and S_wellformed: "state_wellFormed S"
     and noFails: "a \<noteq> ACrash"
     \<comment> \<open>invariant holds in the initial state\<close>
     and inv: "invariant_all S"
     \<comment> \<open>invariant no longer holds\<close>
     and not_inv: "\<not>invariant_all S'"
-    and coupling: "state_coupling S S2 s sameSession"
+    and coupling: "state_coupling S S2 i sameSession"
     and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" 
     and noUncommitted:  "a \<noteq> AEndAtomic \<Longrightarrow>  \<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-    \<comment> \<open>we assume that we are not in a transaction (inside a transaction it is not necessary for invariants to hold)\<close>
-  shows "\<exists>tr' S2'. (S2 ~~ (s, tr') \<leadsto>\<^sub>S* S2') 
-        \<and> (\<exists>a. (a, False)\<in>set tr')"
+  shows "(S2 ~~ (i, a, False) \<leadsto>\<^sub>S S')"
   using step proof (cases rule: step.cases)
-  case (local ls f ls')
-  text \<open>a local step does not change the invariant\<close>
 
-  have "invariant_all S' = invariant_all S"
-  proof (rule show_invariant_all_changes)
-    show "invContext S'  = invContext S "
-      using local by (auto simp add: invContextH_def)
-    show "prog S' = prog S"
-      using local.step prog_inv by auto
-  qed
-
-  with inv and not_inv
-  have False by simp
-
-  then show ?thesis ..
-next
-  case (newId ls f ls' uid)
-  text \<open>generating a new id does not change the invariant\<close>
-
-  have "invariant_all S' = invariant_all S"
-  proof (rule show_invariant_all_changes)
-    show "invContext S' = invContext S"
-      using newId by (auto simp add: invContextH_def)
-    show "prog S' = prog S"
-      using local.step prog_inv by auto
-  qed
-
-  with inv and not_inv
-  have False by simp
-
-  then show ?thesis ..
-next
-  case (beginAtomic ls f ls' t)
-  text \<open>starting a transaction does not change the invariant\<close>
-
-  have "invariant_all S' = invariant_all S"
-  proof (rule show_invariant_all_changes)
-    show "invContext S' = invContext S " 
-      using beginAtomic by (auto simp add: invContextH_def restrict_map_def   committedCallsH_update_uncommitted )
-
-    show "prog S' = prog S"
-      using local.step prog_inv by auto
-  qed
-
-  with inv and not_inv
-  have False by simp
-
-  then show ?thesis ..
-next
   case (endAtomic ls f ls' t)
   text \<open>Ending a transaction includes an invariant-check in the single-invocId semantics, so we get a failing trace.\<close>
 
-  define S2' where "S2' \<equiv> S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S2(t \<mapsto> Committed)\<rparr>"
 
   have [simp]: "sameSession"
-    using allowed_context_switch_def[where action=a] ctxtSwitchCases local.endAtomic(1) by blast
+    using `a = AEndAtomic` ctxtSwitchCases by blast
 
-  have "S2 ~~ (s,(AEndAtomic, False)) \<leadsto>\<^sub>S S2'"
-  proof (rule step_s.intros)
-    show "localState S2 s \<triangleq> ls" 
-      and "currentProc S2 s \<triangleq> f"  
-      and "f ls = EndAtomic ls'"
-      and "currentTransaction S2 s \<triangleq> t"
-      using coupling local.endAtomic state_coupling_def by force+
-    show "S2' 
-        = S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S2(t \<mapsto> Committed)\<rparr>"
-      using S2'_def by simp
+  hence "S2 = S"
+    by (meson coupling state_coupling_def)
 
-    from not_inv coupling
-    show "False = invariant_all S2'"
-    proof (auto simp add:  state_coupling_def local.endAtomic(6) split: if_splits)
-      show "False" if "\<not> invariant_all S'" and "S2 = S" and "invariant_all S2'"
-        using that apply (auto simp add: S2'_def \<open>S2 = S\<close>)
-        using S2'_def local.endAtomic(2) that(2) that(3) by blast
-    qed
-    show "state_wellFormed S2'"
-      by (metis (full_types) S2'_def S_wellformed \<open>sameSession\<close> action.distinct(49) coupling local.endAtomic(1) local.endAtomic(2) local.step snd_conv state_coupling_def state_wellFormed_combine_step)
+  have "state_wellFormed S'"
+    using S_wellformed `a = AEndAtomic` local.step state_wellFormed_combine_step by fastforce
 
-  qed
+
+  have "S ~~ (i,(AEndAtomic, False)) \<leadsto>\<^sub>S S'"
+    using not_inv `state_wellFormed S'`
+    by (auto simp add: step_s.simps endAtomic )
 
   then show ?thesis
-    using steps_s_refl steps_s_step by fastforce 
-next
-  case (dbop ls f Op ls' t c res vis)
-  text \<open>uncommitted operations do not affect the invariant\<close>
-
-  have hb': "happensBefore S' = happensBefore S \<union> vis \<times> {c}"
-    using dbop by auto
-
-
-
-  have "invariant_all S'" if "invariant_all S"
-    using S_wellformed local.dbop(1) local.dbop(6) noUncommitted wellFormed_currentTransactionUncommitted by blast
-
-  then have False
-    by (simp add: inv not_inv)
-  then show ?thesis ..
+    using `a = AEndAtomic` `S2 = S` by auto
 next
   case (invocation proc initialState impl)
   text \<open>invocations include an invariant-check\<close>
 
-  define S2' where "S2' \<equiv> S2\<lparr>localState := localState S2(s \<mapsto> initialState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> proc)\<rparr>"
 
-  have "S2 ~~ (s,(AInvoc proc, False)) \<leadsto>\<^sub>S S'"
-  proof (rule step_s.intros)
+  have [simp]: "prog S2 = prog S"
+    by (metis coupling state_coupling_def state_monotonicGrowth_prog)
 
-    have "localState S2 s = None"
-      using invocation coupling
-      by (metis state_coupling_def state_monotonicGrowth_localState)
-    have "\<And>x. invocationOp S2 s \<noteq> Some x"      
-      using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_invocationOp split: if_splits)
-    then show "invocationOp S2 s = None" by blast     
-    show "procedure (prog S2) proc = (initialState, impl)"
-      using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_prog split: if_splits)
-    show "uniqueIds proc \<subseteq> knownIds S"
-      using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
-    show "invocationOp S s = None"
-      using invocation coupling by (auto simp add: state_coupling_def split: if_splits)
-    show "invariant_all S"
-      by (simp add: inv)
-    show "S' = S\<lparr>localState := localState S(s \<mapsto> initialState), currentProc := currentProc S(s \<mapsto> impl), visibleCalls := visibleCalls S(s \<mapsto> {}), invocationOp := invocationOp S(s \<mapsto> proc)\<rparr>"
-      using local.invocation(2) by linarith
-    show "False = invariant_all S'"
-      by (simp add: not_inv)
-    show "prog S = prog S2" 
-      using coupling by (auto simp add: state_coupling_def state_monotonicGrowth_prog split: if_splits)
-    show "state_wellFormed S"
-      by (simp add: S_wellformed)
-    show " \<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-      by (simp add: local.invocation(1) noUncommitted)
+  have "localState S2 i = None"
+    using invocation coupling
+    by (metis state_coupling_def state_monotonicGrowth_localState)
+  have "\<And>x. invocationOp S2 i \<noteq> Some x"
+    using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_invocationOp split: if_splits)
+  then have [simp]: "invocationOp S2 i = None" by blast     
 
-    have "\<And>tx. transactionOrigin S tx \<noteq> Some s"
-      by (simp add: S_wellformed local.invocation(6) wf_no_invocation_no_origin)
-    then show "\<And>tx. transactionOrigin S' tx \<noteq> Some s"
-      using step \<open>a = AInvoc proc\<close> by (auto simp add: step_simps)
+  have no_transactions: "transactionOrigin S tx \<noteq> Some i" for tx
+    using wf_no_invocation_no_origin[OF S_wellformed] `invocationOp S i = None` by simp
 
-  qed    
 
-  then show ?thesis
-    using steps_s_refl steps_s_step by fastforce 
+  show "S2 ~~ (i, a, False) \<leadsto>\<^sub>S S'"
+    using invocation inv not_inv 
+    by (auto simp add: step_s.simps S_wellformed noUncommitted no_transactions)
+
 next
   case (return ls f res)
   text \<open>return contains an invariant check\<close>
 
-  define S2' where "S2' \<equiv> S2\<lparr>localState := (localState S2)(s := None), 
-                              currentProc := (currentProc S2)(s := None), 
-                              visibleCalls := (visibleCalls S2)(s := None), 
-                              invocationRes := invocationRes S2(s \<mapsto> res), 
-                              knownIds := knownIds S2 \<union> uniqueIds res\<rparr>"
 
   have [simp]: sameSession
-    using ctxtSwitchCases local.return(1) allowed_context_switch_def[where action = a] by blast                            
+    using `a = AReturn res` ctxtSwitchCases by auto
+  hence "S2 = S"
+    by (meson coupling state_coupling_def)
 
-  have "S2 ~~ (s,(AReturn res, False)) \<leadsto>\<^sub>S S2'"
-  proof (rule step_s.intros)
-    show "localState S2 s \<triangleq> ls"
-      and "currentProc S2 s \<triangleq> f"
-      and "f ls = Return res"
-      and "currentTransaction S2 s = None"
-      using return coupling by (auto simp add: state_coupling_def)
-
-    show "S2' = S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S2(s \<mapsto> res), knownIds := knownIds S2 \<union> uniqueIds res\<rparr>"
-      using S2'_def by simp
-
-    have not_in_transaction: "currentTransaction S s = None"
-      using S_wellformed return wellFormed_invoc_notStarted(1) by auto  
-
-    from not_inv coupling
-    show "False = invariant_all S2'"
-    proof (auto simp add:  state_coupling_def not_in_transaction)
-      fix vis
-      assume a3: "S2 = S"
-        and a0: "invariant_all S2'"
-        and a1: "\<not> invariant_all S'"
-
-      show False
-        using S2'_def a0 a3 local.return(2) not_inv by blast
-    qed
-  qed
+  have "S  ~~ (i,(AReturn res, False)) \<leadsto>\<^sub>S S'"
+    using not_inv  by (auto simp add: step_s.simps return)
 
   then show ?thesis
-    using steps_s_refl steps_s_step by fastforce 
-next
+    using \<open>S2 = S\<close> \<open>a = AReturn res\<close> by blast
+next    
   case (fail ls)
   text \<open>we assumed that there are no fails\<close>
   then show ?thesis
     using noFails by blast
-next
-  case (invCheck  res)
-  then show ?thesis
-    using inv not_inv by blast \<comment> \<open>same state\<close>
-qed
+\<comment> \<open>remaining cases cannot change the invariant\<close>
+qed (insert inv not_inv noUncommitted inv_unchanged[OF step S_wellformed], auto)
 
 lemma uncommitted_tx_is_current_somewhere:
   assumes steps: "S ~~ tr \<leadsto>* S'"
@@ -1065,10 +968,8 @@ proof -
   qed  
 
 
-  obtain tr_a S_fail'
-    where steps_tr_a: "S1' ~~ (as, tr_a) \<leadsto>\<^sub>S* S_fail'"
-      and tr_a_fails: "\<exists>a. (a, False)\<in>set tr_a"
-  proof (atomize_elim, rule convert_to_single_session_trace_invFail_step)
+  have steps_tr_a: "S1' ~~ (as, aa, False) \<leadsto>\<^sub>S S_fail"
+  proof (rule convert_to_single_session_trace_invFail_step)
     show "S1 ~~ (as,aa) \<leadsto> S_fail"
       using a_def stepA by blast
     show "state_wellFormed S1"
@@ -1238,13 +1139,14 @@ proof -
   qed    
 
   show ?thesis
-  proof (rule exI[where x="tr1'@tr_a"], rule exI[where x="S_fail'"], rule exI[where x="as"], intro conjI)
+
+  proof (rule exI[where x="tr1'@[(aa, False)]"], rule exI[where x="S_fail"], rule exI[where x="as"], intro conjI)
     from \<open>S ~~ (as, tr1') \<leadsto>\<^sub>S* S1'\<close> 
-      and \<open>S1' ~~ (as, tr_a) \<leadsto>\<^sub>S* S_fail'\<close>
-    show " S ~~ (as, tr1' @ tr_a) \<leadsto>\<^sub>S* S_fail'"
-      by (rule steps_s_append)  
-    show "\<exists>a. (a, False) \<in> set (tr1' @ tr_a)"
-      using tr_a_fails by auto
+      and \<open>S1' ~~ (as, aa, False) \<leadsto>\<^sub>S S_fail\<close>
+    show " S ~~ (as, tr1' @ [(aa, False)]) \<leadsto>\<^sub>S* S_fail"
+      using steps_s_step by blast
+    show "\<exists>a. (a, False) \<in> set (tr1' @ [(aa, False)])"
+      by auto
   qed
 qed
 
