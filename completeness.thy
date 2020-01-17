@@ -1,12 +1,7 @@
 section "Completeness"
 theory completeness
-    imports 
-    program_verification_tactics
-    impl_language
-    crdt_specs2
-    unique_ids
-    program_proof_rules
-    app_verification_helpers
+  imports single_invocation_reduction
+single_invocation_correctness
 begin
 
 
