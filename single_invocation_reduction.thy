@@ -1217,6 +1217,7 @@ next
 qed
 
 
+
 text \<open>
 When a program is correct in the single invocId semantics, 
 it is also correct when executed in the concurrent interleaving semantics.
@@ -1266,59 +1267,36 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
       using smallestPrefix_exists[where P="\<lambda>tr x. isPrefix tr trace \<and> (initialState program ~~ tr \<leadsto>* x) \<and> \<not> invariant_all x"]
       by metis
 
-    text \<open>Next get the invocId start before the failure\<close>  
+    from \<open>initialState program ~~ tr' \<leadsto>* S_fail\<close>
+    have "\<exists>tr'_s S_fail_s s'. 
+              (initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s) 
+            \<and> (\<exists>a. (a, False) \<in> set tr'_s)"
+    proof (rule convert_to_single_session_trace_invFail)
+      show "state_wellFormed (initialState program)"
+        by (simp add: state_wellFormed_init)
+      show "packed_trace tr'"
+        using \<open>isPrefix tr' trace\<close> packed prefixes_are_packed by blast
+      show "\<And>s'. (s', ACrash) \<notin> set tr'"
+        by (metis \<open>isPrefix tr' trace\<close> in_set_takeD isPrefix_def noFail)
+      show "invariant_all (initialState program)"
+        using inv_init .
+      show "\<not> invariant_all S_fail"
+        by (simp add: \<open>\<not> invariant_all S_fail\<close>)
+      show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
+        by (simp add: initialState_def)
+      show " noContextSwitchesInTransaction tr'"
+        by (metis \<open>allTransactionsEnd trace\<close> \<open>isPrefix tr' trace\<close> \<open>state_wellFormed (initialState program)\<close> noContextSwitchesInTransaction_when_packed_and_all_end noFail packed prefixes_noContextSwitchesInTransaction steps)
+    qed
 
-
-
+    from this
     obtain tr'_s S_fail_s s'
       where "initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s"
         and "\<exists>a. (a, False) \<in> set tr'_s"
-    proof (atomize_elim)
-      have "\<exists>tr'_s S_fail_s s'. (initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s) \<and> (\<exists>a. (a, False) \<in> set tr'_s)"
-      proof (rule convert_to_single_session_trace_invFail[OF \<open>initialState program ~~ tr' \<leadsto>* S_fail\<close>])
-        show "state_wellFormed (initialState program)"
-          by (simp add: state_wellFormed_init)
-        show "packed_trace tr'"
-          using \<open>isPrefix tr' trace\<close> packed prefixes_are_packed by blast
-        show "\<And>s'. (s', ACrash) \<notin> set tr'"
-          using \<open>isPrefix tr' trace\<close> noFail apply (auto simp add: isPrefix_def) (* IMPROVE extract lemma for isPrefix with \<in> or \<subseteq> *)
-          by (metis in_set_takeD)
-        show "invariant_all (initialState program)"
-          using inv_init .
-        show "\<not> invariant_all S_fail"
-          by (simp add: \<open>\<not> invariant_all S_fail\<close>)
-        show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
-          by (simp add: initialState_def)
-        show " noContextSwitchesInTransaction tr'"
-          by (metis \<open>allTransactionsEnd trace\<close> \<open>isPrefix tr' trace\<close> \<open>state_wellFormed (initialState program)\<close> noContextSwitchesInTransaction_when_packed_and_all_end noFail packed prefixes_noContextSwitchesInTransaction steps)
+      by blast
 
-      qed
-      then show "\<exists>s' tr'_s S_fail_s. (initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s) \<and> (\<exists>a. (a, False) \<in> set tr'_s)"
-        by blast
-    qed
-
-    have not_correct: "\<not>traceCorrect_s  tr'_s"
-      by (simp add: \<open>\<exists>a. (a, False) \<in> set tr'_s\<close> traceCorrect_s_def)
-
-
-
-(*
-    from works_in_single_session
-    have use_single_session: "traceCorrect_s program trace" if "invariant program (invContext init s)" and "prog init = program" and "init ~~ (s, trace) \<leadsto>\<^sub>S* S" for init trace s S
-      using that by (auto simp add: programCorrect_s_def)
-    *)
-    from works_in_single_session
-    have use_single_session: "traceCorrect_s  trace" if "initialState program ~~ (s, trace) \<leadsto>\<^sub>S* S" for  trace s S
-      using that by (auto simp add: programCorrect_s_def)  
-
-    have correct: "traceCorrect_s  tr'_s" 
-    proof (rule use_single_session)
-      show "initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s"
-        using \<open>initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s\<close> .
-    qed    
-
-    with not_correct
-    show False ..
+    with works_in_single_session
+    show False
+      by (meson programCorrect_s_def traceCorrect_s_def works_in_single_session)
   qed
 qed  
 
