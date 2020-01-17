@@ -3,8 +3,6 @@ section "Various Utilities"
 theory utils
   imports Main
     "HOL-Library.Monad_Syntax"
-    "HOL-Library.LaTeXsugar"
-    "HOL-Library.OptionalSugar"
 begin
 
 

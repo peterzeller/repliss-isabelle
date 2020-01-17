@@ -698,28 +698,25 @@ lemma invContext_unchanged:
 assumes step: "S ~~ (i,a) \<leadsto> S'"
 and cases:"a = ALocal \<or> a = ANewId uidv \<or> a = ABeginAtomic t snapshot \<or> a = ADbOp c Op res"
 and S_wellformed: "state_wellFormed S"
-and noUncommitted:  "\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
 shows "invContext S' = invContext S"
-  using invContext_changed_cases[OF step] cases S_wellformed noUncommitted by (case_tac a, auto)
+  using invContext_changed_cases[OF step] cases S_wellformed  by (case_tac a, auto)
 
 
 lemma inv_unchanged:
 assumes step: "S ~~ (i,a) \<leadsto> S'"
 and S_wellformed: "state_wellFormed S"
-and noUncommitted:  "\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
 and cases:"a = ALocal \<or> a = ANewId uidv \<or> a = ABeginAtomic t snapshot \<or> a = ADbOp c Op res"
 shows "invariant_all S' = invariant_all S"
-  using invContext_unchanged[OF step cases S_wellformed noUncommitted] prog_inv[OF step] by auto
+  using invContext_unchanged[OF step cases S_wellformed ] prog_inv[OF step] by auto
 
 lemma inv_unchanged2:
 assumes step: "S ~~ (i,a) \<leadsto> S'"
 and S_wellformed: "state_wellFormed S"
-and noUncommitted:  "\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
 shows "a = ALocal  \<Longrightarrow> invariant_all S' = invariant_all S"
 and "a = ANewId uidv \<Longrightarrow> invariant_all S' = invariant_all S"
 and "a = ABeginAtomic t snapshot  \<Longrightarrow> invariant_all S' = invariant_all S"
 and " a = ADbOp c Op res \<Longrightarrow> invariant_all S' = invariant_all S"
-  using inv_unchanged[OF step S_wellformed noUncommitted] by auto
+  using inv_unchanged[OF step S_wellformed ] by auto
 
 
 lemma convert_to_single_session_trace_invFail_step:
@@ -735,7 +732,7 @@ lemma convert_to_single_session_trace_invFail_step:
     and not_inv: "\<not>invariant_all S'"
     and coupling: "state_coupling S S2 i sameSession"
     and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" 
-    and noUncommitted:  "a \<noteq> AEndAtomic \<Longrightarrow>  \<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+    and noUncommitted:  "\<And>p. a = AInvoc p \<Longrightarrow>  \<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
   shows "(S2 ~~ (i, a, False) \<leadsto>\<^sub>S S')"
   using step proof (cases rule: step.cases)
 
@@ -803,7 +800,7 @@ next
   then show ?thesis
     using noFails by blast
 \<comment> \<open>remaining cases cannot change the invariant\<close>
-qed (insert inv not_inv noUncommitted inv_unchanged[OF step S_wellformed], auto)
+qed (insert inv not_inv inv_unchanged[OF step S_wellformed], auto)
 
 lemma uncommitted_tx_is_current_somewhere:
   assumes steps: "S ~~ tr \<leadsto>* S'"
@@ -1001,58 +998,45 @@ proof -
 
     
 
-    from `S1 ~~ (as,aa) \<leadsto> S_fail`
-    have aa_cases: "aa = AEndAtomic \<or> (\<exists>p. aa = AInvoc p) \<or> (\<exists>r. aa = AReturn r)"
-    proof (rule invContext_changed_cases)
-      show "invContext S_fail \<noteq> invContext S1"
-        using \<open>invariant_all S1\<close> first_not_inv prog_inv stepA by fastforce
-      show "state_wellFormed S1"
-        by (simp add: \<open>state_wellFormed S1\<close>)
-    qed
+    show "\<forall>tx. transactionStatus S1 tx \<noteq> Some Uncommitted " if " aa = AInvoc p" for p
+    proof -
 
-   
-    have tr1a_isPrefix: "isPrefix (tr1@[a]) tr"
-      using tr_split
-      by (simp add: isPrefix_def)
+      have tr1a_isPrefix: "isPrefix (tr1@[a]) tr"
+        using tr_split
+        by (simp add: isPrefix_def)
+
+      have "noContextSwitchesInTransaction (tr1@[a])"
+        using tr1a_isPrefix noContextSwitches prefixes_noContextSwitchesInTransaction by blast
 
 
-    have "noContextSwitchesInTransaction (tr1)"
-      using isPrefix_appendI noContextSwitches prefixes_noContextSwitchesInTransaction tr_split by auto
-
-    have "packed_trace (tr1)"
-      using packed_trace_prefix tr1_packed by blast
-
-
-    have "noContextSwitchesInTransaction (tr1@[a])"
-      using tr1a_isPrefix noContextSwitches prefixes_noContextSwitchesInTransaction by blast
-
-
-    have steps_tr1_a: "S ~~ tr1 @ [a] \<leadsto>* S_fail"
-      using \<open>S1 ~~ (as, aa) \<leadsto> S_fail\<close> a_def steps1 steps_step by blast
+      have steps_tr1_a: "S ~~ tr1 @ [a] \<leadsto>* S_fail"
+        using \<open>S1 ~~ (as, aa) \<leadsto> S_fail\<close> a_def steps1 steps_step by blast
 
 
 
-    have "\<forall>i. currentTransaction S_fail i \<noteq> None \<longrightarrow> i = get_invoc (last (tr1@[a]))"
-      using steps_tr1_a `noContextSwitchesInTransaction (tr1@[a])` `packed_trace (tr1@[a])`
-        S_wellformed
-    proof (rule at_most_one_current_tx)
-      show "\<And>s. (s, ACrash) \<notin> set (tr1 @[a])"
-        by (metis in_set_takeD isPrefix_def noFails tr1a_isPrefix)
-      show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-        using noUncommittedTx .
-    qed
+      have "\<forall>i. currentTransaction S_fail i \<noteq> None \<longrightarrow> i = get_invoc (last (tr1@[a]))"
+        using steps_tr1_a `noContextSwitchesInTransaction (tr1@[a])` `packed_trace (tr1@[a])`
+          S_wellformed
+      proof (rule at_most_one_current_tx)
+        show "\<And>s. (s, ACrash) \<notin> set (tr1 @[a])"
+          by (metis in_set_takeD isPrefix_def noFails tr1a_isPrefix)
+        show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+          using noUncommittedTx .
+      qed
 
-    hence h0': "\<forall>i. currentTransaction S_fail i \<noteq> None \<longrightarrow> i = as"
-      by (simp add: a_def)
+      hence h0': "\<forall>i. currentTransaction S_fail i \<noteq> None \<longrightarrow> i = as"
+        by (simp add: a_def)
 
-    have "currentTransaction S1 i = None" if "i \<noteq> as" for i
-      by (metis \<open>S1 ~~ (as, aa) \<leadsto> S_fail\<close> h0' that unchangedInTransaction(3))
+      have "currentTransaction S1 i = None" if "i \<noteq> as" for i
+        by (metis \<open>S1 ~~ (as, aa) \<leadsto> S_fail\<close> h0' that unchangedInTransaction(3))
 
-    have h1: "\<And>tx. currentTransaction S1 as \<noteq> Some tx \<Longrightarrow> transactionStatus S1 tx \<noteq> Some Uncommitted"  if "aa \<noteq> AEndAtomic"
-      using \<open>\<And>i. i \<noteq> as \<Longrightarrow> currentTransaction S1 i = None\<close> \<open>state_wellFormed S1\<close> wellFormed_currentTransaction_back3 by force
+      have h1: "\<And>tx. currentTransaction S1 as \<noteq> Some tx \<Longrightarrow> transactionStatus S1 tx \<noteq> Some Uncommitted" 
+        using \<open>\<And>i. i \<noteq> as \<Longrightarrow> currentTransaction S1 i = None\<close> \<open>state_wellFormed S1\<close> wellFormed_currentTransaction_back3 by force
 
-    show "\<forall>tx. transactionStatus S1 tx \<noteq> Some Uncommitted " if "aa \<noteq> AEndAtomic"
+
+      show ?thesis
       using \<open>S1 ~~ (as, aa) \<leadsto> S_fail\<close> \<open>invariant_all S1\<close> \<open>state_wellFormed S1\<close> first_not_inv h1 no_current_transaction_when_invariant_fails that by fastforce
+    qed
 
     assume "\<not> (tr1 = [] \<or> get_invoc (last tr1) = as)"
     then have "tr1 \<noteq> []" and "get_invoc (last tr1) \<noteq> as"
