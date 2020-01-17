@@ -9,7 +9,11 @@ text \<open>
 \<close>
 theorem show_programCorrect_noTransactionInterleaving:
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, ACrash) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>
+      initialState program ~~ trace \<leadsto>* s; 
+      packed_trace trace; 
+      \<And>s. (s, ACrash) \<notin> set trace
+    \<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 
   unfolding programCorrect_def proof -

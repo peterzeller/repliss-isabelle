@@ -100,7 +100,12 @@ qed
 
 theorem show_programCorrect_noTransactionInterleaving_no_passing_invchecks:
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, ACrash) \<notin> set trace; \<And>s. (s, AInvcheck True) \<notin> set trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>
+        initialState program ~~ trace \<leadsto>* s; 
+        packed_trace trace; 
+        \<And>s. (s, ACrash) \<notin> set trace; 
+        \<And>s. (s, AInvcheck True) \<notin> set trace
+      \<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving)
   fix trace
@@ -572,7 +577,13 @@ text \<open>
 \<close>
 theorem show_programCorrect_noTransactionInterleaving'':
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; allTransactionsEnd trace;  \<And>s. (s, ACrash) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
+    "\<And>trace s. \<lbrakk>
+      initialState program ~~ trace \<leadsto>* s; 
+      packed_trace trace; 
+      allTransactionsEnd trace;  
+      \<And>s. (s, ACrash) \<notin> set trace; 
+      no_invariant_checks_in_transaction trace
+    \<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
 proof (rule show_programCorrect_noTransactionInterleaving')
   fix trace 
