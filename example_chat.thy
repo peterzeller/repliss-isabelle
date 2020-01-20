@@ -324,6 +324,8 @@ definition getMessage_impl :: "val \<Rightarrow> (val,operation,val) io" where
   })
 }"
 
+
+
 datatype proc =
     SendMessage string string
   | EditMessage int string

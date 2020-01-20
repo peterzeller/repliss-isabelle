@@ -21,7 +21,6 @@ datatype ('a,'operation, 'any) io =
   | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitDbOperation 'operation "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitReturn "'a" 
-  | Fail string
 
 
 function (domintros) bind :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io"  where
@@ -31,7 +30,6 @@ function (domintros) bind :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Righ
 | "bind (WaitNewId P n) f = (WaitNewId P (\<lambda>i.  bind (n i) f))"
 | "bind (WaitDbOperation op n) f = (WaitDbOperation op (\<lambda>i.  bind (n i) f))"
 | "bind (WaitReturn s) f = (f s)"
-| "bind (Fail s) f = (Fail s)"
 
   by (pat_completeness, auto)
 termination
@@ -82,7 +80,6 @@ fun toImpl :: "(('val,'operation, 'val) io, 'operation, 'val) procedureImpl" whe
 | "toImpl (WaitNewId P n) = NewId (\<lambda>i. if P i then Some (n i) else None)"
 | "toImpl (WaitDbOperation op n) = DbOperation op n"
 | "toImpl (WaitReturn v) = Return v"
-| "toImpl (Fail s) = ??? s"
 
 
 
