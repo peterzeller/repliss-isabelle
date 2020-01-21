@@ -1996,7 +1996,7 @@ next
   from \<open> S' ~~ a \<leadsto> S''\<close>
   show ?case
   proof (cases rule: step.cases)
-    case (local s ls f ls')
+    case (local s ls f ok ls')
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
     proof (rule step)
       show "currentTransaction S' i \<triangleq> tx"
@@ -2007,7 +2007,7 @@ next
     qed
 
     then show ?thesis
-      using \<open>a = (s, ALocal)\<close> by (auto simp add: nth_append)
+      using \<open>a = (s, ALocal ok)\<close> by (auto simp add: nth_append)
 
   next
     case (newId s ls f ls' uidv uid)

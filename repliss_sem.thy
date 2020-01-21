@@ -40,7 +40,7 @@ definition
 datatype ('operation, 'any) call = Call (call_operation: 'operation) (call_res:"'any")
 
 datatype ('ls, 'operation, 'any) localAction =
-  LocalStep 'ls
+    LocalStep bool 'ls
   | BeginAtomic 'ls
   | EndAtomic 'ls
   | NewId "'any \<rightharpoonup> 'ls"
@@ -536,7 +536,7 @@ invocationRes x = invocationRes y
 
 
 datatype ('proc, 'operation, 'any) action =
-  ALocal
+    ALocal bool
   | ANewId 'any
   | ABeginAtomic txid "callId set"
   | AEndAtomic
@@ -553,7 +553,7 @@ definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
 definition 
   "isACrash a \<equiv> case a of ACrash \<Rightarrow> True | _ \<Rightarrow> False"
 
-schematic_goal [simp]: "isACrash (ALocal) = ?x" by (auto simp add: isACrash_def)
+schematic_goal [simp]: "isACrash (ALocal b) = ?x" by (auto simp add: isACrash_def)
 schematic_goal [simp]: "isACrash (ANewId u) = ?x" by (auto simp add: isACrash_def)
 schematic_goal [simp]: "isACrash (ABeginAtomic t newTxns) = ?x" by (auto simp add: isACrash_def)
 schematic_goal [simp]: "isACrash (AEndAtomic) = ?x" by (auto simp add: isACrash_def)
@@ -579,8 +579,8 @@ inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<
   local: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
-   f ls = LocalStep ls' 
-   \<rbrakk> \<Longrightarrow> S ~~ (i, ALocal)  \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls') \<rparr>)"
+   f ls = LocalStep ok ls' 
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ALocal ok)  \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls') \<rparr>)"
 | newId: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -655,7 +655,7 @@ inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<
   "\<lbrakk>invariant (prog S) (invContext S) = res
    \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvcheck res) \<leadsto> S"   
 
-inductive_simps step_simp_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
+inductive_simps step_simp_ALocal: "A ~~ (s, ALocal ok) \<leadsto> B "
 inductive_simps step_simp_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
 inductive_simps step_simp_ABeginAtomic: "A ~~ (s, ABeginAtomic t newTxns) \<leadsto> B "
 inductive_simps step_simp_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
@@ -677,7 +677,7 @@ lemmas step_simps =
   step_simp_ACrash
   step_simp_AInvcheck
 
-inductive_cases step_elim_ALocal: "A ~~ (s, ALocal) \<leadsto> B "
+inductive_cases step_elim_ALocal: "A ~~ (s, ALocal ok) \<leadsto> B "
 inductive_cases step_elim_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
 inductive_cases step_elim_ABeginAtomic: "A ~~ (s, ABeginAtomic t newTxns) \<leadsto> B "
 inductive_cases step_elim_AEndAtomic: "A ~~ (s, AEndAtomic) \<leadsto> B "
@@ -767,8 +767,11 @@ abbreviation get_action :: "invocId\<times>('proc, 'operation, 'any) action \<Ri
 definition traces where
   "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
 
+definition
+  "actionCorrect a \<equiv> a \<noteq> AInvcheck False \<and> a \<noteq> ALocal False"
+
 definition traceCorrect where
-  "traceCorrect trace \<equiv> (\<forall>s. (s, AInvcheck False) \<notin> set trace)"
+  "traceCorrect trace \<equiv> (\<forall>a\<in>set trace. actionCorrect (get_action a))"
 
 definition programCorrect :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) prog \<Rightarrow> bool" where
   "programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"
@@ -920,7 +923,7 @@ method create_step_simp_rule =
     , subst exists_eq_rewrite),
   simp)
 
-schematic_goal steps_simp_ALocal: "(A ~~ (i, ALocal)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
+schematic_goal steps_simp_ALocal: "(A ~~ (i, ALocal ok)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_ANewId: "(A ~~ (i, ANewId n)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_ABeginAtomic: "(A ~~ (i, ABeginAtomic t newTxns)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule
 schematic_goal steps_simp_AEndAtomic: "(A ~~ (i, AEndAtomic)#rest \<leadsto>* B) \<longleftrightarrow> ?R"  by create_step_simp_rule

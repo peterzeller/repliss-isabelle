@@ -15,7 +15,7 @@ context begin
 
 
 datatype ('a,'operation, 'any) io =
-    WaitLocalStep "('a,'operation, 'any) io"
+    WaitLocalStep bool "('a,'operation, 'any) io"
   | WaitBeginAtomic "('a,'operation, 'any) io"
   | WaitEndAtomic "('a,'operation, 'any) io"
   | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'operation, 'any) io"
@@ -24,7 +24,7 @@ datatype ('a,'operation, 'any) io =
 
 
 function (domintros) bind :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io"  where
-  "bind (WaitLocalStep n) f = (WaitLocalStep (bind n f))"
+  "bind (WaitLocalStep ok n) f = (WaitLocalStep ok (bind n f))"
 | "bind (WaitBeginAtomic n) f = (WaitBeginAtomic (bind n f))"
 | "bind (WaitEndAtomic n) f = (WaitEndAtomic (bind n f))"
 | "bind (WaitNewId P n) f = (WaitNewId P (\<lambda>i.  bind (n i) f))"
@@ -42,7 +42,7 @@ qed
 adhoc_overloading Monad_Syntax.bind bind
 
 definition pause :: "(unit,'operation,'any) io" where
-"pause \<equiv> WaitLocalStep (WaitReturn ())"
+"pause \<equiv> WaitLocalStep True (WaitReturn ())"
 
 definition beginAtomic :: "(unit,'operation,'any) io" where
 "beginAtomic \<equiv> WaitBeginAtomic (WaitReturn ())"
@@ -74,7 +74,7 @@ definition
 "skip \<equiv> return undefined"
 
 fun toImpl :: "(('val,'operation, 'val) io, 'operation, 'val) procedureImpl" where
-"toImpl (WaitLocalStep n) = LocalStep n"
+"toImpl (WaitLocalStep ok n) = LocalStep ok n"
 | "toImpl (WaitBeginAtomic n) = BeginAtomic n"
 | "toImpl (WaitEndAtomic n) = EndAtomic n"
 | "toImpl (WaitNewId P n) = NewId (\<lambda>i. if P i then Some (n i) else None)"
@@ -87,7 +87,7 @@ fun toImpl :: "(('val,'operation, 'val) io, 'operation, 'val) procedureImpl" whe
 
 lemma toImpl_simps[simp]:
 "toImpl (newId P) = NewId (\<lambda>i. if P i then Some (return i) else None)"
-"toImpl (pause) = LocalStep (return ())"
+"toImpl (pause) = LocalStep True (return ())"
 "toImpl (beginAtomic) = BeginAtomic (return ())"
 "toImpl (endAtomic) = EndAtomic (return ())"
 "toImpl (call op ) = DbOperation op  (\<lambda>r. return r)"
@@ -97,7 +97,7 @@ lemma toImpl_simps[simp]:
 
 lemma toImpl_bind_simps[simp]:
 "\<And>P x. toImpl (newId P \<bind> x) = NewId (\<lambda>i. if P i then Some (x i) else None)"
-"\<And> x. toImpl (pause \<bind> x) = LocalStep (x ())"
+"\<And> x. toImpl (pause \<bind> x) = LocalStep True (x ())"
 "\<And> x. toImpl (beginAtomic \<bind> x) = BeginAtomic (x ())"
 "\<And> x. toImpl (endAtomic \<bind> x) = EndAtomic (x ())"
 "\<And> x. toImpl (call op  \<bind> x) = DbOperation op  (\<lambda>r. x r)"

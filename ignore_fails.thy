@@ -18,7 +18,10 @@ proof (rule iffI2; clarsimp)
   assume is_trace: "tr \<in> traces program"
     and tr_fail: "\<not> traceCorrect tr"
 
-  from this obtain s S' where "(s, AInvcheck False) \<in> set tr" and "initialState program ~~ tr \<leadsto>* S'"
+  from this obtain aFail S' 
+    where "aFail\<in>set tr" 
+      and "\<not>actionCorrect (get_action aFail)"
+      and "initialState program ~~ tr \<leadsto>* S'"
     by (auto simp add: traceCorrect_def traces_def)  
 
 
@@ -73,7 +76,7 @@ proof (rule iffI2; clarsimp)
       from \<open>S1 ~~ a \<leadsto> S1'\<close>
       show ?case 
       proof (cases rule: step.cases)
-        case (local s ls f ls')
+        case (local s ls f failed ls')
 
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
         have no_fail: "(s, ACrash) \<notin> set tr"

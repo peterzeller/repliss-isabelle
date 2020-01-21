@@ -59,8 +59,8 @@ inductive step_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state 
   local: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
-   f ls = LocalStep ls' 
-   \<rbrakk> \<Longrightarrow> S ~~ (i, ALocal, True)  \<leadsto>\<^sub>S (S\<lparr>localState := (localState S)(i \<mapsto> ls') \<rparr>)"
+   f ls = LocalStep ok ls' 
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ALocal ok, ok)  \<leadsto>\<^sub>S (S\<lparr>localState := (localState S)(i \<mapsto> ls') \<rparr>)"
 | newId: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 

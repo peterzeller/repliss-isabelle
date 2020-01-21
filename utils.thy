@@ -810,6 +810,20 @@ proof -
     by simp
 qed
 
+
+lemma ex_least_nat_le':
+  fixes n:: "'a::wellorder"
+assumes "P n"
+shows"\<exists>k\<le>n. (\<forall>i<k. \<not> P i) \<and> P k"
+  by (rule exI[where x="LEAST k. P k"],
+     blast intro: Least_le `P n` LeastI_ex dest: not_less_Least)
+
+lemma ex_least_nat_le'':
+  fixes P:: "'a::wellorder \<Rightarrow> bool"
+assumes "Ex P"
+shows"\<exists>k. (\<forall>i<k. \<not> P i) \<and> P k"
+  using assms ex_least_nat_le' by blast
+
 subsection "Maps"
 
 lemma ran_empty_iff[simp] :"(ran F = {}) \<longleftrightarrow> F = Map.empty"

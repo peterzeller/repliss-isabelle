@@ -120,10 +120,12 @@ lemma convert_to_single_session_trace:
     and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
     \<comment> \<open>invariant holds on all states in the execution\<close>
     and inv: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S' "
+    and noAssertionFail: "\<And>a. a\<in>set tr \<Longrightarrow> get_action a \<noteq> ALocal False"
   shows "\<exists>tr' S2. (S ~~ (i, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<forall>a. (a, False)\<notin>set tr')
         \<and> (state_coupling S' S2 i (tr = [] \<or> get_invoc (last tr) = i))"
-  using steps S_wellformed packed inv noFails noUncommitted noCtxtSwitchInTx proof (induct rule: steps.induct)
+  using steps S_wellformed packed inv noFails noUncommitted noCtxtSwitchInTx noAssertionFail
+proof (induct rule: steps.induct)
   case (steps_refl S)
 
   show ?case
@@ -601,18 +603,22 @@ next
           show " state_coupling S'' S'' i True "
             by (simp add: state_coupling_def)
 
-          show " \<forall>x. (x, False) \<notin> set (tr' @ [(get_action a, True)])"
+          show all_ok: " \<forall>x. (x, False) \<notin> set (tr' @ [(get_action a, True)])"
             by (simp add: ih2)
 
           have "S' ~~ (i,get_action a, True) \<leadsto>\<^sub>S S''"
           proof (cases "get_action a")
-            case ALocal
-            then have [simp]: "a = (i, ALocal)"
+            case (ALocal ok)
+            then have [simp]: "a = (i, ALocal ok)"
               by (simp add: prod.expand) 
 
+            hence ok
+              using `a \<in> set (tr @ [a]) \<Longrightarrow> get_action a \<noteq> ALocal False` by fastforce
 
             show ?thesis
-              using step unfolding step.simps step_s.simps by auto
+              using step unfolding step.simps step_s.simps by (auto simp add: `ok`)
+
+
           next
             case (ANewId uid)
             then have [simp]: "a = (i, ANewId uid)"
@@ -696,7 +702,7 @@ and S_wellformed: "state_wellFormed S"
 
 lemma invContext_unchanged:
 assumes step: "S ~~ (i,a) \<leadsto> S'"
-and cases:"a = ALocal \<or> a = ANewId uidv \<or> a = ABeginAtomic t snapshot \<or> a = ADbOp c Op res"
+and cases:"a = ALocal ok \<or> a = ANewId uidv \<or> a = ABeginAtomic t snapshot \<or> a = ADbOp c Op res"
 and S_wellformed: "state_wellFormed S"
 shows "invContext S' = invContext S"
   using invContext_changed_cases[OF step] cases S_wellformed  by (case_tac a, auto)
@@ -705,14 +711,14 @@ shows "invContext S' = invContext S"
 lemma inv_unchanged:
 assumes step: "S ~~ (i,a) \<leadsto> S'"
 and S_wellformed: "state_wellFormed S"
-and cases:"a = ALocal \<or> a = ANewId uidv \<or> a = ABeginAtomic t snapshot \<or> a = ADbOp c Op res"
+and cases:"a = ALocal ok \<or> a = ANewId uidv \<or> a = ABeginAtomic t snapshot \<or> a = ADbOp c Op res"
 shows "invariant_all S' = invariant_all S"
   using invContext_unchanged[OF step cases S_wellformed ] prog_inv[OF step] by auto
 
 lemma inv_unchanged2:
 assumes step: "S ~~ (i,a) \<leadsto> S'"
 and S_wellformed: "state_wellFormed S"
-shows "a = ALocal  \<Longrightarrow> invariant_all S' = invariant_all S"
+shows "a = ALocal ok  \<Longrightarrow> invariant_all S' = invariant_all S"
 and "a = ANewId uidv \<Longrightarrow> invariant_all S' = invariant_all S"
 and "a = ABeginAtomic t snapshot  \<Longrightarrow> invariant_all S' = invariant_all S"
 and " a = ADbOp c Op res \<Longrightarrow> invariant_all S' = invariant_all S"
@@ -873,6 +879,7 @@ lemma convert_to_single_session_trace_invFail:
     and inv: "invariant_all S"
     \<comment> \<open>invariant no longer holds\<close>
     and not_inv: "\<not> invariant_all S'"
+    and noAssertionErrors: "\<And>a. a\<in>set tr \<Longrightarrow> get_action a \<noteq> ALocal False"
   shows "\<exists>tr' S2 s. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
 proof -
@@ -971,6 +978,8 @@ proof -
       by (simp add: noUncommittedTx)
     show "noContextSwitchesInTransaction tr1"
       using isPrefix_appendI noContextSwitches prefixes_noContextSwitchesInTransaction tr_split by blast
+    show "\<And>a. a \<in> set tr1 \<Longrightarrow> get_action a \<noteq> ALocal False"
+      by (simp add: noAssertionErrors tr_split)
   qed
 
 
@@ -1119,6 +1128,8 @@ next
   qed
 qed
 
+(* TODO move to utils *)
+
 lemma GreatestI: 
   "\<lbrakk>P k; \<forall>y. P y \<longrightarrow> y < b\<rbrakk> \<Longrightarrow> P (GREATEST x. P x)"
   for k :: nat
@@ -1216,7 +1227,27 @@ next
   qed 
 qed
 
+(* TODO utils *)
 
+lemma last_take:
+  assumes "n \<le> length xs"
+    and "n > 0"
+  shows "last (take n xs) = xs ! (n - 1)"
+  by (metis (no_types, lifting) assms(1) assms(2) diff_less last_conv_nth length_greater_0_conv length_take min.absorb2 nth_take zero_less_one)
+
+lemma cases2: 
+  assumes "A \<or> B"
+    and "A \<Longrightarrow> P"
+    and "\<not>A \<Longrightarrow> B \<Longrightarrow> P"
+  shows P
+  using assms by auto
+
+lemma cases2_rev: 
+  assumes "B \<or> A"
+    and "\<not>A \<Longrightarrow> B \<Longrightarrow> P"
+    and "A \<Longrightarrow> P"
+  shows P
+  using assms by auto
 
 text \<open>
 When a program is correct in the single invocId semantics, 
@@ -1226,7 +1257,7 @@ theorem show_correctness_via_single_session:
   assumes works_in_single_session: "programCorrect_s program"
     and inv_init: "invariant_all (initialState program)"
   shows "programCorrect program"
-proof (rule show_programCorrect_noTransactionInterleaving'')
+proof (rule show_programCorrect_noTransactionInterleaving')
   text \<open>Assume we have a trace and a final state S\<close>
   fix trace S
   text \<open>Such that executing the trace finishes in state S.\<close>
@@ -1238,7 +1269,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
   text \<open>We may also assume that there are no failures\<close>
   assume noFail: "\<And>s. (s, ACrash) \<notin> set trace"
 
-  assume "allTransactionsEnd trace"
+  (* assume "allTransactionsEnd trace"*)
 
   assume noInvchecksInTxns: "no_invariant_checks_in_transaction trace"
 
@@ -1247,45 +1278,89 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
   proof (rule ccontr)
     assume incorrect_trace: "\<not> traceCorrect trace"
 
-    text \<open>If the trace is incorrect, there must be a failing invariant check in the trace:\<close>
-    from this obtain s where "(s, AInvcheck False) \<in> set trace"
-      using steps by (auto simp add: traceCorrect_def)
+    text \<open>If the trace is incorrect, there must be a failing invariant check or assertion check in the trace:\<close>
+    from this 
+    have "\<exists>i<length trace. get_action (trace!i) \<in> {AInvcheck False, ALocal False}"
+      by (metis (no_types, lifting) actionCorrect_def in_set_conv_nth insert_iff traceCorrect_def)
 
-    obtain tr' S_fail
-      where "isPrefix tr' trace"
-        and "initialState program ~~ tr' \<leadsto>* S_fail"
-        and "\<not> invariant_all S_fail"
-      using \<open>(s, AInvcheck False) \<in> set trace\<close> invCheck_to_failing_state state_wellFormed_init steps noFail by blast 
+    text \<open>So there is an index, where an assertion fails or the invariant is violated. \<close>
+    hence ex_fail:
+      "\<exists>i<length trace. get_action (trace!i) = ALocal False 
+      \<or> (\<exists>S_fail. (initialState program ~~ take i trace \<leadsto>* S_fail) \<and> \<not>invariant_all S_fail)  "
+      by (smt eq_snd_iff id_take_nth_drop insertE singletonD steps steps_append steps_simp_AInvcheck)
 
-    text \<open>No take the first state where the invariant fails\<close>
-    from this
-    obtain tr'_min S_fail_min
-      where tr'_min_prefix: "isPrefix tr'_min trace"
-        and S_fail_min_steps:"initialState program ~~ tr'_min \<leadsto>* S_fail_min"
-        and S_fail_min_fail: "\<not> invariant_all S_fail_min"    
-        and S_fail_min_min: "\<And>tr' S_fail. \<lbrakk>isPrefix tr' trace; initialState program ~~ tr' \<leadsto>* S_fail; \<not> invariant_all S_fail; tr' \<noteq> tr'_min\<rbrakk> \<Longrightarrow> \<not>isPrefix tr' tr'_min"
-      using smallestPrefix_exists[where P="\<lambda>tr x. isPrefix tr trace \<and> (initialState program ~~ tr \<leadsto>* x) \<and> \<not> invariant_all x"]
-      by metis
+    text "Let i be the smallest first position with a failure"
+    from ex_least_nat_le''[OF ex_fail]
+    obtain i 
+      where i_bound: "i < length trace"
+        and i_fail: "get_action (trace!i) = ALocal False \<or> 
+              (\<exists>S_fail. (initialState program ~~ take i trace \<leadsto>* S_fail) \<and> \<not>invariant_all S_fail)"
+        and i_smallest:
+            "(\<forall>i'<i. \<not> (i' < length trace \<and>
+                 (get_action (trace ! i') = ALocal False \<or>
+                  (\<exists>S_fail. (initialState program ~~ take i' trace \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail))))"
+      by blast
 
-    from \<open>initialState program ~~ tr' \<leadsto>* S_fail\<close>
+    from i_smallest 
+    have i_smallest_assertionFail: "get_action (trace!i') \<noteq> ALocal False" if "i' < i" for i'
+      using dual_order.strict_trans i_bound that by blast
+
+
+    from i_fail
+    show False
+    proof (rule cases2_rev)
+      assume "\<exists>S_fail. (initialState program ~~ take i trace \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail"
+      from this
+      obtain S_fail_min 
+        where "initialState program ~~ take i trace \<leadsto>* S_fail_min"
+          and S_fail_min_fail: "\<not> invariant_all S_fail_min"
+        by blast
+
+      from i_smallest_assertionFail 
+      have "get_action a \<noteq> ALocal False" if "a\<in>set (take i trace)" for a
+        using that by (auto simp add: in_set_conv_nth)
+
+      define tr'_min where "tr'_min \<equiv> take i trace"
+
+      have S_fail_min_steps:"initialState program ~~ tr'_min \<leadsto>* S_fail_min"
+        by (simp add: \<open>initialState program ~~ take i trace \<leadsto>* S_fail_min\<close> tr'_min_def)
+
+
+      have tr'_min_prefix: "isPrefix tr'_min trace"
+        by (metis append_take_drop_id isPrefix_appendI tr'_min_def)
+
+
+
+      have S_fail_min_min: "\<And>tr' S_fail. \<lbrakk>isPrefix tr' trace; initialState program ~~ tr' \<leadsto>* S_fail; \<not> invariant_all S_fail; tr' \<noteq> tr'_min\<rbrakk> \<Longrightarrow> \<not>isPrefix tr' tr'_min"
+        apply (auto simp add: tr'_min_def isPrefix_def)
+        by (metis (no_types, lifting) i_bound i_smallest min.right_idem min.strict_coboundedI2 min.strict_order_iff)
+
+
+
+
+    from \<open>initialState program ~~ tr'_min \<leadsto>* S_fail_min\<close>
     have "\<exists>tr'_s S_fail_s s'. 
               (initialState program ~~ (s', tr'_s) \<leadsto>\<^sub>S* S_fail_s) 
             \<and> (\<exists>a. (a, False) \<in> set tr'_s)"
     proof (rule convert_to_single_session_trace_invFail)
       show "state_wellFormed (initialState program)"
         by (simp add: state_wellFormed_init)
-      show "packed_trace tr'"
-        using \<open>isPrefix tr' trace\<close> packed prefixes_are_packed by blast
-      show "\<And>s'. (s', ACrash) \<notin> set tr'"
-        by (metis \<open>isPrefix tr' trace\<close> in_set_takeD isPrefix_def noFail)
+      show "packed_trace tr'_min"
+        using \<open>isPrefix tr'_min trace\<close> packed prefixes_are_packed by blast
+      show "\<And>s'. (s', ACrash) \<notin> set tr'_min"
+        by (metis \<open>isPrefix tr'_min trace\<close> in_set_takeD isPrefix_def noFail)
       show "invariant_all (initialState program)"
         using inv_init .
-      show "\<not> invariant_all S_fail"
-        by (simp add: \<open>\<not> invariant_all S_fail\<close>)
+      show "\<not> invariant_all S_fail_min"
+        by (simp add: \<open>\<not> invariant_all S_fail_min\<close>)
       show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
         by (simp add: initialState_def)
-      show " noContextSwitchesInTransaction tr'"
-        by (metis \<open>allTransactionsEnd trace\<close> \<open>isPrefix tr' trace\<close> \<open>state_wellFormed (initialState program)\<close> noContextSwitchesInTransaction_when_packed_and_all_end noFail packed prefixes_noContextSwitchesInTransaction steps)
+      show " noContextSwitchesInTransaction tr'_min"
+        (*by (metis \<open>allTransactionsEnd trace\<close> \<open>isPrefix tr' trace\<close> \<open>state_wellFormed (initialState program)\<close> noContextSwitchesInTransaction_when_packed_and_all_end noFail packed prefixes_noContextSwitchesInTransaction steps)*)
+        sorry
+      show "\<And>a. a \<in> set tr'_min \<Longrightarrow> get_action a \<noteq> ALocal False"
+        using \<open>\<And>a. a \<in> set (take i trace) \<Longrightarrow> get_action a \<noteq> ALocal False\<close> tr'_min_def by blast
+
     qed
 
     from this
@@ -1297,6 +1372,105 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
     with works_in_single_session
     show False
       by (meson programCorrect_s_def traceCorrect_s_def works_in_single_session)
+  next
+    assume "get_action (trace ! i) = ALocal False"
+    assume "\<nexists>S_fail. (initialState program ~~ take i trace \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail"
+
+    define tr'_min where "tr'_min \<equiv> take i trace"
+
+    obtain S_fail where "initialState program ~~ tr'_min \<leadsto>* S_fail"
+      by (metis append_take_drop_id steps steps_append tr'_min_def)
+
+    have "isPrefix tr'_min trace"
+      by (metis append_take_drop_id isPrefix_appendI tr'_min_def)
+
+    define invoc where "invoc \<equiv> get_invoc (trace ! i)"
+
+    have [simp]: "i < length trace"
+      by (simp add: i_bound)
+    hence [simp]: "i \<le> length trace"
+      using less_or_eq_imp_le by auto
+
+    have [simp]: "i > 0" \<comment> \<open>Since at the beginning of a trace we can only have invariant check or invocation.\<close>
+    proof (rule ccontr)
+      assume "\<not> 0 < i"
+      hence "i = 0"
+        by blast
+      hence "trace = [trace ! i] @ tl trace"
+        by (metis append_Cons append_Nil i_bound length_greater_0_conv list.collapse nth_Cons_0)
+
+      with ` initialState program ~~ trace \<leadsto>* S`
+      obtain S' where "initialState program ~~ [trace ! i] \<leadsto>* S'"
+        by (metis steps_append)
+      hence "initialState program ~~ trace ! i \<leadsto> S'"
+        using steps_single by blast
+      thus False using \<open>get_action (trace ! i) = ALocal False\<close>
+        by (auto simp add: step.simps initialState_def)
+
+    qed
+
+
+
+    from packed
+    have "get_invoc (last tr'_min) = invoc"
+      apply (auto simp add: invoc_def tr'_min_def last_take)
+      by (metis One_nat_def \<open>0 < i\<close> \<open>get_action (trace ! i) = ALocal False\<close> allowed_context_switch_simps(1) i_bound  use_packed_trace)
+
+
+
+    thm convert_to_single_session_trace[OF \<open>initialState program ~~ tr'_min \<leadsto>* S_fail\<close>]
+    from \<open>initialState program ~~ tr'_min \<leadsto>* S_fail\<close>
+    have "\<exists>tr' S2.
+       (initialState program ~~ (invoc, tr') \<leadsto>\<^sub>S* S2) \<and>
+       (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S_fail S2 invoc (tr'_min = [] \<or> get_invoc (last tr'_min) = invoc)"
+    proof (rule convert_to_single_session_trace)
+      show "state_wellFormed (initialState program)"
+        by (simp add: state_wellFormed_init)
+      show "packed_trace tr'_min"
+
+        using \<open>isPrefix tr'_min trace\<close> packed prefixes_are_packed by blast
+      show "\<And>s'. (s', ACrash) \<notin> set tr'_min"
+        by (metis \<open>isPrefix tr'_min trace\<close> in_set_takeD isPrefix_def noFail)
+      show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
+        by (simp add: initialState_def)
+      show " noContextSwitchesInTransaction tr'_min"
+        (*by (metis \<open>allTransactionsEnd trace\<close> \<open>isPrefix tr' trace\<close> \<open>state_wellFormed (initialState program)\<close> noContextSwitchesInTransaction_when_packed_and_all_end noFail packed prefixes_noContextSwitchesInTransaction steps)*)
+        sorry
+      show "\<And>a. a \<in> set tr'_min \<Longrightarrow> get_action a \<noteq> ALocal False"
+        by (metis \<open>i \<le> length trace\<close> i_smallest_assertionFail in_set_conv_nth length_take min.absorb2 nth_take tr'_min_def)
+      
+      have "length tr'_min = i"
+        by (simp add: tr'_min_def min.absorb2)
+
+      show "\<lbrakk>isPrefix tr' tr'_min; initialState program ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'" for S' tr'
+        using i_smallest[rule_format, where i'="length tr'"]
+        apply auto
+        apply (cases "length tr' < i", auto)
+        using dual_order.strict_trans i_bound apply blast
+        apply (smt \<open>isPrefix tr'_min trace\<close> \<open>length tr'_min = i\<close> dual_order.strict_trans i_bound isPrefix_def less_imp_le nth_take nth_take_lemma)
+        by (metis \<open>\<nexists>S_fail. (initialState program ~~ take i trace \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail\<close> \<open>length tr'_min = i\<close> isPrefix_def not_le_imp_less take_all tr'_min_def)
+    qed
+
+    from this obtain tr'
+      where single_steps: "initialState program ~~ (invoc, tr') \<leadsto>\<^sub>S* S_fail" and "\<forall>a. (a, False) \<notin> set tr'"
+      by (auto simp add: `get_invoc (last tr'_min) = invoc` state_coupling_def)
+
+    obtain S_fail' 
+      where "S_fail ~~ trace ! i \<leadsto> S_fail'"
+      by (metis \<open>initialState program ~~ tr'_min \<leadsto>* S_fail\<close> i_bound id_take_nth_drop steps steps_append2 steps_appendFront tr'_min_def)
+    hence "S_fail ~~ (invoc, ALocal False) \<leadsto> S_fail'"
+      by (metis \<open>get_action (trace ! i) = ALocal False\<close> invoc_def surjective_pairing)
+
+    hence single_step: "S_fail ~~ (invoc, ALocal False, False) \<leadsto>\<^sub>S S_fail'"
+      by (auto simp add: step_s.simps step.simps)
+
+    with single_steps
+    have single_steps2:  "initialState program ~~ (invoc, tr'@[(ALocal False, False)]) \<leadsto>\<^sub>S* S_fail'"
+      using steps_s_step by blast
+
+    thus False
+      by (metis append_is_Nil_conv last_in_set last_snoc not_Cons_self2 programCorrect_s_def traceCorrect_s_def works_in_single_session)
+
   qed
 qed  
 
