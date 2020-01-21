@@ -39,7 +39,9 @@ proof (rule iffI2; clarsimp)
       by (auto simp add: isACrash_def)
 
     show "\<not> traceCorrect [tr\<leftarrow>tr . \<not> isACrash (get_action tr)]"
-      using tr_fail by (auto simp add: traceCorrect_def isACrash_def) 
+      using tr_fail by (auto simp add: traceCorrect_def isACrash_def actionCorrect_def, force+)
+
+
 
     from \<open>initialState program ~~ tr \<leadsto>* S'\<close>
     have "\<exists>S''. (initialState program ~~ [tr\<leftarrow>tr . \<not> isACrash (get_action tr)] \<leadsto>* S'') 

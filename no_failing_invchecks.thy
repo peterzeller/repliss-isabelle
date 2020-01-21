@@ -119,7 +119,7 @@ lemma remove_local_step:
   assumes step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
-    and a_def: "a = (i, ALocal)"
+    and a_def: "a = (i, ALocal ok)"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and S_end'_def: "S_end' = S_end\<lparr>localState := (localState S_end)(i := localState S_start i)\<rparr>"
   shows "S_start ~~ tr \<leadsto>* S_end'"
