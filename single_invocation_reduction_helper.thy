@@ -2,16 +2,61 @@ theory single_invocation_reduction_helper
   imports no_failing_invchecks packed_no_fails consistency
 begin
 
+definition contextSwitchInTransaction where
+"contextSwitchInTransaction tr i_begin i_switch \<equiv> 
+  \<exists>invoc tx txns.
+    i_begin < i_switch
+  \<and> i_switch < length tr 
+  \<and> tr!i_begin = (invoc, ABeginAtomic tx txns)
+  \<and> (\<forall>j. i_begin<j \<and> j<i_switch \<longrightarrow> tr!j \<noteq> (invoc, AEndAtomic) )
+  \<and> allowed_context_switch (get_action (tr!i_switch))
+"
 
-definition noContextSwitchesInTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
-  "noContextSwitchesInTransaction tr \<equiv> \<forall>i k invoc. 
+definition contextSwitchesInTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
+"contextSwitchesInTransaction tr \<equiv> \<exists>i_begin i_switch. contextSwitchInTransaction tr i_begin i_switch"
+
+
+lemma contextSwitchesInTransaction_alt_def:
+  "\<not>contextSwitchesInTransaction tr \<longleftrightarrow> (\<forall>i k invoc. 
     i < k \<and> k \<le> length tr 
    \<and> (\<exists>tx txns.  tr!i = (invoc, ABeginAtomic tx txns))
    \<and> (\<forall>j. i<j \<and> j<k \<longrightarrow> tr!j \<noteq> (invoc, AEndAtomic) )
-   \<longrightarrow> (\<forall>j. i < j \<and> j < k \<longrightarrow>  \<not> allowed_context_switch (get_action (tr!j)))"
+   \<longrightarrow> (\<forall>j. i < j \<and> j < k \<longrightarrow>  \<not> allowed_context_switch (get_action (tr!j))))" (is "?l \<longleftrightarrow> ?r")
+proof 
+  assume l: "?l"
+
+  show "?r"
+  proof (intro allI conjI impI)
+    fix i k invoc j
+    assume a0: "i < k \<and>         k \<le> length tr \<and>         (\<exists>tx txns. tr ! i = (invoc, ABeginAtomic tx txns)) \<and> (\<forall>j. i < j \<and> j < k \<longrightarrow> tr ! j \<noteq> (invoc, AEndAtomic))"
+      and a1: "i < j \<and> j < k"
+
+    have "\<not> contextSwitchInTransaction tr i j"
+      using contextSwitchesInTransaction_def l by blast
+
+    thus "\<not> allowed_context_switch (get_action (tr ! j))"
+      using a0 a1
+      by (auto simp add: contextSwitchInTransaction_def)
+  qed
+next
+  assume r: ?r
+
+  show "?l"
+  proof (auto simp add:  contextSwitchesInTransaction_def)
+    fix i j
+    assume a0: "contextSwitchInTransaction tr i j"
+
+    from r[rule_format, where i=i and j = j and k="Suc j"]
+    show "False"
+      using a0 less_antisym
+      by (auto simp add: contextSwitchInTransaction_def, fastforce)
+  qed
+qed
+
+
 
 lemma use_noContextSwitchesInTransaction:
-  assumes a0: "noContextSwitchesInTransaction tr"
+  assumes a0: "\<not>contextSwitchesInTransaction tr"
     and a1: " tr!i = (invoc, ABeginAtomic tx txns)"
     and a2: "i < k" 
     and a3: "k \<le> length tr "
@@ -22,19 +67,19 @@ lemma use_noContextSwitchesInTransaction:
 proof (simp add: allowed_context_switch_def; intro conjI allI)
 
   show "get_action (tr ! j) \<noteq> ABeginAtomic txId txns" for txId txns
-    by (metis (full_types) a0 a1 a2 a3 a4 a5 a6 allowed_context_switch_simps(3) noContextSwitchesInTransaction_def)
+    by (metis (full_types) a0 a1 a2 a3 a4 a5 a6 allowed_context_switch_simps(3) contextSwitchesInTransaction_alt_def)
 
   show " get_action (tr ! j) \<noteq> AInvoc p " for p 
-    by (metis (full_types) a0 a1 a2 a3 a4 a5 a6 allowed_context_switch_simps(6) noContextSwitchesInTransaction_def)
+    by (metis (full_types) a0 a1 a2 a3 a4 a5 a6 allowed_context_switch_simps(6) contextSwitchesInTransaction_alt_def)
 qed
 
 
 
 lemma prefixes_noContextSwitchesInTransaction:
-  assumes "noContextSwitchesInTransaction tr'" 
+  assumes "\<not>contextSwitchesInTransaction tr'" 
     and "isPrefix tr tr'"
-  shows "noContextSwitchesInTransaction tr"
-proof (auto simp add: noContextSwitchesInTransaction_def)
+  shows "\<not>contextSwitchesInTransaction tr"
+proof (auto simp add: contextSwitchesInTransaction_alt_def)
 fix i k j invoc tx txns
 assume a0: "k \<le> length tr"
    and a1: "\<forall>j. i < j \<and> j < k \<longrightarrow> tr ! j \<noteq> (invoc, AEndAtomic)"
@@ -45,7 +90,7 @@ assume a0: "k \<le> length tr"
 
 
   have "\<not>allowed_context_switch (get_action (tr' ! j))"
-  proof (rule use_noContextSwitchesInTransaction[OF \<open>noContextSwitchesInTransaction tr'\<close>, where i=i and j=j and k=k])
+  proof (rule use_noContextSwitchesInTransaction[OF \<open>\<not>contextSwitchesInTransaction tr'\<close>, where i=i and j=j and k=k])
     show "tr' ! i = (invoc, ABeginAtomic tx txns)"
       using a0 a2 a3 a4 assms(2) isPrefix_same by fastforce
     show "i < j " using a3 .
@@ -115,8 +160,8 @@ lemma noContextSwitchesInTransaction_when_packed_and_all_end:
     and "packed_trace tr"
     and noFail: "\<And>i. (i, ACrash) \<notin> set tr"
     and wf: "state_wellFormed S"
-  shows "noContextSwitchesInTransaction tr"
-proof (auto simp add: noContextSwitchesInTransaction_def)
+  shows "\<not>contextSwitchesInTransaction tr"
+proof (auto simp add: contextSwitchesInTransaction_alt_def)
   fix i k j invoc tx txns
   assume a0: "k \<le> length tr"
     and a1: "tr ! i = (invoc, ABeginAtomic tx txns)"
@@ -360,7 +405,7 @@ lemma only_one_commmitted_transaction_h:
     and packed: "packed_trace tr"
     and status: "transactionStatus S' tx \<triangleq> Uncommitted"
     and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
-    and noSwitch: "noContextSwitchesInTransaction tr"
+    and noSwitch: "\<not>contextSwitchesInTransaction tr"
     and initial: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
   shows "(currentTransaction S' (get_invoc (last tr)) \<triangleq> tx) 
       \<and> (\<exists>i txns. i<length tr \<and> tr!i = (get_invoc (last tr), ABeginAtomic tx txns)
@@ -371,8 +416,8 @@ lemma only_one_commmitted_transaction_h:
 next
   case (step S' tr a S'' tx)
 
-  from \<open>noContextSwitchesInTransaction (tr @ [a])\<close>
-  have noContextSwitch: "noContextSwitchesInTransaction tr"
+  from \<open>\<not>contextSwitchesInTransaction (tr @ [a])\<close>
+  have noContextSwitch: "\<not>contextSwitchesInTransaction tr"
     using isPrefix_appendI prefixes_noContextSwitchesInTransaction by blast
 
   { 
@@ -409,7 +454,7 @@ next
       by (auto simp add: step.simps IH1 split: if_splits )
 
 
-    from \<open>noContextSwitchesInTransaction (tr @ [a])\<close> \<open>(tr @ [a]) ! i = (get_invoc (last tr), ABeginAtomic tx txns)\<close>
+    from \<open>\<not>contextSwitchesInTransaction (tr @ [a])\<close> \<open>(tr @ [a]) ! i = (get_invoc (last tr), ABeginAtomic tx txns)\<close>
     have "\<not>allowed_context_switch (get_action ((tr@[a])!length tr))" 
     proof (rule use_noContextSwitchesInTransaction)
       show "\<forall>j. i < j \<and> j < Suc (length tr) \<longrightarrow> (tr @ [a]) ! j \<noteq> (get_invoc (last tr), AEndAtomic)"
@@ -480,7 +525,7 @@ lemma at_most_one_active_tx:
     and packed: "packed_trace tr"
     and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-    and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
+    and noCtxtSwitchInTx: "\<not>contextSwitchesInTransaction tr"
   shows "(\<forall>i tx. (i,tx) \<in> openTransactions tr \<longleftrightarrow> currentTransaction S' i = Some tx)
        \<and> (\<forall>i j. currentTransaction S' i \<noteq> None \<and> currentTransaction S' j \<noteq> None \<longrightarrow> i = j)"
   using steps  packed noFails noCtxtSwitchInTx proof (induct rule: steps_induct)
@@ -498,7 +543,7 @@ next
       using packed_trace_prefix step.prems(1) by auto
     show "\<And>s. (s, ACrash) \<notin> set tr"
       using step.prems(2) by auto
-    show "noContextSwitchesInTransaction tr"
+    show "\<not>contextSwitchesInTransaction tr"
       using isPrefix_appendI prefixes_noContextSwitchesInTransaction step.prems(3) by blast
   qed
 
@@ -522,7 +567,7 @@ next
         and a2: "tr ! j = (i', ABeginAtomic tx' txns)"
 
       have "\<not> allowed_context_switch (get_action ((tr @ [a]) ! length tr))"
-      proof (rule use_noContextSwitchesInTransaction[OF \<open>noContextSwitchesInTransaction (tr @ [a])\<close>])
+      proof (rule use_noContextSwitchesInTransaction[OF \<open>\<not>contextSwitchesInTransaction (tr @ [a])\<close>])
         show "(tr @ [a]) ! j = (i', ABeginAtomic tx' txns)"
           by (simp add: a0 a2 nth_append_first)
         show "\<forall>ja. j < ja \<and> ja < Suc (length tr) \<longrightarrow> (tr @ [a]) ! ja \<noteq> (i', AEndAtomic)"
@@ -569,7 +614,7 @@ qed
 
 lemma at_most_one_current_tx:
   assumes steps: "S ~~ tr \<leadsto>* S'"
-    and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
+    and noCtxtSwitchInTx: "\<not>contextSwitchesInTransaction tr"
     and packed: "packed_trace tr"
     and wf: "state_wellFormed S"
     and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
@@ -590,7 +635,7 @@ next
 
   have IH: "\<forall>i. currentTransaction S' i \<noteq> None \<longrightarrow> i = get_invoc (last tr)"
   proof (rule step)
-    show " noContextSwitchesInTransaction tr"
+    show " \<not>contextSwitchesInTransaction tr"
       using isPrefix_appendI prefixes_noContextSwitchesInTransaction step.prems(1) by blast
     show "packed_trace tr"
       using packed_trace_prefix step.prems(2) by blast
@@ -645,7 +690,7 @@ next
 
 
       have "\<not> allowed_context_switch (get_action ((tr @ [a]) ! length tr))"
-      proof (rule use_noContextSwitchesInTransaction[OF \<open>noContextSwitchesInTransaction (tr @ [a])\<close>, where j="length tr"])
+      proof (rule use_noContextSwitchesInTransaction[OF \<open>\<not>contextSwitchesInTransaction (tr @ [a])\<close>, where j="length tr"])
         show "(tr @ [a]) ! ib = (i, ABeginAtomic tx txns)"
           using ib by (simp add: ib_len nth_append) 
         show "\<forall>j. ib < j \<and> j < Suc (length tr) \<longrightarrow> (tr @ [a]) ! j \<noteq> (i, AEndAtomic)"

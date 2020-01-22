@@ -1257,7 +1257,7 @@ theorem show_correctness_via_single_session:
   assumes works_in_single_session: "programCorrect_s program"
     and inv_init: "invariant_all (initialState program)"
   shows "programCorrect program"
-proof (rule show_programCorrect_noTransactionInterleaving')
+proof (rule show_programCorrect_noTransactionInterleaving'')
   text \<open>Assume we have a trace and a final state S\<close>
   fix trace S
   text \<open>Such that executing the trace finishes in state S.\<close>
@@ -1269,7 +1269,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
   text \<open>We may also assume that there are no failures\<close>
   assume noFail: "\<And>s. (s, ACrash) \<notin> set trace"
 
-  (* assume "allTransactionsEnd trace"*)
+  assume "noContextSwitchesInTransaction trace"
 
   assume noInvchecksInTxns: "no_invariant_checks_in_transaction trace"
 
@@ -1356,8 +1356,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
       show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
         by (simp add: initialState_def)
       show " noContextSwitchesInTransaction tr'_min"
-        (*by (metis \<open>allTransactionsEnd trace\<close> \<open>isPrefix tr' trace\<close> \<open>state_wellFormed (initialState program)\<close> noContextSwitchesInTransaction_when_packed_and_all_end noFail packed prefixes_noContextSwitchesInTransaction steps)*)
-        sorry
+        using \<open>noContextSwitchesInTransaction trace\<close> prefixes_noContextSwitchesInTransaction tr'_min_prefix by blast
       show "\<And>a. a \<in> set tr'_min \<Longrightarrow> get_action a \<noteq> ALocal False"
         using \<open>\<And>a. a \<in> set (take i trace) \<Longrightarrow> get_action a \<noteq> ALocal False\<close> tr'_min_def by blast
 
@@ -1434,8 +1433,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
       show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
         by (simp add: initialState_def)
       show " noContextSwitchesInTransaction tr'_min"
-        (*by (metis \<open>allTransactionsEnd trace\<close> \<open>isPrefix tr' trace\<close> \<open>state_wellFormed (initialState program)\<close> noContextSwitchesInTransaction_when_packed_and_all_end noFail packed prefixes_noContextSwitchesInTransaction steps)*)
-        sorry
+        using \<open>isPrefix tr'_min trace\<close> \<open>noContextSwitchesInTransaction trace\<close> prefixes_noContextSwitchesInTransaction by blast
       show "\<And>a. a \<in> set tr'_min \<Longrightarrow> get_action a \<noteq> ALocal False"
         by (metis \<open>i \<le> length trace\<close> i_smallest_assertionFail in_set_conv_nth length_take min.absorb2 nth_take tr'_min_def)
       
@@ -1473,7 +1471,7 @@ proof (rule show_programCorrect_noTransactionInterleaving')
 
   qed
 qed  
-
+qed
 
 
 end

@@ -791,6 +791,14 @@ proof -
     by (smt IntI \<open>wf (Restr r S)\<close> mem_Sigma_iff nonempty wfE_min)
 qed
 
+lemma exists_min_wellorder:
+  fixes P :: "'a::wellorder \<Rightarrow> bool"
+  assumes  nonempty: "P x"
+  shows "\<exists>x. P x \<and> (\<forall>y. P y \<longrightarrow> x \<le> y)"
+  by (meson LeastI nonempty wellorder_Least_lemma(2))
+
+
+
 text "A finite set with an acyclic order has maximal elements."
 
 lemma exists_max:
