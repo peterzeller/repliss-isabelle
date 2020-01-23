@@ -62,7 +62,7 @@ lemma no_current_transactions:
     and packed: "packed_trace tr"
     and noChrash: "\<And>i. (i, ACrash) \<notin> set tr"
     and noUncommitted: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-    and noContextSwitch: "noContextSwitchesInTransaction tr"
+    and noContextSwitch: "\<not>contextSwitchesInTransaction tr"
     and ls_None: "localState S' i = None"
     and i_is_last: "tr = [] \<or> get_invoc (last tr) = i"
   shows "currentTransaction S' i' = None"
@@ -86,7 +86,7 @@ proof -
       using noChrash by auto
     show  " \<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
       using noUncommitted by blast
-    show  "noContextSwitchesInTransaction tr"
+    show  "\<not> contextSwitchesInTransaction tr"
       by (simp add: noContextSwitch)
   qed
 
@@ -94,9 +94,10 @@ proof -
   have noCurrentTransactionI: "currentTransaction S' i = None"
     by (meson S'_wf option.exhaust_sel state_wellFormed_tx_to_visibleCalls vis_None)
 
+  find_theorems contextSwitchesInTransaction
 
   show noCurrentTransaction: "currentTransaction S' i' = None" 
-    using at_most_one_current_tx[OF \<open>S ~~ tr \<leadsto>* S'\<close> \<open>noContextSwitchesInTransaction tr\<close> \<open>packed_trace tr\<close> \<open>state_wellFormed S\<close> \<open>\<And>s. (s, ACrash) \<notin> set tr\<close> noUncommitted]
+    using at_most_one_current_tx[OF \<open>S ~~ tr \<leadsto>* S'\<close> \<open>\<not> contextSwitchesInTransaction tr\<close> \<open>packed_trace tr\<close> \<open>state_wellFormed S\<close> \<open>\<And>s. (s, ACrash) \<notin> set tr\<close> noUncommitted]
     using i_is_last noCurrentTransactionI
     by (metis S'_wf noUncommitted option.exhaust steps steps_empty wellFormed_currentTransaction_unique_h(2)) 
 
@@ -117,7 +118,7 @@ lemma convert_to_single_session_trace:
     and packed: "packed_trace tr"
     and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-    and noCtxtSwitchInTx: "noContextSwitchesInTransaction tr"
+    and noCtxtSwitchInTx: "\<not>contextSwitchesInTransaction tr"
     \<comment> \<open>invariant holds on all states in the execution\<close>
     and inv: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S' "
     and noAssertionFail: "\<And>a. a\<in>set tr \<Longrightarrow> get_action a \<noteq> ALocal False"
@@ -149,7 +150,7 @@ next
     and  packed: "packed_trace (tr @ [a])"
     and prefix_invariant: "\<And>tr' S'.  \<lbrakk>isPrefix tr' (tr @ [a]); S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
     and noFails: "\<And>s. (s, ACrash) \<notin> set (tr @ [a])"
-    and noContextSwitch: "noContextSwitchesInTransaction (tr @ [a])"
+    and noContextSwitch: "\<not>contextSwitchesInTransaction (tr @ [a])"
     using isPrefix_appendI prefixes_noContextSwitchesInTransaction by (auto, blast)
 
   have noFails_tr: "\<And>i. (i, ACrash) \<notin> set tr"
@@ -414,7 +415,7 @@ next
               show "S ~~ tr @ [a] \<leadsto>* S''"
                 using steps' by auto
 
-              show " noContextSwitchesInTransaction (tr@[a])"
+              show " \<not>contextSwitchesInTransaction (tr@[a])"
                 using  noContextSwitch  by blast
               show "packed_trace (tr@[a])"
                 using packed by blast
@@ -549,7 +550,7 @@ next
       have vis_defined: "visibleCalls S' i \<noteq> None" if "currentTransaction S' i \<noteq> None"
         using S'_wf state_wellFormed_tx_to_visibleCalls that by auto
 
-      have tr_noSwitch: "noContextSwitchesInTransaction tr"
+      have tr_noSwitch: "\<not>contextSwitchesInTransaction tr"
         using isPrefix_appendI noContextSwitch prefixes_noContextSwitchesInTransaction by blast
 
       have tr_packed: "packed_trace tr"
@@ -874,7 +875,7 @@ lemma convert_to_single_session_trace_invFail:
     and packed: "packed_trace tr"
     and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommittedTx: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-    and noContextSwitches: "noContextSwitchesInTransaction tr"
+    and noContextSwitches: "\<not>contextSwitchesInTransaction tr"
     \<comment> \<open>invariant holds in the initial state\<close>
     and inv: "invariant_all S"
     \<comment> \<open>invariant no longer holds\<close>
@@ -976,7 +977,7 @@ proof -
       using inv_before by auto
     show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
       by (simp add: noUncommittedTx)
-    show "noContextSwitchesInTransaction tr1"
+    show "\<not>contextSwitchesInTransaction tr1"
       using isPrefix_appendI noContextSwitches prefixes_noContextSwitchesInTransaction tr_split by blast
     show "\<And>a. a \<in> set tr1 \<Longrightarrow> get_action a \<noteq> ALocal False"
       by (simp add: noAssertionErrors tr_split)
@@ -1014,7 +1015,7 @@ proof -
         using tr_split
         by (simp add: isPrefix_def)
 
-      have "noContextSwitchesInTransaction (tr1@[a])"
+      have "\<not>contextSwitchesInTransaction (tr1@[a])"
         using tr1a_isPrefix noContextSwitches prefixes_noContextSwitchesInTransaction by blast
 
 
@@ -1024,7 +1025,7 @@ proof -
 
 
       have "\<forall>i. currentTransaction S_fail i \<noteq> None \<longrightarrow> i = get_invoc (last (tr1@[a]))"
-        using steps_tr1_a `noContextSwitchesInTransaction (tr1@[a])` `packed_trace (tr1@[a])`
+        using steps_tr1_a `\<not>contextSwitchesInTransaction (tr1@[a])` `packed_trace (tr1@[a])`
           S_wellformed
       proof (rule at_most_one_current_tx)
         show "\<And>s. (s, ACrash) \<notin> set (tr1 @[a])"
@@ -1269,7 +1270,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
   text \<open>We may also assume that there are no failures\<close>
   assume noFail: "\<And>s. (s, ACrash) \<notin> set trace"
 
-  assume "noContextSwitchesInTransaction trace"
+  assume "\<not>contextSwitchesInTransaction trace"
 
   assume noInvchecksInTxns: "no_invariant_checks_in_transaction trace"
 
@@ -1355,8 +1356,8 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
         by (simp add: \<open>\<not> invariant_all S_fail_min\<close>)
       show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
         by (simp add: initialState_def)
-      show " noContextSwitchesInTransaction tr'_min"
-        using \<open>noContextSwitchesInTransaction trace\<close> prefixes_noContextSwitchesInTransaction tr'_min_prefix by blast
+      show " \<not>contextSwitchesInTransaction tr'_min"
+        using \<open>\<not>contextSwitchesInTransaction trace\<close> prefixes_noContextSwitchesInTransaction tr'_min_prefix by blast
       show "\<And>a. a \<in> set tr'_min \<Longrightarrow> get_action a \<noteq> ALocal False"
         using \<open>\<And>a. a \<in> set (take i trace) \<Longrightarrow> get_action a \<noteq> ALocal False\<close> tr'_min_def by blast
 
@@ -1432,8 +1433,8 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
         by (metis \<open>isPrefix tr'_min trace\<close> in_set_takeD isPrefix_def noFail)
       show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
         by (simp add: initialState_def)
-      show " noContextSwitchesInTransaction tr'_min"
-        using \<open>isPrefix tr'_min trace\<close> \<open>noContextSwitchesInTransaction trace\<close> prefixes_noContextSwitchesInTransaction by blast
+      show " \<not>contextSwitchesInTransaction tr'_min"
+        using \<open>isPrefix tr'_min trace\<close> \<open>\<not>contextSwitchesInTransaction trace\<close> prefixes_noContextSwitchesInTransaction by blast
       show "\<And>a. a \<in> set tr'_min \<Longrightarrow> get_action a \<noteq> ALocal False"
         by (metis \<open>i \<le> length trace\<close> i_smallest_assertionFail in_set_conv_nth length_take min.absorb2 nth_take tr'_min_def)
       

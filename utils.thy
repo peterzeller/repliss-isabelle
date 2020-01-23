@@ -1212,5 +1212,6 @@ lemma cases_5[case_names case1 case2 case3 case4 case5]:
   shows "P"
   using assms by auto
 
-
+lemma iffToImp: "P \<longleftrightarrow> Q \<Longrightarrow> Q \<longrightarrow> P"
+  by sat
 end

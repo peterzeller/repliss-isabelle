@@ -81,20 +81,20 @@ when the execution trace contains no action in i.
 
 lemma show_state_transfer:
   assumes steps: "S_start ~~ tr \<leadsto>* S_end"
-    and step_simulate: "\<And>a S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P S\<rbrakk> \<Longrightarrow> T S ~~ a \<leadsto> T S'"
-    and step_preserves: "\<And>a S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P S\<rbrakk> \<Longrightarrow> P S'"
-    and prop_initial: "P S_start"
-  shows "(T S_start ~~ tr \<leadsto>* T S_end) \<and> P S_end"
+    and step_simulate: "\<And>a tr' S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P tr' S\<rbrakk> \<Longrightarrow> T S ~~ a \<leadsto> T S'"
+    and step_preserves: "\<And>a tr' S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P tr' S\<rbrakk> \<Longrightarrow> P (tr'@[a]) S'"
+    and prop_initial: "P [] S_start"
+  shows "(T S_start ~~ tr \<leadsto>* T S_end) \<and> P tr S_end"
   using steps step_simulate step_preserves prop_initial proof (induct rule: steps_induct)
   case initial
-  show "(T S_start ~~ [] \<leadsto>* T S_start) \<and> P S_start"
-    using \<open>P S_start\<close> 
+  show "(T S_start ~~ [] \<leadsto>* T S_start) \<and> P [] S_start"
+    using \<open>P [] S_start\<close> 
     by (auto simp add: steps_empty)
 next
   case (step S' tr a S'')
-  show "(T S_start ~~ tr @ [a] \<leadsto>* T S'') \<and> P S''" 
+  show "(T S_start ~~ tr @ [a] \<leadsto>* T S'') \<and> P (tr @ [a]) S''" 
   proof (intro conjI)
-    show "P S''"
+    show "P (tr @ [a]) S''"
       by (metis append_is_Nil_conv butlast_snoc in_set_butlastD last_in_set last_snoc list.simps(3) prop_initial step.IH step.prems(1) step.prems(2) step.step)
     show " T S_start ~~ tr @ [a] \<leadsto>* T S''"
       by (metis UnI2 butlast_snoc in_set_butlastD list.set_intros(1) prop_initial set_append step.IH step.prems(1) step.prems(2) step.step steps_step)
@@ -479,7 +479,7 @@ proof -
             auto simp add: intro!: exI[where x=C'],
             auto simp add: C'_def )
 
-          show "chooseSnapshot snapshot vis (C\<lparr>calls := (calls C)(cId := None), happensBefore := happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId}, localState := (localState C)(i := localState S_start i), visibleCalls := (visibleCalls C)(i := visibleCalls S_start i), callOrigin := (callOrigin C)(cId := None)\<rparr>)"
+          show "chooseSnapshot_h snapshot vis (transactionStatus C) ((callOrigin C)(cId := None)) (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId})"
             if c0: "i' = s"
               and c1: "a = ABeginAtomic t snapshot"
               and c2: "S = C"

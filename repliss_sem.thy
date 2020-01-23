@@ -117,23 +117,8 @@ lemma state_ext: "((x::('proc, 'ls, 'operation, 'any) state) = y) \<longleftrigh
 )"
   by auto
 
-lemma stateEqI: 
-  assumes "calls x = calls y"
-  and "happensBefore x = happensBefore y"
-  and "prog x = prog y"
-  and "localState x = localState y"
-  and "currentProc x = currentProc y"
-  and "visibleCalls x = visibleCalls y"
-  and "currentTransaction x = currentTransaction y"
-  and "transactionStatus x = transactionStatus y"
-  and "callOrigin x = callOrigin y"
-  and "transactionOrigin x = transactionOrigin y"
-  and "generatedIds x = generatedIds y"
-  and "knownIds x = knownIds y"
-  and "invocationOp x = invocationOp y"
-  and "invocationRes x = invocationRes y"
-shows "(x::('proc, 'ls, 'operation, 'any) state) = y"
-  using assms by (auto simp add: state_ext)
+
+lemmas stateEqI = state_ext[THEN iffToImp, simplified imp_conjL, rule_format]
 
 lemma state_ext_exI:
   fixes P :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool"
@@ -564,15 +549,30 @@ schematic_goal [simp]: "isACrash (ACrash) = ?x" by (auto simp add: isACrash_def)
 schematic_goal [simp]: "isACrash (AInvcheck c) = ?x" by (auto simp add: isACrash_def) 
 
 
-definition chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> bool" where
-"chooseSnapshot snapshot vis S \<equiv>
+definition chooseSnapshot_h where
+"chooseSnapshot_h snapshot vis txStatus cOrigin hb \<equiv>
+  \<exists>newTxns newCalls.
+  \<comment> \<open>  choose a set of committed transactions to add to the snapshot  \<close>
+   (\<forall>txn\<in>newTxns. txStatus txn \<triangleq> Committed)
+   \<comment> \<open>  determine new visible calls: downwards-closure wrt. causality   \<close>
+   \<and> newCalls = callsInTransactionH cOrigin newTxns \<down> hb
+   \<comment> \<open>  transaction snapshot  \<close>
+   \<and> snapshot = vis \<union> newCalls"
+
+abbreviation chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> bool" where 
+"chooseSnapshot snapshot vis S \<equiv> chooseSnapshot_h snapshot vis (transactionStatus S) (callOrigin S) (happensBefore S)"
+
+lemma chooseSnapshot_def: \<comment> \<open>old definition\<close>
+"chooseSnapshot snapshot vis S = (
   \<exists>newTxns newCalls.
   \<comment> \<open>  choose a set of committed transactions to add to the snapshot  \<close>
    newTxns \<subseteq> committedTransactions S
    \<comment> \<open>  determine new visible calls: downwards-closure wrt. causality   \<close>
    \<and> newCalls = callsInTransaction S newTxns \<down> happensBefore S
    \<comment> \<open>  transaction snapshot  \<close>
-   \<and> snapshot = vis \<union> newCalls"
+   \<and> snapshot = vis \<union> newCalls)"
+  by (auto simp add: chooseSnapshot_h_def)
+
 
 
 inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'operation, 'any) action) \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
@@ -677,6 +677,12 @@ lemmas step_simps =
   step_simp_ACrash
   step_simp_AInvcheck
 
+
+
+lemmas step_intros = 
+  step_simps[THEN iffToImp, simplified imp_conjL imp_ex, rule_format]
+
+
 inductive_cases step_elim_ALocal: "A ~~ (s, ALocal ok) \<leadsto> B "
 inductive_cases step_elim_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
 inductive_cases step_elim_ABeginAtomic: "A ~~ (s, ABeginAtomic t newTxns) \<leadsto> B "
@@ -698,6 +704,9 @@ lemmas step_elims =
   step_elim_AReturn
   step_elim_ACrash
   step_elim_AInvcheck
+
+
+
 
 inductive steps :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'operation, 'any) action) list \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
   steps_refl:

@@ -115,9 +115,7 @@ proof (rule iffI2; clarsimp)
                   transactionOrigin := transactionOrigin S2(t \<mapsto> s),
                   visibleCalls := visibleCalls S2(s \<mapsto> snapshot)\<rparr>"],
               insert induct_step.coupling no_fail beginAtomic,
-              auto simp add: step_simps state_ext  induct_step steps_single,
-              insert \<open>chooseSnapshot snapshot vis S1\<close> chooseSnapshot_unchanged induct_step.coupling,
-              blast)
+              auto simp add: step_simps state_ext  induct_step steps_single )
 
       next
         case (endAtomic s ls f ls' t)

@@ -1,6 +1,8 @@
 section "Packed Traces without Failures and Invariant Checks"
 theory packed_nofails_noinvchecks
-imports no_failing_invchecks packed_no_fails consistency single_invocation_reduction_helper
+  imports no_failing_invchecks packed_no_fails consistency single_invocation_reduction_helper
+"fuzzyrule.fuzzyrule"
+state_monotonicGrowth_invariants
 begin
 
 
@@ -827,29 +829,510 @@ proof -
     by (metis (no_types, lifting) Suc_diff_le \<open>i = length tr1\<close> \<open>length tr1 + length tr2 = Suc k\<close> add_diff_cancel_left' assms(6) in_set_conv_nth leD lessI nth_append tr_split)
 qed
 
+lemma transfer_execution:
+  assumes steps: "S1 ~~ tr \<leadsto>* S2"
+    and p: "P S1 S1'"
+    and wf: "state_wellFormed S1"
+    and no_crash: "\<And>i. (i, ACrash) \<notin> set tr"
+    and induct: "\<And>a tr' Sa Sb Sa' . \<lbrakk>
+      a\<in>set tr; 
+      P Sa Sa'; 
+      Sa ~~ a \<leadsto> Sb; 
+      state_wellFormed Sa;
+      S1 ~~ tr' \<leadsto>* Sa;
+      isPrefix tr' tr
+    \<rbrakk> \<Longrightarrow> \<exists>Sb'. (Sa' ~~ a \<leadsto> Sb') \<and> P Sb Sb'"
+  shows "\<exists>S2'. (S1' ~~ tr \<leadsto>* S2') \<and> P S2 S2'"
+proof -
+
+  define tr_alt where "tr_alt = tr"
+
+  have "isPrefix tr tr_alt"
+    by (simp add: isPrefix_refl tr_alt_def)
+
+  have induct_alt: "\<And>a tr' Sa Sb Sa' . \<lbrakk>
+      a\<in>set tr_alt; 
+      P Sa Sa'; 
+      Sa ~~ a \<leadsto> Sb; 
+      state_wellFormed Sa;
+      S1 ~~ tr' \<leadsto>* Sa;
+      isPrefix tr' tr_alt
+    \<rbrakk> \<Longrightarrow> \<exists>Sb'. (Sa' ~~ a \<leadsto> Sb') \<and> P Sb Sb'"
+    by (simp add: induct tr_alt_def)
+
+
+  have "\<exists>S2'. (S1' ~~ tr \<leadsto>* S2') \<and> P S2 S2' \<and> isPrefix tr tr_alt "
+    using steps induct_alt no_crash `isPrefix tr tr_alt` proof (induct rule: steps_induct)
+    case initial
+    then show ?case
+      using p by (simp add: steps_empty isPrefix_empty_first)
+
+  next
+    case (step S2 tr a S3)
+
+    have "\<exists>S2'. (S1' ~~ tr \<leadsto>* S2') \<and> P S2 S2' \<and> isPrefix tr tr_alt"
+    proof (rule step.IH)
+      from `isPrefix (tr @ [a]) tr_alt`
+      show "isPrefix tr tr_alt"
+        by (metis append_take_drop_id isPrefix_append isPrefix_appendI isPrefix_def )
+
+      show "\<exists>Sb'. (Sa' ~~ a \<leadsto> Sb') \<and> P Sb Sb'"
+        if c0: "a \<in> set tr_alt"
+          and c1: "P Sa Sa'"
+          and c2: "Sa ~~ a \<leadsto> Sb"
+          and c3: "state_wellFormed Sa"
+          and c4: "S1 ~~ tr' \<leadsto>* Sa"
+          and c5: "isPrefix tr' tr_alt"
+        for  a Sa Sa' Sb tr'
+        using c0 c1 c2 c3 c4 c5 induct_alt by blast
+
+
+
+
+      show " \<And>i. (i, ACrash) \<notin> set tr"
+        using step.prems by auto
+    qed
+
+    from this
+    obtain S2' where "(S1' ~~ tr \<leadsto>* S2')" and "P S2 S2'" and "isPrefix tr tr_alt"
+      by blast
+
+    have "\<exists>S3'. (S2' ~~ a \<leadsto> S3') \<and> P S3 S3'"
+    proof (rule step)
+      from `isPrefix (tr @ [a]) tr_alt`
+      show "a \<in> set tr_alt"
+        by (metis in_set_takeD isPrefix_def list.set_intros(1) rotate1.simps(2) set_rotate1 step.prems(3))
+
+      show "P S2 S2'"
+        using `P S2 S2'` .
+      show "S2 ~~ a \<leadsto> S3"
+        using `S2 ~~ a \<leadsto> S3` .
+      show "state_wellFormed S2"
+        using local.wf state_wellFormed_combine step.prems(2) step.steps by fastforce
+      show "S1 ~~ tr \<leadsto>* S2"
+        by (simp add: step.steps)
+      show "isPrefix tr tr_alt"
+        by (simp add: \<open>isPrefix tr tr_alt\<close>)
+
+    qed
+
+
+    then show ?case
+      using \<open>S1' ~~ tr \<leadsto>* S2'\<close> step.prems(3) steps_step by blast
+  qed
+  thus ?thesis
+    by blast
+qed    
+
+lemma show_state_transfer2:
+  assumes steps: "S1 ~~ tr \<leadsto>* S2"
+    and wf: "state_wellFormed S1"
+    and no_crash: "\<And>i. (i, ACrash) \<notin> set tr"
+    and p: "S1' = f S1"
+    and indu: "\<And>i a Sa Sb tr' . \<lbrakk>
+      (i,a)\<in>set tr; 
+      Sa ~~ (i, a) \<leadsto> Sb; 
+      state_wellFormed Sa;
+      isPrefix tr' tr;
+      S1 ~~ tr' \<leadsto>* Sa
+    \<rbrakk> \<Longrightarrow> f Sa ~~ (i, a) \<leadsto> f Sb"
+  shows "S1' ~~ tr \<leadsto>* f S2"
+proof  -
+
+  from steps p wf no_crash
+  have "\<exists>S2'. (S1' ~~ tr \<leadsto>* S2') \<and> S2' = f S2"
+  proof (rule transfer_execution)
+
+    show "\<exists>Sb'. (Sa' ~~ a \<leadsto> Sb') \<and> Sb' = f Sb"
+      if c0: "a \<in> set tr"
+        and c1: "Sa' = f Sa"
+        and c2: "Sa ~~ a \<leadsto> Sb"
+        and c3: "state_wellFormed Sa"
+        and c4: "S1 ~~ tr' \<leadsto>* Sa"
+        and c5: "isPrefix tr' tr"
+      for  a tr' Sa Sb Sa'
+      by (metis c0 c1 c2 c3 c4 c5 indu prod.collapse)
+  qed
+  thus ?thesis
+    by blast
+qed
+
+
+lemma drop_single_action:
+  assumes step1: "S1 ~~ ia \<leadsto> S2" 
+    and steps: "S2 ~~ tr \<leadsto>* S3"
+    and no_i: "\<forall>a\<in>set tr. get_invoc a \<noteq> get_invoc ia"
+    and wf: "state_wellFormed S1"
+    and no_crash: "\<And>i. (i, ACrash) \<notin> set tr"
+    and no_endAtomic: "get_action ia \<noteq> AEndAtomic"
+    and no_endInvoc: "\<And>p. get_action ia \<noteq> AInvoc p"
+    and no_endReturn: "\<And>r. get_action ia \<noteq> AReturn r"
+    and a_no_crash: "get_action ia \<noteq> ACrash"
+  shows "\<exists>S3'. (S1 ~~ tr \<leadsto>* S3')" 
+proof -
+
+  obtain i a where ia_def[simp]: "ia = (i,a)"
+    by force
+  hence "i = get_invoc ia" and "a = get_action ia"
+    by auto
+
+  from step1 
+  have step: "S1 ~~ (i,a) \<leadsto> S2"
+    by simp
+
+  have wf2: "state_wellFormed S2"
+    using a_no_crash local.step local.wf state_wellFormed_combine_step  by fastforce
+
+  have no_i'[simp]: "i' \<noteq> i" if "(i', a) \<in> set tr" for i' a
+    using no_i that by auto
+  hence no_i''[simp]: "i \<noteq> i'" if "(i', a) \<in> set tr" for i' a
+    using that by blast
+
+  show ?thesis
+    using step
+  proof (cases rule: step.cases)
+    case (local ls f ok ls')
+
+    from steps 
+    have "S1 ~~ tr \<leadsto>* (S3\<lparr>localState := localState S3(i \<mapsto> ls)\<rparr>)"
+      using wf2 no_crash
+    proof (rule show_state_transfer2, goal_cases init step)
+      case init
+      thus ?case 
+        using local by (auto simp add: state_ext)
+    next
+      case (step i a Sa Sb)
+      thus ?case 
+        apply (cases a)
+        by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+
+    qed
+    thus ?thesis
+      by blast
+
+
+  next
+    case (newId ls f ls' uid uidv ls'')
+    from steps 
+    have "S1 ~~ tr \<leadsto>* (S3\<lparr>localState := localState S3(i \<mapsto> ls), 
+                          generatedIds := (generatedIds S3)(uid := None)\<rparr>)"
+      using wf2 no_crash
+    proof (rule show_state_transfer2, goal_cases init step)
+      case init
+      thus ?case 
+        using newId by (auto simp add: state_ext)
+
+    next
+      case (step i' a Sa Sb)
+
+      have [simp]: "i' \<noteq> i" "i' \<noteq> i"
+        using ` (i', a) \<in> set tr` by auto
+
+      from newId
+      have "generatedIds S2 uid \<triangleq> i"
+        by auto
+
+      have [simp]: "uid \<noteq> to_nat x" if "a =  ANewId x" for x
+        using \<open>generatedIds S2 uid \<triangleq> i\<close> local.step(1) steps that uid_used_only_once by blast
+
+      from step
+      show ?case 
+        apply (cases a)
+        by (auto simp add: state_updates_normalize elim!: step_elims   intro!: stateEqI step_intros show_state_calls_eq ext)
+    qed
+    thus ?thesis by blast
+  next
+    case (beginAtomic ls f ls' t vis snapshot)
+
+    from steps 
+    have "S1 ~~ tr \<leadsto>* (S3\<lparr>
+                   localState := (localState S3)(i := localState S1 i),
+                   currentTransaction := (currentTransaction S3)(i := None),
+                   transactionStatus := (transactionStatus S3)(t := None),
+                   transactionOrigin := (transactionOrigin S3)(t := None),
+                   visibleCalls := (visibleCalls S3)(i := visibleCalls S1 i)\<rparr>)"
+      using wf2 no_crash
+    proof (rule show_state_transfer2, goal_cases init step)
+      case init
+      thus ?case 
+        using beginAtomic wf_transactionOrigin_and_status[OF wf] 
+        by (auto simp add: state_ext intro!: ext)
+    next
+      case (step i' a Sa Sb tr')
+
+      from no_i'
+      have tr'_no_i: "(i, a)\<notin>set tr'" for a
+        using `isPrefix tr' tr`
+        by (metis isPrefix_subset2)
+      have tr'_no_crash: "\<And>i. (i, ACrash) \<notin> set tr'"
+        by (meson isPrefix_subset2 local.step(4) no_crash)
+
+      
+
+      have monoGrowth: "state_monotonicGrowth i S2 Sa"
+      proof (auto simp add: state_monotonicGrowth_def `state_wellFormed S2` step intro!: exI[where x=tr'])
+        show "\<And>b. (i, b) \<in> set tr' \<Longrightarrow> False"
+          using \<open>\<And>a. (i, a) \<notin> set tr'\<close> by auto
+        show "\<And>i. (i, ACrash) \<in> set tr' \<Longrightarrow> False"
+          using \<open>\<And>i. (i, ACrash) \<notin> set tr'\<close> by blast
+      qed
+
+      have "state_wellFormed Sb"
+        using local.step(1) local.step(2) local.step(3) no_crash state_wellFormed_combine_step by fastforce
+
+      have "transactionStatus S2 t \<triangleq> Uncommitted"
+        using beginAtomic by simp
+
+      have "transactionStatus Sa t \<triangleq> Uncommitted"
+        by (smt \<open>transactionStatus S2 t \<triangleq> Uncommitted\<close> ia_def local.beginAtomic(7) local.step(3) local.wf monoGrowth option.distinct(1) state_monotonicGrowth_currentTransaction step1 unchangedInTransaction(3) wellFormed_currentTransaction_back4 wellFormed_currentTransaction_unique_h(2) wf2)
+
+
+
+      have [simp]: "tx' \<noteq> t" if "a = ABeginAtomic tx' txns'" for tx' txns'
+        using \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> local.step(2) step_elim_ABeginAtomic that by fastforce
+
+
+      have noCallsInTx_S2: "callOrigin S2 c \<noteq> Some t" for c
+        using beginAtomic wf_no_transactionStatus_origin_for_nothing[OF wf] by auto
+
+      have "currentTransaction S2 i \<triangleq> t"
+        by (smt currentTransaction_unchangedInternalSteps3 empty_iff ia_def list.set(1) local.beginAtomic(1) local.wf state_wellFormed_def step1 steps_append steps_step traceDeterministic)
+
+      have "currentTransaction Sa i \<triangleq> t"
+        using \<open>currentTransaction S2 i \<triangleq> t\<close> monoGrowth state_monotonicGrowth_currentTransaction by fastforce
+
+
+      have noCallsInTx: "callOrigin Sa c \<noteq> Some t" for c
+        using \<open>currentTransaction S2 i \<triangleq> t\<close> monoGrowth noCallsInTx_S2 state_monotonicGrowth_current_transactions_fixed by blast
+
+
+      show ?case 
+      proof (cases a)
+        case (ALocal x1)
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case (ANewId x2)
+        with step  show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case (ABeginAtomic tx txns)
+        with step show ?thesis 
+          using \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> 
+          by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext elim!: chooseSnapshot_unchanged_precise)
+      next
+        case AEndAtomic
+        with step show ?thesis 
+          apply (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+          using \<open>currentTransaction Sa i \<triangleq> t\<close> no_i'' wellFormed_currentTransaction_unique by blast
+      next
+        case (ADbOp x51 x52 x53)
+        with step show ?thesis 
+          by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+
+      next
+        case (AInvoc x6)
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case (AReturn x7)
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case ACrash
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case (AInvcheck ok)
+
+        have invContextSame: "(invContextH (callOrigin Sa) (\<lambda>a. if a = t then None else transactionOrigin Sa a)
+           (\<lambda>a. if a = t then None else transactionStatus Sa a) (happensBefore Sa) (calls Sa) (knownIds Sa) (invocationOp Sa)
+           (invocationRes Sa))
+          = invContext Sa"
+          using  step noCallsInTx
+          by (auto simp add: \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> AInvcheck step.simps  isCommittedH_def invContextH_def restrict_map_def restrict_relation_def committedCallsH_def intro!: ext, fastforce+)
+        from `a = AInvcheck ok` step show ?thesis 
+          by (auto simp add: invContextSame step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      qed
+    qed
+    thus ?thesis
+      by blast
+  next
+    case (endAtomic ls f ls' t)
+    show ?thesis
+      using `a = AEndAtomic` no_endAtomic by auto 
+  next
+    case (dbop ls f Op ls' t c res vis)
+    from steps 
+    have "S1 ~~ tr \<leadsto>* (S3\<lparr>
+                          localState := localState S3(i \<mapsto> ls), 
+                          calls := (calls S3)(c := None), 
+                          callOrigin := (callOrigin S3)(c := None),
+                          visibleCalls := visibleCalls S3(i \<mapsto> vis), 
+                          happensBefore := happensBefore S3 - vis \<times> {c}\<rparr>)"
+      using wf2 no_crash
+    proof (rule show_state_transfer2, goal_cases init step)
+      case init
+      thus ?case 
+        using dbop wellFormed_happensBefore_calls_r[OF wf] wellFormed_callOrigin_dom3[OF wf]
+        by (auto simp add:  intro!: ext stateEqI, blast)
+
+    next
+      case (step i' a Sa Sb  tr')
+
+      from no_i'
+      have tr'_no_i: "(i, a)\<notin>set tr'" for a
+        using `isPrefix tr' tr`
+        by (metis isPrefix_subset2)
+      have tr'_no_crash: "\<And>i. (i, ACrash) \<notin> set tr'"
+        by (meson isPrefix_subset2 local.step(4) no_crash)
+
+      
+
+      from `S2 ~~ tr' \<leadsto>* Sa` `state_wellFormed S2` `\<And>a. (i, a) \<notin> set tr'` `\<And>i. (i, ACrash) \<notin> set tr'`
+      have "state_monotonicGrowth i S2 Sa"
+        by (rule show_state_monotonicGrowth)
+
+      have "calls S2 c \<triangleq> Call Op res"
+        using dbop by auto
+
+      have "callOrigin S2 c \<triangleq> t"
+        using dbop by auto
+      have [simp]: "callOrigin Sa c \<triangleq> t"
+        using \<open>callOrigin S2 c \<triangleq> t\<close> \<open>state_monotonicGrowth i S2 Sa\<close> state_monotonicGrowth_callOrigin by blast 
+
+      have "currentTransaction S2 i \<triangleq> t"
+        using dbop by auto
+      hence "currentTransaction Sa i \<triangleq> t"
+        using \<open>state_monotonicGrowth i S2 Sa\<close> state_monotonicGrowth_currentTransaction by force
+
+
+      have "transactionStatus S2 t \<triangleq> Uncommitted"
+        using \<open>currentTransaction S2 i \<triangleq> t\<close> wellFormed_currentTransactionUncommitted wf2 by blast
+      have "transactionStatus Sa t \<triangleq> Uncommitted"
+        using \<open>currentTransaction Sa i \<triangleq> t\<close> local.step(3) wellFormed_currentTransactionUncommitted by blast
+
+
+
+      have [simp]: "calls Sa c \<triangleq> Call Op res"
+        using \<open>calls S2 c \<triangleq> Call Op res\<close> \<open>state_monotonicGrowth i S2 Sa\<close> state_monotonicGrowth_calls by blast
+
+      show ?case 
+      proof (cases a)
+        case (ALocal x1)
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case (ANewId x2)
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case (ABeginAtomic tx txns)
+
+        have h1: "callsInTransactionH (\<lambda>a. if a = c then None else callOrigin Sa a) newTxns \<down> (happensBefore Sa - vis \<times> {c})
+         =  callsInTransaction Sa newTxns \<down> happensBefore Sa" 
+          if " \<forall>txn\<in>newTxns. transactionStatus Sa txn \<triangleq> Committed"
+          for newTxns
+          using \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> not_uncommitted_cases that
+          apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
+          using local.step(3) wellFormed_state_transaction_consistent(4) apply fastforce
+          by (metis (no_types, lifting) \<open>callOrigin Sa c \<triangleq> t\<close> option.inject)
+
+        from ABeginAtomic step 
+        show ?thesis apply (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+          apply (auto simp add: chooseSnapshot_h_def  )
+          subgoal for ls f ls' visa newTxns
+            apply (rule_tac x=newTxns in exI, auto)
+            apply (auto simp add: h1)
+            done
+          done
+
+      next
+        case AEndAtomic
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case (ADbOp c' op res)
+        with step show ?thesis 
+        proof (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext, goal_cases)
+          case (1 ls f ls' t' vis')
+
+          have "getContextH (\<lambda>a. if a = c then None else calls Sa a) (happensBefore Sa - vis \<times> {c}) (Some vis')
+              = getContextH (calls Sa)                               (happensBefore Sa)             (Some vis')"
+            apply (auto simp add: getContextH_def restrict_map_def restrict_relation_def intro!: ext)
+            using "1"(13) \<open>currentTransaction Sa i \<triangleq> t\<close> \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> local.step(1) local.step(3) wellFormed_currentTransaction_unique wf_transactionConsistent1 apply fastforce
+            using "1"(13) \<open>currentTransaction Sa i \<triangleq> t\<close> \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> local.step(1) local.step(3) wellFormed_currentTransaction_unique wf_transactionConsistent1 by fastforce
+
+          with `querySpec (prog Sa) op (getContextH (calls Sa) (happensBefore Sa) (Some vis')) res`
+          show ?case by auto
+        qed
+
+      next
+        case (AInvoc x6)
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case (AReturn x7)
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case ACrash
+        with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      next
+        case (AInvcheck ok)
+        have invSame: "(invContextH (\<lambda>a. if a = c then None else callOrigin Sa a) (transactionOrigin Sa) (transactionStatus Sa)
+           (happensBefore Sa - vis \<times> {c}) (\<lambda>a. if a = c then None else calls Sa a) (knownIds Sa) (invocationOp Sa)
+           (invocationRes Sa))
+          = invContext Sa"
+          using   step 
+          using \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> 
+          by (auto simp add: wellFormed_callOrigin_dom2 AInvcheck step.simps  isCommittedH_def invContextH_def restrict_map_def restrict_relation_def committedCallsH_def intro!: ext)
+
+        with step show ?thesis 
+          by (auto simp add: AInvcheck invSame step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
+      qed
+
+
+    qed
+    thus ?thesis
+      by blast
+
+  next
+    case (invocation proc initialState impl)
+    then show ?thesis
+      using no_endInvoc \<open>a = get_action ia\<close> by metis
+  next
+    case (return ls f res)
+    then show ?thesis
+      using no_endReturn \<open>a = get_action ia\<close> by metis
+  next
+    case (fail ls)
+    then show ?thesis
+      using a_no_crash \<open>a = get_action ia\<close> by metis
+  next
+    case (invCheck res)
+    then show ?thesis
+      using steps by blast
+  qed
+qed
+
+(* 
 definition 
 "drop_no_action_coupling S1 S2 i \<equiv> 
   calls S1 = calls S2
 \<and> happensBefore S1 = happensBefore S2
 \<and> callOrigin S1 = callOrigin S2
-\<and> transactionOrigin S1 = transactionOrigin S2
+\<and> (\<forall>t i'. i' \<noteq> i \<longrightarrow>  (transactionOrigin S1 t \<triangleq> i' \<longleftrightarrow> transactionOrigin S2 t \<triangleq> i'))
+\<and> (dom (transactionOrigin S2) \<subseteq> dom (transactionOrigin S1))
 \<and> knownIds S1 = knownIds S2
 \<and> invocationOp S1 = invocationOp S2
 \<and> invocationRes S1 = invocationRes S2
 \<and> prog S1 = prog S2
-\<and> transactionStatus S1 = transactionStatus S2
-\<and> (\<forall>id i'. i' \<noteq> i \<longrightarrow>  generatedIds S1 id \<triangleq> i' \<longleftrightarrow> generatedIds S2 id \<triangleq> i')
+\<and> (\<forall>t. currentTransaction S2 i \<noteq> Some t \<longrightarrow>  transactionStatus S1 t = transactionStatus S2 t)
+\<and> (\<forall>id i'. i' \<noteq> i \<longrightarrow> (generatedIds S1 id \<triangleq> i' \<longleftrightarrow> generatedIds S2 id \<triangleq> i'))
 \<and> (dom (generatedIds S2) \<subseteq> dom (generatedIds S1))
 \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow> localState S1 i' = localState S2 i')
 \<and> currentProc S1 = currentProc S2
-\<and> visibleCalls S1 = visibleCalls S2
-\<and> currentTransaction S1 = currentTransaction S2
+\<and> (\<forall>i'. i' \<noteq> i \<longrightarrow> visibleCalls S1 i = visibleCalls S2 i)
+\<and> (\<forall>i'. i' \<noteq> i \<longrightarrow> currentTransaction S1 i = currentTransaction S2 i)
 "
 
 lemma drop_no_action:
   assumes "S1 ~~ tr \<leadsto>* S1'"
     and "\<forall>a\<in>set tr. get_invoc a \<noteq> i"
     and "drop_no_action_coupling S1 S2 i"
+    and "state_wellFormed S1"
+    and "\<And>i. (i, ACrash) \<notin> set tr"
   shows "\<exists>S2'. (S2 ~~ tr \<leadsto>* S2') \<and> drop_no_action_coupling S1' S2' i" 
   using assms
 proof (induct rule: steps_induct)
@@ -860,10 +1343,13 @@ proof (induct rule: steps_induct)
 next
   case (step S' tr a S'')
   obtain S2' where "S2 ~~ tr \<leadsto>* S2'" and coup: "drop_no_action_coupling S' S2' i"
-    using step.IH step.prems(1) step.prems(2) by auto
+    using step.IH step.prems by auto
 
   have not_i: "get_invoc a \<noteq> i"
     by (simp add: step.prems(1))
+
+  have "state_wellFormed S'"
+    using state_wellFormed_combine step.prems step.steps by fastforce
 
 
   from ` S' ~~ a \<leadsto> S''`
@@ -877,7 +1363,10 @@ next
     then show ?thesis using coup not_i by (auto simp add: step.simps  drop_no_action_coupling_def)
   next
     case (beginAtomic i ls f ls' t vis snapshot)
-    then show ?thesis using coup not_i by (auto simp add: step.simps  drop_no_action_coupling_def chooseSnapshot_unchanged)
+    then show ?thesis using coup not_i 
+      apply (auto simp add: step.simps  drop_no_action_coupling_def chooseSnapshot_unchanged)
+      
+      by (auto simp add: step.simps  drop_no_action_coupling_def chooseSnapshot_unchanged)
   next
     case (endAtomic i ls f ls' t)
     then show ?thesis using coup not_i by (auto simp add: step.simps  drop_no_action_coupling_def)
@@ -902,16 +1391,18 @@ next
     using \<open>S2 ~~ tr \<leadsto>* S2'\<close> steps_step by blast 
 qed
 
-
+*)
 
 lemma steps_dropLast_tx:
   assumes "S ~~ tr \<leadsto>* S'"
-    and "i > 0"
     and "i < length tr"
-    and forbidden_actions: "get_action (tr!i) \<notin> {AEndAtomic} \<union> AReturn ` UNIV"
+    and forbidden_actions: "get_action (tr!i) \<notin> {AEndAtomic} \<union> AReturn ` UNIV \<union> AInvoc ` UNIV"
     and no_more_actions: "\<And>j. j>i \<Longrightarrow> j < length tr \<Longrightarrow> get_invoc (tr!j) \<noteq> get_invoc (tr!i)"
-  shows "\<exists>S''. S ~~ take (i-1) tr @ drop i tr \<leadsto>* S''"
-proof
+    and wf: "state_wellFormed S"
+    and noCrash: "\<And>i. (i, ACrash) \<notin> set tr"
+  shows "\<exists>S''. S ~~ take i tr @ drop (Suc i) tr \<leadsto>* S''"
+proof -
+(*
   have [simp]: "min (length tr) (i - Suc 0) = i - 1"
     by (simp add: assms(3) less_imp_diff_less min_simps(2))
 
@@ -927,13 +1418,13 @@ proof
 
   have [simp]: "Suc (length tr - Suc i) = length tr - i"
     using Suc_diff_Suc assms(3) by blast
-
+*)
 
   have "tr = take i tr @ drop i tr "
     by (auto simp add: list_eq_iff_nth_eq nth_append nth_Cons')
 
   moreover have "drop i tr = [tr!i] @ drop (Suc i) tr"
-    by (auto simp add: list_eq_iff_nth_eq nth_append nth_Cons')
+    by (simp add: Cons_nth_drop_Suc assms(2))
 
 
 
@@ -943,56 +1434,38 @@ proof
   from this
   obtain S1 S2 S3
     where "S ~~ take i tr \<leadsto>* S1" and "S1 ~~ tr ! i \<leadsto> S2" and "S2 ~~ drop (Suc i) tr \<leadsto>* S3"
-    by (smt Cons_nth_drop_Suc \<open>drop i tr = [tr ! i] @ drop (Suc i) tr\<close> assms(1) assms(3) steps_append steps_appendFront)
-
-  from `S2 ~~ drop (Suc i) tr \<leadsto>* S3`
-  have "\<exists>S2'. (S1 ~~ drop (Suc i) tr \<leadsto>* S2') \<and> drop_no_action_coupling S3 S2' (get_invoc (tr!i))"
-  proof (rule drop_no_action)
-    show "\<forall>a\<in>set (drop (Suc i) tr). get_invoc a \<noteq> get_invoc (tr!i)"
-      apply (auto simp add: in_set_conv_nth)
-      by (metis Suc_leI add_Suc assms(3) assms(5) fst_conv less_add_Suc1 nat_add_left_cancel_less ordered_cancel_comm_monoid_diff_class.add_diff_inverse)
-
-    from `S1 ~~ tr ! i \<leadsto> S2`
-    show " drop_no_action_coupling S2 S1 (get_invoc (tr!i))"
-    proof (cases rule: step.cases)
-      case (local i'' ls f ok ls')
-      then show ?thesis
-        by (auto simp add: drop_no_action_coupling_def)
-    next
-      case (newId i ls f ls' uid uidv ls'')
-      then show ?thesis 
-        by (auto simp add: drop_no_action_coupling_def)
-    next
-      case (beginAtomic i ls f ls' t vis snapshot)
-      then show ?thesis 
-        apply (auto simp add: drop_no_action_coupling_def)
-        sorry
-    next
-      case (endAtomic i ls f ls' t)
-      then show ?thesis
-        using forbidden_actions by auto 
-    next
-      case (dbop i ls f Op ls' t c res vis)
-      then show ?thesis sorry
-    next
-      case (invocation i proc initialState impl)
-      then show ?thesis sorry
-    next
-      case (return i ls f res)
-      then show ?thesis 
-        using forbidden_actions by auto 
-    next
-      case (fail i ls)
-      then show ?thesis sorry
-    next
-      case (invCheck res i)
-      then show ?thesis sorry
-    qed
-      apply (auto simp add: )
+    by (smt Cons_nth_drop_Suc \<open>drop i tr = [tr ! i] @ drop (Suc i) tr\<close> assms(1) assms(2) steps_append steps_appendFront)
 
 
-  sorry
+  thm drop_single_action
+  from `S1 ~~ tr ! i \<leadsto> S2` `S2 ~~ drop (Suc i) tr \<leadsto>* S3` 
+  have "\<exists>S3'. S1 ~~ drop (Suc i) tr \<leadsto>* S3'"
+  proof (rule drop_single_action)
+    from no_more_actions
+    show "\<forall>a\<in>set (drop (Suc i) tr). get_invoc a \<noteq> get_invoc (tr ! i)"
+      by (auto simp add: in_set_conv_nth, 
+          metis add.commute add_Suc_right fst_conv less_add_Suc1 less_diff_conv)
+    show "state_wellFormed S1"
+      by (meson \<open>S ~~ take i tr \<leadsto>* S1\<close> local.wf noCrash set_take_subset state_wellFormed_combine subsetD)
+    show "\<And>ia. (ia, ACrash) \<notin> set (drop (Suc i) tr)"
+      by (meson in_set_dropD noCrash)
+    show "get_action (tr ! i) \<noteq> AEndAtomic"
+      using forbidden_actions by blast
+    show "\<And>p. get_action (tr ! i) \<noteq> AInvoc p"
+      using assms(3) by blast
+    show "\<And>r. get_action (tr ! i) \<noteq> AReturn r"
+      using forbidden_actions by blast
+    show "get_action (tr ! i) \<noteq> ACrash"
+      by (metis assms(2) noCrash nth_mem prod.collapse)
+  qed
+  from this obtain S3' where "S1 ~~ drop (Suc i) tr \<leadsto>* S3'"
+    by blast
 
+
+  from `S ~~ take i tr \<leadsto>* S1` and `S1 ~~ drop (Suc i) tr \<leadsto>* S3'`
+  show ?thesis
+    using steps_append2 by blast
+qed
 
 definition "induct_measure" where "induct_measure  \<equiv> \<lambda>trace. \<lambda>pos'.
     case pos' of
@@ -1245,10 +1718,44 @@ lemma remove_context_switches_in_transactions:
       obtain S' where 
         " initialState program ~~ trace' \<leadsto>* S'"
         unfolding trace'_def
-      proof (atomize_elim, rule steps_dropLast_tx)
+
+      proof (atomize_elim, fuzzy_rule steps_dropLast_tx)
         show "initialState program ~~ trace \<leadsto>* S"
           by (simp add: less.prems(1))
-        \<comment> \<open>TODO lemma\<close>
+        show " get_action (trace ! (i_switch - 1)) \<notin> {AEndAtomic} \<union> range AReturn \<union> range AInvoc"
+        proof auto
+          text "It cannot be any of these cases, because we are in an unfinished transaction ..."
+          show "get_action (trace ! (i_switch - Suc 0)) = AEndAtomic \<Longrightarrow> False"
+            sorry
+          show "\<And>x. get_action (trace ! (i_switch - Suc 0)) = AReturn x \<Longrightarrow> False"
+            sorry
+          show "\<And>x. get_action (trace ! (i_switch - Suc 0)) = AInvoc x \<Longrightarrow> False"
+            sorry
+        qed
+
+
+        have [simp]: "(Suc (i_switch - Suc 0)) = i_switch"
+          by (simp add: \<open>0 < i_switch\<close>)
+
+        show "(~~ initialState program \<leadsto>*) (take (i_switch - 1) trace @ drop (Suc (i_switch - 1)) trace) =
+              (~~ initialState program \<leadsto>*) (take (i_switch - 1) trace @ drop i_switch trace)"
+          by simp
+
+        show "i_switch - 1 < length trace"
+          by (simp add: a1 less_imp_diff_less)
+
+        show "state_wellFormed (initialState program)"
+          by (simp add: state_wellFormed_init)
+
+        show "\<And>i. (i, ACrash) \<notin> set trace"
+          by (simp add: less.prems(3))
+
+        text "As we are in the middle of a transaction, we cannot execute BeginAtomic or Invoc (packed)"
+        from `packed_trace trace`
+        show "\<And>j. \<lbrakk>i_switch - 1 < j; j < length trace\<rbrakk> \<Longrightarrow> get_invoc (trace ! j) \<noteq> get_invoc (trace ! (i_switch - 1))"
+          
+          sorry
+
       qed
 
 
