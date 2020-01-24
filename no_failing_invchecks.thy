@@ -81,20 +81,20 @@ when the execution trace contains no action in i.
 
 lemma show_state_transfer:
   assumes steps: "S_start ~~ tr \<leadsto>* S_end"
-    and step_simulate: "\<And>a S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P S\<rbrakk> \<Longrightarrow> T S ~~ a \<leadsto> T S'"
-    and step_preserves: "\<And>a S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P S\<rbrakk> \<Longrightarrow> P S'"
-    and prop_initial: "P S_start"
-  shows "(T S_start ~~ tr \<leadsto>* T S_end) \<and> P S_end"
+    and step_simulate: "\<And>a tr' S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P tr' S\<rbrakk> \<Longrightarrow> T S ~~ a \<leadsto> T S'"
+    and step_preserves: "\<And>a tr' S S'. \<lbrakk>a\<in>set tr; S ~~ a \<leadsto> S'; P tr' S\<rbrakk> \<Longrightarrow> P (tr'@[a]) S'"
+    and prop_initial: "P [] S_start"
+  shows "(T S_start ~~ tr \<leadsto>* T S_end) \<and> P tr S_end"
   using steps step_simulate step_preserves prop_initial proof (induct rule: steps_induct)
   case initial
-  show "(T S_start ~~ [] \<leadsto>* T S_start) \<and> P S_start"
-    using \<open>P S_start\<close> 
+  show "(T S_start ~~ [] \<leadsto>* T S_start) \<and> P [] S_start"
+    using \<open>P [] S_start\<close> 
     by (auto simp add: steps_empty)
 next
   case (step S' tr a S'')
-  show "(T S_start ~~ tr @ [a] \<leadsto>* T S'') \<and> P S''" 
+  show "(T S_start ~~ tr @ [a] \<leadsto>* T S'') \<and> P (tr @ [a]) S''" 
   proof (intro conjI)
-    show "P S''"
+    show "P (tr @ [a]) S''"
       by (metis append_is_Nil_conv butlast_snoc in_set_butlastD last_in_set last_snoc list.simps(3) prop_initial step.IH step.prems(1) step.prems(2) step.step)
     show " T S_start ~~ tr @ [a] \<leadsto>* T S''"
       by (metis UnI2 butlast_snoc in_set_butlastD list.set_intros(1) prop_initial set_append step.IH step.prems(1) step.prems(2) step.step steps_step)
@@ -119,7 +119,7 @@ lemma remove_local_step:
   assumes step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
-    and a_def: "a = (i, ALocal)"
+    and a_def: "a = (i, ALocal ok)"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and S_end'_def: "S_end' = S_end\<lparr>localState := (localState S_end)(i := localState S_start i)\<rparr>"
   shows "S_start ~~ tr \<leadsto>* S_end'"
@@ -479,7 +479,7 @@ proof -
             auto simp add: intro!: exI[where x=C'],
             auto simp add: C'_def )
 
-          show "chooseSnapshot snapshot vis (C\<lparr>calls := (calls C)(cId := None), happensBefore := happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId}, localState := (localState C)(i := localState S_start i), visibleCalls := (visibleCalls C)(i := visibleCalls S_start i), callOrigin := (callOrigin C)(cId := None)\<rparr>)"
+          show "chooseSnapshot_h snapshot vis (transactionStatus C) ((callOrigin C)(cId := None)) (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId})"
             if c0: "i' = s"
               and c1: "a = ABeginAtomic t snapshot"
               and c2: "S = C"
@@ -750,6 +750,153 @@ proof (rule show_no_invariant_checks_in_transaction)
   qed
 qed
 
+
+lemma maintain_no_invariant_checks_in_transaction2a:
+  assumes "no_invariant_checks_in_transaction tr"
+    and "pos < length tr"
+    and "0 < pos"
+    and pos_no_endAtomic: 
+    "\<And>i invoc tx txns. \<lbrakk>
+        i<pos; 
+        tr!i = (invoc, ABeginAtomic tx txns); 
+      \<And>j. \<lbrakk>i<j; j<pos\<rbrakk> \<Longrightarrow> tr!j \<noteq> (invoc, AEndAtomic)
+      \<rbrakk> \<Longrightarrow> tr!pos \<noteq> (invoc, AEndAtomic)"
+  shows "no_invariant_checks_in_transaction (take pos tr @ drop (Suc pos) tr)"
+proof (rule show_no_invariant_checks_in_transaction)
+  fix i s tx txns c ib
+  assume a0: "(take pos tr @ drop (Suc pos) tr) ! i = (s, AInvcheck c)"
+    and a1: "(take pos tr @ drop (Suc pos) tr) ! ib = (s, ABeginAtomic tx txns)"
+    and a2: "ib < i"
+    and a3: "i < length (take pos tr @ drop (Suc pos) tr)"
+
+  text "Function f converts position to position in original trace tr."
+  define f where "f  \<equiv> \<lambda>i. if i < pos then i else Suc i"
+
+  have [simp]: " min (length tr) pos = pos"
+    using assms(2) by auto 
+  have [simp]: "pos + (length tr - Suc pos) = length tr - 1"
+    by (simp add: Suc_leI assms(2))
+  have [simp]: "Suc pos \<le> length tr"
+    using assms(2) by auto
+
+
+  have "i < length tr - 1"
+    using a3 by auto
+
+
+  have h1: "tr ! f i = (s, AInvcheck c)"
+    using a0 by (auto simp add: f_def nth_append  split: if_splits)
+
+  have h2: "tr ! f ib = (s, ABeginAtomic tx txns)"
+    using a1 by (auto simp add: f_def nth_append  split: if_splits)
+
+  from `no_invariant_checks_in_transaction tr`
+  have "\<exists>j>f ib. j < f i \<and> tr ! j = (s, AEndAtomic)"
+    using h1 h2
+  proof (rule use_no_invariant_checks_in_transaction)
+    show "f ib < f i"
+      using a2 f_def by auto
+    show "f i < length tr"
+      using \<open>i < length tr - 1\<close> dual_order.strict_trans f_def by auto
+  qed
+  from this
+  obtain j where "j > f ib" and " j < f i" and "tr!j = (s, AEndAtomic)"
+    by blast
+
+  show "\<exists>j>ib. j < i \<and> (take pos tr @ drop (Suc pos) tr) ! j = (s, AEndAtomic)"
+  proof (rule classical)
+    assume neg: "\<not> (\<exists>j>ib. j < i \<and> (take pos tr @ drop (Suc pos) tr) ! j = (s, AEndAtomic))"
+
+    have "tr ! pos \<noteq> (s, AEndAtomic)" if "f ib < pos"
+    proof (rule pos_no_endAtomic)
+      show "tr ! f ib = (s, ABeginAtomic tx txns)"
+        using h2 by auto
+      show "f ib < pos" using that .
+      show " \<And>j. \<lbrakk>f ib < j; j < pos\<rbrakk> \<Longrightarrow> tr ! j \<noteq> (s, AEndAtomic)"
+        using neg apply (auto simp add: nth_append split: if_splits)
+        apply (drule_tac x=j in spec)
+        apply auto
+         apply (metis dual_order.asym f_def not_less_eq)
+        by (smt Suc_lessI \<open>f ib < j\<close> \<open>j < f i\<close> \<open>min (length tr) pos = pos\<close> \<open>tr ! j = (s, AEndAtomic)\<close> dual_order.strict_trans f_def isPrefix_appendI isPrefix_same length_take neg not_less_eq nth_take)
+    qed
+
+    hence  "j \<noteq> pos" if "f ib < pos"
+      using \<open>tr ! j = (s, AEndAtomic)\<close> that by blast
+    hence "j \<noteq> pos"
+      using \<open>f ib < j\<close> by blast
+
+
+(*
+    thm pos_no_endAtomic
+    have "j \<noteq> pos"
+      using \<open>f ib < j\<close> \<open>tr ! j = (s, AEndAtomic)\<close> pos_no_endAtomic h2 by blast
+*)
+
+    show "\<exists>j>ib. j < i \<and> (take pos tr @ drop (Suc pos) tr) ! j = (s, AEndAtomic)"
+    proof (intro exI conjI)
+      show "ib < (if j \<le> pos then j else j - 1)"
+        using \<open>f ib < j\<close> by (auto simp add: f_def split: if_splits)
+      show "(if j \<le> pos then j else j - 1) < i"
+        using \<open>j < f i\<close> \<open>j \<noteq> pos\<close> by (auto simp add: f_def split: if_splits)
+      show "(take pos tr @ drop (Suc pos) tr) ! (if j \<le> pos then j else j - 1) = (s, AEndAtomic)"
+        using \<open>tr ! j = (s, AEndAtomic)\<close>  \<open>j \<noteq> pos\<close> by (auto simp add: nth_append)
+    qed
+  qed
+qed
+
+lemma no_invariant_checks_in_transaction_tail:
+  assumes "no_invariant_checks_in_transaction tr"
+  shows "no_invariant_checks_in_transaction (drop 1 tr)"
+proof (rule show_no_invariant_checks_in_transaction)
+
+fix i s tx txns c ib
+assume a0: "drop 1 tr ! i = (s, AInvcheck c)"
+   and a1: "drop 1 tr ! ib = (s, ABeginAtomic tx txns)"
+   and a2: "ib < i"
+   and a3: "i < length (drop 1 tr)"
+
+
+  from  `no_invariant_checks_in_transaction tr`
+  have "\<exists>j>Suc ib. j < Suc i \<and> tr ! j = (s, AEndAtomic)"
+  proof (rule  use_no_invariant_checks_in_transaction)
+    show "tr ! Suc i = (s, AInvcheck c)"
+      using a0 a3 by auto
+    show "tr ! Suc ib = (s, ABeginAtomic tx txns)"
+      using a1 a3 by auto
+    show "Suc ib < Suc i"
+      by (simp add: a2)
+    show "Suc i < length tr"
+      using a3 by auto
+  qed
+  then
+
+  show "\<exists>j>ib. j < i \<and> drop 1 tr ! j = (s, AEndAtomic)"
+    using Suc_less_eq2 a3 by auto
+qed
+
+
+lemma maintain_no_invariant_checks_in_transaction2:
+  assumes "no_invariant_checks_in_transaction tr"
+    and "pos < length tr"
+    and pos_no_endAtomic: 
+    "\<And>i invoc tx txns. \<lbrakk>
+        i<pos; 
+        tr!i = (invoc, ABeginAtomic tx txns); 
+      \<And>j. \<lbrakk>i<j; j<pos\<rbrakk> \<Longrightarrow> tr!j \<noteq> (invoc, AEndAtomic)
+      \<rbrakk> \<Longrightarrow> tr!pos \<noteq> (invoc, AEndAtomic)"
+  shows "no_invariant_checks_in_transaction (take pos tr @ drop (Suc pos) tr)"
+proof (cases "0 < pos")
+  case True
+  then show ?thesis
+    using assms maintain_no_invariant_checks_in_transaction2a pos_no_endAtomic by blast
+next
+  case False
+  hence [simp]: "pos = 0"
+    by simp
+
+  then show ?thesis
+    using assms(1) no_invariant_checks_in_transaction_tail by auto 
+qed
 
 definition
 "isNoInvCheck a \<equiv> case a of (s, AInvcheck txns) \<Rightarrow> False | _ \<Rightarrow> True"

@@ -791,6 +791,14 @@ proof -
     by (smt IntI \<open>wf (Restr r S)\<close> mem_Sigma_iff nonempty wfE_min)
 qed
 
+lemma exists_min_wellorder:
+  fixes P :: "'a::wellorder \<Rightarrow> bool"
+  assumes  nonempty: "P x"
+  shows "\<exists>x. P x \<and> (\<forall>y. P y \<longrightarrow> x \<le> y)"
+  by (meson LeastI nonempty wellorder_Least_lemma(2))
+
+
+
 text "A finite set with an acyclic order has maximal elements."
 
 lemma exists_max:
@@ -809,6 +817,20 @@ proof -
   thus ?thesis
     by simp
 qed
+
+
+lemma ex_least_nat_le':
+  fixes n:: "'a::wellorder"
+assumes "P n"
+shows"\<exists>k\<le>n. (\<forall>i<k. \<not> P i) \<and> P k"
+  by (rule exI[where x="LEAST k. P k"],
+     blast intro: Least_le `P n` LeastI_ex dest: not_less_Least)
+
+lemma ex_least_nat_le'':
+  fixes P:: "'a::wellorder \<Rightarrow> bool"
+assumes "Ex P"
+shows"\<exists>k. (\<forall>i<k. \<not> P i) \<and> P k"
+  using assms ex_least_nat_le' by blast
 
 subsection "Maps"
 
@@ -1190,5 +1212,6 @@ lemma cases_5[case_names case1 case2 case3 case4 case5]:
   shows "P"
   using assms by auto
 
-
+lemma iffToImp: "P \<longleftrightarrow> Q \<Longrightarrow> Q \<longrightarrow> P"
+  by sat
 end

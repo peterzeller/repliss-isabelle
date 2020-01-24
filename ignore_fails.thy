@@ -18,7 +18,10 @@ proof (rule iffI2; clarsimp)
   assume is_trace: "tr \<in> traces program"
     and tr_fail: "\<not> traceCorrect tr"
 
-  from this obtain s S' where "(s, AInvcheck False) \<in> set tr" and "initialState program ~~ tr \<leadsto>* S'"
+  from this obtain aFail S' 
+    where "aFail\<in>set tr" 
+      and "\<not>actionCorrect (get_action aFail)"
+      and "initialState program ~~ tr \<leadsto>* S'"
     by (auto simp add: traceCorrect_def traces_def)  
 
 
@@ -36,7 +39,9 @@ proof (rule iffI2; clarsimp)
       by (auto simp add: isACrash_def)
 
     show "\<not> traceCorrect [tr\<leftarrow>tr . \<not> isACrash (get_action tr)]"
-      using tr_fail by (auto simp add: traceCorrect_def isACrash_def) 
+      using tr_fail by (auto simp add: traceCorrect_def isACrash_def actionCorrect_def, force+)
+
+
 
     from \<open>initialState program ~~ tr \<leadsto>* S'\<close>
     have "\<exists>S''. (initialState program ~~ [tr\<leftarrow>tr . \<not> isACrash (get_action tr)] \<leadsto>* S'') 
@@ -73,7 +78,7 @@ proof (rule iffI2; clarsimp)
       from \<open>S1 ~~ a \<leadsto> S1'\<close>
       show ?case 
       proof (cases rule: step.cases)
-        case (local s ls f ls')
+        case (local s ls f failed ls')
 
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
         have no_fail: "(s, ACrash) \<notin> set tr"
@@ -110,9 +115,7 @@ proof (rule iffI2; clarsimp)
                   transactionOrigin := transactionOrigin S2(t \<mapsto> s),
                   visibleCalls := visibleCalls S2(s \<mapsto> snapshot)\<rparr>"],
               insert induct_step.coupling no_fail beginAtomic,
-              auto simp add: step_simps state_ext  induct_step steps_single,
-              insert \<open>chooseSnapshot snapshot vis S1\<close> chooseSnapshot_unchanged induct_step.coupling,
-              blast)
+              auto simp add: step_simps state_ext  induct_step steps_single )
 
       next
         case (endAtomic s ls f ls' t)
