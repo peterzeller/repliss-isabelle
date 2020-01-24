@@ -13,7 +13,7 @@ We define this property inductively:
 
 
 inductive procedure_cannot_guess_ids :: "uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'operation::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool"  where
-  pcgi_local:  "\<lbrakk>impl ls = LocalStep ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
+  pcgi_local:  "\<lbrakk>impl ls = LocalStep ok ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
 | pcgi_beginAtomic: "\<lbrakk>impl ls = BeginAtomic ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
 | pcgi_endAtomic:"\<lbrakk>impl ls = EndAtomic ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
 | pcgi_newId:"\<lbrakk>impl ls = NewId f; \<And>uid ls'. f uid \<triangleq> ls' \<Longrightarrow> procedure_cannot_guess_ids (uids \<union> uniqueIds uid) ls' impl
@@ -24,7 +24,7 @@ inductive procedure_cannot_guess_ids :: "uniqueId set \<Rightarrow> 'ls \<Righta
 | pcgi_return: "\<lbrakk>impl ls = Return r; uniqueIds r \<subseteq> uids\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls impl"
 
 
-lemma pcgi_local_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = LocalStep ls'\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls' impl"
+lemma pcgi_local_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = LocalStep ok ls'\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls' impl"
   by (subst(asm) procedure_cannot_guess_ids.simps, auto)
 lemma pcgi_beginAtomic_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = BeginAtomic ls'\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls' impl"
   by (subst(asm) procedure_cannot_guess_ids.simps, auto)

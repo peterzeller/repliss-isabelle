@@ -1340,7 +1340,7 @@ proof show_proof_rule
     `localState S1 i \<triangleq> (pause \<bind> cont)`
     `currentProc S1 i \<triangleq> toImpl`
     `\<And>proc. action \<noteq> AInvoc proc`
-  have "action = ALocal"
+  have "action = ALocal True"
     and  Inv
     and S'a_def: "S'a = S1\<lparr>localState := localState S1(i \<mapsto> cont ())\<rparr>"
     by (auto simp add: step_s.simps)

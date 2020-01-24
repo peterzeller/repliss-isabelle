@@ -2,7 +2,7 @@ theory state_monotonicGrowth_invariants
 imports commutativity
     repliss_sem_single_invocation
     consistency
-    packed_nofails_noinvchecks
+(*    packed_nofails_noinvchecks*)
     single_invocation_reduction_helper
 begin
 
@@ -255,11 +255,64 @@ and "transactionStatus S' tx \<triangleq> Committed"
 shows "{c. callOrigin S' c \<triangleq> tx} = {c. callOrigin S c \<triangleq> tx}"
   using assms state_monotonicGrowth_callOrigin state_monotonicGrowth_committed_transactions_fixed by blast
 
+lemma state_monotonicGrowth_current_transactions_fixed:
+  assumes "state_monotonicGrowth i S S'"
+    and "currentTransaction S i \<triangleq> tx"
+  shows "callOrigin S c \<triangleq> tx \<longleftrightarrow> callOrigin S' c \<triangleq> tx"
+proof
+  show "callOrigin S c \<triangleq> tx \<Longrightarrow> callOrigin S' c \<triangleq> tx"
+    using assms(1) state_monotonicGrowth_callOrigin by blast
+  show "callOrigin S c \<triangleq> tx" if "callOrigin S' c \<triangleq> tx"
+    using `state_monotonicGrowth i S S'` proof (clarsimp simp add: state_monotonicGrowth_def)
+    fix tr
+    assume a0: "state_wellFormed S"
+      and steps: "S ~~ tr \<leadsto>* S'"
+      and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
+      and a3: "\<forall>i. (i, ACrash) \<notin> set tr"
 
-schematic_goal show_state_monotonicGrowth: "?X \<Longrightarrow> state_monotonicGrowth i S S'"
-  apply (unfold state_monotonicGrowth_def)
-  apply assumption
-  done
+
+    from steps no_i `callOrigin S' c \<triangleq> tx`
+    show "callOrigin S c \<triangleq> tx"
+    proof (induct rule: steps_induct)
+      case initial
+      then show ?case
+        by simp
+    next
+      case (step Sa tr' action Sb)
+
+      show ?case
+      proof (rule classical)
+        assume "callOrigin S c \<noteq> Some tx"
+
+        have "callOrigin Sa c \<noteq> Some tx"
+          using \<open>callOrigin S c \<noteq> Some tx\<close> step.IH step.prems(1) by auto
+
+
+        from `Sa ~~ action \<leadsto> Sb`
+        have "callOrigin Sb c \<noteq> Some tx"
+        proof (cases rule: step.cases)
+          case (dbop i' ls f Op ls' t c' res vis)
+          then show ?thesis  using \<open>callOrigin Sa c \<noteq> Some tx\<close> proof (auto, goal_cases)
+            case 1
+            show "?case"
+              by (metis \<open>callOrigin S c \<noteq> Some tx\<close> a0 assms(1) assms(2) not_Some_eq state_monotonicGrowth_callOrigin state_monotonicGrowth_currentTransaction state_monotonicGrowth_visibleCalls state_monotonicGrowth_wf2 state_wellFormed_tx_to_visibleCalls that wellFormed_callOrigin_dom3 wellFormed_state_calls_from_current_transaction_in_vis wellFormed_visibleCallsSubsetCalls2)
+          qed
+        qed (insert \<open>callOrigin Sa c \<noteq> Some tx\<close>, auto)
+        thus ?thesis
+          using `callOrigin Sb c \<triangleq> tx` by blast
+      qed
+    qed
+  qed
+qed
+
+
+lemma show_state_monotonicGrowth:
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "state_wellFormed S"
+    and "\<And>a. (i, a) \<notin> set tr"
+    and "\<And>i. (i, ACrash) \<notin> set tr"
+  shows "state_monotonicGrowth i S S'"
+  using assms  unfolding state_monotonicGrowth_def by auto
 
 
 

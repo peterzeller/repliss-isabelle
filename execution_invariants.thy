@@ -1068,27 +1068,29 @@ shows "chooseSnapshot snapshot vis S2"
 
 lemma chooseSnapshot_unchanged_precise:
   assumes
-  a0: "chooseSnapshot snapshot vis S1"
-  and a2: "committedTransactions S1 \<subseteq> committedTransactions S2"
-  and a3: "\<And>tx. transactionStatus S1 tx \<triangleq> Committed \<Longrightarrow> (\<forall>c. callOrigin S1 c \<triangleq> tx \<longleftrightarrow> callOrigin S2 c \<triangleq> tx)"
-  and a4: "\<And>tx c. \<lbrakk>transactionStatus S1 tx \<triangleq> Committed; callOrigin S1 c \<triangleq> tx\<rbrakk> \<Longrightarrow> (\<forall>c'. (c',c)\<in>happensBefore S1 \<longleftrightarrow> (c',c)\<in>happensBefore S2)"
-shows "chooseSnapshot snapshot vis S2"
+  a0: "chooseSnapshot_h snapshot vis txStatus1 cOrigin1 hb1"
+  and a2: "\<And>tx. txStatus1 tx \<triangleq> Committed \<Longrightarrow> txStatus2 tx \<triangleq> Committed "
+  and a3: "\<And>tx. txStatus1 tx \<triangleq> Committed \<Longrightarrow> (\<forall>c. cOrigin1 c \<triangleq> tx \<longleftrightarrow> cOrigin2 c \<triangleq> tx)"
+  and a4: "\<And>tx c. \<lbrakk>txStatus1 tx \<triangleq> Committed; cOrigin1 c \<triangleq> tx\<rbrakk> \<Longrightarrow> (\<forall>c'. (c',c)\<in>hb1 \<longleftrightarrow> (c',c)\<in>hb2)"
+shows "chooseSnapshot_h snapshot vis txStatus2 cOrigin2 hb2"
 proof -
   from a0 obtain newTxns newCalls
-    where "newTxns \<subseteq> committedTransactions S1"
-      and "newCalls = callsInTransaction S1 newTxns \<down> happensBefore S1"
+    where "\<forall>txn\<in>newTxns. txStatus1 txn \<triangleq> Committed"
+      and "newCalls = callsInTransactionH cOrigin1 newTxns \<down> hb1"
       and "snapshot = vis \<union> newCalls"
-    by (metis chooseSnapshot_def)
+    by (metis chooseSnapshot_h_def)
 
-  show "chooseSnapshot snapshot vis S2"
-    unfolding chooseSnapshot_def
+  show "chooseSnapshot_h snapshot vis txStatus2 cOrigin2 hb2"
+    unfolding chooseSnapshot_h_def
   proof (intro exI conjI)
     show "snapshot = vis \<union> newCalls" using \<open>snapshot = vis \<union> newCalls\<close>.
-    show "newTxns \<subseteq> committedTransactions S2"
-      using \<open>newTxns \<subseteq> committedTransactions S1\<close> a2 by blast
-    show "newCalls = callsInTransaction S2 newTxns \<down> happensBefore S2"
-      using \<open>newCalls = callsInTransaction S1 newTxns \<down> happensBefore S1\<close>
-      using \<open>newTxns \<subseteq> committedTransactions S1\<close> a3 a4  by (auto simp add: callsInTransactionH_def downwardsClosure_def, blast)
+    show "\<forall>txn\<in>newTxns. txStatus2 txn \<triangleq> Committed"
+      using `\<forall>txn\<in>newTxns. txStatus1 txn \<triangleq> Committed` a2 by auto
+    show "newCalls = callsInTransactionH cOrigin2 newTxns \<down> hb2"
+      using \<open>\<forall>txn\<in>newTxns. txStatus1 txn \<triangleq> Committed\<close> a3 a4
+      unfolding  callsInTransactionH_def downwardsClosure_def
+      by (simp add: callsInTransactionH_def downwardsClosure_def \<open>newCalls = callsInTransactionH cOrigin1 newTxns \<down> hb1\<close>, blast)
+
   qed
 qed
 
@@ -1996,7 +1998,7 @@ next
   from \<open> S' ~~ a \<leadsto> S''\<close>
   show ?case
   proof (cases rule: step.cases)
-    case (local s ls f ls')
+    case (local s ls f ok ls')
     have "\<exists>ib txns. tr ! ib = (i, ABeginAtomic tx txns) \<and> ib < length tr \<and> (\<forall>j. ib < j \<and> j < length tr \<longrightarrow> tr ! j \<noteq> (i, AEndAtomic))"
     proof (rule step)
       show "currentTransaction S' i \<triangleq> tx"
@@ -2007,7 +2009,7 @@ next
     qed
 
     then show ?thesis
-      using \<open>a = (s, ALocal)\<close> by (auto simp add: nth_append)
+      using \<open>a = (s, ALocal ok)\<close> by (auto simp add: nth_append)
 
   next
     case (newId s ls f ls' uidv uid)

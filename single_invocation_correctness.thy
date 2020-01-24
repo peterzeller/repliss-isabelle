@@ -360,8 +360,8 @@ proof -
 from \<open>S ~~ (i, a) \<leadsto>\<^sub>S S'\<close> 
   show "state_wellFormed S'"
   proof (induct rule: step_s.cases)
-    case (local C s ls f ls')
-    then have "S ~~ (i, ALocal) \<leadsto> S'"
+    case (local C s ls f ok ls')
+    then have "S ~~ (i, ALocal ok) \<leadsto> S'"
       by (auto simp add: step.simps)
     with \<open>state_wellFormed S\<close> show ?case 
       by (rule state_wellFormed_combine1, simp)
