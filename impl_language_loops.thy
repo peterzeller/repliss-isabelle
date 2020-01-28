@@ -1,10 +1,15 @@
-section "Implementation Language"
+section "Implementation Language with Loops"
 theory impl_language_loops
   imports Main 
     "HOL-Library.Monad_Syntax"
   repliss_sem
 "ZFC_in_HOL.ZFC_Typeclasses"
 begin
+
+text "We need to hide some ZFC constants so that the normal ones are still visible:"
+
+hide_const (open) "ZFC_in_HOL.set"
+
 
 
 text "So far, we have assumed that procedure implementations are given by arbitrary state machines.
@@ -235,12 +240,12 @@ definition update :: "ref \<Rightarrow> ('any \<Rightarrow> 'any) \<Rightarrow> 
 
 
 lemma toImpl_simps[simp]:
-"toImpl (store, newId P) = NewId (\<lambda>i. if P i then Some (store, return i) else None)"
-"toImpl (store, pause) = LocalStep True (store, return ())"
-"toImpl (store, beginAtomic) = BeginAtomic (store, return ())"
-"toImpl (store, endAtomic) = EndAtomic (store, return ())"
-"toImpl (store, call op ) = DbOperation op  (\<lambda>r. (store, return r))"
-"toImpl (store, return x) = Return x"
+"\<And>store. toImpl (store, newId P) = NewId (\<lambda>i. if P i then Some (store, return i) else None)"
+"\<And>store. toImpl (store, pause) = LocalStep True (store, return ())"
+"\<And>store. toImpl (store, beginAtomic) = BeginAtomic (store, return ())"
+"\<And>store. toImpl (store, endAtomic) = EndAtomic (store, return ())"
+"\<And>store. toImpl (store, call op ) = DbOperation op  (\<lambda>r. (store, return r))"
+"\<And>store. toImpl (store, return x) = Return x"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
 
 schematic_goal "toImpl (store, newId P \<bind> x) = ?x"
@@ -248,14 +253,20 @@ schematic_goal "toImpl (store, newId P \<bind> x) = ?x"
 
 
 lemma toImpl_bind_simps[simp]:
-"\<And>P x. toImpl (store, newId P \<bind> x) = NewId (\<lambda>i. if P i then Some (store, x i) else None)"
-"\<And> x. toImpl (store, pause \<bind> x) = LocalStep True (store, x ())"
-"\<And> x. toImpl (store, beginAtomic \<bind> x) = BeginAtomic (store, x ())"
-"\<And> x. toImpl (store, endAtomic \<bind> x) = EndAtomic (store, x ())"
-"\<And> x. toImpl (store, call op  \<bind> x) = DbOperation op  (\<lambda>r. (store, x r))"
+"\<And>store P x. toImpl (store, newId P \<bind> x) = NewId (\<lambda>i. if P i then Some (store, x i) else None)"
+"\<And>store x. toImpl (store, pause \<bind> x) = LocalStep True (store, x ())"
+"\<And>store x. toImpl (store, beginAtomic \<bind> x) = BeginAtomic (store, x ())"
+"\<And>store x. toImpl (store, endAtomic \<bind> x) = EndAtomic (store, x ())"
+"\<And>store x. toImpl (store, call op  \<bind> x) = DbOperation op  (\<lambda>r. (store, x r))"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
 
+schematic_goal "toImpl (store, makeRef v) = ?x"
+  apply (auto simp add: makeRef_def)
+  done
 
+lemma makeRef_simp[simp]:
+"toImpl (store, makeRef v) = LocalStep True (store(ref \<mapsto> v), return ref)"
+  oops
 
 paragraph "Monad Laws"
 
