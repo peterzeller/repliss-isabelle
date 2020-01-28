@@ -29,65 +29,148 @@ a normalized form where rules are directly applicable.
 Still, it might be worth a try as it would make the rules more readable.
 \<close>
 
-definition execution_s_check where
-  "execution_s_check 
-  progr 
-  i
-  s_calls 
-  s_happensBefore 
-  s_callOrigin 
-  s_transactionOrigin 
-  s_knownIds 
-  s_invocationOp
-  s_invocationRes
-  generatedLocal
-  generatedLocalPrivate
-  vis
-  localCalls
-  tx
-  firstTx
-  store
-  ls
+
+
+record ('proc, 'any, 'operation) proof_state = "('proc, 'operation, 'any) invariantContext" +
+  ps_progr :: "('proc, 'any store \<times> ('any, 'operation, 'any) io, 'operation, 'any) prog"
+  ps_i :: invocId
+  ps_generatedLocal  :: "uniqueId set"
+  ps_generatedLocalPrivate  :: "uniqueId set"
+  ps_vis :: "callId set"
+  ps_localCalls :: "callId list"
+  ps_tx :: "txid option"
+  ps_firstTx :: bool
+  ps_store :: "'any store"
+  ps_ls :: "('any, 'operation, 'any) io"
+
+definition proof_state_rel :: "
+     ('proc::valueType, 'any::valueType, 'operation::valueType) proof_state 
+  \<Rightarrow> ('proc, ('any store \<times> ('any, 'operation, 'any) io), 'operation, 'any) state 
+  \<Rightarrow> bool" where
+"proof_state_rel S S1 \<equiv> 
+         state_wellFormed S1
+       \<and> calls S1 = calls S
+       \<and> happensBefore S1 = updateHb (happensBefore S) (ps_vis S) (ps_localCalls S)
+       \<and> callOrigin S1 = map_update_all (callOrigin S) (ps_localCalls S) (the (ps_tx S))
+       \<and> transactionOrigin S1 = (transactionOrigin S)
+       \<and> knownIds S1 = (knownIds S)
+       \<and> invocationOp S1 = (invocationOp S)
+       \<and> invocationRes S1 = (invocationRes S)
+       \<and> prog S1 = (ps_progr S)
+       \<and> ps_generatedLocal S = {x. generatedIds S1 x \<triangleq> ps_i S}
+       \<and> localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls S)
+       \<and> currentProc S1 (ps_i S) \<triangleq> toImpl 
+       \<and> visibleCalls S1 (ps_i S) \<triangleq>  (ps_vis S \<union> set (ps_localCalls S))
+       \<and> currentTransaction S1 (ps_i S) = ps_tx S
+       \<and> (\<forall>tx'. ps_tx S \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted)
+       \<and> (case ps_tx S of Some tx' \<Rightarrow> set (ps_localCalls S) =  {c. callOrigin S1 c \<triangleq> tx'} 
+                          | None \<Rightarrow> ps_localCalls S = [])
+       \<and> (sorted_by (happensBefore S1) (ps_localCalls S))
+       \<and> (ps_vis S \<inter> set (ps_localCalls S) = {})
+       \<and> (dom (callOrigin S) \<inter> set (ps_localCalls S) = {})
+       \<and> (Field (happensBefore S) \<inter> set (ps_localCalls S) = {})
+       \<and> distinct (ps_localCalls S)
+       \<and> (ps_firstTx S \<longleftrightarrow> (\<nexists>c tx . callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> ps_i S \<and> transactionStatus S1 tx \<triangleq> Committed ))
+       \<and> (\<forall>c. i_callOriginI_h (callOrigin S) (transactionOrigin S) c \<triangleq> (ps_i S) \<longrightarrow> c \<in> (ps_vis S))
+       \<and> (ps_generatedLocalPrivate S \<subseteq> ps_generatedLocal S)
+       \<and> (\<forall>v\<in>ps_generatedLocalPrivate S. uid_is_private (ps_i S) (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) v)
+       \<and> (finite (dom (ps_store S)))
+"
+
+\<comment> \<open>There might be a more elegant solution for this. Deatomize\<close>
+lemmas proof_state_rel_fact = 
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2]
+
+
+lemma proof_state_rel_wf: 
+  "proof_state_rel S S1 \<Longrightarrow> state_wellFormed S1"
+  unfolding proof_state_rel_def
+  by auto
+
+
+definition execution_s_check :: "
+     ('proc::valueType, 'any::valueType, 'operation::valueType) proof_state 
+  \<Rightarrow> ('a \<Rightarrow> ('any, 'operation, 'any) io)
+  \<Rightarrow> (('proc::valueType, 'any::valueType, 'operation::valueType) proof_state \<Rightarrow> 'a \<Rightarrow> bool)
+  \<Rightarrow> ('a, 'operation, 'any) io  
+  \<Rightarrow> bool" where
+\<comment> \<open> TODO extract below relation into proof_state_rel \<close>
+  "execution_s_check S cont P ls
  \<equiv>  (\<forall>trace S1 S'. 
-           (S1 ~~ (i, trace) \<leadsto>\<^sub>S* S')
+           (S1 ~~ (ps_i S, trace) \<leadsto>\<^sub>S* S')
        \<longrightarrow> (\<forall>p t. (AInvoc p, t) \<notin> set trace)
-       \<longrightarrow> state_wellFormed S1
-       \<longrightarrow> calls S1 = s_calls
-       \<longrightarrow> happensBefore S1 = updateHb s_happensBefore vis localCalls
-       \<longrightarrow> callOrigin S1 = map_update_all s_callOrigin localCalls (the tx)
-       \<longrightarrow> transactionOrigin S1 = s_transactionOrigin
-       \<longrightarrow> knownIds S1 = s_knownIds
-       \<longrightarrow> invocationOp S1 = s_invocationOp
-       \<longrightarrow> invocationRes S1 = s_invocationRes
-       \<longrightarrow> prog S1 = progr
-       \<longrightarrow> generatedLocal = {x. generatedIds S1 x \<triangleq> i}
-       \<longrightarrow> localState S1 i \<triangleq> (store, ls)
-       \<longrightarrow> currentProc S1 i \<triangleq> toImpl
-       \<longrightarrow> visibleCalls S1 i \<triangleq>  (vis \<union> set localCalls)
-       \<longrightarrow> currentTransaction S1 i = tx
-       \<longrightarrow> (\<forall>tx'. tx \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted)
-       \<longrightarrow> (case tx of Some tx' \<Rightarrow> set localCalls =  {c. callOrigin S1 c \<triangleq> tx'} | None \<Rightarrow> localCalls = [])
-       \<longrightarrow> (sorted_by (happensBefore S1) localCalls)
-       \<longrightarrow> (vis \<inter> set localCalls = {})
-       \<longrightarrow> (dom s_callOrigin \<inter> set localCalls = {})
-       \<longrightarrow> (Field s_happensBefore \<inter> set localCalls = {})
-       \<longrightarrow> distinct localCalls
-       \<longrightarrow> (firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed ))
-       \<longrightarrow> (\<forall>c. i_callOriginI_h s_callOrigin s_transactionOrigin c \<triangleq> i \<longrightarrow> c \<in> vis)
-       \<longrightarrow> (generatedLocalPrivate \<subseteq> generatedLocal)
-       \<longrightarrow> (\<forall>v\<in>generatedLocalPrivate. uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) v)
-       \<longrightarrow> (finite (dom store))
-       \<longrightarrow> traceCorrect_s  trace)"
+       \<longrightarrow> proof_state_rel S S1
+       \<longrightarrow> (ps_ls S = (ls \<bind> cont))
+       \<longrightarrow> (\<forall>store' ls'. localState S' (ps_i S) \<triangleq> (store', ls') \<longrightarrow> (\<exists>x. ls' = x \<bind> cont)) 
+       \<longrightarrow> (traceCorrect_s  trace \<and> 
+            (\<forall>store' ls' res PS. localState S' (ps_i S) \<triangleq> (store', ls') 
+                          \<longrightarrow> ls' = WaitReturn res \<bind> cont
+                          \<longrightarrow> proof_state_rel PS S'
+                          \<longrightarrow> P PS res  )))"
+
+
+
 
 lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, rotated]
 
 lemma beforeInvoc_execution_s_check: 
-  assumes "s_invocationOp i = None"
-  shows "
-execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_transactionOrigin   s_knownIds   s_invocationOp  s_invocationRes  generatedLocal generatedLocalPrivate  vis localCalls  tx firstTx store ls
-"
+  assumes "invocationOp S (ps_i S) = None"
+  shows "execution_s_check S cont P ls"
   using assms 
-  by (auto simp add: execution_s_check_def steps_s_cons_simp Let_def wf_localState_to_invocationOp)
+proof (auto simp add: execution_s_check_def steps_s_cons_simp  )
+  fix trace S1 S'
+  assume a0: "invocationOp S (ps_i S) = None"
+    and a1: "S1 ~~ (ps_i S, trace) \<leadsto>\<^sub>S* S'"
+    and a2: "\<forall>p t. (AInvoc p, t) \<notin> set trace"
+    and a3: "proof_state_rel S S1"
+    and a4: "ps_ls S = ls \<bind> cont"
+
+
+  have "state_wellFormed S1"
+    using a3 proof_state_rel_wf by blast
+
+  have "invocationOp S1 (ps_i S) = None"
+    using a3 assms proof_state_rel_fact(7) by fastforce
+
+  have
+    "localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls S)"
+    by (simp add: a3 proof_state_rel_fact(11))
+
+
+  have False
+    using \<open>invocationOp S1 (ps_i S) = None\<close> \<open>localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls S)\<close> \<open>state_wellFormed S1\<close> wf_localState_to_invocationOp by fastforce
+
+  thus "traceCorrect_s trace" and "P PS res" for PS res
+    by auto
+qed
+    
+
+
 
 
 
@@ -95,7 +178,7 @@ execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_tran
 
 text "It is sufficient to check with @{term execution_s_check} to ensure that the procedure is correct:"
 
-
+method subst_all uses r = (subst r | subst(asm) r)+
 
 lemma execution_s_check_sound:
   assumes ls_def: "localState S i \<triangleq> (Map.empty, ls)"
@@ -109,39 +192,42 @@ lemma execution_s_check_sound:
     and no_uncommitted: "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
     and no_currentTxn: "currentTransaction S i = None"
     and firstTx_def: "(firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed ))"
-    and c: "execution_s_check 
-  progr 
-  i
-  (calls S)
-  (happensBefore S)
-  (callOrigin S)
-  (transactionOrigin S)
-  (knownIds S)
-  (invocationOp S)
-  (invocationRes S)
-  generatedLocal
-  generatedLocalPrivate
-  vis
-  []
-  (currentTransaction S i)
-  firstTx
-  Map.empty
-  ls"
+    and c: "execution_s_check \<lparr>
+      calls = (calls S),
+      happensBefore = (happensBefore S),
+      callOrigin = (callOrigin S),
+      transactionOrigin = (transactionOrigin S),
+      knownIds = (knownIds S),
+      invocationOp = (invocationOp S),
+      invocationRes = (invocationRes S),
+      ps_progr = progr,
+      ps_i = i,
+      ps_generatedLocal = generatedLocal,
+      ps_generatedLocalPrivate = generatedLocalPrivate,
+      ps_vis = vis,
+      ps_localCalls = [],
+      ps_tx = (currentTransaction S i),
+      ps_firstTx = firstTx,
+      ps_store = Map.empty,
+      ps_ls = ls\<rparr>"
   shows "execution_s_correct progr S i"
 proof (auto simp add:  execution_s_correct_def)
   fix trace S'
   assume a0: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
 
+  thm c[simplified execution_s_check_def proof_state.simps, rule_format]
 
   from a0
   show "traceCorrect_s  trace"
-  proof (rule c[simplified execution_s_check_def, rule_format]; force?)
+  proof (rule c[simplified execution_s_check_def proof_state.simps, rule_format]; 
+        ((subst_all r: operationContext.simps invariantContext.simps proof_state.simps)+)? ; force?)
     show "state_wellFormed S"
       by (simp add: assms)
 
     show "\<And>p t. (AInvoc p, t) \<notin> set trace"
       using a0 assms no_more_invoc by blast
 
+    find_theorems ps_localCalls
 
     show "prog S = progr"
       by (simp add: assms)
@@ -158,7 +244,7 @@ proof (auto simp add:  execution_s_correct_def)
     show "currentTransaction S i \<noteq> Some tx' \<Longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted" for tx'
       by (simp add: assms)
 
-    show "visibleCalls S i \<triangleq> (vis \<union> set [])"
+    show " visibleCalls S i \<triangleq> (vis \<union> set [])"
       by (simp add: assms)
 
     show "case currentTransaction S i of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S c \<triangleq> tx'}"
@@ -197,24 +283,24 @@ s_invocationOp i = invocationOp S i;
 s_invocationRes i = None;
 \<And>tx. s_transactionOrigin tx \<noteq> Some i
 \<rbrakk> \<Longrightarrow>
-  execution_s_check 
-  progr 
-  i
-  s_calls
-  s_happensBefore
-  s_callOrigin
-  s_transactionOrigin
-  s_knownIds
-  s_invocationOp
-  s_invocationRes
-  {}
-  {}
-  {}
-  []
-  None
-  True
-  Map.empty
-  ls"
+  execution_s_check \<lparr>
+      calls = s_calls,
+      happensBefore = s_happensBefore,
+      callOrigin = s_callOrigin,
+      transactionOrigin = s_transactionOrigin,
+      knownIds = s_knownIds,
+      invocationOp = s_invocationOp,
+      invocationRes = s_invocationRes,
+      ps_progr = progr,
+      ps_i = i,
+      ps_generatedLocal = {},
+      ps_generatedLocalPrivate = {},
+      ps_vis = {},
+      ps_localCalls = [],
+      ps_tx = None,
+      ps_firstTx = True,
+      ps_store = Map.empty,
+      ps_ls = ls\<rparr>" 
   shows "execution_s_correct progr S i"
   using a1
 proof (rule execution_s_check_sound)
@@ -242,8 +328,15 @@ proof (rule execution_s_check_sound)
     using a2 initialState_noTxns2 by blast
 
 
-  show "execution_s_check progr i (calls S) (happensBefore S) (callOrigin S) (transactionOrigin S) (knownIds S) (invocationOp S)
-     (invocationRes S) {} {} {} [] (currentTransaction S i) True Map.empty ls "
+  show "execution_s_check
+     \<lparr>calls = calls S, happensBefore = happensBefore S,
+        callOrigin = callOrigin S, transactionOrigin = transactionOrigin S,
+        knownIds = knownIds S, invocationOp = invocationOp S,
+        invocationRes = invocationRes S, ps_progr = progr, ps_i = i,
+        ps_generatedLocal = {},
+        ps_generatedLocalPrivate = {}, ps_vis = {},
+        ps_localCalls = [], ps_tx = currentTransaction S i,
+        ps_firstTx = True, ps_store = Map.empty, ps_ls = ls\<rparr>"
     unfolding currentTx
   proof (rule c)
     show "invocationOp S i = invocationOp S i" by simp
@@ -274,24 +367,24 @@ lemma execution_s_check_sound3:
 \<lbrakk>
 \<And>tx. s_transactionOrigin tx \<noteq> Some i
 \<rbrakk> \<Longrightarrow>
-  execution_s_check 
-  progr 
-  i
-  s_calls
-  s_happensBefore
-  s_callOrigin
-  s_transactionOrigin
-  s_knownIds
-  (s_invocationOp(i\<mapsto>op))
-  (s_invocationRes(i:=None))
-  {}
-  {}
-  {}
-  []
-  None
-  True
-  Map.empty
-  ls"
+  execution_s_check \<lparr>
+      calls = s_calls,
+      happensBefore = s_happensBefore,
+      callOrigin = s_callOrigin,
+      transactionOrigin = s_transactionOrigin,
+      knownIds = s_knownIds,
+      invocationOp = s_invocationOp(i\<mapsto>op),
+      invocationRes = s_invocationRes(i:=None),
+      ps_progr = progr,
+      ps_i = i,
+      ps_generatedLocal = {},
+      ps_generatedLocalPrivate = {},
+      ps_vis = {},
+      ps_localCalls = [],
+      ps_tx = None,
+      ps_firstTx = True,
+      ps_store = Map.empty,
+      ps_ls = ls\<rparr>" 
   shows "execution_s_correct progr S i"
   using a1 a2 a3 
 proof (rule execution_s_check_sound2, goal_cases A)
@@ -376,6 +469,8 @@ method show_proof_rule =
   (subst  execution_s_check_def, intro allI impI, erule case_trace_not_empty3, erule(1) no_ainvoc, goal_cases Step)
 
 inductive_cases step_s_NewId: "S ~~ (i, ANewId uidv, Inv) \<leadsto>\<^sub>S S'"
+
+
 
 lemma execution_s_check_newId:
   assumes "infinite (Collect P)"
@@ -1849,6 +1944,60 @@ next
 qed
 
 
+subsection "Loops"
+
+
+
+
+lemma execution_s_check_loop:
+  assumes cont: " \<lbrakk>
+True
+\<comment> \<open>
+
+\<close>
+\<rbrakk> \<Longrightarrow> 
+ execution_s_check
+  progr 
+  i
+  s_calls
+  s_happensBefore 
+  s_callOrigin
+  s_transactionOrigin 
+  s_knownIds
+  s_invocationOp
+  s_invocationRes
+  generatedLocal
+  generatedLocalPrivate
+  vis
+  localCalls
+  currentTx
+  firstTx
+  store
+  (cont res)"
+
+
+shows"execution_s_check
+  progr 
+  i
+  s_calls
+  s_happensBefore 
+  s_callOrigin
+  s_transactionOrigin 
+  s_knownIds
+  s_invocationOp
+  s_invocationRes
+  generatedLocal
+  generatedLocalPrivate
+  vis
+  localCalls
+  currentTx
+  firstTx
+  store
+  (Loop body afterBody \<bind> cont)
+"
+
+
+
 
 lemma updateHb_restrict:
  " updateHb hb vis cs |r S =
@@ -2193,6 +2342,9 @@ proof show_proof_rule
     qed
   qed
 qed
+
+
+
 
 lemmas execution_s_check_endAtomic' = execution_s_check_endAtomic[rotated 3, OF context_conjI]
   
