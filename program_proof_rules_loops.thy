@@ -113,6 +113,15 @@ lemma proof_state_rel_wf:
   by auto
 
 
+
+definition execution_s_check_final where
+"execution_s_check_final trace S' i cont P  \<equiv> 
+  traceCorrect_s  trace \<and> 
+  (\<forall>store' ls' res PS. localState S' i \<triangleq> (store', ls') 
+                \<longrightarrow> ls' = WaitReturn res \<bind> cont
+                \<longrightarrow> proof_state_rel PS S'
+                \<longrightarrow> P PS res  )"
+
 definition execution_s_check :: "
      ('proc::valueType, 'any::valueType, 'operation::valueType) proof_state 
   \<Rightarrow> ('a \<Rightarrow> ('any, 'operation, 'any) io)
@@ -121,17 +130,13 @@ definition execution_s_check :: "
   \<Rightarrow> bool" where
 \<comment> \<open> TODO extract below relation into proof_state_rel \<close>
   "execution_s_check S cont P ls
- \<equiv>  (\<forall>trace S1 S'. 
+ \<equiv>  \<forall>trace S1 S'. 
            (S1 ~~ (ps_i S, trace) \<leadsto>\<^sub>S* S')
        \<longrightarrow> (\<forall>p t. (AInvoc p, t) \<notin> set trace)
        \<longrightarrow> proof_state_rel S S1
        \<longrightarrow> (ps_ls S = (ls \<bind> cont))
        \<longrightarrow> (\<forall>store' ls'. localState S' (ps_i S) \<triangleq> (store', ls') \<longrightarrow> (\<exists>x. ls' = x \<bind> cont)) 
-       \<longrightarrow> (traceCorrect_s  trace \<and> 
-            (\<forall>store' ls' res PS. localState S' (ps_i S) \<triangleq> (store', ls') 
-                          \<longrightarrow> ls' = WaitReturn res \<bind> cont
-                          \<longrightarrow> proof_state_rel PS S'
-                          \<longrightarrow> P PS res  )))"
+       \<longrightarrow> execution_s_check_final trace S' (ps_i S) cont P"
 
 
 
@@ -165,7 +170,7 @@ proof (auto simp add: execution_s_check_def steps_s_cons_simp  )
   have False
     using \<open>invocationOp S1 (ps_i S) = None\<close> \<open>localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls S)\<close> \<open>state_wellFormed S1\<close> wf_localState_to_invocationOp by fastforce
 
-  thus "traceCorrect_s trace" and "P PS res" for PS res
+  thus "execution_s_check_final trace S' (ps_i S) cont P"
     by auto
 qed
     
@@ -420,12 +425,13 @@ proof (auto simp add:  execution_s_correct_def)
   fix trace S'
   assume a0: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
 
-  thm c[simplified execution_s_check_def proof_state.simps, rule_format]
+  thm c[simplified execution_s_check_def proof_state.simps, rule_format, OF a0]
 
   from a0
-  show "traceCorrect_s  trace"
-  proof (rule c[simplified execution_s_check_def proof_state.simps, rule_format, THEN conjunct1]; 
+  have "execution_s_check_final trace S' i impl_language_loops.return P"
+  proof (rule c[simplified execution_s_check_def proof_state.simps, rule_format]; 
       ((subst_all r: operationContext.simps invariantContext.simps proof_state.simps)+)? ; force?)
+
 
     show "\<And>p t. (AInvoc p, t) \<notin> set trace"
       using a0 assms no_more_invoc by blast
@@ -491,6 +497,9 @@ proof (auto simp add:  execution_s_correct_def)
 
     qed
   qed
+  thus "traceCorrect_s trace"
+    using execution_s_check_final_def by blast
+
 qed
 
 
@@ -714,7 +723,7 @@ shows "P"
   using assms by auto
 
 method show_proof_rule = 
-  (subst  execution_s_check_def, intro allI impI, erule case_trace_not_empty3, erule(1) no_ainvoc, goal_cases Step)
+  (subst  execution_s_check_def, intro allI impI conjI, erule case_trace_not_empty3, erule(1) no_ainvoc, goal_cases Step)
 
 inductive_cases step_s_NewId: "S ~~ (i, ANewId uidv, Inv) \<leadsto>\<^sub>S S'"
 
@@ -727,8 +736,12 @@ lemma execution_s_check_newId:
 to_nat v \<notin> s_knownIds;
 to_nat v \<notin> generatedLocal;
 uniqueIds v = {to_nat v};
-uid_is_private' i s_calls s_invocationOp s_invocationRes s_knownIds (to_nat v)
-\<rbrakk> \<Longrightarrow> execution_s_check
+uid_is_private' (ps_i S) (calls S) (invocationOp S) (invocationRes S) (knownIds S) (to_nat v)
+\<rbrakk> \<Longrightarrow> execution_s_check (S\<lparr> 
+    ps_generatedLocal := ps_generatedLocal S \<union> {to_nat v},
+    ps_generatedLocalPrivate := ps_generatedLocalPrivate S \<union> {to_nat v}
+    \<rparr>) conti Pred (cont v)"
+(*
   progr 
   i
   s_calls 
@@ -746,50 +759,49 @@ uid_is_private' i s_calls s_invocationOp s_invocationRes s_knownIds (to_nat v)
   firstTx
   store
   (cont v)"
-
-shows"execution_s_check
-  progr 
-  i
-  s_calls 
-  s_happensBefore 
-  s_callOrigin 
-  s_transactionOrigin 
-  s_knownIds 
-  s_invocationOp
-  s_invocationRes
-  generatedLocal
-  generatedLocalPrivate
-  vis
-  localCalls
-  tx
-  firstTx
-  store
-  (newId P \<bind> cont)
+*)
+shows "execution_s_check S conti Pred (newId P \<bind> cont)
 "
+  apply (subst  execution_s_check_def)
+  apply (intro allI impI conjI)
+  thm case_trace_not_empty3 
+\<comment> \<open>TODO make this into a rule \<close>
+  apply ( erule case_trace_not_empty3)
+  apply ( erule(1) no_ainvoc)
+  apply ( goal_cases Step)
+
 proof show_proof_rule
   case (Step trace S1 S' action S'a Inv trace')
 
+  have "localState S1 (ps_i S) \<triangleq> (ps_store S, (newId P \<bind> cont) \<bind> conti)"
+    by (simp add: Step(1) Step(2) proof_state_rel_fact(11))
 
-  from ` S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
-    `localState S1 i \<triangleq> (store, newId P \<bind> cont)`
-    `currentProc S1 i \<triangleq> toImpl`
+  have "currentProc S1 (ps_i S) \<triangleq> toImpl"
+    by (simp add: Step(1) proof_state_rel_fact(12))
+
+
+
+  from ` S1 ~~ (ps_i S, action, Inv) \<leadsto>\<^sub>S S'a`
+    `localState S1 (ps_i S) \<triangleq> (ps_store S, (newId P \<bind> cont) \<bind> conti)`
+    `currentProc S1 (ps_i S) \<triangleq> toImpl`
     `\<And>proc. action \<noteq> AInvoc proc`
   obtain uidv
-    where c0: "localState S1 i \<triangleq> (store, newId P \<bind> cont)"
-      and c1: "currentProc S1 i \<triangleq> toImpl"
+    where  c0: "localState S1 (ps_i S) \<triangleq> (ps_store S, impl_language_loops.newId P \<bind> (\<lambda>a. cont a \<bind> conti))"
+      and c1: "currentProc S1 (ps_i S) \<triangleq> impl_language_loops.toImpl"
       and c2: "action = ANewId uidv"
       and c3: "Inv"
-      and S'a_def: "S'a = S1\<lparr>localState := localState S1(i \<mapsto> (store, cont uidv)), generatedIds := generatedIds S1(to_nat uidv \<mapsto> i)\<rparr>"
+      and S'a_def: "S'a = S1 \<lparr>localState := localState S1(ps_i S \<mapsto> (ps_store S, cont uidv \<bind> conti)), generatedIds := generatedIds S1(to_nat uidv \<mapsto> ps_i S)\<rparr>"
       and c5: "generatedIds S1 (to_nat uidv) = None"
       and c6: "uniqueIds uidv = {to_nat uidv}"
       and c7: "P uidv"
     by (cases action, auto simp add: step_s.simps split: if_splits)
 
+
   show "Inv \<and> traceCorrect_s trace'"
   proof (intro conjI)
     show "Inv" using `Inv` .
 
-    from `S'a ~~ (i, trace') \<leadsto>\<^sub>S* S'`
+    from `S'a ~~ (ps_i S, trace') \<leadsto>\<^sub>S* S'`
     show "traceCorrect_s trace'"
     proof (rule use_execution_s_check)
 

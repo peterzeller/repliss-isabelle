@@ -36,6 +36,8 @@ text "Actually show that we can embedd io into ZFCs V type:"
 definition to_V :: "'a::embeddable \<Rightarrow> V" where
 "to_V \<equiv> SOME f. inj f"
 
+definition from_V :: "V \<Rightarrow> 'a::embeddable" where
+"from_V \<equiv> the_inv to_V"
 
 
 lemma to_V_inj: "inj to_V"
@@ -48,8 +50,6 @@ qed
 lemma to_V_use_inj: "to_V x = to_V y \<Longrightarrow> x = y"
   by (meson injD to_V_inj)
 
-definition from_V :: "V \<Rightarrow> 'a::embeddable" where
-"from_V \<equiv> the_inv to_V"
 
 lemma from_V_rev: 
 "from_V (to_V x) = x"
