@@ -176,9 +176,207 @@ qed
 
 
 
-text "It is sufficient to check with @{term execution_s_check} to ensure that the procedure is correct:"
 
 method subst_all uses r = (subst r | subst(asm) r)+
+
+text "Correctness of execution when executing only a prefix of the trace:"
+
+
+definition "execution_s_correct_p" where
+"execution_s_correct_p S i ls1 P \<equiv> 
+    \<forall>trace S' store ls2 store' ls1'. 
+          (S ~~ (i, trace) \<leadsto>\<^sub>S* S') 
+      \<longrightarrow> (localState S i \<triangleq> (store, bind ls1 ls2))
+      \<longrightarrow> (localState S' i \<triangleq> (store', bind ls1' ls2))
+      \<longrightarrow> traceCorrect_s trace \<and> (\<forall>res. ls1' = WaitReturn res \<longrightarrow>  P S' res)"
+
+lemmas use_execution_s_correct_p = 
+  execution_s_correct_p_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format]
+
+lemmas use_execution_s_correct_p_trace = 
+  execution_s_correct_p_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, THEN conjunct1]
+
+lemmas use_execution_s_correct_p_P = 
+  execution_s_correct_p_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, THEN conjunct2, rule_format]
+
+lemma execution_s_correct_to_p:
+  assumes ec_p: "execution_s_correct_p S i ls1 P"
+    and S_ls: "localState S i \<triangleq> (store, ls1)"
+    and P: "\<And>S' res. P S' res \<Longrightarrow> 
+        invariant (prog S) (invariantContext.truncate 
+              (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
+                  knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
+    and wf_s: "state_wellFormed_s S i"
+    and impl: "currentProc S i \<triangleq> toImpl"
+  shows "execution_s_correct S i"
+proof (auto simp add:  execution_s_correct_def)
+  fix trace S'
+  assume steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
+
+  have wf: "state_wellFormed S"
+    using state_wellFormed_s_to_wf wf_s by blast
+
+
+  from  steps
+  show "traceCorrect_s trace"
+  proof (induct rule: step_s_induct)
+    case initial
+    then show ?case
+      by (simp add: traceCorrect_s_def) 
+  next
+    case (step tr S' a S'')
+
+    hence IH: "(x, False) \<notin> set tr" for x
+      by (simp add: traceCorrect_s_def)
+
+    have "S ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S''"
+      using step.hyps step.step steps_s_step by blast
+
+    from `S' ~~ (i, a) \<leadsto>\<^sub>S S''`
+    have "localState S' i \<noteq> None"
+      apply (auto simp add: step_s.simps)
+      by (metis S_ls Un_iff \<open>S ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S''\<close> list.set_intros(1) local.wf no_more_invoc option.simps(3) set_append)
+
+
+
+
+    \<comment> \<open>TODO: move into Lemma\<close>
+    from ` S ~~ (i, tr) \<leadsto>\<^sub>S* S'` `localState S' i \<noteq> None`
+    have "currentProc S' i \<triangleq> toImpl"
+    proof (induct rule: step_s_induct)
+      case initial
+      then show ?case
+        using S_ls impl by blast
+    next
+      case (step tr S a S')
+      then show ?case
+        apply (auto simp add: step_s.simps)
+        by (metis (no_types, lifting) S_ls has_invocationOp_forever local.wf option.exhaust option.simps(3) wf_localState_needs_invocationOp)
+    qed
+
+    have "localState S i \<triangleq> (store, ls1 \<bind> impl_language_loops.return)"
+      using S_ls by auto
+
+    show ?case 
+    proof (auto simp add: traceCorrect_s_def IH)
+      fix x
+      assume "a = (x, False)"
+
+
+
+      show False
+      proof (cases "localState S'' i")
+        case None
+
+        from `a = (x, False)` `S' ~~ (i, a) \<leadsto>\<^sub>S S''` `localState S'' i = None` `currentProc S' i \<triangleq> toImpl`
+        obtain store'' ls'' res
+          where a0: "a = (AReturn res, False)"
+            and a1: "x = AReturn res"
+            and not_invariant: "\<not> invariant (prog S')             (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S')               (calls S') (knownIds S' \<union> uniqueIds res) (invocationOp S') (invocationRes S'(i \<mapsto> res)))"
+            and a3: "localState S' i \<triangleq> (store'', ls'')"
+            and a4: "currentProc S' i \<triangleq> toImpl"
+            and a5: "toImpl (store'', ls'') = Return res"
+            and a6: "currentTransaction S' i = None"
+            and S''_def: "S'' = S'         \<lparr>localState := (localState S')(i := None), currentProc := (currentProc S')(i := None),            visibleCalls := (visibleCalls S')(i := None), invocationRes := invocationRes S'(i \<mapsto> res),            knownIds := knownIds S' \<union> uniqueIds res\<rparr>"
+          by (auto simp add: step_s.simps)
+
+        from ec_p \<open>S ~~ (i, tr) \<leadsto>\<^sub>S* S'\<close> \<open>localState S i \<triangleq> (store, ls1 \<bind> impl_language_loops.return)\<close> 
+        have "P S' res" 
+        proof (rule use_execution_s_correct_p_P)
+          from `toImpl (store'', ls'') = Return res`
+          show "ls'' = impl_language_loops.io.WaitReturn res"
+            by (cases ls'', auto split: prod.splits)
+
+          from `localState S' i \<triangleq> (store'', ls'')`
+          show " localState S' i \<triangleq> (store'', ls'' \<bind> impl_language_loops.return)"
+            by auto
+        qed
+        from P[OF this]
+        have invariant: "invariant (prog S) (invariantContext.truncate (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), knownIds := knownIds S' \<union> uniqueIds res\<rparr>))" .
+
+        have "state_wellFormed S'"
+          using local.wf state_wellFormed_s_steps step.step by blast
+
+        have "state_wellFormed_s S' i"
+          using state_wellFormed_s_def step.step steps_s_append wf_s by blast
+
+        have "currentTransaction S' i = None"
+          using a6 by auto
+
+
+        have no_uncommitted:
+          "transactionStatus S' tx \<noteq> Some Uncommitted" for tx
+          using \<open>state_wellFormed_s S' i\<close> a6 state_wellFormed_s_currentTransactions_iff_uncommitted by fastforce
+
+
+
+        have "prog S' = prog S"
+          using step.step unchangedProg by blast
+
+
+
+        have allTxnsCommitted: "committedTransactions S' = dom (transactionOrigin S')"
+          apply (auto simp add: )
+          apply (metis \<open>state_wellFormed S'\<close> option.distinct(1) option.exhaust wf_transactionOrigin_and_status)
+          by (metis \<open>state_wellFormed S'\<close> no_uncommitted not_uncommitted_cases option.exhaust state_wellFormed_transactionStatus_transactionOrigin)
+
+
+        have allCommitted: "committedCalls S' = dom (calls S')"
+          apply (auto simp add: committedCallsH_def isCommittedH_def)
+          apply (metis \<open>state_wellFormed S'\<close> no_uncommitted option.exhaust wellFormed_currentTransactionUncommitted wf_callOrigin_and_calls)
+          by (metis (no_types, hide_lams) \<open>state_wellFormed S'\<close> exists_optionI no_uncommitted not_uncommitted_cases option.distinct(1) wf_callOrigin_and_calls wf_no_transactionStatus_origin_for_nothing)
+
+
+        have invContextSame:
+             "(invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S')
+                (knownIds S' \<union> uniqueIds res) (invocationOp S') (invocationRes S'(i \<mapsto> res)))
+            = (invariantContext.truncate (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
+                                             knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
+          apply (auto simp add: invContextH_def invariantContext.defs allCommitted allTxnsCommitted restrict_relation_def)
+          apply (simp add: \<open>state_wellFormed S'\<close> domD happensBefore_in_calls_left)
+          apply (simp add: \<open>state_wellFormed S'\<close> domD happensBefore_in_calls_right)
+          apply (metis \<open>state_wellFormed S'\<close> restrict_map_noop2 wellFormed_callOrigin_dom)
+          done
+
+        with invariant
+        have "invariant (prog S')
+        (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S')
+          (knownIds S' \<union> uniqueIds res) (invocationOp S') (invocationRes S'(i \<mapsto> res)))"
+          by (simp add: \<open>prog S' = prog S\<close>)
+
+
+        with not_invariant P
+        show False
+          by auto
+
+
+      next
+        case (Some S''_ls)
+
+        
+
+        from ec_p 
+        have "traceCorrect_s (tr @ [a]) \<and> (\<forall>res. snd S''_ls = impl_language_loops.io.WaitReturn res \<longrightarrow> P S'' res)"
+          using \<open>S ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S''\<close> \<open>localState S i \<triangleq> (store, ls1 \<bind> impl_language_loops.return)\<close>
+        proof (rule use_execution_s_correct_p)
+          show "localState S'' i \<triangleq> (fst S''_ls, snd S''_ls \<bind> impl_language_loops.return)"
+            by (simp add: Some)
+        qed
+          
+        thus False
+          by (metis \<open>a = (x, False)\<close> append_is_Nil_conv last_in_set last_snoc list.simps(3) traceCorrect_s_def)
+
+        
+      qed
+    qed
+  qed
+qed
+
+
+
+
+text "It is sufficient to check with @{term execution_s_check} to ensure that the procedure is correct:"
+
 
 lemma execution_s_check_sound:
   assumes ls_def: "localState S i \<triangleq> (Map.empty, ls)"
@@ -192,6 +390,10 @@ lemma execution_s_check_sound:
     and no_uncommitted: "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
     and no_currentTxn: "currentTransaction S i = None"
     and firstTx_def: "(firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed ))"
+    and P: "\<And>S' res. P S' res \<Longrightarrow> 
+        invariant (prog S) (invariantContext.truncate 
+              (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
+                  knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
     and c: "execution_s_check \<lparr>
       calls = (calls S),
       happensBefore = (happensBefore S),
@@ -209,8 +411,11 @@ lemma execution_s_check_sound:
       ps_tx = (currentTransaction S i),
       ps_firstTx = firstTx,
       ps_store = Map.empty,
-      ps_ls = ls\<rparr>"
-  shows "execution_s_correct progr S i"
+      ps_ls = ls\<rparr>
+      return P ls"
+    \<comment> \<open>The execution check ensures that executing statement s only produces valid traces ending in a state 
+   satisfying P.\<close>
+  shows "execution_s_correct S i"
 proof (auto simp add:  execution_s_correct_def)
   fix trace S'
   assume a0: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
@@ -219,56 +424,72 @@ proof (auto simp add:  execution_s_correct_def)
 
   from a0
   show "traceCorrect_s  trace"
-  proof (rule c[simplified execution_s_check_def proof_state.simps, rule_format]; 
-        ((subst_all r: operationContext.simps invariantContext.simps proof_state.simps)+)? ; force?)
-    show "state_wellFormed S"
-      by (simp add: assms)
+  proof (rule c[simplified execution_s_check_def proof_state.simps, rule_format, THEN conjunct1]; 
+      ((subst_all r: operationContext.simps invariantContext.simps proof_state.simps)+)? ; force?)
 
     show "\<And>p t. (AInvoc p, t) \<notin> set trace"
       using a0 assms no_more_invoc by blast
 
-    find_theorems ps_localCalls
+    show "proof_state_rel
+     \<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S,
+        transactionOrigin = transactionOrigin S, knownIds = knownIds S, invocationOp = invocationOp S,
+        invocationRes = invocationRes S, ps_progr = progr, ps_i = i, ps_generatedLocal = generatedLocal,
+        ps_generatedLocalPrivate = generatedLocalPrivate, ps_vis = vis, ps_localCalls = [],
+        ps_tx = currentTransaction S i, ps_firstTx = firstTx, ps_store = Map.empty, ps_ls = ls\<rparr>
+     S"
+      unfolding proof_state_rel_def state.simps operationContext.simps proof_state.simps invariantContext.simps
+    proof (intro conjI allI impI ballI; (simp; fail)?)
 
-    show "prog S = progr"
-      by (simp add: assms)
 
-    show " generatedLocal = {x. generatedIds S x \<triangleq> i}"
-      by (auto simp add: assms)
+      show "state_wellFormed S"
+        by (simp add: assms)
 
-    show "localState S i \<triangleq> (Map.empty, ls)"
-      by (simp add: assms(1))
 
-    show "currentProc S i \<triangleq> toImpl"
-      by (simp add: assms)
 
-    show "currentTransaction S i \<noteq> Some tx' \<Longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted" for tx'
-      by (simp add: assms)
+      find_theorems ps_localCalls
 
-    show " visibleCalls S i \<triangleq> (vis \<union> set [])"
-      by (simp add: assms)
+      show "prog S = progr"
+        by (simp add: assms)
 
-    show "case currentTransaction S i of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S c \<triangleq> tx'}"
-      by (simp add: no_currentTxn)
+      show " generatedLocal = {x. generatedIds S x \<triangleq> i}"
+        by (auto simp add: assms)
 
-    show "sorted_by (happensBefore S) []"
-      by (simp add: sorted_by_empty)
-    show "firstTx = (\<nexists>c tx. callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed)"
-      using firstTx_def by auto
+      show "localState S i \<triangleq> (Map.empty, ls)"
+        by (simp add: assms(1))
 
-    show "\<And>c. i_callOriginI S c \<triangleq> i \<Longrightarrow> c \<in> vis"
-      apply (auto simp add: i_callOriginI_h_def split: option.splits)
-      using S_wf state_wellFormed_ls_visibleCalls_callOrigin vis_def by blast
+      show "currentProc S i \<triangleq> toImpl"
+        by (simp add: assms)
 
-    show "generatedLocalPrivate \<subseteq> generatedLocal"
-      by (simp add: generatedLocalPrivate1)
+      show "currentTransaction S i \<noteq> Some tx' \<Longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted" for tx'
+        by (simp add: assms)
 
-    show "\<And>x. x \<in> generatedLocalPrivate \<Longrightarrow>
+
+      show " visibleCalls S i \<triangleq> (vis \<union> set [])"
+        by (simp add: assms)
+
+      show "case currentTransaction S i of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S c \<triangleq> tx'}"
+        by (simp add: no_currentTxn)
+
+      show "sorted_by (happensBefore S) []"
+        by (simp add: sorted_by_empty)
+      show "firstTx = (\<nexists>c tx. callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed)"
+        using firstTx_def by auto
+
+      show "\<And>c. i_callOriginI S c \<triangleq> i \<Longrightarrow> c \<in> vis"
+        apply (auto simp add: i_callOriginI_h_def split: option.splits)
+        using S_wf state_wellFormed_ls_visibleCalls_callOrigin vis_def by blast
+
+      show "generatedLocalPrivate \<subseteq> generatedLocal"
+        by (simp add: generatedLocalPrivate1)
+
+
+
+      show "\<And>x. x \<in> generatedLocalPrivate \<Longrightarrow>
          uid_is_private i (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S) (localState S)
           (currentProc S) x"
-      by (simp add: generatedLocalPrivate2)
+        by (simp add: generatedLocalPrivate2)
 
-
-
+    qed
   qed
 qed
 
@@ -277,6 +498,11 @@ lemma execution_s_check_sound2:
   assumes a1: "localState S i \<triangleq> (Map.empty, ls)"
     and a2': "S \<in> initialStates' progr i"
     and a3: "currentProc S i \<triangleq> toImpl"
+    and P: "\<And>S' res.
+           P S' res \<Longrightarrow>
+           invariant (prog S)
+            (invariantContext.truncate
+              (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
     and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
 \<lbrakk>
 s_invocationOp i = invocationOp S i;
@@ -300,8 +526,9 @@ s_invocationRes i = None;
       ps_tx = None,
       ps_firstTx = True,
       ps_store = Map.empty,
-      ps_ls = ls\<rparr>" 
-  shows "execution_s_correct progr S i"
+      ps_ls = ls\<rparr>
+      return P ls" 
+  shows "execution_s_correct S i"
   using a1
 proof (rule execution_s_check_sound)
 
@@ -336,7 +563,7 @@ proof (rule execution_s_check_sound)
         ps_generatedLocal = {},
         ps_generatedLocalPrivate = {}, ps_vis = {},
         ps_localCalls = [], ps_tx = currentTransaction S i,
-        ps_firstTx = True, ps_store = Map.empty, ps_ls = ls\<rparr>"
+        ps_firstTx = True, ps_store = Map.empty, ps_ls = ls\<rparr> return P ls"
     unfolding currentTx
   proof (rule c)
     show "invocationOp S i = invocationOp S i" by simp
@@ -354,7 +581,12 @@ proof (rule execution_s_check_sound)
     by (meson \<open>visibleCalls S i \<triangleq> {}\<close> empty_iff local.wf state_wellFormed_ls_visibleCalls_callOrigin)
 
 
-
+  show "\<And>S' res.
+       P S' res \<Longrightarrow>
+       invariant (prog S)
+        (invariantContext.truncate
+          (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
+    using P .
 qed simp+
 
 
@@ -363,6 +595,10 @@ lemma execution_s_check_sound3:
     and a2: "S \<in> initialStates' progr i"
     and a3: "currentProc S i \<triangleq> toImpl"
     and a4: "invocationOp S i \<triangleq> op"
+    and P: "\<And>S' res. P S' res \<Longrightarrow> 
+        invariant (prog S) (invariantContext.truncate 
+              (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
+                  knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
     and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
 \<lbrakk>
 \<And>tx. s_transactionOrigin tx \<noteq> Some i
@@ -384,12 +620,24 @@ lemma execution_s_check_sound3:
       ps_tx = None,
       ps_firstTx = True,
       ps_store = Map.empty,
-      ps_ls = ls\<rparr>" 
-  shows "execution_s_correct progr S i"
+      ps_ls = ls\<rparr>
+      return P ls" 
+  shows "execution_s_correct S i"
   using a1 a2 a3 
-proof (rule execution_s_check_sound2, goal_cases A)
+proof (rule execution_s_check_sound2[where P=P], goal_cases Final A)
+  case (Final S' res)
+  then show ?case
+    using P by blast
+next
   case (A s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes)
-  show ?case 
+  show "execution_s_check
+            \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin,
+               transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp,
+               invocationRes = s_invocationRes, ps_progr = progr, ps_i = i, ps_generatedLocal = {},
+               ps_generatedLocalPrivate = {}, ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True,
+               ps_store = Map.empty, ps_ls = ls\<rparr>
+            impl_language_loops.return P ls"
+
   proof (fuzzy_rule c)
     show "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
       by (simp add: A(3))

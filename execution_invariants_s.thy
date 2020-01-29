@@ -7,7 +7,69 @@ begin
 text \<open>This theory includes proof for invariants that hold for all single-invocId executions.\<close>
 
 
+lemma state_wellFormed_s_steps:
+  assumes wf: "state_wellFormed S"
+    and steps: "S ~~ (i, tr) \<leadsto>\<^sub>S* S'"
+  shows "state_wellFormed S'"
+  using steps 
+proof (induct rule: step_s_induct)
+  case initial
+  then show ?case 
+    using wf by simp
+next
+  case (step tr S' a S'')
 
+  from ` state_wellFormed S'`
+  have step_wf: "state_wellFormed S''" if "S' ~~ (i, fst a) \<leadsto> S''"
+    using that
+  proof (rule state_wellFormed_combine_step)
+    show "get_action (i, fst a) \<noteq> ACrash"
+      by (metis prod.collapse sndI step.hyps step_s_no_Fail)
+  qed
+
+  from `S' ~~ (i, a) \<leadsto>\<^sub>S S''`
+  show ?case
+  proof cases
+    case (local ls f ok ls')
+    show ?thesis
+      by (rule step_wf, auto simp add: local step.simps)
+  next
+    case (newId ls f ls' uid uidv ls'')
+    show ?thesis
+    proof (rule step_wf)
+      show "S' ~~ (i, fst a) \<leadsto> S''"
+        using newId by (auto simp add:  step.simps)
+    qed
+  next
+    case (beginAtomic ls f ls' t S' vis vis' txns)
+    thus ?thesis by simp
+  next
+    case (endAtomic ls f ls' t valid)
+    show ?thesis
+      by (rule step_wf, auto simp add: endAtomic step.simps)
+  next
+    case (dbop ls f Op ls' t c res vis)
+    show ?thesis
+    proof (rule step_wf)
+      show "S' ~~ (i, fst a) \<leadsto> S''"
+        using dbop by (auto simp add:  step.simps)
+    qed
+  next
+    case (invocation proc initState impl Sx valid)
+    have "Sx ~~ (i, AInvoc proc) \<leadsto> S''"
+      using invocation apply (auto simp add: step.simps)
+      using wf_localState_to_invocationOp apply blast
+      using wf_localState_needs_invocationOp by blast
+
+
+    thus ?thesis
+      using `state_wellFormed Sx` state_wellFormed_combine_step by fastforce
+  next
+    case (return ls f res valid)
+    show ?thesis
+      by (rule step_wf, auto simp add: return step.simps)
+  qed
+qed
 
 
 definition initialStates :: "('proc::valueType, 'ls, 'operation, 'any::valueType) prog \<Rightarrow> invocId \<Rightarrow> ('proc, 'ls, 'operation, 'any) state set"   where
@@ -74,6 +136,11 @@ lemma initialStates_wf:
   shows "state_wellFormed_s S i"
   using assms initialStates_reachable_from_initialState state_wellFormed_s_def steps_s_append steps_s_single by blast
 
+lemma state_wellFormed_s_to_wf:
+  assumes "state_wellFormed_s S i"
+  shows "state_wellFormed S"
+  using assms state_wellFormed_init state_wellFormed_s_def state_wellFormed_s_steps by blast
+
 
 (*
 definition state_wellFormed_s where
@@ -104,60 +171,6 @@ proof -
   qed      
 qed
 
-lemma state_wellFormed_s_to_wf: 
-  "state_wellFormed_s S i \<Longrightarrow> state_wellFormed S"
-proof (induct rule: state_wellFormed_s_induct)
-  case (initial progr)
-  then show ?case
-    by (simp add: state_wellFormed_init)
-next
-  case (step tr S a S' progr)
-  from \<open>S ~~ (i, a) \<leadsto>\<^sub>S S'\<close>
-  show ?case 
-  proof (induct rule: step_s.cases)
-    case (local C s ls f ok ls')
-    then have "S ~~ (i, ALocal ok) \<leadsto> S'"
-      by (auto simp add: step_simps)
-    then show ?case
-      using state_wellFormed_combine_step step.IH by fastforce 
-  next
-    case (newId C s ls f ls' uidv uid)
-    then have "S ~~ (i, ANewId uid) \<leadsto> S'"
-      by (auto simp add: step_simps)
-    then show ?case
-      using state_wellFormed_combine_step step.IH by fastforce 
-  next
-    case (beginAtomic C s ls f ls' t C' C'' vis vis')
-    then show ?case
-      by blast 
-  next
-    case (endAtomic C s ls f ls' t C' valid)
-        then have "S ~~ (i, AEndAtomic) \<leadsto> S'"
-      by (auto simp add: step_simps)
-    then show ?case
-      using state_wellFormed_combine_step step.IH by fastforce 
-  next
-    case (dbop C s ls f Op ls' t c res vis)
-    then have "S ~~ (i, ADbOp c Op res) \<leadsto> S'"
-      by (auto simp add: step_simps)
-    then show ?case
-      using state_wellFormed_combine_step step.IH by fastforce 
-  next
-    case (invocation C s procName initState impl C' C'' valid)
-    then have "C' ~~ (i, AInvoc procName) \<leadsto> S'"
-      apply (auto simp add: step_simps)
-      using wf_localState_to_invocationOp by blast+
-
-    then show ?case
-      using \<open>state_wellFormed C'\<close> state_wellFormed_combine_step by fastforce 
-  next
-    case (return C s ls f res C' valid)
-    then have "S ~~ (i, AReturn res) \<leadsto> S'"
-      by (auto simp add: step_simps)
-    then show ?case
-      using state_wellFormed_combine_step step.IH by fastforce 
-  qed
-qed
 
 
 lemma wf_s_localState_to_invocationOp:
@@ -214,6 +227,9 @@ lemma state_wellFormed_s_currentTransactions_iff_uncommitted:
   assumes wf: "state_wellFormed_s S i" 
   shows "currentTransaction S i \<triangleq> tx \<longleftrightarrow> (transactionStatus S tx \<triangleq> Uncommitted)"
   using local.wf state_wellFormed_s_currentTransactionsOnlyInCurrent state_wellFormed_s_to_wf wellFormed_currentTransactionUncommitted wellFormed_currentTransaction_back3 by fastforce
+
+
+
 
 
 

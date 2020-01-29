@@ -8,14 +8,14 @@ begin
 text "Checks that a procedure with initial state S on invocation i is correct."
 
 definition "execution_s_correct" where
-"execution_s_correct progr S i \<equiv> \<forall>trace S'. (S ~~ (i, trace) \<leadsto>\<^sub>S* S') \<longrightarrow> traceCorrect_s trace"
+"execution_s_correct S i \<equiv> \<forall>trace S'. (S ~~ (i, trace) \<leadsto>\<^sub>S* S') \<longrightarrow> traceCorrect_s trace"
 
 definition "procedureCorrect" where
-"procedureCorrect progr S i \<equiv> invariant_all' S \<and> execution_s_correct progr S i"
+"procedureCorrect S i \<equiv> invariant_all' S \<and> execution_s_correct S i"
 
 lemma show_program_correct_single_invocation:
   assumes initialCorrect: "\<And>S i. S\<in>initialStates program i \<Longrightarrow> invariant_all' S "
-    and check: "\<And>S i. \<lbrakk>S\<in>initialStates program i; invariant_all' S; state_wellFormed S\<rbrakk> \<Longrightarrow> procedureCorrect program S i"
+    and check: "\<And>S i. \<lbrakk>S\<in>initialStates program i; invariant_all' S; state_wellFormed S\<rbrakk> \<Longrightarrow> procedureCorrect S i"
   shows "programCorrect_s program"
 proof (auto simp add: programCorrect_s_def)
   fix trace i S_fin
@@ -146,7 +146,7 @@ qed
 lemma show_programCorrect_using_checkCorrect1:
   assumes initalStatesCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> invariant_all' S"
     and invInitial: "invariant_all' (initialState progr)"
-   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> procedureCorrect progr S i"
+   and stepsCorrect: "\<And>S i. \<lbrakk>S\<in>initialStates progr i\<rbrakk> \<Longrightarrow> procedureCorrect  S i"
  shows "programCorrect progr"
 proof (rule show_correctness_via_single_session)
   show "invariant_all (initialState progr)"
@@ -163,7 +163,7 @@ proof (rule show_correctness_via_single_session)
       for  S i
       using initalStatesCorrect that by auto
 
-    show "\<And>S i. \<lbrakk>S \<in> initialStates progr i; invariant_all' S; state_wellFormed S\<rbrakk> \<Longrightarrow> procedureCorrect progr S i"
+    show "\<And>S i. \<lbrakk>S \<in> initialStates progr i; invariant_all' S; state_wellFormed S\<rbrakk> \<Longrightarrow> procedureCorrect  S i"
       by (simp add: stepsCorrect)
 
 
