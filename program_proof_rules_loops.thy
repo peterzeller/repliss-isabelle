@@ -209,30 +209,49 @@ definition step_io :: "('proc, 'any, 'operation) proof_state
   case cmd of
     WaitLocalStep cont \<Rightarrow> 
       (action = ALocal Inv
-      \<and> (\<exists>store' .  cont (ps_store S) =  (Inv, store', cmd') \<and> ???))
+      \<and> (\<exists>store' .  cont (ps_store S) =  (Inv, store', cmd') ))
 "
 
-\<comment> \<open>How can I combine this into steps when the types are different?
-Or would the types be the same?
-Just try to implement it for local steps ...\<close>
+
+\<comment> \<open>TODO: better to have a case on the action? 
+Hmm, not really. Then I would not know when I am done.
+
+One problem is: Two io values can be different but have the same semantics (e.g. unrolled loops).
+I should define semantic equality below.
+\<close>
 
 
 
-lemma 
+
+lemma cmd_is_local:
   assumes noReturn: "\<And>r. cmd \<noteq> WaitReturn r"
   shows
 "(cmd \<bind> cmdCont = WaitLocalStep n)
 \<longleftrightarrow> (\<exists>n'. cmd = WaitLocalStep n' 
       \<and> (\<forall>store. 
-          let (ok,  store, cmd) = n store;
-              (ok', store', cmd') = n' store
-          in store = store' \<and> ok = ok' \<and> cmd = (cmd' \<bind> cmdCont))) "
-  apply (induct cmd)
-        apply (auto simp add: noReturn dest!: fun_cong2 split: prod.splits)
+          let (ok,  st, cmd) = n store;
+              (ok', st', cmd') = n' store
+          in st = st' \<and> ok = ok' \<and> cmd = (cmd' \<bind> cmdCont))) "
+using noReturn  apply (induct cmd)
+      apply (auto simp add: noReturn dest!: fun_cong2 intro!: HOL.ext split: prod.splits)
+proof -
+fix x :: "(nat \<Rightarrow> 'c option) \<Rightarrow> bool \<times> (nat \<Rightarrow> 'c option) \<times> ('a, 'b, 'c) impl_language_loops.io" and s :: "nat \<Rightarrow> 'c option" and x1 :: bool and a :: "nat \<Rightarrow> 'c option" and b :: "('a, 'b, 'c) impl_language_loops.io"
+  assume a1: "\<forall>store x1 a b x1a aa ba. x store = (x1a, aa, ba) \<longrightarrow> n store = (x1, a, b) \<longrightarrow> a = aa \<and> x1 = x1a \<and> b = ba \<bind> cmdCont"
+  assume a2: "x s = (x1, a, b)"
+obtain bb :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) impl_language_loops.io \<Rightarrow> bool" and zz :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) impl_language_loops.io \<Rightarrow> nat \<Rightarrow> 'c option" and ii :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) impl_language_loops.io \<Rightarrow> ('d, 'b, 'c) impl_language_loops.io" where
+  f3: "\<forall>p. p = (bb p, zz p, ii p)"
+  by (meson prod_cases3)
+  then have "n s = (bb (n s), zz (n s), ii (n s))"
+    by meson
+  then have f4: "zz (n s) = a \<and> (\<not> bb (n s)) \<noteq> x1 \<and> ii (n s) = b \<bind> cmdCont"
+    using a2 a1 by presburger
+  have "n s = (bb (n s), zz (n s), ii (n s))"
+    using f3 by meson
+  then show "(x1, a, b \<bind> cmdCont) = n s"
+    using f4 by force
+qed
 
 
-  apply 
-  sorry
 
 lemma step_io_simulation:
   assumes "proof_state_rel PS S"
@@ -258,7 +277,10 @@ case (local ls f ls')
   then show ?thesis
     apply (auto simp add: step_io_def)
      apply (erule toImpl.elims)
-           apply (auto simp add: cm_no_return split: prod.splits)
+           apply (auto simp add: cm_no_return cmd_is_local split: prod.splits)
+       apply (smt prod_cases3)
+
+
     sorry
 next
   case (newId ls f ls' uid uidv ls'')
