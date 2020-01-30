@@ -112,15 +112,183 @@ lemma proof_state_rel_wf:
   unfolding proof_state_rel_def
   by auto
 
+text "Define execution of a command."
+
+inductive step_s_cmd where
+step_s_cmd_refl:
+"step_s_cmd S i [] S (WaitReturn res) res"
+| steps_s_cmd_step:
+"\<lbrakk>
+S ~~ (i, a) \<leadsto>\<^sub>S S';
+localState S i \<triangleq> (store, c);
+toImpl (store, cmd) = la;
+step_s_cmd S' i tr S'' cmd2 res
+\<rbrakk> \<Longrightarrow> step_s_cmd S i (a#tr) S'' cmd res " 
+
+
+fun io_nested :: "('a,'operation, 'any) io \<Rightarrow> ('a,'operation, 'any) io set" where
+  "io_nested (WaitLocalStep n)  = (snd ` snd ` range n)"
+| "io_nested (WaitBeginAtomic n)  =  {n}"
+| "io_nested (WaitEndAtomic n)  = {n} "
+| "io_nested (WaitNewId P n)  =  range n"
+| "io_nested (WaitDbOperation op n)  =  range n"
+| "io_nested (WaitReturn s)  =  {}"
+| "io_nested (Loop body n)  = {n}" \<comment> \<open>n, from_V body\<close>
+
+lemma io_nested_wf: "wf {(x,y). x\<in>io_nested y}"
+proof (rule wfI)
+  show "{(x, y). x \<in> io_nested y} \<subseteq> UNIV \<times> UNIV"
+    by simp
+
+  show "P x" 
+    if induct: "\<forall>x. (\<forall>y. (y, x) \<in> {(x, y). x \<in> io_nested y} \<longrightarrow> P y) \<longrightarrow> P x"
+    for  x and P :: "('a,'operation, 'any) io \<Rightarrow> bool"
+  proof (induct x)
+    case (WaitLocalStep x)
+    show ?case
+    proof (rule induct[rule_format])
+      
+      show "P y"
+        if c0: "(y, impl_language_loops.io.WaitLocalStep x) \<in> {(x, y). x \<in> io_nested y}"
+        for  y
+        using that apply auto
+        using WaitLocalStep.hyps by auto
+    qed
+  next
+    case (WaitBeginAtomic x)
+    show ?case
+      by (simp add: WaitBeginAtomic.hyps that)
+  next
+    case (WaitEndAtomic x)
+    then show ?case 
+      by (simp add: WaitEndAtomic.hyps that)
+  next
+    case (WaitNewId x1a x2a)
+    then show ?case
+      using that by auto
+  next
+    case (WaitDbOperation x1a x2a)
+    then show ?case
+      using that by auto
+  next
+    case (WaitReturn x)
+    then show ?case
+      using that by auto
+  next
+    case (Loop x1a x)
+    then show ?case
+      by (simp add: that) 
+  qed
+qed
+
+lemma io_nested_acyclic: "acyclic {(x, y). x \<in> io_nested y}"
+  using io_nested_wf wf_acyclic by blast
+
+lemma acyclic_non_refl: "acyclic r \<Longrightarrow> (x,x) \<notin> r"
+  by (meson acyclic_def trancl.intros(1))
+
+
+lemma io_nested_non_refl: "x \<notin> io_nested x"
+  using acyclic_non_refl[OF io_nested_acyclic]
+  by auto
+
+definition "io_is_nested x y \<equiv> (x,y) \<in> {(x, y). x \<in> io_nested y}\<^sup>+"
+
+
+
+text "Define execution of io commands:"
+
+definition step_io :: "('proc, 'any, 'operation) proof_state 
+  \<Rightarrow> ('a, 'operation, 'any) io
+  \<Rightarrow> ('proc, 'operation, 'any) action
+  \<Rightarrow> ('proc, 'any, 'operation) proof_state
+  \<Rightarrow> ('a, 'operation, 'any) io
+  \<Rightarrow> bool \<comment> \<open>step is correct\<close>
+  \<Rightarrow> bool " where
+"step_io S cmd action S' cmd' Inv \<equiv> 
+  case cmd of
+    WaitLocalStep cont \<Rightarrow> 
+      (action = ALocal Inv
+      \<and> (\<exists>store' .  cont (ps_store S) =  (Inv, store', cmd') \<and> ???))
+"
+
+\<comment> \<open>How can I combine this into steps when the types are different?
+Or would the types be the same?
+Just try to implement it for local steps ...\<close>
+
+
+
+lemma 
+  assumes noReturn: "\<And>r. cmd \<noteq> WaitReturn r"
+  shows
+"(cmd \<bind> cmdCont = WaitLocalStep n)
+\<longleftrightarrow> (\<exists>n'. cmd = WaitLocalStep n' 
+      \<and> (\<forall>store. 
+          let (ok,  store, cmd) = n store;
+              (ok', store', cmd') = n' store
+          in store = store' \<and> ok = ok' \<and> cmd = (cmd' \<bind> cmdCont))) "
+  apply (induct cmd)
+        apply (auto simp add: noReturn dest!: fun_cong2 split: prod.splits)
+
+
+  apply 
+  sorry
+
+lemma step_io_simulation:
+  assumes "proof_state_rel PS S"
+and step: "S ~~ (i, action, Inv) \<leadsto>\<^sub>S S'"
+and i_def: "i = ps_i PS"
+and cmd_prefix: "ps_ls PS = cmd \<bind> cmdCont"
+and cm_no_return: "\<And>r. cmd \<noteq> WaitReturn r"
+shows "\<exists>PS' cmd'. step_io PS cmd action PS' cmd' Inv \<and> proof_state_rel PS' S'"
+proof -
+  have "currentProc S (ps_i PS) \<triangleq> toImpl"
+    by (simp add: assms(1) proof_state_rel_fact(12))
+  hence currentProc[simp]: "currentProc S i \<triangleq> toImpl"
+    using i_def by simp
+
+
+  have ls[simp]: "localState S i \<triangleq> (ps_store PS, cmd \<bind> cmdCont)"
+    by (simp add: assms(1) cmd_prefix i_def proof_state_rel_fact(11))
+
+
+  show ?thesis
+  using step proof cases
+case (local ls f ls')
+  then show ?thesis
+    apply (auto simp add: step_io_def)
+     apply (erule toImpl.elims)
+           apply (auto simp add: cm_no_return split: prod.splits)
+    sorry
+next
+  case (newId ls f ls' uid uidv ls'')
+  then show ?thesis sorry
+next
+  case (beginAtomic ls f ls' t S' vis vis' txns)
+  then show ?thesis sorry
+next
+  case (endAtomic ls f ls' t)
+then show ?thesis sorry
+next
+  case (dbop ls f Op ls' t c res vis)
+  then show ?thesis sorry
+next
+  case (invocation proc initState impl S')
+  then show ?thesis sorry
+next
+  case (return ls f res)
+  then show ?thesis sorry
+qed
 
 
 definition execution_s_check_final where
 "execution_s_check_final trace S' i cont P  \<equiv> 
   traceCorrect_s  trace \<and> 
-  (\<forall>store' ls' res PS. localState S' i \<triangleq> (store', ls') 
-                \<longrightarrow> ls' = WaitReturn res \<bind> cont
-                \<longrightarrow> proof_state_rel PS S'
-                \<longrightarrow> P PS res  )"
+  (\<forall>PS res. 
+          proof_state_rel PS S'
+      \<longrightarrow> ps_i PS = i
+      \<longrightarrow> ps_ls PS = WaitReturn res \<bind> cont
+      \<longrightarrow> P PS res  )"
 
 definition execution_s_check :: "
      ('proc::valueType, 'any::valueType, 'operation::valueType) proof_state 
@@ -727,6 +895,239 @@ method show_proof_rule =
 
 inductive_cases step_s_NewId: "S ~~ (i, ANewId uidv, Inv) \<leadsto>\<^sub>S S'"
 
+
+
+lemma execution_s_check_step:
+assumes step: "\<And>S1 action S2 Inv.
+\<lbrakk>
+currentProc S1 (ps_i S) \<triangleq> toImpl;
+S1 ~~ (ps_i S, action, Inv) \<leadsto>\<^sub>S S2;
+proof_state_rel S S1
+   \<rbrakk> \<Longrightarrow> Inv \<and> 
+    (\<exists>S_new res. 
+        proof_state_rel S_new S2 
+      \<and> ps_i S_new = ps_i S 
+      \<and> ps_ls S_new = cont res \<bind> conti
+      \<and> execution_s_check S_new conti Pred (cont res))"
+and toImpl: "toImpl (ps_store S, cmd) = lAction"
+and noReturn: "\<And>res. lAction \<noteq> Return res"
+  shows "execution_s_check S conti Pred (cmd \<bind> cont)"
+  apply (subst  execution_s_check_def)
+  apply (intro allI impI conjI)
+proof (goal_cases A)
+  case (A trace S1 S')
+
+
+  from `proof_state_rel S S1`
+  have  psc0: "state_wellFormed S1"
+    and psc1: "calls S1 = calls S"
+    and psc2: "happensBefore S1 = updateHb (happensBefore S) (ps_vis S) (ps_localCalls S)"
+    and psc3: "callOrigin S1 = map_update_all (callOrigin S) (ps_localCalls S) (the (ps_tx S))"
+    and psc4: "transactionOrigin S1 = transactionOrigin S"
+    and psc5: "knownIds S1 = knownIds S"
+    and psc6: "invocationOp S1 = invocationOp S"
+    and psc7: "invocationRes S1 = invocationRes S"
+    and psc8: "prog S1 = ps_progr S"
+    and psc9: "ps_generatedLocal S = {x. generatedIds S1 x \<triangleq> ps_i S}"
+    and psc10: "localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls S)"
+    and psc11: "currentProc S1 (ps_i S) \<triangleq> impl_language_loops.toImpl"
+    and psc12: "visibleCalls S1 (ps_i S) \<triangleq> (ps_vis S \<union> set (ps_localCalls S))"
+    and psc13: "currentTransaction S1 (ps_i S) = ps_tx S"
+    and psc14: "\<forall>tx'. ps_tx S \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted"
+    and psc15: "case ps_tx S of None \<Rightarrow> ps_localCalls S = [] | Some tx' \<Rightarrow> set (ps_localCalls S) = {c. callOrigin S1 c \<triangleq> tx'}"
+    and psc16: "sorted_by (updateHb (happensBefore S) (ps_vis S) (ps_localCalls S)) (ps_localCalls S)"
+    and psc17: "ps_vis S \<inter> set (ps_localCalls S) = {}"
+    and psc18: "dom (callOrigin S) \<inter> set (ps_localCalls S) = {}"
+    and psc19: "Field (happensBefore S) \<inter> set (ps_localCalls S) = {}"
+    and psc20: "distinct (ps_localCalls S)"
+    and psc21: "ps_firstTx S = (\<forall>c tx. transactionOrigin S tx \<triangleq> ps_i S \<longrightarrow> map_update_all (callOrigin S) (ps_localCalls S) (the (ps_tx S)) c \<triangleq> tx \<longrightarrow> transactionStatus S1 tx \<noteq> Some Committed)"
+    and psc22: "\<forall>c. i_callOriginI S c \<triangleq> ps_i S \<longrightarrow> c \<in> ps_vis S"
+    and psc23: "ps_generatedLocalPrivate S \<subseteq> {x. generatedIds S1 x \<triangleq> ps_i S}"
+    and psc24: "\<forall>v\<in>ps_generatedLocalPrivate S. uid_is_private (ps_i S) (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S1) (localState S1) (currentProc S1) v"
+    and psc25: "finite (dom (ps_store S))"
+    by (auto simp add: proof_state_rel_def)
+
+  show "execution_s_check_final trace S' (ps_i S) conti Pred"
+  proof (cases trace)
+    case Nil
+
+    from ` S1 ~~ (ps_i S, trace) \<leadsto>\<^sub>S* S'`
+    have "S' = S1"
+      by (simp add: local.Nil steps_s_empty)
+
+
+    show ?thesis
+      unfolding execution_s_check_final_def  `S' = S1`
+    proof (intro conjI allI impI)
+      show "traceCorrect_s trace"
+        using Nil by (simp add: traceCorrect_s_empty) 
+
+      
+
+      show "Pred PS res"
+        if c0: "proof_state_rel PS S1"
+          and c1: "ps_i PS = ps_i S"
+          and c2: "ps_ls PS = impl_language_loops.io.WaitReturn res \<bind> conti"
+        for  PS res
+      proof -
+        have "localState S1 (ps_i S) \<triangleq> (ps_store PS, ps_ls PS)"
+          using c0 c1 proof_state_rel_fact(11) by fastforce
+
+        from `ps_ls S = (cmd \<bind> cont) \<bind> conti`
+        have "ps_ls PS = (cmd \<bind> cont) \<bind> conti"
+          using \<open>localState S1 (ps_i S) \<triangleq> (ps_store PS, ps_ls PS)\<close> psc10 by auto
+
+        with c2
+        have "(cmd \<bind> cont) \<bind> conti = WaitReturn res \<bind> conti"
+          by simp
+        hence "(cmd \<bind> cont) \<bind> conti = conti res"
+          by simp
+        hence "(cmd \<bind> cont) = WaitReturn res"
+          apply (cases "cmd \<bind> cont", auto)
+          apply auto
+
+        hence cmd_eq: "cmd \<bind> (\<lambda>r. cont r \<bind> conti) = conti res"
+          by simp
+
+
+        have "\<exists>r. toImpl (ps_store S, cmd) = Return r"
+        proof (cases cmd)
+          case (WaitReturn r)
+          then show ?thesis
+            by auto
+        next
+          case (WaitLocalStep x1)
+          then show ?thesis 
+            using cmd_eq apply auto
+            sorry
+        next
+          case (WaitBeginAtomic x2)
+          then show ?thesis sorry
+        next
+          case (WaitEndAtomic x3)
+          then show ?thesis sorry
+        next
+          case (WaitNewId x41 x42)
+          then show ?thesis sorry
+        next
+          case (WaitDbOperation x51 x52)
+          then show ?thesis sorry
+        next
+
+          case (Loop x71 x72)
+          then show ?thesis sorry
+        qed
+        hence False
+          by (simp add: noReturn toImpl)
+
+
+          apply (cases cmd, auto)
+          apply auto
+
+
+
+        find_theorems cmd
+
+        have "ps_ls PS = snd (localState S1 (ps_i S))"
+        using `localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls S)`
+
+
+        thm toImpl noReturn
+
+
+    unfolding execution_s_check_final_def 
+  proof (intro conjI allI impI)
+    from `S1 ~~ (ps_i S, trace) \<leadsto>\<^sub>S* S'`
+    show "traceCorrect_s trace"
+    proof (rule case_trace_not_empty3)
+
+      
+
+
+      show "Inv \<and> traceCorrect_s trace'"
+        if c0: "trace = (action, Inv) # trace'"
+          and c1: "S1 ~~ (ps_i S, action, Inv) \<leadsto>\<^sub>S S'a"
+          and c2: "S'a ~~ (ps_i S, trace') \<leadsto>\<^sub>S* S'"
+        for  action S'a Inv trace'
+      proof
+
+        obtain lAction where "lAction = toImpl (ps_store S, ps_ls S)"
+          by simp
+
+
+        have s: "Inv \<and> (\<exists>S_new res. 
+              proof_state_rel S_new S'a 
+            \<and> ps_i S_new = ps_i S 
+            \<and> ps_ls S_new = cont res \<bind> conti
+            \<and> execution_s_check S_new conti Pred (cont res))"
+        proof (rule step)
+          show "currentProc S1 (ps_i S) \<triangleq> impl_language_loops.toImpl"
+            by (simp add: psc11)
+          show "S1 ~~ (ps_i S, action, Inv) \<leadsto>\<^sub>S S'a"
+            using `S1 ~~ (ps_i S, action, Inv) \<leadsto>\<^sub>S S'a` .
+          show "proof_state_rel S S1" 
+            using `proof_state_rel S S1` .
+        qed
+
+        from this obtain S_new res 
+          where "Inv" 
+            and S_new_rel: "proof_state_rel S_new S'a"
+            and S_new_exec: "execution_s_check S_new conti Pred (cont res)"
+            and ps_i_eq: "ps_i S_new = ps_i S"
+            and "ps_ls S_new = cont res \<bind> conti"
+          by blast
+
+        from s show "Inv" by simp
+
+        thm use_execution_s_check
+
+
+        
+        have "execution_s_check_final trace' S' (ps_i S_new) conti Pred"
+        proof (rule use_execution_s_check[where S=S_new])
+          from `S'a ~~ (ps_i S, trace') \<leadsto>\<^sub>S* S'`
+          show "S'a ~~ (ps_i S_new, trace') \<leadsto>\<^sub>S* S'"
+            using ps_i_eq by simp
+
+          
+          show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
+            using A(2) c0 by auto
+          show "proof_state_rel S_new S'a"
+            by (simp add: S_new_rel)
+          show "ps_ls S_new = cont res \<bind> conti"
+            using \<open>ps_ls S_new = cont res \<bind> conti\<close> by blast
+          show "\<And>store' ls'. localState S' (ps_i S_new) \<triangleq> (store', ls') \<Longrightarrow> \<exists>x. ls' = x \<bind> conti"
+            using `\<forall>store' ls'. localState S' (ps_i S) \<triangleq> (store', ls') \<longrightarrow> (\<exists>x. ls' = x \<bind> conti)`
+            by (simp add: A(5) ps_i_eq)
+          show "execution_s_check S_new conti Pred (cont res)"
+            by (simp add: S_new_exec)
+        qed
+
+
+        then show "traceCorrect_s trace'"
+          using execution_s_check_final_def by blast
+      qed
+    qed
+
+    show "Pred PS res"
+      if c0: "proof_state_rel PS S'"
+        and c1: "ps_i PS = ps_i S"
+        and c2: "ps_ls PS = impl_language_loops.io.WaitReturn res \<bind> conti"
+      for  PS res
+    proof -
+
+
+      thm toImpl noReturn
+      have "localState S' (ps_i PS) \<triangleq> (ps_store PS, ps_ls PS)"
+        by (simp add: c0 proof_state_rel_fact(11))
+
+
+
+
+  thm case_trace_not_empty3
+
+  then show ?case sorry
+qed
 
 
 lemma execution_s_check_newId:
