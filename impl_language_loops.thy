@@ -177,7 +177,7 @@ qed
 
 
 fun toImpl :: "(('val store \<times> (('val,'operation::small, 'val::small) io)), 'operation, 'val) procedureImpl" where
-  "toImpl (store, WaitLocalStep n) = (let (ok, store', n') = n store in LocalStep ok (store', n'))"
+  "toImpl (store, WaitLocalStep n) = (let (ok, store', n') = n store in LocalStep (ok \<and> (finite (dom store) \<longrightarrow> finite (dom (store')))) (store', n'))"
 | "toImpl (store, WaitBeginAtomic n) = BeginAtomic (store, n)"
 | "toImpl (store, WaitEndAtomic n) = EndAtomic (store, n)"
 | "toImpl (store, WaitNewId P n) = NewId (\<lambda>i. if P i then Some (store, n i) else None)"

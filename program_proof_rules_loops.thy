@@ -32,7 +32,6 @@ Still, it might be worth a try as it would make the rules more readable.
 
 
 record ('proc, 'any, 'operation) proof_state = "('proc, 'operation, 'any) invariantContext" +
-  ps_progr :: "('proc, 'any store \<times> ('any, 'operation, 'any) io, 'operation, 'any) prog"
   ps_i :: invocId
   ps_generatedLocal  :: "uniqueId set"
   ps_generatedLocalPrivate  :: "uniqueId set"
@@ -41,7 +40,8 @@ record ('proc, 'any, 'operation) proof_state = "('proc, 'operation, 'any) invari
   ps_tx :: "txid option"
   ps_firstTx :: bool
   ps_store :: "'any store"
-  ps_ls :: "('any, 'operation, 'any) io"
+
+
 
 definition proof_state_rel :: "
      ('proc::valueType, 'any::valueType, 'operation::valueType) proof_state 
@@ -56,9 +56,8 @@ definition proof_state_rel :: "
        \<and> knownIds S1 = (knownIds S)
        \<and> invocationOp S1 = (invocationOp S)
        \<and> invocationRes S1 = (invocationRes S)
-       \<and> prog S1 = (ps_progr S)
        \<and> ps_generatedLocal S = {x. generatedIds S1 x \<triangleq> ps_i S}
-       \<and> localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls S)
+       \<and> (\<exists>ps_ls. localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls))
        \<and> currentProc S1 (ps_i S) \<triangleq> toImpl 
        \<and> visibleCalls S1 (ps_i S) \<triangleq>  (ps_vis S \<union> set (ps_localCalls S))
        \<and> currentTransaction S1 (ps_i S) = ps_tx S
@@ -103,8 +102,7 @@ lemmas proof_state_rel_fact =
   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2]
+  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2]
 
 
 lemma proof_state_rel_wf: 
@@ -194,23 +192,62 @@ lemma io_nested_non_refl: "x \<notin> io_nested x"
 
 definition "io_is_nested x y \<equiv> (x,y) \<in> {(x, y). x \<in> io_nested y}\<^sup>+"
 
+definition "proof_state_wellFormed PS \<equiv> \<exists>S. proof_state_rel PS S \<and> state_wellFormed S"
+
+
+lemma show_proof_state_wellFormed:
+  assumes "state_wellFormed S" and "proof_state_rel PS S" 
+  shows "proof_state_wellFormed PS"
+  using assms(1) assms(2) proof_state_wellFormed_def by auto
 
 
 text "Define execution of io commands:"
 
-definition step_io :: "('proc, 'any, 'operation) proof_state 
+
+definition step_io :: "
+     (('proc::valueType, 'operation::valueType, 'any::valueType) invariantContext \<Rightarrow> bool)
+  \<Rightarrow> ('proc, 'any, 'operation) proof_state 
   \<Rightarrow> ('a, 'operation, 'any) io
   \<Rightarrow> ('proc, 'operation, 'any) action
   \<Rightarrow> ('proc, 'any, 'operation) proof_state
   \<Rightarrow> ('a, 'operation, 'any) io
   \<Rightarrow> bool \<comment> \<open>step is correct\<close>
   \<Rightarrow> bool " where
-"step_io S cmd action S' cmd' Inv \<equiv> 
+"step_io progInv S cmd action S' cmd' Inv \<equiv> 
   case cmd of
     WaitLocalStep cont \<Rightarrow> 
       (action = ALocal Inv
-      \<and> (\<exists>store' .  cont (ps_store S) =  (Inv, store', cmd') ))
+      \<and> (\<exists>store' ok.  
+           cont (ps_store S) =  (ok, store', cmd') 
+         \<and> (Inv \<longleftrightarrow> ok \<and> finite (dom store'))
+         \<and> (S' = S\<lparr>      
+            ps_store := store'
+           \<rparr>)))
+  | WaitBeginAtomic n \<Rightarrow>
+      \<exists>t txns vis'
+        calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes'.
+          action = ABeginAtomic t txns
+        \<and> Inv
+        \<and> proof_state_wellFormed S'
+        \<and> progInv (invariantContext.truncate (S'\<lparr>transactionOrigin := transactionOrigin'(t := None) \<rparr>))
+        \<and> transactionOrigin' t \<triangleq> (ps_i S) 
+        \<and> (S' = S\<lparr>
+             calls := calls',
+             happensBefore := happensBefore',
+             callOrigin := callOrigin',
+             transactionOrigin := transactionOrigin',
+             knownIds := knownIds',
+             invocationOp := invocationOp',
+             invocationRes := invocationRes',
+             ps_tx := Some t,
+             ps_vis := vis'
+          \<rparr>)
+        \<comment> \<open>TODO: need some information about Growing \<close>
 "
+
+
+\<comment> \<open>TODO: steps_io: inductive definition for combining multiple steps and getting 
+  a result value (from WaitReturn)\<close>
 
 
 \<comment> \<open>TODO: better to have a case on the action? 
@@ -251,24 +288,242 @@ obtain bb :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) 
     using f4 by force
 qed
 
+abbreviation
+"currentCommand S i \<equiv> snd (the (localState S i))"
 
+
+
+lemma prop_subst': "t = s \<Longrightarrow> PROP P t \<Longrightarrow> PROP P s"
+  by auto
+
+\<comment> \<open>Strange rotations and shifting to remove the first equality that you
+usually get when using a cases rule.\<close>
+method remove_first_equality = (
+   (rotate_tac 1),
+   ((erule rev_mp)+)?,
+   (rule impI),
+   (erule prop_subst'),
+   ((rule impI)+)?,
+   ((erule rev_mp)+)?,
+   (unfold triv_forall_equality)?,
+   ((rule impI)+)?
+)
+
+lemma "\<And>y a b q. \<lbrakk>x = y; A x y a; B x y b; C x y \<rbrakk> \<Longrightarrow> D x y a"
+  apply remove_first_equality
+  oops
+
+
+method cmd_step_cases uses step insert simps  = 
+  (rule step_s.cases[OF step]; 
+    remove_first_equality;
+    insert insert;
+    (((auto simp add: simps split: prod.splits)[1]; fail)?); 
+    ((erule Pair_inject)+)?,
+    goal_cases A)
+(*
+  erule prop_subst;
+  goal_cases A)
+*)
 
 lemma step_io_simulation:
-  assumes "proof_state_rel PS S"
+  assumes rel: "proof_state_rel PS S"
 and step: "S ~~ (i, action, Inv) \<leadsto>\<^sub>S S'"
 and i_def: "i = ps_i PS"
-and cmd_prefix: "ps_ls PS = cmd \<bind> cmdCont"
+and cmd_prefix: "currentCommand S i = cmd \<bind> cmdCont"
 and cm_no_return: "\<And>r. cmd \<noteq> WaitReturn r"
-shows "\<exists>PS' cmd'. step_io PS cmd action PS' cmd' Inv \<and> proof_state_rel PS' S'"
-proof -
-  have "currentProc S (ps_i PS) \<triangleq> toImpl"
-    by (simp add: assms(1) proof_state_rel_fact(12))
+shows "\<exists>PS' cmd'. step_io (invariant (prog S)) PS cmd action PS' cmd' Inv \<and> (Inv \<longrightarrow> proof_state_rel PS' S' \<and> currentCommand S' i = cmd' \<bind> cmdCont)" (is ?g)
+proof (rule ccontr)
+  assume "\<not>?g"
+
+  hence goal: False if ?g
+    using that by blast
+
+  
+
+  have toImpl: "currentProc S (ps_i PS) \<triangleq> toImpl"
+    by (simp add: assms(1) proof_state_rel_fact(11))
   hence currentProc[simp]: "currentProc S i \<triangleq> toImpl"
     using i_def by simp
 
 
   have ls[simp]: "localState S i \<triangleq> (ps_store PS, cmd \<bind> cmdCont)"
-    by (simp add: assms(1) cmd_prefix i_def proof_state_rel_fact(11))
+    using cmd_prefix i_def proof_state_rel_fact(10) rel by force
+
+  have "state_wellFormed S"
+    using proof_state_rel_fact(1) rel by auto
+  hence "state_wellFormed S'"
+    using local.step state_wellFormed_combine_s1 by blast
+
+
+  have [simp]: "invocationOp S i \<noteq> None"
+    by (simp add: \<open>state_wellFormed S\<close> wf_localState_to_invocationOp)
+
+  have [simp]: "finite (dom (ps_store PS))"
+    using proof_state_rel_fact(25) rel by blast
+
+
+
+  show False
+  proof (cases cmd)
+    case (WaitLocalStep n)
+
+    show False
+    proof (cmd_step_cases step: step insert: cmd_prefix simps: WaitLocalStep)
+      case (A i' ls f ok ls')
+
+      have [simp] "i' = i" using A by simp
+
+      have f_impl[simp]: "f = toImpl"
+        using A currentProc by auto
+
+      from `f ls = LocalStep ok ls'` `localState S i \<triangleq> ls`
+      have "???"
+        apply (auto simp add: )
+
+
+      have  c1[simp]: "cmd = impl_language_loops.io.WaitLocalStep n"
+        by (simp add: WaitLocalStep)
+      obtain store' cmd' where c2: "n (ps_store PS) = (ok, store', cmd')"
+        sledgehammer sorry
+      have c3: "action = ALocal Inv"
+        
+        by (simp add: A(6) A(7)) 
+      have Inv: "Inv \<longleftrightarrow> (ok \<and> finite (dom (store')))"
+        sledgehammer sorry
+      have S'_def: "S' = S\<lparr>localState := localState S(i \<mapsto> (store', cmd' \<bind> cmdCont))\<rparr>"
+        sledgehammer sorry
+
+    proof (cmd_step_cases step: step cmd_prefix: cmd_prefix simps: WaitLocalStep, erule prop_ssubst)
+
+    from WaitLocalStep obtain ok cmd' store'
+      where  c1[simp]: "cmd = impl_language_loops.io.WaitLocalStep n"
+        and c2: "n (ps_store PS) = (ok, store', cmd')"
+        and c3: "action = ALocal Inv"
+        and Inv: "Inv \<longleftrightarrow> (ok \<and> finite (dom (store')))"
+        and S'_def: "S' = S\<lparr>localState := localState S(i \<mapsto> (store', cmd' \<bind> cmdCont))\<rparr>"
+      using cmd_prefix step 
+      by (auto simp add: step_s.simps split: prod.splits)
+
+    define PS' where "PS' \<equiv> PS\<lparr>
+      ps_store := store'
+    \<rparr>"
+
+    show False
+    proof (rule goal, intro exI conjI impI)
+      show "step_io (invariant (prog S)) PS cmd action PS' cmd' Inv"
+        by (auto simp add: step_io_def c2 c3 Inv PS'_def) 
+
+
+      show "proof_state_rel PS' S'" if Inv
+        unfolding proof_state_rel_def 
+      proof (intro conjI)
+
+        from `Inv` and Inv
+        have " ok" and  [simp]: "finite (dom store')"
+          by auto
+
+        show "state_wellFormed S'" using \<open>state_wellFormed S'\<close> .
+
+        show "\<forall>v\<in>ps_generatedLocalPrivate PS'.
+       uid_is_private (ps_i PS') (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
+        (localState S') (currentProc S') v"
+          apply (auto simp add: i_def S'_def PS'_def proof_state_rel_fact[OF rel]  split: option.splits)
+          by (smt fun_upd_apply new_unique_not_in_other_invocations_def proof_state_rel_def rel uid_is_private_def)
+
+        show "finite (dom (ps_store PS'))"
+          by (auto simp add: PS'_def)
+
+      qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def S'_def PS'_def  split: option.splits)[1]); fail)+
+
+
+      show "currentCommand S' i = cmd' \<bind> cmdCont"
+        if c0: "Inv"
+        by (auto simp add: S'_def)
+
+    qed
+next
+  case (WaitBeginAtomic n)
+  show False
+    thm step.cases
+    apply (rule step_s.cases[OF step]; ((insert cmd_prefix, (auto simp add: WaitBeginAtomic split: prod.splits)[1]; fail))?)
+    using cmd_prefix step 
+  proof (auto simp add: step_s.simps split: prod.splits, goal_cases A)
+    case (A t txns Sn vis vis')
+
+(*
+S' = Sn
+    \<lparr>transactionStatus := transactionStatus Sn(t \<mapsto> Uncommitted),
+       transactionOrigin := transactionOrigin Sn(t \<mapsto> i), 
+       currentTransaction := currentTransaction Sn(i \<mapsto> t),
+       localState := localState Sn(i \<mapsto> (ps_store PS, n \<bind> cmdCont)), 
+       visibleCalls := visibleCalls Sn(i \<mapsto> vis')\<rparr>
+*)
+
+    define PS' where "PS' \<equiv> PS\<lparr>
+             calls := calls Sn,
+             happensBefore := happensBefore Sn,
+             callOrigin := callOrigin Sn,
+             transactionOrigin := transactionOrigin Sn(t \<mapsto> i),
+             knownIds := knownIds Sn,
+             invocationOp := invocationOp Sn,
+             invocationRes := invocationRes Sn,
+             ps_tx := Some t,
+             ps_vis := vis'
+          \<rparr>"
+
+
+
+  show ?thesis
+  proof (rule goal, intro exI conjI impI)
+    show "step_io (invariant (prog S)) PS cmd action PS' n Inv"
+    proof (auto simp add: step_io_def `cmd = impl_language_loops.io.WaitBeginAtomic n`, intro exI conjI)
+
+      show "proof_state_wellFormed PS'"
+      proof (rule show_proof_state_wellFormed)
+        show "state_wellFormed
+           (Sn\<lparr>transactionStatus := transactionStatus Sn(t \<mapsto> Uncommitted),
+                 transactionOrigin := transactionOrigin Sn(t \<mapsto> i), currentTransaction := currentTransaction Sn(i \<mapsto> t),
+                 localState := localState Sn(i \<mapsto> (ps_store PS, n \<bind> cmdCont)),
+                 visibleCalls := visibleCalls Sn(i \<mapsto> vis')\<rparr>)"
+          using A by simp
+
+        show "proof_state_rel PS'
+               (Sn\<lparr>transactionStatus := transactionStatus Sn(t \<mapsto> Uncommitted),
+                     transactionOrigin := transactionOrigin Sn(t \<mapsto> i), currentTransaction := currentTransaction Sn(i \<mapsto> t),
+                     localState := localState Sn(i \<mapsto> (ps_store PS, n \<bind> cmdCont)),
+                     visibleCalls := visibleCalls Sn(i \<mapsto> vis')\<rparr>)"
+
+
+      apply_end ((insert A, (auto)[1]); fail)+
+
+      show "Inv"
+        using A by simp
+
+      show "action = ABeginAtomic t txns"
+        using A by simp
+
+
+      sorry
+
+
+  qed
+next
+  case (WaitEndAtomic x3)
+  then show ?thesis sorry
+next
+  case (WaitNewId x41 x42)
+then show ?thesis sorry
+next
+  case (WaitDbOperation x51 x52)
+  then show ?thesis sorry
+next
+  case (WaitReturn x6)
+  then show ?thesis sorry
+next
+  case (Loop x71 x72)
+  then show ?thesis sorry
+qed
 
 
   show ?thesis
