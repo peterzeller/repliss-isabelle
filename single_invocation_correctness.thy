@@ -460,6 +460,9 @@ proof (auto simp add: invContextH_def invContextH2_def
     by (metis noUncommitted option.exhaust_sel transactionStatus.exhaust wf5)
 qed
 
+lemmas invContextH_same_allCommitted' = invContextH_same_allCommitted[simplified invContextH2_def]
+
+
 
 lemma invContext_same_allCommitted:
   assumes  wf: "state_wellFormed S"
@@ -480,6 +483,8 @@ proof (rule invContextH_same_allCommitted)
    show "\<And>t. transactionStatus S t \<noteq> Some Uncommitted"
      using noUncommitted by blast
  qed
+
+lemmas invContext_same_allCommitted' = invContext_same_allCommitted[simplified invContextH2_def]
 
 
 lemma wf_localState_currentProc:
