@@ -402,6 +402,26 @@ lemma in_sequence_cons:
    apply (metis Suc_mono in_set_conv_nth nth_Cons_0 nth_Cons_Suc zero_less_Suc)
   by (meson Suc_mono nth_Cons_Suc)
 
+lemma in_sequence_append:
+  "in_sequence (xs @ ys) a b \<longleftrightarrow> (a\<in>set xs \<and> b\<in>set ys \<or> in_sequence xs a b \<or> in_sequence ys a b)"
+proof (induct xs)
+  case Nil
+  then show ?case
+    by auto 
+next
+  case (Cons x xs)
+  have "in_sequence ((x#xs) @ ys) a b 
+      \<longleftrightarrow> x = a \<and> b \<in> set (xs@ys) \<or> in_sequence (xs@ys) a b"
+    by (auto simp add: in_sequence_cons)
+
+  also have "... \<longleftrightarrow> x = a \<and> b \<in> set (xs@ys) \<or> (a\<in>set xs \<and> b\<in>set ys \<or> in_sequence xs a b \<or> in_sequence ys a b)"
+    using Cons by auto
+
+  also have "... \<longleftrightarrow> (a\<in>set (x#xs) \<and> b\<in>set ys \<or> in_sequence (x#xs) a b \<or> in_sequence ys a b)"
+    by (auto simp add: in_sequence_cons)
+
+  finally show ?case by simp
+qed
 
 
 lemma in_sequence_in1: "in_sequence xs x y \<Longrightarrow> x\<in>set xs"
