@@ -295,8 +295,10 @@ definition step_io :: "
             calls := (calls S)(c \<mapsto> Call oper res),
             ps_localCalls := ps_localCalls S @ [c]
           \<rparr>)
- 
         )
+  | Loop body n \<Rightarrow> 
+      cmd' = from_V body \<bind> (\<lambda>r. if r then n else Loop body n)
+      \<and> (S' = S)
 "
 
 \<comment> \<open>TODO: I could extract definitions for the individual cases above to make this shorter.\<close>
@@ -1254,7 +1256,85 @@ proof (rule ccontr)
       by auto
   next
     case (Loop body n)
-    then show ?thesis sorry
+    show False
+    proof (cmd_step_cases step: step insert: cmd_prefix simps: Loop)
+      case (A i' ls f ok ls')
+
+      have S'_def: "S' = S\<lparr>localState := localState S(i' \<mapsto> ls')\<rparr>" using A by simp
+
+      show False
+      proof (rule goal, intro exI conjI impI)
+
+        have [simp]: "ps_i PS = i'"
+          using A(6) i_def by auto
+
+        
+
+
+        have toImpl_ls: "toImpl ls = LocalStep ok ls'"
+          using `f ls = LocalStep ok ls'` `currentProc S i' \<triangleq> f` toImpl `localState S i' \<triangleq> ls`
+            `currentCommand S i = cmd \<bind> cmdCont` Loop
+          by (auto simp add: S'_def)
+
+        have toImpl1: "toImpl (ps_store PS, cmd \<bind> cmdCont) = LocalStep ok ls'"
+          using A(2) \<open>the (localState S (ps_i PS)) = (ps_store PS, cmd \<bind> cmdCont)\<close> toImpl_ls by auto
+
+
+        have ls_S': "localState S' (ps_i PS) \<triangleq> (ps_store PS, from_V body \<bind> (\<lambda>r. if r then n \<bind> cmdCont else Loop body (n \<bind> cmdCont)))"
+
+          using \<open>the (localState S (ps_i PS)) = (ps_store PS, cmd \<bind> cmdCont)\<close> `f ls = LocalStep ok ls'` `currentProc S i' \<triangleq> f` toImpl `localState S i' \<triangleq> ls`
+            `currentCommand S i = cmd \<bind> cmdCont` Loop
+          by (auto simp add: S'_def )
+         
+
+
+        hence ls_S': "localState S' (ps_i PS) \<triangleq> (ps_store PS, (from_V body \<bind> (\<lambda>r. if r then n else Loop body n)) \<bind> cmdCont)"
+          apply auto
+          by (metis (full_types, hide_lams) impl_language_loops.bind.simps(7))
+
+
+        show "proof_state_rel PS S'"
+          unfolding proof_state_rel_def 
+        proof (intro conjI)
+
+          show "state_wellFormed S'"
+            by (simp add: \<open>state_wellFormed S'\<close>)
+
+          show " \<exists>ps_ls. localState S' (ps_i PS) \<triangleq> (ps_store PS, ps_ls)"
+            using ls_S' by auto
+
+          show "\<forall>v\<in>ps_generatedLocalPrivate PS.
+       uid_is_private (ps_i PS) (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
+        (localState S') (currentProc S') v"
+             proof (intro ballI conjI)
+            fix v
+            assume "v \<in> ps_generatedLocalPrivate PS"
+            hence "uid_is_private (ps_i PS) (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S)
+              (localState S) (currentProc S) v"
+              using proof_state_rel_fact(24) rel by blast
+            thus "uid_is_private (ps_i PS) (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
+          (localState S') (currentProc S') v"
+              by (auto simp add: S'_def uid_is_private_def new_unique_not_in_other_invocations_def)
+          qed
+
+          show "procedure_cannot_guess_ids (ps_localKnown PS) (the (localState S' (ps_i PS))) impl_language_loops.toImpl"
+            using uniqueIdCases[simplified toImpl, simplified]
+            by (auto simp add:  S'_def i_def toImpl1 )
+
+
+        qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def S'_def   split: option.splits)[1]); fail)+
+
+
+        show "currentCommand S' i = (from_V body \<bind> (\<lambda>r. if r then n else Loop body n)) \<bind> cmdCont"
+          using i_def ls_S' by auto
+
+        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS
+         (from_V body \<bind> (\<lambda>r. if r then n else Loop body n)) Inv"
+          by (auto simp add: step_io_def Loop)
+
+
+      qed
+    qed
   qed
 qed
 
