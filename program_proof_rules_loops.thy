@@ -328,7 +328,9 @@ steps_io_final:
 \<rbrakk>
  \<Longrightarrow>  steps_io progInv qrySpec S cmd ((action, ok)#tr) S'' res"
 
-
+\<comment> \<open>TODO might want to change this: remove the trace 
+and steps-io-partial. Instead return None when not ok and 
+only allow to make a step when ok. \<close>
 
 \<comment> \<open>TODO: better to have a case on the action? 
 Hmm, not really. Then I would not know when I am done.
@@ -1614,81 +1616,21 @@ next
     next
       case False
 
-      hence "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd [(action, False)] PS' None"
-        using \<open>step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) action PS' cmd' ok\<close> cmd_def steps_io_partial steps_io_step by fastforce
+      from \<open>step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) action PS' cmd' ok\<close>
+      have "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd [(action, False)] PS' None"
+      proof (fuzzy_rule steps_io_step)
+        show "ok = False" using False by simp
 
+        show "steps_io (invariant (prog S)) (querySpec (prog S)) PS' cmd' [] PS' None"
+          by (rule steps_io_partial)
+        show "currentCommand S i = cmd"
+          using ` cmd = currentCommand S i` by simp
+      qed
       thus ?thesis
         by (meson list.set_intros(1) traceCorrect_s_def)
     qed
   qed
 qed
-
-
-definition execution_s_check_final where
-"execution_s_check_final trace S' i cont P  \<equiv> 
-  traceCorrect_s  trace \<and> 
-  (\<forall>PS res. 
-          proof_state_rel PS S'
-      \<longrightarrow> ps_i PS = i
-      \<longrightarrow> ps_ls PS = WaitReturn res \<bind> cont
-      \<longrightarrow> P PS res  )"
-
-definition execution_s_check :: "
-     ('proc::valueType, 'any::valueType, 'operation::valueType) proof_state 
-  \<Rightarrow> ('a \<Rightarrow> ('any, 'operation, 'any) io)
-  \<Rightarrow> (('proc::valueType, 'any::valueType, 'operation::valueType) proof_state \<Rightarrow> 'a \<Rightarrow> bool)
-  \<Rightarrow> ('a, 'operation, 'any) io  
-  \<Rightarrow> bool" where
-\<comment> \<open> TODO extract below relation into proof_state_rel \<close>
-  "execution_s_check S cont P ls
- \<equiv>  \<forall>trace S1 S'. 
-           (S1 ~~ (ps_i S, trace) \<leadsto>\<^sub>S* S')
-       \<longrightarrow> (\<forall>p t. (AInvoc p, t) \<notin> set trace)
-       \<longrightarrow> proof_state_rel S S1
-       \<longrightarrow> (ps_ls S = (ls \<bind> cont))
-       \<longrightarrow> (\<forall>store' ls'. localState S' (ps_i S) \<triangleq> (store', ls') \<longrightarrow> (\<exists>x. ls' = x \<bind> cont)) 
-       \<longrightarrow> execution_s_check_final trace S' (ps_i S) cont P"
-
-
-
-
-lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, rotated]
-
-lemma beforeInvoc_execution_s_check: 
-  assumes "invocationOp S (ps_i S) = None"
-  shows "execution_s_check S cont P ls"
-  using assms 
-proof (auto simp add: execution_s_check_def steps_s_cons_simp  )
-  fix trace S1 S'
-  assume a0: "invocationOp S (ps_i S) = None"
-    and a1: "S1 ~~ (ps_i S, trace) \<leadsto>\<^sub>S* S'"
-    and a2: "\<forall>p t. (AInvoc p, t) \<notin> set trace"
-    and a3: "proof_state_rel S S1"
-    and a4: "ps_ls S = ls \<bind> cont"
-
-
-  have "state_wellFormed S1"
-    using a3 proof_state_rel_wf by blast
-
-  have "invocationOp S1 (ps_i S) = None"
-    using a3 assms proof_state_rel_fact(7) by fastforce
-
-  have
-    "localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls S)"
-    by (simp add: a3 proof_state_rel_fact(11))
-
-
-  have False
-    using \<open>invocationOp S1 (ps_i S) = None\<close> \<open>localState S1 (ps_i S) \<triangleq> (ps_store S, ps_ls S)\<close> \<open>state_wellFormed S1\<close> wf_localState_to_invocationOp by fastforce
-
-  thus "execution_s_check_final trace S' (ps_i S) cont P"
-    by auto
-qed
-    
-
-
-
-
 
 
 
@@ -1889,6 +1831,11 @@ proof (auto simp add:  execution_s_correct_def)
 qed
 
 
+definition 
+"execution_s_check progInv qrySpec S cmd P \<equiv>
+  \<forall>tr S' res. steps_io progInv qrySpec S cmd tr S' res
+    \<longrightarrow> traceCorrect_s tr \<and> (case res of Some r \<Rightarrow> P S' r | None \<Rightarrow> False)
+  "
 
 
 text "It is sufficient to check with @{term execution_s_check} to ensure that the procedure is correct:"
@@ -1918,16 +1865,15 @@ lemma execution_s_check_sound:
       knownIds = (knownIds S),
       invocationOp = (invocationOp S),
       invocationRes = (invocationRes S),
-      ps_progr = progr,
       ps_i = i,
       ps_generatedLocal = generatedLocal,
       ps_generatedLocalPrivate = generatedLocalPrivate,
+      ps_localKnown = localKnown,
       ps_vis = vis,
       ps_localCalls = [],
       ps_tx = (currentTransaction S i),
       ps_firstTx = firstTx,
-      ps_store = Map.empty,
-      ps_ls = ls\<rparr>
+      ps_store = Map.empty\<rparr>
       return P ls"
     \<comment> \<open>The execution check ensures that executing statement s only produces valid traces ending in a state 
    satisfying P.\<close>
