@@ -75,6 +75,10 @@ proof -
     using state_wellFormed_def by blast
 qed  
 
+lemma step_prog_invariant1:
+  "S ~~ tr \<leadsto> S' \<Longrightarrow> prog S' = prog S"
+  by (auto simp add: step.simps)
+
 lemma step_prog_invariant:
   "S ~~ tr \<leadsto>* S' \<Longrightarrow> prog S' = prog S"
   by (induct rule: steps.induct, auto, erule step.cases, auto)

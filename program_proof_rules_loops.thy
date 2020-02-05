@@ -228,7 +228,8 @@ definition step_io :: "
   \<Rightarrow> bool " where
 "step_io progInv qrySpec S cmd action S' cmd' Inv \<equiv> 
   case cmd of
-    WaitLocalStep cont \<Rightarrow> 
+    WaitReturn r \<Rightarrow> False
+  | WaitLocalStep cont \<Rightarrow> 
       (action = ALocal Inv
       \<and> (\<exists>store' ok.  
            cont (ps_store S) =  (ok, store', cmd') 
@@ -306,6 +307,27 @@ definition step_io :: "
 
 \<comment> \<open>TODO: steps_io: inductive definition for combining multiple steps and getting 
   a result value (from WaitReturn)\<close>
+
+inductive steps_io :: "
+     (('proc::valueType, 'operation::valueType, 'any::valueType) invariantContext \<Rightarrow> bool)
+  \<Rightarrow> ('operation \<Rightarrow> ('operation, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool)
+  \<Rightarrow> ('proc, 'any, 'operation) proof_state 
+  \<Rightarrow> ('a, 'operation, 'any) io
+  \<Rightarrow> (('proc, 'operation, 'any) action \<times> bool) list
+  \<Rightarrow> ('proc, 'any, 'operation) proof_state
+  \<Rightarrow> 'a option
+  \<Rightarrow> bool " where
+steps_io_final:
+"\<lbrakk>ps_tx S = None
+\<rbrakk> \<Longrightarrow> steps_io progInv qrySpec S (WaitReturn res) [] S (Some res)"
+| steps_io_partial:
+  "steps_io progInv qrySpec S cmd [] S None"
+| steps_io_step:
+  "\<lbrakk>step_io progInv qrySpec S cmd action S' cmd' ok ;
+   steps_io progInv qrySpec S' cmd' tr S'' res
+\<rbrakk>
+ \<Longrightarrow>  steps_io progInv qrySpec S cmd ((action, ok)#tr) S'' res"
+
 
 
 \<comment> \<open>TODO: better to have a case on the action? 
@@ -1338,6 +1360,268 @@ proof (rule ccontr)
   qed
 qed
 
+lemma step_io_same_i:
+  assumes "step_io progInv qrySpec S cmd action S' cmd' Inv"
+  shows "ps_i S' = ps_i S"
+  using assms  by ( auto simp add: step_io_def split: io.splits )
+
+
+text \<open>We now show that all errors in an execution of the single-invocation semantics 
+can be simulated by the steps-io approximation.
+Thus it is sufficient to show that the steps-io approximation is correct.
+
+\<close>
+
+definition invariant_return :: "
+  (('proc::valueType, 'operation::valueType, 'any::valueType) invariantContext \<Rightarrow> bool) 
+\<Rightarrow> ('proc, 'any, 'operation) proof_state 
+\<Rightarrow> 'any option
+\<Rightarrow> bool" where
+"invariant_return progInv PS resO \<equiv>
+  \<exists>res. resO \<triangleq> res \<and> progInv (invariantContext.truncate (PS\<lparr> invocationRes := invocationRes PS(ps_i PS \<mapsto> res), knownIds := knownIds PS \<union> uniqueIds res  \<rparr>))"
+
+lemma steps_io_simulation:
+  fixes PS :: "('proc::valueType, 'any::valueType, 'operation::valueType) proof_state"
+  assumes rel: "proof_state_rel PS S"
+    and steps: "S ~~ (i, tr) \<leadsto>\<^sub>S* S'"
+    and i_def: "i = ps_i PS"
+    and not_correct: "\<not>traceCorrect_s tr"
+    and prog_wf: "program_wellFormed (prog S)"
+    and cmd_def: "cmd = currentCommand S i"
+  shows "\<exists>PS' tr' res. steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd tr' PS' res
+               \<and> (\<not>traceCorrect_s tr' \<or> \<not>invariant_return (invariant (prog S))  PS' res)
+               " \<comment> \<open>TODO or final state after return that does not satisfy invariant.\<close>
+  using rel steps i_def not_correct prog_wf cmd_def proof (induct "length tr" arbitrary: S' tr PS S cmd)
+  case (0 tr S' PS S cmd)
+  hence "tr = []"
+    by auto
+  hence "traceCorrect_s tr"
+    by (simp add: traceCorrect_s_def)
+  with `\<not>traceCorrect_s tr` 
+  show ?case by auto
+next
+  case (Suc k tr S' PS S cmd)
+  from this obtain action ok tr' 
+    where tr_def: "tr = ((action, ok)#tr')"
+    by (metis length_Suc_conv prod.collapse)
+
+  with `S ~~ (i, tr) \<leadsto>\<^sub>S* S'`
+  obtain S1 
+    where first_step:"S ~~ (i, action, ok) \<leadsto>\<^sub>S S1" 
+      and other_steps:"S1 ~~ (i, tr') \<leadsto>\<^sub>S* S'"
+    using steps_s_cons_simp by blast
+
+  have "prog S1 = prog S"
+    using unchangedProg1[OF first_step]
+    by simp
+
+  show ?case
+  proof (cases "\<exists>res. cmd = WaitReturn res")
+    case True
+    from this obtain res
+      where "cmd = WaitReturn res"
+      by blast
+
+    have "currentProc S i \<triangleq> toImpl"
+      by (simp add: Suc.prems(1) Suc.prems(3) proof_state_rel_fact(11))
+
+
+    
+
+    have wf: "state_wellFormed S"
+      using proof_state_rel_wf[OF `proof_state_rel PS S`] by simp
+
+    thm wf_localState_currentProc[OF wf]
+
+    from first_step `cmd = currentCommand S i`[symmetric]
+      `cmd = WaitReturn res`
+      `currentProc S i \<triangleq> toImpl`
+      wf_localState_currentProc[OF wf] wf_localState_to_invocationOp[OF wf]
+    have c0: "cmd = impl_language_loops.io.WaitReturn res"
+      and c1: "currentProc S i \<triangleq> impl_language_loops.toImpl"
+      and c2: "action = AReturn res"
+      and c3: "\<exists>a. localState S i \<triangleq> (a, impl_language_loops.io.WaitReturn res)"
+      and c4: "currentTransaction S i = None"
+      and c5: "S1 = S \<lparr>localState := (localState S)(i := None), currentProc := (currentProc S)(i := None), visibleCalls := (visibleCalls S)(i := None), invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>"
+      and c6: "ok \<longleftrightarrow> invariant (prog S) (invContextH (callOrigin S) (transactionOrigin S) (transactionStatus S) (happensBefore S) (calls S) (knownIds S \<union> uniqueIds res) (invocationOp S) (invocationRes S(i \<mapsto> res)))"
+      unfolding atomize_conj 
+      by( auto simp add: step_s.simps)
+
+    have "tr' = []"
+       \<comment> \<open>TODO Can do no step after return \<close>
+      sorry
+    with `\<not>traceCorrect_s tr`
+    have "\<not>ok"
+      by (simp add: tr_def traceCorrect_s_def)
+
+
+    show ?thesis
+    proof (intro conjI exI)
+      show "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd [] PS (Some res)"
+      proof (fuzzy_rule steps_io_final)
+        show "impl_language_loops.io.WaitReturn res = cmd"
+          using `cmd = WaitReturn res` by simp
+        show "ps_tx PS = None"
+          using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_fact(13) by fastforce
+      qed
+
+      have "\<not> invariant_return (invariant (prog S)) PS (Some res)"
+        unfolding invariant_return_def not_ex de_Morgan_conj disj_not1
+      proof (intro impI allI )
+        fix r
+        assume "Some res \<triangleq> r"
+
+        have allCommitted: "committedCalls S = dom (calls S)"
+          by (smt Suc.prems(1) Suc.prems(3) c4 committedCalls_allCommitted option.discI proof_state_rel_def)
+
+        have h2: "committedCallsH (map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))) (transactionStatus S)
+          = dom (calls PS)"
+          using Suc.prems(1) allCommitted proof_state_rel_fact(2) proof_state_rel_fact(4) by fastforce
+
+
+        have ctx_same: "(invContextH (callOrigin S) (transactionOrigin S) (transactionStatus S) (happensBefore S) (calls S)
+          (knownIds S \<union> uniqueIds res) (invocationOp S) (invocationRes S(i \<mapsto> res)))
+        =(invariantContext.truncate (PS\<lparr>invocationRes := invocationRes PS(ps_i PS \<mapsto> r), knownIds := knownIds PS \<union> uniqueIds r\<rparr>))"
+          \<comment> \<open>TODO extract this into lemma (invContextH and truncate if all committed)\<close>
+          apply (auto simp add: invContextH_def invariantContext.defs allCommitted h2 restrict_relation_def
+              updateHb_simp_distinct2 `i = ps_i PS` restrict_map_def domD domIff
+              proof_state_rel_fact[OF `proof_state_rel PS S`]
+              intro!: HOL.ext)
+          subgoal
+            using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_fact(13) proof_state_rel_fact(15) by fastforce
+          subgoal
+            using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_fact(13) proof_state_rel_fact(15) by fastforce
+          subgoal
+            using Suc.prems(1) happensBefore_in_calls_left local.wf proof_state_rel_fact(2) proof_state_rel_fact(3) updateHb_simp_distinct2 by fastforce
+          subgoal
+            using Suc.prems(1) happensBefore_in_calls_right local.wf proof_state_rel_fact(2) proof_state_rel_fact(3) updateHb_simp_distinct2 by fastforce
+          subgoal
+            apply (auto simp add: map_update_all_def)
+            using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_fact(13) proof_state_rel_fact(15) by fastforce
+          subgoal
+            by (metis Suc.prems(1) local.wf map_update_all_None proof_state_rel_fact(2) proof_state_rel_fact(4) wellFormed_callOrigin_dom3)
+          subgoal for x
+            apply (case_tac "transactionStatus S x", auto)
+            using Suc.prems(1) local.wf proof_state_rel_fact(5) wf_transaction_status_iff_origin apply fastforce
+            by (metis (no_types, lifting) Suc.prems(1) Suc.prems(3) c4 option.discI proof_state_rel_fact(13) proof_state_rel_fact(14) transactionStatus.exhaust)
+
+          using \<open>Some res \<triangleq> r\<close> by blast+
+
+
+        from `\<not>ok` c6
+        show "\<not> invariant (prog S) (invariantContext.truncate (PS\<lparr>invocationRes := invocationRes PS(ps_i PS \<mapsto> r), knownIds := knownIds PS \<union> uniqueIds r\<rparr>))"
+          by (auto simp add: ctx_same)
+      qed
+      thus "\<not> traceCorrect_s [] \<or> \<not> invariant_return (invariant (prog S)) PS (Some res)"
+        by simp
+    qed
+  next
+    case False
+
+    have current: "currentCommand S i = currentCommand S i \<bind> return"
+      by simp
+
+    have "\<exists>PS' cmd'.
+       step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) action PS' cmd' ok \<and>
+       (ok \<longrightarrow> proof_state_rel PS' S1 \<and> currentCommand S1 i = cmd' \<bind> impl_language_loops.return)"
+      using `proof_state_rel PS S` first_step `i = ps_i PS` current
+    proof (rule step_io_simulation)
+      show "\<And>r. currentCommand S i \<noteq> impl_language_loops.io.WaitReturn r"
+        using False `cmd = currentCommand S i` by blast
+      show "program_wellFormed (prog S)"
+        using `program_wellFormed (prog S)` .
+    qed
+
+    from this obtain PS' cmd' 
+      where step_io: "step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) action PS' cmd' ok"
+        and step_io2: "(ok \<Longrightarrow> proof_state_rel PS' S1 \<and> currentCommand S1 i = cmd')"
+      by auto
+
+    show ?thesis
+    proof (cases ok)
+      case True
+      hence "proof_state_rel PS' S1"
+        and "currentCommand S1 i = cmd' \<bind> impl_language_loops.return"
+        using step_io2 by auto
+
+      hence "currentCommand S1 i = cmd'"
+        by simp
+
+      have "k = length tr'"
+        using  `Suc k = length tr` \<open>tr = (action, ok) # tr'\<close> by auto
+
+
+      have "i = ps_i PS'"
+        using Suc.prems(3) step_io step_io_same_i by fastforce
+
+      have "\<not> traceCorrect_s tr'"
+        using `\<not> traceCorrect_s tr` True tr_def traceCorrect_s_split by fastforce
+
+
+      from `prog S1 = prog S` `program_wellFormed (prog S)`
+      have "program_wellFormed (prog S1)"
+        by simp
+
+      have "cmd' = currentCommand S1 i"
+        using `currentCommand S1 i = cmd'`
+        by simp
+
+      from Suc.hyps(1)[OF `k = length tr'` `proof_state_rel PS' S1` `S1 ~~ (i, tr') \<leadsto>\<^sub>S* S'` 
+            `i = ps_i PS'` `\<not> traceCorrect_s tr'` `program_wellFormed (prog S1)` `cmd' = currentCommand S1 i`]
+        have "\<exists>PS'a tr' res.
+         steps_io (invariant (prog S1)) (querySpec (prog S1)) PS' cmd' tr' PS'a res \<and>
+         (\<not> traceCorrect_s tr' \<or> \<not> invariant_return (invariant (prog S1)) PS'a res)"
+          .
+      from this obtain PS'' and tr'' and res
+        where steps_tr': "steps_io (invariant (prog S1)) (querySpec (prog S1)) PS' cmd' tr'' PS'' res"
+          and incorrect_cases: "\<not> traceCorrect_s tr'' \<or> \<not> invariant_return (invariant (prog S1)) PS'' res"
+        by auto
+
+      have steps_combined: "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd ((action,ok)#tr'') PS'' res"
+        using step_io 
+      proof (fuzzy_rule steps_io_step)
+        show "currentCommand S i = cmd"
+          by (simp add: Suc.prems(6))
+        show " steps_io (invariant (prog S)) (querySpec (prog S)) PS' cmd' tr'' PS'' res"
+          using steps_tr'
+          by (metis (no_types, lifting) Suc.prems(2) other_steps unchangedProg) 
+      qed
+
+      thm `prog S1 = prog S`
+
+      have "prog S1 = prog S"
+        using unchangedProg1[OF first_step]
+        by simp
+
+      from incorrect_cases
+      show ?thesis
+      proof
+        assume "\<not> traceCorrect_s tr''"
+        hence "\<not> traceCorrect_s ((action, ok) # tr'')"
+          by (meson list.set_intros(2) traceCorrect_s_def)
+
+        with steps_combined
+        show ?thesis
+          by blast
+      next
+        assume "\<not> invariant_return (invariant (prog S1)) PS'' res"
+        hence "\<not> invariant_return (invariant (prog S)) PS'' res"
+          using `prog S1 = prog S` by simp
+        with steps_combined
+        show ?thesis
+          by blast
+      qed
+    next
+      case False
+
+      hence "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd [(action, False)] PS' None"
+        using \<open>step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) action PS' cmd' ok\<close> cmd_def steps_io_partial steps_io_step by fastforce
+
+      thus ?thesis
+        by (meson list.set_intros(1) traceCorrect_s_def)
+    qed
+  qed
+qed
 
 
 definition execution_s_check_final where

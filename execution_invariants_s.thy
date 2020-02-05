@@ -195,17 +195,15 @@ lemma wellFormed_s_invoc_notStarted2:
   using assms wf_s_localState_to_invocationOp by blast
 
 
+lemma unchangedProg1:
+  assumes steps: "S ~~ (i, tr) \<leadsto>\<^sub>S S'"
+  shows "prog S' = prog S"
+  using assms by (auto simp add: step_s.simps)
 
 lemma unchangedProg:
   assumes steps: "S ~~ (i, tr) \<leadsto>\<^sub>S* S'"
   shows "prog S' = prog S"
-  using assms proof (induct rule: step_s_induct)
-  case initial
-  then show ?case by simp
-next
-  case (step tr S a S')
-  then show ?case by (auto simp add: step_s.simps)
-qed
+  using assms by (induct rule: step_s_induct) (auto simp add: unchangedProg1)
 
 lemma state_wellFormed_s_currentTransactionsOnlyInCurrent:
   assumes wf: "state_wellFormed_s S i" 
