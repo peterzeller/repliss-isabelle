@@ -115,7 +115,7 @@ lemma execution_s_check_sound:
   (currentTransaction S i)
   firstTx
   ls"
-  shows "execution_s_correct progr S i"
+  shows "execution_s_correct S i"
 proof (auto simp add:  execution_s_correct_def)
   fix trace S'
   assume a0: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
@@ -201,7 +201,7 @@ s_invocationRes i = None;
   None
   True
   ls"
-  shows "execution_s_correct progr S i"
+  shows "execution_s_correct S i"
   using a1
 proof (rule execution_s_check_sound)
 
@@ -276,7 +276,7 @@ lemma execution_s_check_sound3:
   None
   True
   ls"
-  shows "execution_s_correct progr S i"
+  shows "execution_s_correct S i"
   by (smt a1 a2 a3 a4 c execution_s_check_sound2 fun_upd_triv)
 
 lemma traceCorrect_s_empty: "traceCorrect_s  [] "

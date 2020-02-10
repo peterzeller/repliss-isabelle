@@ -31,7 +31,7 @@ lemma DC_show_programCorrect:
   fixes ct defines "ct' \<equiv> \<lambda>pos name. (name, pos,[]) # ct"
   assumes invInitial: "C\<langle>Suc n1, ct' n1 ''invariant_initial_state'', n2: invariant_all' (initialState progr)\<rangle>"
     and procedureCorrect: "\<And>S i. \<lbrakk>B\<langle>''in_initial_state'', n2: S\<in>initialStates' progr i\<rangle>\<rbrakk> 
-          \<Longrightarrow> C\<langle>Suc n2, (''procedure_correct'', n2, [VAR S, VAR i])#ct, n3: procedureCorrect progr S i\<rangle>"
+          \<Longrightarrow> C\<langle>Suc n2, (''procedure_correct'', n2, [VAR S, VAR i])#ct, n3: procedureCorrect S i\<rangle>"
   shows "C\<langle>n1,ct,n3: programCorrect progr\<rangle>"
   using assms
   unfolding LABEL_simps
@@ -41,8 +41,8 @@ lemma DC_show_programCorrect:
 lemma DC_show_procedureCorrect:
   fixes ct defines "ct' \<equiv> \<lambda>pos name. (name, pos,[]) # ct"
   assumes "C\<langle>Suc n1, ct' n1 ''after_invocation'', n2: invariant_all' S\<rangle>"
-    and  "C\<langle>Suc n2, (''execution'', n2, [])#ct, n3: execution_s_correct progr S i\<rangle>"
-  shows "C\<langle>n1,ct,n3: procedureCorrect progr S i\<rangle>"
+    and  "C\<langle>Suc n2, (''execution'', n2, [])#ct, n3: execution_s_correct S i\<rangle>"
+  shows "C\<langle>n1,ct,n3: procedureCorrect S i\<rangle>"
   using assms
   unfolding LABEL_simps by (auto simp add: procedureCorrect_def)
 

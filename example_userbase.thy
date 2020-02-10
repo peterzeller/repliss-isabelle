@@ -312,7 +312,7 @@ proof M_show_programCorrect
 
 
 
-  show "procedureCorrect progr S i"
+  show "procedureCorrect S i"
   proof (rule Initial_Label, rule show_initial_state_prop[OF procedure_correct], rule DC_final2, casify)
     case (show_P S_pre proc initState impl)
     have "invocationOp S i \<triangleq> proc"
@@ -327,11 +327,11 @@ proof M_show_programCorrect
 
     note show_P[simp]
 
-    show "procedureCorrect progr S i"
+    show "procedureCorrect S i"
     proof (cases proc)
       case (RegisterUser name mail)
 
-      show "procedureCorrect progr S i"
+      show "procedureCorrect S i"
       proof M_show_procedureCorrect
         case after_invocation
         show ?case 
@@ -340,7 +340,7 @@ proof M_show_programCorrect
 
       next
         case execution
-        show "execution_s_correct progr S i"
+        show "execution_s_correct S i"
           using procedure_correct.in_initial_state
         proof (fuzzy_rule execution_s_check_sound3)
 
@@ -464,7 +464,7 @@ proof M_show_programCorrect
     next
       case (UpdateMail user mail)
 
-      show "procedureCorrect progr S i"
+      show "procedureCorrect S i"
       proof M_show_procedureCorrect
         case after_invocation
         show ?case 
@@ -473,7 +473,7 @@ proof M_show_programCorrect
 
       next
         case execution
-        show "execution_s_correct progr S i"
+        show "execution_s_correct S i"
           using procedure_correct.in_initial_state
         proof (fuzzy_rule execution_s_check_sound3)
 
@@ -606,7 +606,7 @@ proof M_show_programCorrect
     next
       case (RemoveUser user)
       
-      show "procedureCorrect progr S i"
+      show "procedureCorrect S i"
       proof M_show_procedureCorrect
         case after_invocation
         show ?case 
@@ -618,7 +618,7 @@ proof M_show_programCorrect
 
       next
         case execution
-        show "execution_s_correct progr S i"
+        show "execution_s_correct S i"
           using procedure_correct.in_initial_state
         proof (fuzzy_rule execution_s_check_sound3)
 
@@ -681,7 +681,7 @@ proof M_show_programCorrect
     next
       case (GetUser user)
   
-      show "procedureCorrect progr S i"
+      show "procedureCorrect S i"
       proof M_show_procedureCorrect
         case after_invocation
         show ?case 
@@ -691,7 +691,7 @@ proof M_show_programCorrect
 
       next
         case execution
-        show "execution_s_correct progr S i"
+        show "execution_s_correct S i"
           using procedure_correct.in_initial_state
         proof (fuzzy_rule execution_s_check_sound3)
 

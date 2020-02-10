@@ -16,8 +16,45 @@ text "So far, we have assumed that procedure implementations are given by arbitr
 Here we define an implementation language using a shallow embedding with the monad syntax package.
 "
 
-type_synonym ref = nat
-type_synonym 'v store = "ref \<rightharpoonup> 'v"
+type_synonym iref = nat
+datatype 'a ref = Ref (iref:iref)
+type_synonym 'v store = "iref \<rightharpoonup> 'v"
+
+instantiation ref :: (type) small begin
+instance proof
+  obtain V_of :: "nat \<Rightarrow> V" and A :: "V" where "inj V_of" and "range V_of \<subseteq> elts A"
+    using small by blast
+
+
+  show "\<exists>(V_of::'a ref \<Rightarrow> V) A. inj V_of \<and> range V_of \<subseteq> elts A"
+  proof (intro conjI exI)
+    show "inj (V_of \<circ> iref)"
+      by (metis (mono_tags, lifting) \<open>inj V_of\<close> comp_apply injD inj_on_def ref.expand)
+
+    show " range (V_of \<circ> iref) \<subseteq> elts A"
+      using \<open>range V_of \<subseteq> elts A\<close> by auto
+  qed
+qed
+end
+
+
+class natConvert =
+  fixes fromNat :: "nat \<Rightarrow> 'a"
+  assumes fromNat_inj: "inj fromNat"
+
+definition "toNat \<equiv> the_inv fromNat"
+
+lemma "toNat (fromNat x) = x"
+  by (simp add: fromNat_inj the_inv_f_f toNat_def)
+
+instantiation ref :: (type) natConvert begin
+definition [simp]: "fromNat_ref = Ref"
+instance 
+  apply standard
+  using injI by fastforce
+end
+
+
 
 
 datatype ('a,'operation, 'any) io =
@@ -154,7 +191,7 @@ instance io :: (small, small, small) embeddable
   by (standard, force intro: io_to_V_inj)
 
 
-function (domintros) bind :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io"  where
+function (domintros) bind :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io" (infixl "\<bind>io" 54)  where
   "bind (WaitLocalStep n) f = (WaitLocalStep (\<lambda>s. let (a,b,c) = n s in (a, b, bind c f)))"
 | "bind (WaitBeginAtomic n) f = (WaitBeginAtomic (bind n f))"
 | "bind (WaitEndAtomic n) f = (WaitEndAtomic (bind n f))"
@@ -224,17 +261,26 @@ definition
 text "Next, we define some operations to work with references: 
 We simply encode references using natural numbers."
 
-definition makeRef :: "'any \<Rightarrow> (ref, 'operation, 'any) io" where
-"makeRef v \<equiv> WaitLocalStep (\<lambda>s. let r = LEAST i. s i = None in (True, s(r \<mapsto> v), WaitReturn r))"
+definition "fromAny x \<equiv> from_nat (toNat x)"
+definition "intoAny x \<equiv> fromNat (to_nat x)"
 
-definition read :: "ref \<Rightarrow> ('any, 'operation, 'any::default) io" where
-"read ref \<equiv> WaitLocalStep (\<lambda>s. case s ref of Some v \<Rightarrow> (True, s, WaitReturn v) | None \<Rightarrow> (False, s, WaitReturn default)) "
+definition makeRef :: "'a::countable \<Rightarrow> ('a ref, 'operation, 'any::natConvert) io" where
+"makeRef v \<equiv> WaitLocalStep (\<lambda>s. let r = LEAST i. s i = None in (True, s(r \<mapsto> intoAny v), WaitReturn (Ref r)))"
 
-definition assign :: "ref \<Rightarrow> 'any \<Rightarrow> (unit, 'operation, 'any) io" where
-"assign ref v \<equiv> WaitLocalStep (\<lambda>s. case s ref of Some _ \<Rightarrow> (True, s(ref \<mapsto> v), WaitReturn ()) | None \<Rightarrow> (False, s, WaitReturn ())) "
+definition read :: "'a ref \<Rightarrow> ('a::countable, 'operation, 'any::natConvert) io" where
+"read ref \<equiv> WaitLocalStep (\<lambda>s. case s (iref ref) of 
+      Some v \<Rightarrow> (True, s, WaitReturn (fromAny v)) 
+    | None  \<Rightarrow> (False, s, WaitReturn (from_nat 0)))"
 
-definition update :: "ref \<Rightarrow> ('any \<Rightarrow> 'any) \<Rightarrow> (unit, 'operation, 'any) io" where
-"update ref upd \<equiv> WaitLocalStep (\<lambda>s. case s ref of Some v \<Rightarrow> (True, s(ref \<mapsto> upd v), WaitReturn ()) | None \<Rightarrow> (False, s, WaitReturn ())) "
+definition assign :: "('a::countable) ref \<Rightarrow> 'a \<Rightarrow> (unit, 'operation, 'any::natConvert) io" (infix "::=" 60) where
+"assign ref v \<equiv> WaitLocalStep (\<lambda>s. case s (iref ref) of 
+    Some _ \<Rightarrow> (True, s((iref ref) \<mapsto> intoAny v), WaitReturn ()) 
+  | None  \<Rightarrow> (False, s, WaitReturn ())) "
+
+definition update :: "('a::countable) ref \<Rightarrow> ('a \<Rightarrow> 'a) \<Rightarrow> (unit, 'operation, 'any::natConvert) io" where
+"update ref upd \<equiv> WaitLocalStep (\<lambda>s. case s (iref ref) of 
+      Some v \<Rightarrow> (True, s((iref ref) \<mapsto> intoAny (upd (fromAny v))), WaitReturn ()) 
+    | None  \<Rightarrow> (False, s, WaitReturn ())) "
 
 
 
@@ -260,13 +306,7 @@ lemma toImpl_bind_simps[simp]:
 "\<And>store x. toImpl (store, call op  \<bind> x) = DbOperation op  (\<lambda>r. (store, x r))"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
 
-schematic_goal "toImpl (store, makeRef v) = ?x"
-  apply (auto simp add: makeRef_def)
-  done
 
-lemma makeRef_simp[simp]:
-"toImpl (store, makeRef v) = LocalStep True (store(ref \<mapsto> v), return ref)"
-  oops
 
 paragraph "Monad Laws"
 
@@ -348,6 +388,11 @@ lemma atomic_simp2[simp]:
 "toImpl (s, atomic f \<bind> x) = BeginAtomic (s, f \<bind> (\<lambda>a. endAtomic \<bind> (\<lambda>b. x a)))"
   by (auto simp add: atomic_def)
 
+
+subsection "Syntactic sugar for loops"
+
+definition loop :: "(bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
+"loop body \<equiv> Loop (to_V body) (return ())"
 
 
 end
