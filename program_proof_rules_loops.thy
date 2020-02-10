@@ -1859,6 +1859,7 @@ lemma execution_s_check_sound:
     and no_currentTxn: "currentTransaction S i = None"
     and firstTx_def: "(firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed ))"
     and localKnown: "localKnown = generatedLocal \<union> uniqueIds (the (invocationOp S i))"
+    and no_guess: "procedure_cannot_guess_ids localKnown (Map.empty, ls) toImpl"
     and P: "\<And>S' res. P S' res \<Longrightarrow> 
         invariant (prog S) (invariantContext.truncate 
               (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
@@ -1907,10 +1908,9 @@ proof (auto simp add:  execution_s_correct_def)
       apply (auto simp add: PS_def)
       by (metis (mono_tags, lifting) S_wf assms(2) i_callOriginI_h_def not_None_eq option.case_eq_if option.sel state_wellFormed_ls_visibleCalls_callOrigin)
 
+    thm wf_knownIds_subset_generatedIds_h(1)
     show "procedure_cannot_guess_ids (ps_localKnown PS) (the (localState S (ps_i PS))) impl_language_loops.toImpl"
-      apply (auto simp add: PS_def)
-
-      sorry
+      by (auto simp add: PS_def ls_def no_guess)
 
     show "ps_generatedLocal PS \<subseteq> ps_localKnown PS"
       by (auto simp add: PS_def localKnown)
@@ -1967,107 +1967,13 @@ proof (auto simp add:  execution_s_correct_def)
 qed
 
 
-lemma execution_s_check_sound2:
-  assumes a1: "localState S i \<triangleq> (Map.empty, ls)"
-    and a2': "S \<in> initialStates' progr i"
-    and a3: "currentProc S i \<triangleq> toImpl"
-    and P: "\<And>S' res.
-           P S' res \<Longrightarrow>
-           invariant (prog S)
-            (invariantContext.truncate
-              (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
-    and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
-\<lbrakk>
-s_invocationOp i = invocationOp S i;
-s_invocationRes i = None;
-\<And>tx. s_transactionOrigin tx \<noteq> Some i
-\<rbrakk> \<Longrightarrow>
-  execution_s_check \<lparr>
-      calls = s_calls,
-      happensBefore = s_happensBefore,
-      callOrigin = s_callOrigin,
-      transactionOrigin = s_transactionOrigin,
-      knownIds = s_knownIds,
-      invocationOp = s_invocationOp,
-      invocationRes = s_invocationRes,
-      ps_progr = progr,
-      ps_i = i,
-      ps_generatedLocal = {},
-      ps_generatedLocalPrivate = {},
-      ps_vis = {},
-      ps_localCalls = [],
-      ps_tx = None,
-      ps_firstTx = True,
-      ps_store = Map.empty,
-      ps_ls = ls\<rparr>
-      return P ls" 
-  shows "execution_s_correct S i"
-  using a1
-proof (rule execution_s_check_sound)
-
-  have a2: "S \<in> initialStates progr i"
-    using a2' by (simp add: initialStates'_same) 
-
-  show "visibleCalls S i \<triangleq> {}"
-    using a2 by (auto simp add: initialStates_def)
-
-  show "prog S = progr"
-    using a2 by (auto simp add: initialStates_def)
-
-  show "currentProc S i \<triangleq> toImpl"
-    using a3 by simp
-
-  show wf: "state_wellFormed S"
-
-    using a2 initialStates_wellFormed by blast
-
-  show "{} = {x. generatedIds S x \<triangleq> i}"
-    using a2 wf_generated_ids_invocation_exists by (auto simp add: initialStates_def, blast)
-
-  show currentTx: "currentTransaction S i = None"
-    using a2 initialState_noTxns2 by blast
-
-
-  show "execution_s_check
-     \<lparr>calls = calls S, happensBefore = happensBefore S,
-        callOrigin = callOrigin S, transactionOrigin = transactionOrigin S,
-        knownIds = knownIds S, invocationOp = invocationOp S,
-        invocationRes = invocationRes S, ps_progr = progr, ps_i = i,
-        ps_generatedLocal = {},
-        ps_generatedLocalPrivate = {}, ps_vis = {},
-        ps_localCalls = [], ps_tx = currentTransaction S i,
-        ps_firstTx = True, ps_store = Map.empty, ps_ls = ls\<rparr> return P ls"
-    unfolding currentTx
-  proof (rule c)
-    show "invocationOp S i = invocationOp S i" by simp
-    show "invocationRes S i = None"
-      by (simp add: a1 local.wf state_wellFormed_no_result_when_running)
-    show "\<And>tx. transactionOrigin S tx \<noteq> Some i"
-      using a2 by (auto simp add: initialStates_def)
-
-  qed
-
-  show "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
-    using a2 initialState_noTxns1 by blast
-
-  show "True = (\<nexists>c tx. callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed)"
-    by (meson \<open>visibleCalls S i \<triangleq> {}\<close> empty_iff local.wf state_wellFormed_ls_visibleCalls_callOrigin)
-
-
-  show "\<And>S' res.
-       P S' res \<Longrightarrow>
-       invariant (prog S)
-        (invariantContext.truncate
-          (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
-    using P .
-qed simp+
-
 
 lemma execution_s_check_sound3:
   assumes a1: "localState S i \<triangleq> (Map.empty, ls)"
     and a2: "S \<in> initialStates' progr i"
     and a3: "currentProc S i \<triangleq> toImpl"
     and a4: "invocationOp S i \<triangleq> op"
+    and prog_wf: "program_wellFormed (prog S)"
     and P: "\<And>S' res. P S' res \<Longrightarrow> 
         invariant (prog S) (invariantContext.truncate 
               (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
@@ -2076,7 +1982,7 @@ lemma execution_s_check_sound3:
 \<lbrakk>
 \<And>tx. s_transactionOrigin tx \<noteq> Some i
 \<rbrakk> \<Longrightarrow>
-  execution_s_check \<lparr>
+  execution_s_check (invariant progr) (querySpec progr) \<lparr>
       calls = s_calls,
       happensBefore = s_happensBefore,
       callOrigin = s_callOrigin,
@@ -2084,42 +1990,118 @@ lemma execution_s_check_sound3:
       knownIds = s_knownIds,
       invocationOp = s_invocationOp(i\<mapsto>op),
       invocationRes = s_invocationRes(i:=None),
-      ps_progr = progr,
       ps_i = i,
       ps_generatedLocal = {},
       ps_generatedLocalPrivate = {},
+      ps_localKnown = uniqueIds op,
       ps_vis = {},
       ps_localCalls = [],
       ps_tx = None,
       ps_firstTx = True,
-      ps_store = Map.empty,
-      ps_ls = ls\<rparr>
-      return P ls" 
+      ps_store = Map.empty\<rparr> ls P" 
   shows "execution_s_correct S i"
-  using a1 a2 a3 
-proof (rule execution_s_check_sound2[where P=P], goal_cases Final A)
-  case (Final S' res)
-  then show ?case
-    using P by blast
-next
-  case (A s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes)
-  show "execution_s_check
-            \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin,
-               transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp,
-               invocationRes = s_invocationRes, ps_progr = progr, ps_i = i, ps_generatedLocal = {},
-               ps_generatedLocalPrivate = {}, ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True,
-               ps_store = Map.empty, ps_ls = ls\<rparr>
-            impl_language_loops.return P ls"
+  using a1 
+proof (rule execution_s_check_sound[where P=P])
 
-  proof (fuzzy_rule c)
-    show "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
-      by (simp add: A(3))
-    show "s_invocationRes(i := None) = s_invocationRes"
-      using A(2) by auto
-    show "s_invocationOp(i \<mapsto> op) = s_invocationOp"
-      using A(1) a4 by auto
-  qed
-qed
+    from `S \<in> initialStates' progr i`
+    obtain Sa proc a b impl
+      where S_def: "S = Sa \<lparr>localState := localState Sa(i \<mapsto> (a, b)), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> proc)\<rparr>"
+        and progr_def: "progr = prog Sa"
+        and proc: "procedure (prog Sa) proc = ((a, b), impl)"
+        and uniqueIds: "uniqueIds proc \<subseteq> knownIds Sa"
+        and invAll: "invariant_all' Sa"
+        and wf: "state_wellFormed Sa"
+        and opNone: "invocationOp Sa i = None"
+        and noUncommitted: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommitted"
+        and noTxns: "\<forall>tx. transactionOrigin Sa tx \<noteq> Some i"
+      by (auto simp add: initialStates'_def)  
+
+    have "op = proc"
+      using a4 by (auto simp add: S_def)
+
+    show "visibleCalls S i \<triangleq> {}"
+      by (simp add: S_def)
+
+    show "prog S = progr"
+      using progr_def  by (simp add: S_def)
+
+    show " currentProc S i \<triangleq> impl_language_loops.toImpl"
+      by (simp add: a3)
+
+    show "{} = {x. generatedIds S x \<triangleq> i}"
+      by (auto simp add: S_def local.wf opNone wf_generated_ids_invocation_exists)
+
+    show "{} \<subseteq> {}"
+      by simp
+
+    show "state_wellFormed S"
+      using a2 initialStates'_same initialStates_wellFormed by fastforce
+
+    show "currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted" for tx'
+      using a2 initialState_noTxns1 initialStates'_same by fastforce
+
+    show "currentTransaction S i = None"
+      using a2 initialState_noTxns2 initialStates'_same by fastforce
+
+
+    have pcgi: "procedures_cannot_guess_ids (procedure progr)"
+      using \<open>prog S = progr\<close> prog_wf program_wellFormed_def by blast
+
+    then
+    show "procedure_cannot_guess_ids (uniqueIds (the (invocationOp S i))) (Map.empty, ls) impl_language_loops.toImpl"
+    proof (fuzzy_rule procedures_cannot_guess_ids_def[THEN iffD1, rule_format])
+      show " procedure progr proc = ((Map.empty, ls), impl_language_loops.toImpl)"
+        using proc a1 a3 by (auto simp add: S_def progr_def)
+
+      show "{} \<union> uniqueIds proc = uniqueIds (the (invocationOp S i))"
+        by (auto simp add: S_def)
+    qed
+
+    show "\<And>S' res.
+       P S' res \<Longrightarrow>
+       invariant (prog S)
+        (invariantContext.truncate
+          (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
+      using P by blast
+
+    show "program_wellFormed (prog S)"
+      by (simp add: prog_wf)
+
+    show "execution_s_check (invariant progr) (querySpec progr)
+     \<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S,
+        transactionOrigin = transactionOrigin S, knownIds = knownIds S, invocationOp = invocationOp S,
+        invocationRes = invocationRes S, ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {},
+        ps_localKnown = uniqueIds (the (invocationOp S i)), ps_vis = {}, ps_localCalls = [],
+        ps_tx = currentTransaction S i,
+        ps_firstTx =
+          \<forall>c tx. transactionOrigin S tx \<triangleq> i \<longrightarrow> callOrigin S c \<triangleq> tx \<longrightarrow> transactionStatus S tx \<noteq> Some Committed,
+        ps_store = Map.empty\<rparr>
+     ls P"
+    proof (fuzzy_rule c)
+      show "\<And>tx. transactionOrigin S tx \<noteq> Some i"
+        by (auto simp add: S_def noTxns)
+
+      show "True = (\<forall>c tx. transactionOrigin S tx \<triangleq> i \<longrightarrow> callOrigin S c \<triangleq> tx \<longrightarrow> transactionStatus S tx \<noteq> Some Committed)"
+        by (auto simp add: S_def noTxns)
+
+      show "None = currentTransaction S i"
+        by (auto simp add: S_def local.wf opNone wellFormed_invoc_notStarted(1))
+
+
+      show " op = the (invocationOp S i)"
+        by (auto simp add: S_def  \<open>op = proc\<close>)
+
+      show "(invocationRes S)(i := None) = invocationRes S"
+        by (auto simp add: S_def fun_upd_idem local.wf opNone state_wellFormed_invocation_before_result)
+
+
+      show "(invocationOp S)(i \<mapsto> op) = invocationOp S"
+        by (auto simp add: S_def \<open>op = proc\<close>)
+    qed
+
+qed simp+
+
+
 
 lemma traceCorrect_s_empty: "traceCorrect_s  [] "
   by (simp add: traceCorrect_s_def) 
