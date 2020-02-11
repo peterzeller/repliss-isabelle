@@ -264,8 +264,23 @@ We simply encode references using natural numbers."
 definition "fromAny x \<equiv> from_nat (toNat x)"
 definition "intoAny x \<equiv> fromNat (to_nat x)"
 
+definition freshRefH :: "nat \<Rightarrow> nat set \<Rightarrow> nat" where
+"freshRefH mi D \<equiv> (if finite D then LEAST x. x \<ge> mi \<and> (\<forall>y\<in>D. x>y) else 0)"
+
+abbreviation freshRef :: "nat set \<Rightarrow> nat" where
+"freshRef \<equiv> freshRefH 0"
+
+
+lemma freshRef_empty[simp]: "freshRefH x {} = x"
+  by (auto simp add: freshRefH_def Least_equality)
+
+lemma freshRef_insert[simp]: 
+"freshRefH mi (insert x S) = freshRefH (max mi (Suc x)) S"
+  by (auto simp add: freshRefH_def intro!: arg_cong[where f=Least])
+  
+
 definition makeRef :: "'a::countable \<Rightarrow> ('a ref, 'operation, 'any::natConvert) io" where
-"makeRef v \<equiv> WaitLocalStep (\<lambda>s. let r = LEAST i. s i = None in (True, s(r \<mapsto> intoAny v), WaitReturn (Ref r)))"
+"makeRef v \<equiv> WaitLocalStep (\<lambda>s. let r = freshRef (dom s) in (True, s(r \<mapsto> intoAny v), WaitReturn (Ref r)))"
 
 definition read :: "'a ref \<Rightarrow> ('a::countable, 'operation, 'any::natConvert) io" where
 "read ref \<equiv> WaitLocalStep (\<lambda>s. case s (iref ref) of 

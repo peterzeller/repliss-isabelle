@@ -231,7 +231,8 @@ proof M_show_programCorrect
                   (finalCheck inv i)" \<comment> \<open>TODO finalCheck could be fixed for the initial P (as variant)\<close>
             if c0: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-            apply (auto simp add: max_impl_def)
+            apply (auto simp add: )
+            apply repliss_vcg_l
 
 
           show "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
