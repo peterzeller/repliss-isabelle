@@ -2622,86 +2622,6 @@ proof
     by (simp add: return_def steps_io_final)
 qed
 
-lemma steps_split_induct:
-  assumes steps: "steps_io progInv qrySpec S cmd S' res"
-    and res: "res \<noteq> None"
-    and initial: "\<And>r. P S (return r) S (Some r)"
-    and induct_step: "\<And>cmd S S' Si  res. \<lbrakk>
-  steps_io progInv qrySpec S cmd S' res;
-  \<And>cmdA cmdB (ri::'ri). \<lbrakk>
-    cmd = cmdA \<bind> cmdB; 
-    \<And>r. cmdA \<noteq> return r;
-    steps_io progInv qrySpec S cmdA Si (Some ri);
-    steps_io progInv qrySpec Si (cmdB ri) S' res\<rbrakk> 
-    \<Longrightarrow>  P Si (cmdB ri) S' res
-  \<rbrakk> \<Longrightarrow> P S cmd S' res"
-  shows "P S cmd S' res"
-proof -
-  have h: "P Si (cmdB ri) S' res"
-    if "cmd = cmdA \<bind> cmdB"
-      and "steps_io progInv qrySpec S cmdA Si (Some ri)"
-      and "steps_io progInv qrySpec Si (cmdB ri) S' res"
-    for cmdA cmdB Si and ri::'ri
-    using steps res initial that proof (induct arbitrary: cmdA cmdB Si ri)
-    case (steps_io_final S res)
-
-    from `WaitReturn res = cmdA \<bind> cmdB`
-    obtain r where "cmdA = return r" and "cmdB r = return res"
-      by (metis WaitReturn_combined impl_language_loops.return_def)
-
-    from `steps_io progInv qrySpec S cmdA Si (Some ri)` and `cmdA = return r`
-    have "S = Si" and "r = ri"
-      using steps_io_return by fastforce+
-
-    have "cmdB ri = return res"
-      using \<open>cmdB r = impl_language_loops.return res\<close> \<open>r = ri\<close> by auto
-
-    from `cmdB ri = return res`
-    show ?case
-      using \<open>S = Si\<close> `\<And>r. P S (impl_language_loops.return r) S (Some r)` by auto
-  next
-    case (steps_io_error S cmd action S' cmd')
-    then show ?case
-      by blast 
-  next
-    case (steps_io_step S cmd action S' cmd' S'' res)
-
-    show ?case
-    proof (cases "\<exists>r. cmdA = return r")
-      case True
-
-      from `steps_io progInv qrySpec S cmdA Si (Some ri)`
-      have "Si = S" and "cmdA = return ri"
-        using True steps_io_return by force+
-
-
-      show ?thesis 
-        
-        sorry
-    next
-      case False
-
-      from `steps_io progInv qrySpec S cmdA Si (Some ri)`
-      obtain cmdA1 ar action Sa cmdA2
-        where "step_io progInv qrySpec S cmdA1 action Sa (return ar) True"
-          and "steps_io progInv qrySpec Sa (cmdA2 ar) Si (Some ri)"
-          and "cmdA = cmdA1 \<bind> cmdA2"
-        sorry
-
-      text "In this case it should already be covered by IH."
-
-      thm steps_io_step.hyps
-      show ?thesis
-      proof (rule steps_io_step.hyps(3)) 
-        show "res \<noteq> None"
-          by (simp add: steps_io_step.prems(1))
-
-        show "\<And>r. P S' (impl_language_loops.return r) S' (Some r)"
-          sorry
-
-        show "cmd' = (cmdA1 \<bind> cmdA2) \<bind> cmdB"
-          sorry
-        oops 
 
 lemma if_distrib_bind:
 "((if c then A else B) \<bind>io cont) = (if c then A \<bind>io cont else B \<bind>io cont)"
@@ -2957,121 +2877,111 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
     for PS PS' loopR
     by (smt PS_wf cont inv_pre option.case_eq_if that use_execution_s_check)
 
+  define Pl where "Pl \<equiv> (\<lambda>Si. \<forall>S' res.
+    steps_io Inv crdtSpec Si (cont ()) S' res \<longrightarrow>  
+      (case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r))"
 
-  find_theorems steps_io
-
-  from steps_io
-  show "case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r"
-  proof (cases)
-    case (steps_io_final r)
-    then show ?thesis 
-      \<comment> \<open>Loop cannot be the final step\<close>
-      by (auto simp add: loop_a_def loop_def)
-  next
-    case (steps_io_error action cmd')
-    then show ?thesis
-      \<comment> \<open>First step of loop cannot go wrong.\<close>
-      by (auto simp add: step_io_def loop_a_def loop_def)
-  next
-    case (steps_io_step action Sp cmd')
+  {
+    fix r
+    assume steps_loop: "steps_io Inv crdtSpec PS (loop body) Si r"
+    from this
+    have "Pl Si \<and> r \<triangleq> ()"
+    proof (rule loop_steps)
+      show "LoopInv PS \<and> proof_state_wellFormed' PS"
+        by (simp add: inv_pre PS_wf)
 
 
-    have Loop_fold: "Loop (to_V body) (cont ()) = loop_a LoopInv body \<bind> cont"
-      by (auto simp add: loop_a_def loop_def)
+      show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv Sb \<and> proof_state_wellFormed' Sb"
+        if "LoopInv S \<and> proof_state_wellFormed' S"
+          and steps: "steps_io Inv crdtSpec S body Sb br"
+        for  S Sb br
+      proof -
+        from  that
+        have inv: "LoopInv S" and wf: "proof_state_wellFormed' S" 
+          by auto
 
-    from `step_io Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) action Sp cmd' True`
-    have "cmd' = body \<bind> (\<lambda>r. if r then cont () else Loop (to_V body) (cont ()))"
-      and Sp_def: "Sp = PS"
-      by (auto simp add: step_io_def loop_a_def loop_def from_V_rev)
+        from cont[OF inv]
+        have check: "execution_s_check Inv crdtSpec S body
+           (\<lambda>PS' r. if r then execution_s_check Inv crdtSpec PS' (cont ()) P else LoopInv PS')".
 
-    hence cmd'_def: "cmd' = body \<bind> (\<lambda>r. if r then cont () else loop_a LoopInv body \<bind> cont)"
-      using Loop_fold by presburger
+        from use_execution_s_check[OF check, OF steps, OF wf]
+        have c: "case br of None \<Rightarrow> False | Some r \<Rightarrow> if r then execution_s_check Inv crdtSpec Sb (cont ()) P else LoopInv Sb" .
 
-    from `steps_io Inv crdtSpec Sp cmd' S' res`
-    have s: "steps_io Inv crdtSpec PS (body \<bind> (\<lambda>r. if r then cont () else loop_a LoopInv body \<bind> cont)) S' res"
-      by (simp add: cmd'_def Sp_def)
+        show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv Sb \<and> proof_state_wellFormed' Sb"
+        proof (cases br)
+          case None
+          thus ?thesis
+            using c by auto
+        next
+          case (Some brv)
+          hence [simp]: "br \<triangleq> brv" by simp
+          show ?thesis
+          proof (cases brv)
+            case True
+            hence [simp]: "brv = True" by simp
+            from c
+            have "execution_s_check Inv crdtSpec Sb (cont ()) P" by auto
 
-    from steps_io_bind_split[OF s]
-    show ?thesis
-    proof
-      assume "\<exists>ri Si.
-       steps_io Inv crdtSpec PS body Si (Some ri) \<and>
-       steps_io Inv crdtSpec Si (if ri then cont () else loop_a LoopInv body \<bind> cont) S' res"
-
-      from this obtain ri Si
-        where steps_body: "steps_io Inv crdtSpec PS body Si (Some ri)"
-          and steps_cont: "steps_io Inv crdtSpec Si (if ri then cont () else loop_a LoopInv body \<bind> cont) S' res"
-        by blast
-
-
-
-      from use_execution_s_check[OF cont[OF inv_pre], OF steps_body, OF PS_wf]
-      have loopEnd: "if ri then execution_s_check Inv crdtSpec Si (cont ()) P else  LoopInv Si"
-        by auto
+            show ?thesis 
+            proof auto
+              show "Pl Sb" 
+                unfolding Pl_def proof auto
 
 
-      show ?thesis
-      proof (cases ri)
-        case True
-        have "execution_s_check Inv crdtSpec Si (cont ()) P"
-          using True loopEnd by auto
+                show "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x"
+                  if  "steps_io Inv crdtSpec Sb (cont ()) S' res"
+                  for  S' res
+                  using c local.wf steps steps_io_wf_maintained that use_execution_s_check by fastforce
+              qed
+            qed
+          next
+            case False
+            hence [simp]: "\<not>brv" .
 
-        thus ?thesis
-        proof (rule use_execution_s_check)
-          show "steps_io Inv crdtSpec Si (cont ()) S' res"
-            using steps_cont by (auto simp add: True)
-          show "proof_state_wellFormed' Si"
-            using steps_body `proof_state_wellFormed' PS`
-            by (meson steps_io_wf_maintained')
+            show ?thesis 
+            proof auto
+              show "LoopInv Sb"
+                using c by auto
+              show "proof_state_wellFormed' Sb"
+                using local.wf steps steps_io_wf_maintained' by fastforce
+            qed
+          qed
         qed
-      next
-        case False
-        have li: "LoopInv Si"
-          using False loopEnd by auto
-
-
-        from cont[OF li]
-        thm use_execution_s_check[OF cont[OF li]]
-        show ?thesis
-        proof (rule use_execution_s_check)
-          
-          
-          sorry
       qed
-
-
-    proof (cases res)
-      case None
-      then show ?thesis sorry
-
-    next
-      case (Some r)
-
-
-
-      then show ?thesis sorry
     qed
+  }
+  note loop_correct =  this
 
+  from cases
+  show "case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r"
+  proof (rule disjE; clarsimp?)
+    \<comment> \<open>First the case where the loop finishes successfully\<close>
+    assume steps_loop: "steps_io Inv crdtSpec PS (loop_a LoopInv body) Si (Some ())"
+      and steps_cont: "steps_io Inv crdtSpec Si (cont ()) S' res"
+    hence steps_loop': "steps_io Inv crdtSpec PS (loop body) Si (Some ())"
+      unfolding loop_a_def by simp
 
-    from this 
-    obtain PS' loopRes
-      where "steps_io Inv crdtSpec PS body PS' loopRes"
+    thm loop_steps
+    thm loop_steps[OF steps_loop']
 
-      find_theorems " from_V (to_V _)"
-      then show ?thesis
-        
-        sorry
+    show "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x"
+      using Pl_def loop_correct steps_cont steps_loop' by blast
+  next
+    \<comment> \<open>Next the case where the loop fails:\<close>
+    assume "steps_io Inv crdtSpec PS (loop_a LoopInv body) Si None"
+
+    have False
+      by (metis \<open>steps_io Inv crdtSpec PS (loop_a LoopInv body) Si None\<close> loop_a_def loop_correct option.discI)
+
+    thus "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x" ..
   qed
-
-
-proof (auto simp add: execution_s_check_def)
-
-  text "Idea: Induction over the number of loop iterations."
+qed
 
 
 
 lemmas repliss_proof_rules = 
   execution_s_check_makeRef
+  execution_s_check_loop
 
 method repliss_vcg_step = (rule repliss_proof_rules; (intro impI conjI)?; simp?; (intro impI conjI)?;  repliss_vcg_step?)
 
