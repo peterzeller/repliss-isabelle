@@ -88,7 +88,7 @@ lemma to_V_use_inj: "to_V x = to_V y \<Longrightarrow> x = y"
   by (meson injD to_V_inj)
 
 
-lemma from_V_rev: 
+lemma from_V_rev[simp]: 
 "from_V (to_V x) = x"
   by (simp add: from_V_def the_inv_f_f to_V_inj)
 
@@ -207,7 +207,6 @@ proof auto
     apply (induct i, auto simp add: bind.domintros)
     by (metis bind.domintros(1) range_eqI)
 qed
-
 
 
 

@@ -9,7 +9,6 @@ theory program_verification_tactics
     execution_invariants2
     execution_invariants_s
     execution_invariants_unused
-    program_proof_rules
     crdt_specs
 begin
 
@@ -123,12 +122,14 @@ lemma state_def_h2[simp]: "S' ::= S \<Longrightarrow>  (currentTransaction S' i 
 lemma state_def_currentProc[simp]: "S' ::= S \<Longrightarrow>  currentProc S' i = currentProc S i" by (auto simp add: Def_def)
 lemma state_def_currentTransaction[simp]: "S' ::= S \<Longrightarrow> currentTransaction S' i = currentTransaction S i"  by (auto simp add: Def_def)
 
+named_theorems language_construct_defs
 
 method show_procedures_cannot_guess_ids = 
-  (((auto simp add: newId_def bind_def atomic_def beginAtomic_def call_def skip_def endAtomic_def return_def 
+  (((auto simp add: language_construct_defs bind_def       
         uniqueIds_mapOp_def  uniqueIds_registerOp_def 
         split: if_splits)[1])?;
     ((rule procedure_cannot_guess_ids.intros, force); show_procedures_cannot_guess_ids?)?)
 
+(* newId_def atomic_def beginAtomic_def call_def skip_def endAtomic_def return_def *)
 
 end

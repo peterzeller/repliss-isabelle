@@ -11,6 +11,7 @@ theory program_proof_rules_loops
     execution_invariants_unused
     impl_language_loops
     topological_sort
+    program_verification_tactics
 begin
 
 term "set"
@@ -3085,6 +3086,20 @@ method repliss_vcg_step = (rule repliss_proof_rules; (intro impI conjI)?; simp?;
 method repliss_vcg uses impl = ((simp add: impl)?, (unfold atomic_def skip_def)?, simp? , repliss_vcg_step)
 *)
 
+declare newId_def[language_construct_defs] 
+atomic_def[language_construct_defs]  
+beginAtomic_def [language_construct_defs] 
+call_def [language_construct_defs] 
+skip_def [language_construct_defs] 
+endAtomic_def [language_construct_defs] 
+return_def[language_construct_defs] 
+makeRef_def[language_construct_defs] 
+read_def[language_construct_defs] 
+assign_def[language_construct_defs] 
+update_def[language_construct_defs]
+loop_a_def[language_construct_defs]
+\<comment> \<open>loop construct is not added here, since unfolding it might diverge.
+    the loops added are just syntactic sugar for loop.\<close>
 
 
 

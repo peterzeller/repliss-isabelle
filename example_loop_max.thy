@@ -3,7 +3,6 @@ section "Example: Computing Maximum with a Loop"
 theory example_loop_max
   imports 
     program_verification_tactics
-    impl_language
     crdt_specs2
     unique_ids
     program_proof_rules_loops

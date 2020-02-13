@@ -11,6 +11,7 @@ theory program_proof_rules
     execution_invariants_unused
     impl_language
     topological_sort
+    program_verification_tactics
 begin
 
 text "We define some proof rules for our implementation languages, so that 
@@ -1751,7 +1752,13 @@ method repliss_vcg_step = (rule repliss_proof_rules; (intro impI conjI)?; simp?;
 method repliss_vcg uses impl = ((simp add: impl)?, (unfold atomic_def skip_def)?, simp? , repliss_vcg_step)
 
 
-
+declare newId_def[language_construct_defs] 
+atomic_def[language_construct_defs]  
+beginAtomic_def [language_construct_defs] 
+call_def [language_construct_defs] 
+skip_def [language_construct_defs] 
+endAtomic_def [language_construct_defs] 
+return_def[language_construct_defs] 
 
 
 end

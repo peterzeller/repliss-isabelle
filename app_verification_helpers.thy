@@ -3,10 +3,8 @@ section "Application Verification Helpers"
 theory app_verification_helpers
   imports 
     program_verification_tactics
-    impl_language
     crdt_specs2
     unique_ids
-    program_proof_rules
 begin
 
 text "Various Lemmas that can be used when verifying an application."
