@@ -1469,6 +1469,31 @@ definition invariant_return :: "
   \<exists>res. resO \<triangleq> res \<and> progInv (invariantContext.truncate (PS\<lparr> invocationRes := invocationRes PS(ps_i PS \<mapsto> res), knownIds := knownIds PS \<union> uniqueIds res  \<rparr>))"
 \<comment> \<open>TODO maybe add: there is no current transaction. \<close>
 
+lemma steps_nonempty_first:
+  assumes "S ~~ (i, tr) \<leadsto>\<^sub>S* S'"
+    and "tr \<noteq> []"
+  shows "\<exists>S' a. S ~~ (i, a) \<leadsto>\<^sub>S S'"
+  using assms proof (induct rule: step_s_induct)
+  case initial
+  then show ?case by auto
+next
+  case (step tr S' a S'')
+  show ?case
+  proof (cases "tr")
+    case Nil
+    show ?thesis 
+    proof (intro exI)
+      show "S ~~ (i, a) \<leadsto>\<^sub>S S''"
+        using step Nil by (auto simp add: steps_s_empty)
+    qed
+  next
+    case (Cons a list)
+    then show ?thesis
+      using step by auto
+  qed
+qed
+
+
 
 lemma steps_io_simulation:
   fixes PS :: "('proc::valueType, 'any::valueType, 'operation::valueType) proof_state"
@@ -1537,10 +1562,25 @@ next
       unfolding atomize_conj 
       by( auto simp add: step_s.simps)
 
-    have "tr' = []"
+    have "invocationRes S1 i = Some res"
+      using c5 by simp
 
-       \<comment> \<open>TODO Can do no step after return \<close>
-      sorry
+    
+    have "tr' = []"    \<comment> \<open>Can do no step after return \<close>
+    proof (rule ccontr)
+      assume "tr' \<noteq> []"
+      with `S1 ~~ (i, tr') \<leadsto>\<^sub>S* S'`
+      obtain S1' a where "S1 ~~ (i, a) \<leadsto>\<^sub>S S1'"
+        using steps_nonempty_first by blast
+
+      have "invocationOp S i \<noteq> None"
+        using c3 local.wf wf_localState_to_invocationOp by fastforce
+
+
+      from c5 `invocationOp S i \<noteq> None` `S1 ~~ (i, a) \<leadsto>\<^sub>S S1'`
+      show False by (auto simp add: step_s.simps)
+    qed
+
     with `\<not>traceCorrect_s tr`
     have "\<not>ok"
       by (simp add: tr_def traceCorrect_s_def)
