@@ -137,7 +137,7 @@ fun io_nested :: "('a,'operation, 'any) io \<Rightarrow> ('a,'operation, 'any) i
 | "io_nested (WaitNewId P n)  =  range n"
 | "io_nested (WaitDbOperation op n)  =  range n"
 | "io_nested (WaitReturn s)  =  {}"
-| "io_nested (Loop body n)  = {n}" \<comment> \<open>n, from_V body\<close>
+| "io_nested (Loop body n)  = {n}" 
 
 lemma io_nested_wf: "wf {(x,y). x\<in>io_nested y}"
 proof (rule wfI)
@@ -310,7 +310,7 @@ definition step_io :: "
 
 
 
-text \<open>steps_io is an inductive definition for combining multiple steps and getting 
+text \<open>@{term steps_io} is an inductive definition for combining multiple steps and getting 
   a result value (from WaitReturn).
 If the result is None, there was an error in the execution.
 Otherwise, the result is Some r.
@@ -2000,7 +2000,7 @@ proof (auto simp add:  execution_s_correct_def)
   fix trace S'
   assume steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
 
-  text "We can simulate this execution with steps_io:"
+  text "We can simulate this execution with @{term steps_io}:"
 
   have "i = ps_i PS"
     by (simp add: PS_def)
