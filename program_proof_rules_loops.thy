@@ -1949,6 +1949,8 @@ definition
 "finalCheck Inv i S res \<equiv>
 Inv (invariantContext.truncate (S\<lparr>invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>))"
 
+lemmas show_finalCheck = finalCheck_def[THEN meta_eq_to_obj_eq, THEN iffD2, rule_format]
+
 
 text "It is sufficient to check with @{term execution_s_check} to ensure that the procedure is correct:"
 
@@ -2101,9 +2103,19 @@ lemma execution_s_check_sound3:
         invariant (prog S) (invariantContext.truncate 
               (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
                   knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
+    and inv: "invariant progr (invariantContext.truncate S)"
     and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
 \<lbrakk>
-\<And>tx. s_transactionOrigin tx \<noteq> Some i
+\<And>tx. s_transactionOrigin tx \<noteq> Some i;
+invariant progr \<lparr>
+  calls = s_calls,
+  happensBefore = s_happensBefore,
+  callOrigin = s_callOrigin,
+  transactionOrigin = s_transactionOrigin,
+  knownIds = s_knownIds,
+  invocationOp = s_invocationOp(i\<mapsto>op),
+  invocationRes = s_invocationRes(i:=None)
+\<rparr>
 \<rbrakk> \<Longrightarrow>
   execution_s_check (invariant progr) (querySpec progr) \<lparr>
       calls = s_calls,
@@ -2220,6 +2232,14 @@ proof (rule execution_s_check_sound[where P=P])
 
       show "(invocationOp S)(i \<mapsto> op) = invocationOp S"
         by (auto simp add: S_def \<open>op = proc\<close>)
+
+      show "invariant progr
+       \<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S,
+          transactionOrigin = transactionOrigin S, knownIds = knownIds S, invocationOp = invocationOp S(i \<mapsto> op),
+          invocationRes = (invocationRes S)(i := None)\<rparr>"
+        using inv \<open>(invocationRes S)(i := None) = invocationRes S\<close> \<open>invocationOp S(i \<mapsto> op) = invocationOp S\<close> by (auto simp add: invariantContext.defs) 
+
+
     qed
 
 qed simp+
@@ -2352,49 +2372,11 @@ qed
 
 
 
-
-lemma execution_s_check_makeRef:
-  assumes cont: "
-\<And>ref. \<lbrakk>
-  ref = freshRef (dom (ps_store PS))
-\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec 
-    (PS\<lparr>
-      ps_store := (ps_store PS)(ref \<mapsto> intoAny a)
-     \<rparr>) 
-    (cont (Ref ref)) 
-    P"
-  shows "execution_s_check Inv crdtSpec PS  (makeRef a \<bind> cont) P"
-proof (rule execution_s_check_proof_rule)
-  show "\<And>r. makeRef a \<noteq> impl_language_loops.io.WaitReturn r"
-    by (simp add: makeRef_def)
-
-  show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
-    if step: "step_io Inv crdtSpec PS (makeRef a \<bind> cont) action PS' cmd' ok"
-      and PS_wf: "proof_state_wellFormed' PS"
-    for  action PS' cmd' ok
-  proof
-    have [simp]: "finite (dom (ps_store PS))"
-      using PS_wf proof_state_wellFormed'_def by blast
-
-
-
-    from step
-    have  c0: "action = ALocal True"
-      and c1: "ok"
-      and c2: "PS' = PS\<lparr>ps_store := ps_store PS(freshRef (dom (ps_store PS)) \<mapsto> intoAny a)\<rparr>"
-      and c3: "cmd' = cont (Ref (freshRef (dom (ps_store PS))))"
-      by (auto simp add: makeRef_def step_io_def Let_def )
-
-    show "ok" using `ok` .
-
-    show "\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P"
-      using c2 c3 cont by blast
-  qed
-qed
+subsection "Loop Rule"
 
 text "Loops annotated with loop invariant for easier generation of verification conditions:"
 
-definition  loop_a :: "(('proc, 'any, 'operation) proof_state \<Rightarrow> bool) \<Rightarrow>   (bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
+definition  loop_a :: "(('proc, 'any, 'operation) proof_state \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool) \<Rightarrow>   (bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
 "loop_a LoopInv body \<equiv> loop body"
 
 lemma annotate_loop:
@@ -2847,13 +2829,13 @@ qed
 
 lemma execution_s_check_loop:
   assumes 
-inv_pre: "LoopInv PS"
+inv_pre: "LoopInv PS PS"
 and cont: "
-\<And>PS. \<lbrakk>
-  LoopInv PS
-\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec  PS body 
+\<And>PSl. \<lbrakk>
+  LoopInv PS PSl
+\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec  PSl body 
     (\<lambda>PS' r. if r then execution_s_check Inv crdtSpec PS' (cont ()) P
-             else LoopInv PS' )"
+             else LoopInv PS PS' )"
 shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
   unfolding execution_s_check_def proof (intro allI impI)
   fix S' res
@@ -2870,11 +2852,11 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
   text "loop maintains the invariant"
   have "case loopR of None \<Rightarrow> False 
       | Some True \<Rightarrow> execution_s_check Inv crdtSpec PS' (cont ()) P 
-      | Some False \<Rightarrow> LoopInv PS'"
-    if "LoopInv PS"
+      | Some False \<Rightarrow> LoopInv PS PS'"
+    if "LoopInv PS PSl"
       and "proof_state_wellFormed' PS"
       and "steps_io Inv crdtSpec PS body PS' loopR"
-    for PS PS' loopR
+    for PSl PS' loopR
     by (smt PS_wf cont inv_pre option.case_eq_if that use_execution_s_check)
 
   define Pl where "Pl \<equiv> (\<lambda>Si. \<forall>S' res.
@@ -2886,28 +2868,28 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
     assume steps_loop: "steps_io Inv crdtSpec PS (loop body) Si r"
     from this
     have "Pl Si \<and> r \<triangleq> ()"
-    proof (rule loop_steps)
-      show "LoopInv PS \<and> proof_state_wellFormed' PS"
+    proof (rule loop_steps[where LoopInv="\<lambda>PSl. LoopInv PS PSl \<and> proof_state_wellFormed' PSl"])
+      show "LoopInv PS PS \<and> proof_state_wellFormed' PS"
         by (simp add: inv_pre PS_wf)
 
 
-      show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv Sb \<and> proof_state_wellFormed' Sb"
-        if "LoopInv S \<and> proof_state_wellFormed' S"
+      show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed' Sb"
+        if "LoopInv PS S \<and> proof_state_wellFormed' S"
           and steps: "steps_io Inv crdtSpec S body Sb br"
         for  S Sb br
       proof -
         from  that
-        have inv: "LoopInv S" and wf: "proof_state_wellFormed' S" 
+        have inv: "LoopInv PS S" and wf: "proof_state_wellFormed' S" 
           by auto
 
         from cont[OF inv]
         have check: "execution_s_check Inv crdtSpec S body
-           (\<lambda>PS' r. if r then execution_s_check Inv crdtSpec PS' (cont ()) P else LoopInv PS')".
+           (\<lambda>PS' r. if r then execution_s_check Inv crdtSpec PS' (cont ()) P else LoopInv PS PS')".
 
         from use_execution_s_check[OF check, OF steps, OF wf]
-        have c: "case br of None \<Rightarrow> False | Some r \<Rightarrow> if r then execution_s_check Inv crdtSpec Sb (cont ()) P else LoopInv Sb" .
+        have c: "case br of None \<Rightarrow> False | Some r \<Rightarrow> if r then execution_s_check Inv crdtSpec Sb (cont ()) P else LoopInv PS Sb" .
 
-        show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv Sb \<and> proof_state_wellFormed' Sb"
+        show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed' Sb"
         proof (cases br)
           case None
           thus ?thesis
@@ -2940,7 +2922,7 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
 
             show ?thesis 
             proof auto
-              show "LoopInv Sb"
+              show "LoopInv PS Sb"
                 using c by auto
               show "proof_state_wellFormed' Sb"
                 using local.wf steps steps_io_wf_maintained' by fastforce
@@ -2977,15 +2959,112 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
   qed
 qed
 
+subsection "References"
+
+
+lemma execution_s_check_makeRef:
+  assumes cont: "
+\<And>ref. \<lbrakk>
+  ref = freshRef (dom (ps_store PS))
+\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec 
+    (PS\<lparr>
+      ps_store := (ps_store PS)(ref \<mapsto> intoAny a)
+     \<rparr>) 
+    (cont (Ref ref)) 
+    P"
+  shows "execution_s_check Inv crdtSpec PS  (makeRef a \<bind> cont) P"
+proof (rule execution_s_check_proof_rule)
+  show "\<And>r. makeRef a \<noteq> impl_language_loops.io.WaitReturn r"
+    by (simp add: makeRef_def)
+
+  show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
+    if step: "step_io Inv crdtSpec PS (makeRef a \<bind> cont) action PS' cmd' ok"
+      and PS_wf: "proof_state_wellFormed' PS"
+    for  action PS' cmd' ok
+  proof
+    have [simp]: "finite (dom (ps_store PS))"
+      using PS_wf proof_state_wellFormed'_def by blast
+
+
+
+    from step
+    have  c0: "action = ALocal True"
+      and c1: "ok"
+      and c2: "PS' = PS\<lparr>ps_store := ps_store PS(freshRef (dom (ps_store PS)) \<mapsto> intoAny a)\<rparr>"
+      and c3: "cmd' = cont (Ref (freshRef (dom (ps_store PS))))"
+      by (auto simp add: makeRef_def step_io_def Let_def )
+
+    show "ok" using `ok` .
+
+    show "\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P"
+      using c2 c3 cont by blast
+  qed
+qed
+
+
+lemma execution_s_check_read:
+  assumes validRef: "iref r \<in> dom (ps_store PS)"
+    and cont: "
+    execution_s_check Inv crdtSpec 
+      PS 
+      (cont (s_read (ps_store PS) r))
+      P"
+  shows "execution_s_check Inv crdtSpec PS  (read r \<bind>io cont) P"
+proof (rule execution_s_check_proof_rule)
+  show "\<And>ra. read r \<noteq> impl_language_loops.io.WaitReturn ra"
+    by (simp add: read_def)
+
+  show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
+    if c0: "step_io Inv crdtSpec PS (read r \<bind> cont) action PS' cmd' ok"
+      and c1: "proof_state_wellFormed' PS"
+    for  action PS' cmd' ok
+    using that validRef cont[simplified s_read_def] by (auto simp add:  step_io_def read_def proof_state_wellFormed'_def intro!: exI)
+qed
+
+lemma execution_s_check_assign:
+  assumes validRef: "iref r \<in> dom (ps_store PS)"
+    and cont: "
+    execution_s_check Inv crdtSpec 
+      (PS\<lparr>ps_store := ps_store PS(iref r \<mapsto> intoAny v)\<rparr>)
+      (cont ())
+      P"
+  shows "execution_s_check Inv crdtSpec PS  (assign r v \<bind>io cont) P"
+proof (rule execution_s_check_proof_rule)
+  show "\<And>ra. r :\<leftarrow> v \<noteq> impl_language_loops.io.WaitReturn ra"
+    by (simp add: assign_def)
+
+  show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
+    if c0: "step_io Inv crdtSpec PS (r :\<leftarrow> v \<bind> cont) action PS' cmd' ok"
+      and c1: "proof_state_wellFormed' PS"
+    for  action PS' cmd' ok
+    using that validRef cont by (auto simp add:  step_io_def assign_def proof_state_wellFormed'_def )
+qed
+
+lemma execution_s_check_return:
+  assumes finalCheck: "proof_state_wellFormed' PS \<Longrightarrow> P PS r"
+  shows "execution_s_check Inv crdtSpec PS (return r) P"
+  using finalCheck
+unfolding execution_s_check_def steps_io_return_iff by auto
+
+subsection "Verification Condition Generation Tactics"
 
 
 lemmas repliss_proof_rules = 
   execution_s_check_makeRef
+  execution_s_check_read
+  execution_s_check_assign
   execution_s_check_loop
+  execution_s_check_return
+  show_finalCheck
 
-method repliss_vcg_step = (rule repliss_proof_rules; (intro impI conjI)?; simp?; (intro impI conjI)?;  repliss_vcg_step?)
+method repliss_vcg_step1 uses asmUnfold = 
+  (rule repliss_proof_rules; ((subst(asm) asmUnfold)+)?; (intro impI conjI)?; clarsimp?; (intro impI conjI)?)
 
-method repliss_vcg_l uses impl = ((simp add: impl)?, (unfold atomic_def skip_def)?, simp? , repliss_vcg_step)
+method repliss_vcg_step uses asmUnfold = 
+  (repliss_vcg_step1 asmUnfold: asmUnfold; (repliss_vcg_step asmUnfold: asmUnfold)?)
+
+method repliss_vcg_l uses impl asmUnfold = 
+  ((simp add: impl)?, (unfold atomic_def skip_def)?, simp? , repliss_vcg_step asmUnfold: asmUnfold)
 
 
 

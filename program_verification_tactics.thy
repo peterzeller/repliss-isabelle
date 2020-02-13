@@ -41,7 +41,7 @@ lemma DC_show_programCorrect:
 lemma DC_show_procedureCorrect:
   fixes ct defines "ct' \<equiv> \<lambda>pos name. (name, pos,[]) # ct"
   assumes "C\<langle>Suc n1, ct' n1 ''after_invocation'', n2: invariant_all' S\<rangle>"
-    and  "C\<langle>Suc n2, (''execution'', n2, [])#ct, n3: execution_s_correct S i\<rangle>"
+    and  "B\<langle>''in_initial_state'', n2: invariant_all' S\<rangle> \<Longrightarrow> C\<langle>Suc n2, (''execution'', n2, [])#ct, n3: execution_s_correct S i\<rangle>"
   shows "C\<langle>n1,ct,n3: procedureCorrect S i\<rangle>"
   using assms
   unfolding LABEL_simps by (auto simp add: procedureCorrect_def)

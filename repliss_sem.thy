@@ -477,7 +477,8 @@ abbreviation invContext' where
   (invocationOp state)
   (invocationRes state)"
 
-
+lemma invContext'_truncate: "invContext' state = invariantContext.truncate state"
+  by (auto simp add: invContextH2_def invariantContext.defs)
 
 
 definition callsInTransactionH :: "(callId \<rightharpoonup> txid) \<Rightarrow> txid set \<Rightarrow> callId set" where

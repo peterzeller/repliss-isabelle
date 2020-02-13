@@ -264,6 +264,9 @@ We simply encode references using natural numbers."
 definition "fromAny x \<equiv> from_nat (toNat x)"
 definition "intoAny x \<equiv> fromNat (to_nat x)"
 
+lemma fromAny_intoAny[simp]: "fromAny (intoAny x) = x"
+  by (simp add: fromAny_def fromNat_inj intoAny_def the_inv_f_f toNat_def)
+
 definition freshRefH :: "nat \<Rightarrow> nat set \<Rightarrow> nat" where
 "freshRefH mi D \<equiv> (if finite D then LEAST x. x \<ge> mi \<and> (\<forall>y\<in>D. x>y) else 0)"
 
@@ -282,12 +285,18 @@ lemma freshRef_insert[simp]:
 definition makeRef :: "'a::countable \<Rightarrow> ('a ref, 'operation, 'any::natConvert) io" where
 "makeRef v \<equiv> WaitLocalStep (\<lambda>s. let r = freshRef (dom s) in (True, s(r \<mapsto> intoAny v), WaitReturn (Ref r)))"
 
+definition s_read :: "('any::natConvert) store \<Rightarrow> ('a::countable) ref \<Rightarrow> 'a" where
+"s_read s ref \<equiv> 
+    case s (iref ref) of 
+      Some v \<Rightarrow> fromAny v 
+    | None  \<Rightarrow> from_nat 0"
+
 definition read :: "'a ref \<Rightarrow> ('a::countable, 'operation, 'any::natConvert) io" where
 "read ref \<equiv> WaitLocalStep (\<lambda>s. case s (iref ref) of 
       Some v \<Rightarrow> (True, s, WaitReturn (fromAny v)) 
     | None  \<Rightarrow> (False, s, WaitReturn (from_nat 0)))"
 
-definition assign :: "('a::countable) ref \<Rightarrow> 'a \<Rightarrow> (unit, 'operation, 'any::natConvert) io" (infix "::=" 60) where
+definition assign :: "('a::countable) ref \<Rightarrow> 'a \<Rightarrow> (unit, 'operation, 'any::natConvert) io" (infix ":\<leftarrow>" 60) where
 "assign ref v \<equiv> WaitLocalStep (\<lambda>s. case s (iref ref) of 
     Some _ \<Rightarrow> (True, s((iref ref) \<mapsto> intoAny v), WaitReturn ()) 
   | None  \<Rightarrow> (False, s, WaitReturn ())) "
