@@ -11,6 +11,46 @@ identifiers out of thin air (i.e. ``guess'' them).
 We define this property inductively:
 \<close>
 
+fun action_inputs where
+  "action_inputs (ALocal ls) = {}"
+| "action_inputs (ANewId i) = uniqueIds i"
+| "action_inputs (ABeginAtomic t c) =  {}"
+| "action_inputs AEndAtomic = {}"
+| "action_inputs (ADbOp c opr res) = uniqueIds res"
+| "action_inputs (AInvoc proc) = uniqueIds proc"
+| "action_inputs (AReturn r) = {}"
+| "action_inputs ACrash   = {}"
+| "action_inputs (AInvcheck b) = {}"
+
+fun action_outputs where
+  "action_outputs (ALocal ls) = {}"
+| "action_outputs (ANewId i) = {}"
+| "action_outputs (ABeginAtomic t c) =  {}"
+| "action_outputs AEndAtomic = {}"
+| "action_outputs (ADbOp c opr res) = uniqueIds opr"
+| "action_outputs (AInvoc proc) = {}"
+| "action_outputs (AReturn r) = uniqueIds r"
+| "action_outputs ACrash   = {}"
+| "action_outputs (AInvcheck b) = {}"
+
+definition trace_inputs :: "('proc::valueType, 'operation, 'any::valueType) trace \<Rightarrow> invocId \<Rightarrow> uniqueId set" where
+"trace_inputs trace i \<equiv> \<Union>((action_inputs \<circ> snd) ` (Set.filter (\<lambda>a. fst a = i) (set trace)))"
+
+definition trace_outputs :: "('proc, 'operation::valueType, 'any::valueType) trace \<Rightarrow>  invocId \<Rightarrow> uniqueId set" where
+"trace_outputs trace i \<equiv> \<Union>((action_outputs \<circ> snd) ` (Set.filter (\<lambda>a. fst a = i) (set trace)))"
+
+\<comment> \<open>uids are the ids that are already known in invocation i.
+The property states that no further unique ids may be produced in the output
+of invocation i without obtaining them as input first.\<close>
+definition 
+"invocation_cannot_guess_ids uids i S \<equiv>
+ \<forall>tr S'. (S ~~ tr \<leadsto>* S')
+  \<longrightarrow> trace_outputs tr i \<subseteq> trace_inputs tr i \<union> uids"
+
+(* TODO transfer this to local states, procedures, programs  *)
+(* TODO show procedure_cannot_guess_ids implies the semantic property *)
+(* TODO show that syntactic property for toImpl with loops implies semantic property *)
+   
 
 inductive procedure_cannot_guess_ids :: "uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'operation::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool"  where
   pcgi_local:  "\<lbrakk>impl ls = LocalStep ok ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"

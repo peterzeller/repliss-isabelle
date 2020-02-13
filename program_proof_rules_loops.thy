@@ -3141,6 +3141,36 @@ loop_a_def[language_construct_defs]
 \<comment> \<open>loop construct is not added here, since unfolding it might diverge.
     the loops added are just syntactic sugar for loop.\<close>
 
+instantiation bool :: valueType begin
+definition [simp]: "uniqueIds_bool \<equiv> \<lambda>b::bool. {}::uniqueId set"
+definition [simp]: "default_bool \<equiv> False"
+instance by standard auto
+end
+
+instantiation unit :: valueType begin
+definition [simp]: "uniqueIds_unit \<equiv> \<lambda>b::unit. {}::uniqueId set"
+instance by standard auto
+end
+
+lemma pcgi_bind:
+assumes a: " procedure_cannot_guess_ids uids (store, cmd \<bind> (\<lambda>x. return ())) toImpl"
+    and b: "\<And>uids store. procedure_cannot_guess_ids uids (store, cnt ()) toImpl"
+  shows "procedure_cannot_guess_ids uids (store, cmd \<bind> cnt) toImpl"
+
+lemma                    
+  assumes a: "\<And>uids store. procedure_cannot_guess_ids uids (store, bdy) toImpl"
+    and b: "\<And>uids store. procedure_cannot_guess_ids uids (store, cnt ()) toImpl"
+  shows "procedure_cannot_guess_ids uids (store, loop bdy \<bind> cnt) toImpl"
+proof (rule procedure_cannot_guess_ids.coinduct)
+
+  have "toImpl (store, loop bdy \<bind> cnt) = LocalStep True (store, bdy \<bind> (\<lambda>r. if r then cnt () else Loop (to_V bdy) (cnt ())))"
+    by (auto simp add: loop_def)
+
+  show "procedure_cannot_guess_ids uids (store, loop bdy \<bind> cnt) toImpl"
+  proof (rule pcgi_local)  
+    show "toImpl (store, loop bdy \<bind> cnt) = LocalStep True (store, bdy \<bind> (\<lambda>r. if r then cnt () else Loop (to_V bdy) (cnt ())))"
+      by (auto simp add: loop_def)
+
 
 
 end
