@@ -10,6 +10,7 @@ session "repliss" = "HOL" +
     "HOL-Eisbach"
     "Case_Labeling"
     "fuzzyrule"
+    "ZFC_in_HOL"
  (* theories [document = false]
     "~~/src/HOL/Library/FSet"
     "~~/src/HOL/Eisbach/Eisbach"
