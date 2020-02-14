@@ -10,6 +10,7 @@ theory unique_ids2
     execution_invariants_unused
     impl_language
     topological_sort
+    unique_ids_procedure_check
 begin
 
 

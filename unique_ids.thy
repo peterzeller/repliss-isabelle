@@ -521,9 +521,11 @@ next
         metis (mono_tags, hide_lams) action_outputs.simps(7) domIff invocation_cannot_guess_ids_step step.hyps(1) step.hyps(3) subsetD wf_knownIds_subset_generatedIds_h(1))
 qed
 
-
+(*
 text "We restrict the definition invocation_cannot_guess_ids to a 
 specific local state and procedure implementation:"
+
+
 
 definition procedure_cannot_guess_ids :: "('proc::valueType) itself \<Rightarrow> uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'operation::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool" where
 "procedure_cannot_guess_ids _ uids ls impl \<equiv>
@@ -675,9 +677,6 @@ proof (rule, rule show_invocation_cannot_guess_ids)
   qed
 qed
 
-
-
-
-
+*)
 
 end
