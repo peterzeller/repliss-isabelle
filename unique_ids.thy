@@ -1,6 +1,7 @@
 section "Unique Identifiers"
 theory unique_ids
   imports execution_invariants
+    "fuzzyrule.fuzzyrule"
 begin
 
 
@@ -21,6 +22,15 @@ fun action_inputs where
 | "action_inputs (AReturn r) = {}"
 | "action_inputs ACrash   = {}"
 | "action_inputs (AInvcheck b) = {}"
+
+lemma action_inputs_cases:
+ "x \<in> action_inputs a \<longleftrightarrow> 
+(case a of 
+    ANewId i \<Rightarrow> x \<in> uniqueIds i 
+  | ADbOp c opr res \<Rightarrow> x \<in> uniqueIds res
+  | AInvoc proc \<Rightarrow> x \<in> uniqueIds proc
+  | _ \<Rightarrow> False)"
+  by (auto split: action.splits)
 
 fun action_outputs where
   "action_outputs (ALocal ls) = {}"
@@ -44,51 +54,140 @@ The property states that no further unique ids may be produced in the output
 of invocation i without obtaining them as input first.\<close>
 definition 
 "invocation_cannot_guess_ids uids i S \<equiv>
- \<forall>tr S'. (S ~~ tr \<leadsto>* S')
-  \<longrightarrow> trace_outputs tr i \<subseteq> trace_inputs tr i \<union> uids"
+ \<forall>tr a S'. (S ~~ tr@[a] \<leadsto>* S')
+  \<longrightarrow> trace_outputs (tr@[a]) i \<subseteq> trace_inputs tr i \<union> uids"
+
+definition 
+"invocations_cannot_guess_ids progr \<equiv>
+  \<forall>i. invocation_cannot_guess_ids {} i (initialState progr)"
+
+lemmas use_invocation_cannot_guess_ids = invocation_cannot_guess_ids_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format]
+
+lemma show_invocation_cannot_guess_ids:
+  assumes a: "\<And>x tr a S'. S ~~ tr@[(i, a)] \<leadsto>* S'
+      \<Longrightarrow> x \<in> action_outputs a
+      \<Longrightarrow> x \<notin> uids
+      \<Longrightarrow> x \<in> trace_inputs tr i"
+  shows "invocation_cannot_guess_ids uids i S"
+  unfolding invocation_cannot_guess_ids_def
+proof auto
+  fix tr i' action x S''
+  assume a0: "x \<in> trace_outputs (tr @ [(i', action)]) i"
+    and a1: "x \<notin> uids"
+    and steps: "S ~~ tr @ [(i', action)] \<leadsto>* S''"
+
+  
+
+  show "x \<in> trace_inputs tr i"
+    using a0
+  proof (auto simp add: trace_outputs_def split: if_splits)
+
+    show "x \<in> trace_inputs tr i"
+      if c0: "i' = i"
+        and c1: "x \<in> action_outputs action"
+      using steps
+    proof (fuzzy_rule a)
+      show "i'=i" using `i' = i` .
+      show "x \<in> action_outputs action" 
+        using `x \<in> action_outputs action` by simp
+      show "x \<notin> uids" using a1 by simp
+    qed
+
+    fix action
+    assume  "x \<in> action_outputs action"
+      and  "(i, action) \<in> set tr"
+
+    from `(i, action) \<in> set tr`
+    obtain k where "k < length tr" and "tr!k = (i,action)"
+      by (meson in_set_conv_nth)
+
+    obtain S1
+      where "S ~~ take (Suc k) tr \<leadsto>* S1"
+      by (metis split_take steps steps_append)
+
+
+
+    have "x \<in> trace_inputs (take k tr) i"
+    proof (rule a)
+      show "S ~~ take k tr @ [(i,action)] \<leadsto>* S1"
+        using \<open>S ~~ take (Suc k) tr \<leadsto>* S1\<close> \<open>k < length tr\<close> \<open>tr ! k = (i, action)\<close> take_Suc_conv_app_nth by fastforce
+
+      show "x \<in> action_outputs action"
+        by (simp add: \<open>x \<in> action_outputs action\<close>)
+
+      show "x \<notin> uids"
+        by (simp add: a1)
+    qed
+
+    thus "x \<in> trace_inputs tr i"
+      by (auto simp add: trace_inputs_def Set.filter_def dest: in_set_takeD)
+    thus "x \<in> trace_inputs tr i" .
+  qed
+qed
+
+
+
+lemma invocation_cannot_guess_ids_step:
+  assumes "invocation_cannot_guess_ids uids i S" 
+    and step: "S ~~ (i, a) \<leadsto> S'"
+    and "x \<in> action_outputs a"
+  shows "x \<in> uids"
+proof -
+  from step have steps: "S ~~ []@[(i, a)] \<leadsto>* S'"
+    by (simp add: steps_single)
+  from use_invocation_cannot_guess_ids[OF `invocation_cannot_guess_ids uids i S` steps]
+  have "trace_outputs [(i, a)] i \<subseteq> uids"
+    by (auto simp add: trace_inputs_def)
+  hence "action_outputs a \<subseteq>  uids"
+    by (auto simp add: trace_outputs_def trace_inputs_def)
+  with `x \<in> action_outputs a`
+  show  ?thesis
+    by auto
+qed
+
+lemma  show_invocation_cannot_guess_ids_step: 
+ assumes "invocation_cannot_guess_ids uids i S" 
+    and step: "S ~~ (i, a) \<leadsto> S'"
+  shows "invocation_cannot_guess_ids (uids \<union> action_inputs a) i S'" 
+  unfolding invocation_cannot_guess_ids_def 
+proof (intro allI impI)
+  fix tr aa S'a
+  assume a0: "S' ~~ tr @ [aa] \<leadsto>* S'a"
+
+  with step
+  have S_steps: "S ~~ ((i,a)#tr) @ [aa] \<leadsto>* S'a"
+    using steps_appendFront by fastforce
+
+  from use_invocation_cannot_guess_ids[OF `invocation_cannot_guess_ids uids i S` S_steps]
+  show "trace_outputs (tr @ [aa]) i \<subseteq> trace_inputs tr i \<union> (uids \<union> action_inputs a)"
+    by (auto simp add: trace_outputs_def trace_inputs_def)
+qed
+
+lemma  show_invocation_cannot_guess_ids_step_other: 
+  assumes "invocation_cannot_guess_ids uids i S" 
+    and step: "S ~~ (i', a) \<leadsto> S'"
+    and "i' \<noteq> i"
+  shows "invocation_cannot_guess_ids uids i S'" 
+  unfolding invocation_cannot_guess_ids_def 
+proof (intro allI impI)
+  fix tr aa S'a
+  assume a0: "S' ~~ tr @ [aa] \<leadsto>* S'a"
+
+  with step
+  have S_steps: "S ~~ ((i',a)#tr) @ [aa] \<leadsto>* S'a"
+    using steps_appendFront by fastforce
+
+  from use_invocation_cannot_guess_ids[OF `invocation_cannot_guess_ids uids i S` S_steps]
+  show "trace_outputs (tr @ [aa]) i \<subseteq> trace_inputs tr i \<union> uids"
+    using `i' \<noteq> i`
+    by (auto simp add: trace_outputs_def trace_inputs_def)
+qed
+
 
 (* TODO transfer this to local states, procedures, programs  *)
 (* TODO show procedure_cannot_guess_ids implies the semantic property *)
 (* TODO show that syntactic property for toImpl with loops implies semantic property *)
    
-
-inductive procedure_cannot_guess_ids :: "uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'operation::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool"  where
-  pcgi_local:  "\<lbrakk>impl ls = LocalStep ok ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
-| pcgi_beginAtomic: "\<lbrakk>impl ls = BeginAtomic ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
-| pcgi_endAtomic:"\<lbrakk>impl ls = EndAtomic ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
-| pcgi_newId:"\<lbrakk>impl ls = NewId f; \<And>uid ls'. f uid \<triangleq> ls' \<Longrightarrow> procedure_cannot_guess_ids (uids \<union> uniqueIds uid) ls' impl
-    \<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
-| pcgi_dbop: "\<lbrakk>impl ls = DbOperation opr f;  uniqueIds opr \<subseteq> uids; 
-    \<And>res. procedure_cannot_guess_ids (uids \<union> uniqueIds res) (f res) impl
-    \<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
-| pcgi_return: "\<lbrakk>impl ls = Return r; uniqueIds r \<subseteq> uids\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls impl"
-
-
-lemma pcgi_local_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = LocalStep ok ls'\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls' impl"
-  by (subst(asm) procedure_cannot_guess_ids.simps, auto)
-lemma pcgi_beginAtomic_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = BeginAtomic ls'\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls' impl"
-  by (subst(asm) procedure_cannot_guess_ids.simps, auto)
-lemma pcgi_endAtomic_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = EndAtomic ls'\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids uids ls' impl"
-  by (subst(asm) procedure_cannot_guess_ids.simps, auto)
-lemma pcgi_newId_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = NewId f\<rbrakk> \<Longrightarrow> f uid \<triangleq> ls' \<Longrightarrow> procedure_cannot_guess_ids (uids \<union> uniqueIds uid) ls' impl"
-  by (subst(asm) procedure_cannot_guess_ids.simps, auto)
-lemma pcgi_dbop_case1:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = DbOperation opr f\<rbrakk> \<Longrightarrow> uniqueIds opr \<subseteq> uids"
-  by (subst(asm) procedure_cannot_guess_ids.simps, auto)
-lemma pcgi_dbop_case2:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = DbOperation opr f\<rbrakk> \<Longrightarrow> procedure_cannot_guess_ids (uids \<union> uniqueIds res) (f res) impl"
-  by (subst(asm) procedure_cannot_guess_ids.simps, auto)
-lemma pcgi_return_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl ls = Return r\<rbrakk> \<Longrightarrow> uniqueIds r \<subseteq> uids"
-  by (subst(asm) procedure_cannot_guess_ids.simps, auto)
-
-
-
-
-
-
-definition procedures_cannot_guess_ids :: "('proc::valueType \<Rightarrow> ('ls \<times> ('ls, 'operation::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
-  "procedures_cannot_guess_ids proc = 
-(\<forall>p ls impl uids. proc p = (ls, impl) \<longrightarrow>  procedure_cannot_guess_ids (uids\<union>uniqueIds p) ls impl)"
-
-lemmas show_procedures_cannot_guess_ids = procedures_cannot_guess_ids_def[THEN iffD1, rule_format]
 
 definition query_cannot_guess_ids :: "uniqueId set \<Rightarrow> (('operation::valueType, 'any::valueType) operationContext \<Rightarrow> 'any \<Rightarrow> bool) \<Rightarrow> bool"  where
   "query_cannot_guess_ids oprUids spec \<equiv> 
@@ -125,7 +224,7 @@ lemma queries_cannot_guess_ids_def2:
 
 definition program_wellFormed :: " ('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) prog \<Rightarrow> bool" where
   "program_wellFormed progr \<equiv> 
-   procedures_cannot_guess_ids (procedure progr)
+   invocations_cannot_guess_ids progr
  \<and> queries_cannot_guess_ids (querySpec progr)
 "
 
@@ -138,7 +237,7 @@ lemma wf_knownIds_subset_generatedIds_h:
   fixes S :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
-  shows "\<And>i ls impl. localState S i \<triangleq> ls \<Longrightarrow> currentProc S i \<triangleq> impl \<Longrightarrow> \<exists>uids\<subseteq>dom (generatedIds S). procedure_cannot_guess_ids uids ls impl"
+  shows "\<And>i. \<exists>uids\<subseteq>dom (generatedIds S). invocation_cannot_guess_ids uids i S"
     and "knownIds S \<subseteq> dom (generatedIds S)"
     and "\<And>c opr r. calls S c \<triangleq> Call opr r \<Longrightarrow> uniqueIds opr \<subseteq> dom (generatedIds S)"
     and "\<And>c opr r. calls S c \<triangleq> Call opr r \<Longrightarrow> uniqueIds r \<subseteq> dom (generatedIds S)"
@@ -148,13 +247,13 @@ proof -
 
 
   from wf prog_wf
-  have H: "(\<forall>i ls impl. localState S i \<triangleq> ls \<and> currentProc S i \<triangleq> impl
-      \<longrightarrow> (\<exists>uids. uids \<subseteq> dom (generatedIds S) \<and> procedure_cannot_guess_ids uids ls impl))
+  have H: "(\<forall>i. (\<exists>uids. uids \<subseteq> dom (generatedIds S) \<and> invocation_cannot_guess_ids uids i S))
        \<and> (knownIds S \<subseteq> dom (generatedIds S))
        \<and> (\<forall>c opr r. calls S c \<triangleq> Call opr r \<longrightarrow> uniqueIds opr \<subseteq> dom (generatedIds S) \<and> uniqueIds r \<subseteq> dom (generatedIds S))"
   proof (induct rule: wellFormed_induct)
     case initial
-    then show ?case by (simp add: initialState_def)
+    then show ?case 
+      by (auto simp add: invocations_cannot_guess_ids_def program_wellFormed_def initialState_def)
   next
     case (step S1 a S2)
 
@@ -169,7 +268,7 @@ proof -
 
 
     from prog_wf
-    have "procedures_cannot_guess_ids (procedure progr)"
+    have "invocations_cannot_guess_ids progr"
       and "queries_cannot_guess_ids (querySpec progr)"
       using program_wellFormed_def by auto
 
@@ -177,12 +276,12 @@ proof -
 
 
 
-    have inv1: "(\<exists>uids\<subseteq>dom (generatedIds S). procedure_cannot_guess_ids uids ls impl)"
-      if "localState S i \<triangleq> ls" 
-        and "currentProc S i \<triangleq> impl"
-        and "S1 = S"
-      for S i ls impl
-      using \<open>prog S1 = progr\<close> step.hyps(2) step.prems that by auto
+    have inv1: "(\<exists>uids\<subseteq>dom (generatedIds S1). invocation_cannot_guess_ids uids i S1)" for i
+      using \<open>prog S1 = progr\<close> step.hyps(2) step.prems  by auto
+
+
+    
+
 
 
     have inv2: "knownIds S1 \<subseteq> dom (generatedIds S1)"
@@ -194,237 +293,153 @@ proof -
       for c opr r
       using \<open>prog S1 = progr\<close> prog_wf step.hyps(2) that by blast
 
+    have inv4r: "x \<in> dom (generatedIds S1)"
+      if "calls S1 c \<triangleq> Call opr r"
+        and "x \<in> uniqueIds r"
+      for c opr r x
+      using \<open>prog S1 = progr\<close> prog_wf step.hyps(2) that(1) that(2) by blast
+
+
+    have inv4o: "x \<in> dom (generatedIds S1)"
+      if "calls S1 c \<triangleq> Call opr r"
+        and "x \<in> uniqueIds opr"
+      for c opr r x
+      using inv3 that(1) that(2) by blast
 
 
 
     obtain action i where a_def: "a = (i, action)"
       using surjective_pairing by blast
 
+    obtain uids_i 
+      where inv1_i1: "uids_i \<subseteq>  dom (generatedIds S1)"
+        and inv1_i: "invocation_cannot_guess_ids uids_i i S1"
+      using inv1 by auto
 
+    from `S1 ~~ a \<leadsto> S2`[simplified a_def]
+    have "S1 ~~ (i, action) \<leadsto> S2" .
 
     show "?case"
-    proof (intro allI conjI impI, elim conjE)
+    proof (intro allI conjI impI)
+
+
+      have i_in_out: "x \<in> uids_i"
+        if "x \<in> action_outputs action" 
+        for x
+        using that invocation_cannot_guess_ids_step[OF `invocation_cannot_guess_ids uids_i i S1` `S1 ~~ (i, action) \<leadsto> S2`] 
+        by auto
+
 
       show "knownIds S2 \<subseteq> dom (generatedIds S2)"
-        using `S1 ~~ a \<leadsto> S2` inv2 
-        by (auto simp add: step.simps dest!: pcgi_return_case inv1 split: if_splits, blast+ )
+        using i_in_out `S1 ~~ (i, action) \<leadsto> S2` inv2 inv1_i1 
+        by (auto simp add: step.simps, blast+)
+
+      from queries_cannot_guess_ids_def2[THEN iffD1, rule_format, OF `queries_cannot_guess_ids (querySpec progr)`]
+      have qry_wf: "\<exists>cId opr res. calls ctxt cId \<triangleq> Call opr res \<and> x \<in> uniqueIds opr"
+        if c0: "querySpec progr opr ctxt res"
+          and c2: "x \<notin> uniqueIds opr"
+          and c1: "x \<in> uniqueIds res"
+        for ctxt opr res x
+        using that by auto
 
 
 
+      have qryOk: "x \<notin> uniqueIds res"
+        if q: "querySpec progr Op (getContextH (calls S1) (happensBefore S1) (Some vis)) res"
+          and no: "x \<notin> uniqueIds Op"
+          and noG: "x \<notin> dom (generatedIds S1)"
+        for Op vis res x
+      proof 
+        assume " x \<in> uniqueIds res"
+        from qry_wf[OF q no `x \<in> uniqueIds res`]
+        obtain cId opr res where "cId \<in> vis" and  "x \<in> uniqueIds opr" and "calls S1 cId \<triangleq> Call opr res"
+          by (auto simp add: getContextH_def restrict_map_def split: if_splits)
+        thus False
+          using inv4o noG by blast
+      qed
 
-      show "\<exists>uids\<subseteq>dom (generatedIds S2). procedure_cannot_guess_ids uids ls' impl'"
-        if c0: "localState S2 i' \<triangleq> ls'" and c1: "currentProc S2 i' \<triangleq> impl'"
-        for  i' ls' impl'
-        using `S1 ~~ a \<leadsto> S2` 
-      proof (cases rule: step.cases)
-        case (local i ls f ls')
-        then show ?thesis
-          using c0 c1
-          by (auto simp add: inv1 split: if_splits, meson inv1 pcgi_local_case)
+
+      have qryOk': "\<exists>i. generatedIds S1 x \<triangleq> i"
+        if q: "querySpec progr Op (getContextH (calls S1) (happensBefore S1) (Some vis)) res"
+          and no: "x \<notin> uniqueIds Op"
+          and noG: "x \<in> uniqueIds res"
+        for Op vis res x
+        by (meson domD no noG q qryOk)
+
+
+      have "x \<in> dom (generatedIds S2)"
+        if "x \<in> action_outputs action"
+        for x
+        using `S1 ~~ (i, action) \<leadsto> S2` that
+        by (meson domIff generatedIds_mono2_rev inv1_i inv1_i1 invocation_cannot_guess_ids_step subsetD)
+
+
+      show "\<exists>uids\<subseteq>dom (generatedIds S2). invocation_cannot_guess_ids uids i' S2"
+        for i'
+      proof (cases "i' = i")
+        case True
+        have "uids_i \<union> action_inputs action \<subseteq> dom (generatedIds S2)"
+          using `S1 ~~ (i, action) \<leadsto> S2` inv1_i1 i_in_out 
+          apply (auto simp add: step.simps)
+          apply (meson in_dom qryOk')
+          using inv2 by blast
+
+        moreover 
+        have "invocation_cannot_guess_ids (uids_i \<union> action_inputs action) i S2"
+          using \<open>S1 ~~ (i, action) \<leadsto> S2\<close> inv1_i show_invocation_cannot_guess_ids_step by blast
+
+
+        ultimately
+        show ?thesis
+          using True by blast 
       next
-        case (newId i ls f ls' uid uidv ls'')
-        then show ?thesis using c0 c1
-          by (auto simp add: inv1 split: if_splits,
-           smt Un_insert_right insertI1 insert_subset inv1 pcgi_newId_case subset_insertI2 sup_bot.right_neutral,
-           meson inv1 subset_insertI2)
-      next
-        case (beginAtomic i ls f ls' t vis snapshot)
-        then show ?thesis using c0 c1
-          by (auto simp add: inv1 split: if_splits, 
-              meson inv1 pcgi_beginAtomic_case)
-      next
-        case (endAtomic i ls f ls' t)
-        then show ?thesis using c0 c1
-          by (auto simp add: inv1 split: if_splits,
-             meson inv1 pcgi_endAtomic_case)
-      next
-        case (dbop i'' ls1 f Op ls2 t c res vis)
-        then show ?thesis using c0 c1
-        proof (auto simp add: inv1 a_def split: if_splits)
-
-          show "\<exists>uids\<subseteq>dom (generatedIds S1). procedure_cannot_guess_ids uids (ls2 res) impl'"
-            if c0: "f = impl'"
-              and c1: "S2 = S1 \<lparr>localState := localState S1(i'' \<mapsto> ls2 res), calls := calls S1(c \<mapsto> Call Op res), callOrigin := callOrigin S1(c \<mapsto> t), visibleCalls := visibleCalls S1(i'' \<mapsto> insert c vis), happensBefore := happensBefore S1 \<union> vis \<times> {c}\<rparr>"
-              and c2: "localState S1 i'' \<triangleq> ls1"
-              and c3: "currentProc S1 i'' \<triangleq> impl'"
-              and c4: "impl' ls1 = DbOperation Op ls2"
-              and c5: "currentTransaction S1 i'' \<triangleq> t"
-              and c6: "calls S1 c = None"
-              and c7: "querySpec progr Op (getContextH (calls S1) (happensBefore S1) (Some vis)) res"
-              and c8: "visibleCalls S1 i'' \<triangleq> vis"
-              and c9: "i' = i''"
-              and c10: "i = i''"
-              and c11: "action = ADbOp c Op res"
-              and c12: "ls' = ls2 res"
+        case False
+        obtain uids where "uids\<subseteq>dom (generatedIds S1)" and "invocation_cannot_guess_ids uids i' S1"
+          using inv1 by auto
 
 
-          proof -
-            from  inv1[OF c2 c3]
-            obtain uids
-              where uids_dom: "uids\<subseteq>dom (generatedIds S1)"
-                and uids_cannot_guess: " procedure_cannot_guess_ids uids ls1 impl'"
-              by auto
-
-
-
-            show "\<exists>uids\<subseteq>dom (generatedIds S1). procedure_cannot_guess_ids uids (ls2 res) impl'"
-            proof (intro exI conjI)
-
-              from pcgi_dbop_case2[OF `procedure_cannot_guess_ids uids ls1 impl'` c4, where res=res]
-              show "procedure_cannot_guess_ids (uids \<union> uniqueIds res) (ls2 res) impl'"
-                by simp
-
-
-              have ids_from_call: "x \<in> uniqueIds Op \<or> (\<exists>cId opr res. calls (getContextH (calls S1) (happensBefore S1) (Some vis)) cId \<triangleq> Call opr res \<and> x \<in> uniqueIds opr)"
-                if "x \<in> uniqueIds res" 
-                for x
-                using queries_cannot_guess_ids_def2[THEN iffD1, rule_format, OF `queries_cannot_guess_ids (querySpec progr)` c7 that] 
-                by auto
-
-              have "\<exists>y. generatedIds S1 x \<triangleq> y"
-                if  "x \<in> uniqueIds res"
-                for  x
-                using ids_from_call[OF that] proof auto
-
-                show "\<exists>y. generatedIds S1 x \<triangleq> y"
-                  if c0: "x \<in> uniqueIds Op"
-                  by (meson \<open>S1 = S1 \<Longrightarrow> \<exists>uids\<subseteq>dom (generatedIds S1). procedure_cannot_guess_ids uids ls1 impl'\<close> c4 domD pcgi_dbop_case1 subset_h1 that)
-
-
-                show "\<exists>y. generatedIds S1 x \<triangleq> y"
-                  if c0: "x \<in> uniqueIds opr"
-                    and c1: "calls (getContextH (calls S1) (happensBefore S1) (Some vis)) cId \<triangleq> Call opr res"
-                  for  cId opr res
-                  using that
-                  by (auto simp add: getContextH_def restrict_map_def split: if_splits,
-                      meson domD in_mono inv3)
-              qed
-
-              with this
-              show "uids \<union> uniqueIds res \<subseteq> dom (generatedIds S1)"
-                using \<open>uids \<subseteq> dom (generatedIds S1)\<close> by auto
-            qed
-          qed
+        show ?thesis 
+        proof (intro exI conjI)
+          show "uids \<subseteq> dom (generatedIds S2)"
+            using \<open>S1 ~~ (i, action) \<leadsto> S2\<close> \<open>uids \<subseteq> dom (generatedIds S1)\<close> generatedIds_mono map_le_implies_dom_le by blast
+          show "invocation_cannot_guess_ids uids i' S2"
+            using False \<open>S1 ~~ (i, action) \<leadsto> S2\<close> \<open>invocation_cannot_guess_ids uids i' S1\<close> show_invocation_cannot_guess_ids_step_other by blast
         qed
-      next
-        case (invocation i proc initialState impl)
-        then show ?thesis using c0 c1
-          by (auto simp add: inv1 split: if_splits, metis (no_types, lifting) \<open>procedures_cannot_guess_ids (procedure progr)\<close> inv2 show_procedures_cannot_guess_ids subset_Un_eq subset_refl subset_trans)
-      next
-        case (return i ls f res)
-        then show ?thesis using c0 c1
-          by (auto simp add: inv1 split: if_splits)
-      next
-        case (fail i ls)
-        then show ?thesis using c0 c1
-          by (auto simp add: inv1 split: if_splits)
-      next
-        case (invCheck res i)
-        then show ?thesis using c0 c1
-          by (auto simp add: inv1 split: if_splits)
       qed
 
       show "uniqueIds opr \<subseteq> dom (generatedIds S2)"
         if c0: "calls S2 c \<triangleq> Call opr r"
         for  c opr r
-        using `S1 ~~ a \<leadsto> S2` that inv3
-        by (auto simp add: step.simps split: if_splits;
-            meson domD in_mono inv1 pcgi_dbop_case1 | blast
-            )
-      hence call_ops_unique: "x\<in>dom(generatedIds S2)"
-        if "x\<in>uniqueIds opr" and "calls S2 c \<triangleq> Call opr r"
-        for  c opr r x
-        using that by blast
+        using `S1 ~~ a \<leadsto> S2` that inv3 a_def action_outputs.simps(5) i_in_out inv1_i1
+        by (auto simp add: step.simps split: if_splits) blast+
 
-      have query_no_guess: " query_cannot_guess_ids (uniqueIds opr) (querySpec progr opr)" for opr
-        using \<open>queries_cannot_guess_ids (querySpec progr)\<close>
-        by (auto simp add:  queries_cannot_guess_ids_def)
-
-      have query_no_guess2: "\<exists>cId opr r. x \<in> uniqueIds opr \<and> calls ctxt cId \<triangleq> Call opr r"
-        if "x\<in>uniqueIds res" 
-          and " querySpec progr opr ctxt res "
-          and "x\<notin> uniqueIds opr"
-        for x res opr ctxt
-        using that 
-        by (metis (no_types, lifting) \<open>queries_cannot_guess_ids (querySpec progr)\<close> queries_cannot_guess_ids_def2) 
-
-      have "x \<in> dom (generatedIds S2)"
-        if c0: "calls S2 c \<triangleq> Call opr r"
-          and c1: "x\<in>uniqueIds r"
-        for  c opr r x
-
-        using `S1 ~~ a \<leadsto> S2` that
-      proof (cases rule: step.cases)
-        case (dbop i ls f Op ls' t c' res vis)
-
-        have "generatedIds S1 = generatedIds S2"
-          using dbop by auto
-
-        have "calls S2 c' \<triangleq> Call Op res"
-          using dbop by auto
-
-        from dbop show ?thesis
-          using c0 c1 proof (auto split: if_splits, goal_cases "A" "B")
-          case A
-          have "calls S2 c \<triangleq> Call opr r"
-            using A by auto
-
-
-          have "x \<in> dom (generatedIds S2)" if "x \<in> uniqueIds opr"
-            using call_ops_unique[OF `x \<in> uniqueIds opr` `calls S2 c \<triangleq> Call opr r`] by simp
-          hence "x \<in> dom (generatedIds S1)" if "x \<in> uniqueIds opr"
-            using \<open>generatedIds S1 = generatedIds S2\<close> that by auto
-
-
-
-          show ?case
-          proof (rule ccontr, auto)
-            assume "generatedIds S1 x = None"
-            hence "x \<notin> uniqueIds opr"
-              using \<open>generatedIds S1 = generatedIds S2\<close> \<open>x \<in> uniqueIds opr \<Longrightarrow> x \<in> dom (generatedIds S2)\<close> by auto
-
-            from query_no_guess2[OF `x \<in> uniqueIds r` `querySpec progr opr (getContextH (calls S1) (happensBefore S1) (Some vis)) r` `x \<notin> uniqueIds opr`]
-            obtain cId opr' r'
-              where "x \<in> uniqueIds opr'"
-                and c: "calls S1 cId \<triangleq> Call opr' r'"
-              by (auto simp add: getContextH_def restrict_map_def split: if_splits)
-
-
-
-
-            from inv3[OF c]
-            have "uniqueIds opr' \<subseteq> dom (generatedIds S1)"
-              by blast
-
-
-            show False
-              using \<open>generatedIds S1 x = None\<close> \<open>uniqueIds opr' \<subseteq> dom (generatedIds S1)\<close> \<open>x \<in> uniqueIds opr'\<close> by blast
-          qed
-        next
-          case B
-          show ?case
-            using B(12) \<open>prog S1 = progr\<close> c1 prog_wf step.hyps(2) by blast
-        qed
-      qed (insert c0 c1  \<open>prog S1 = progr\<close> prog_wf step.hyps(2), auto simp add: step.simps split: if_splits; blast)+
-
-      thus "uniqueIds r \<subseteq> dom (generatedIds S2)"
+      show "uniqueIds r \<subseteq> dom (generatedIds S2)"
         if c0: "calls S2 c \<triangleq> Call opr r"
         for  c opr r
-        using that by blast
+        using `S1 ~~ a \<leadsto> S2` that
+        apply (auto simp add: step.simps domD inv4r split: if_splits)
+        by (metis (mono_tags, hide_lams) action_outputs.simps(5) in_dom inv1 invocation_cannot_guess_ids_step qryOk' step.hyps(3))
+
     qed
   qed
 
 
   from H
-  show "knownIds S \<subseteq> dom (generatedIds S)"
-    "\<And>i ls impl.
-       \<lbrakk>localState S i \<triangleq> ls; currentProc S i \<triangleq> impl; state_wellFormed S; program_wellFormed (prog S)\<rbrakk>
-       \<Longrightarrow> \<exists>uids\<subseteq>dom (generatedIds S). procedure_cannot_guess_ids uids ls impl"
-    "\<And>c opr r. \<lbrakk>calls S c \<triangleq> Call opr r; state_wellFormed S; program_wellFormed (prog S)\<rbrakk> \<Longrightarrow> uniqueIds opr \<subseteq> dom (generatedIds S)"
-    "\<And>c opr r.
+  show "\<And>i. \<lbrakk>state_wellFormed S; program_wellFormed (prog S)\<rbrakk>
+         \<Longrightarrow> \<exists>uids\<subseteq>dom (generatedIds S). invocation_cannot_guess_ids uids i S"
+    by blast
+  from H
+  show "\<lbrakk>state_wellFormed S; program_wellFormed (prog S)\<rbrakk> \<Longrightarrow> knownIds S \<subseteq> dom (generatedIds S)"
+    by blast
+  from H
+  show "\<And>c opr r.
        \<lbrakk>calls S c \<triangleq> Call opr r; state_wellFormed S; program_wellFormed (prog S)\<rbrakk>
-       \<Longrightarrow> uniqueIds r \<subseteq> dom (generatedIds S)"
-    by blast+
+       \<Longrightarrow> uniqueIds opr \<subseteq> dom (generatedIds S)"
+    by blast
+  from  H
+  show "\<And>c opr r.
+       \<lbrakk>calls S c \<triangleq> Call opr r; state_wellFormed S; program_wellFormed (prog S)\<rbrakk> \<Longrightarrow> uniqueIds r \<subseteq> dom (generatedIds S)"
+    by blast
 
 qed
 
@@ -493,6 +508,7 @@ lemma wf_onlyGeneratedIdsInInvocationRes:
     and prog_wf: "program_wellFormed (prog S)"
     and not_generated: "generatedIds S uid = None"
   shows "invocationRes S c \<triangleq> res \<Longrightarrow> uid \<notin> uniqueIds res"
+
   using wf prog_wf not_generated proof (induct rule: wellFormed_induct)
   case initial
   then show ?case 
@@ -501,10 +517,166 @@ lemma wf_onlyGeneratedIdsInInvocationRes:
 next
   case (step t a s)
   then show ?case 
-    by (auto simp add: step.simps split: if_splits, goal_cases "new_invoc",
-       smt domIff pcgi_return_case subset_iff wf_knownIds_subset_generatedIds_h(1))
-
+    by (auto simp add: step.simps split: if_splits,
+        metis (mono_tags, hide_lams) action_outputs.simps(7) domIff invocation_cannot_guess_ids_step step.hyps(1) step.hyps(3) subsetD wf_knownIds_subset_generatedIds_h(1))
 qed
+
+
+text "We restrict the definition invocation_cannot_guess_ids to a 
+specific local state and procedure implementation:"
+
+definition procedure_cannot_guess_ids :: "('proc::valueType) itself \<Rightarrow> uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'operation::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool" where
+"procedure_cannot_guess_ids _ uids ls impl \<equiv>
+\<forall>(S::('proc, 'ls, 'operation, 'any) state) (i::invocId). 
+      localState S i \<triangleq> ls 
+  \<longrightarrow> currentProc S i \<triangleq> impl 
+  \<longrightarrow> invocation_cannot_guess_ids uids i S"
+
+lemmas use_procedure_cannot_guess_ids = procedure_cannot_guess_ids_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format]
+
+
+definition procedures_cannot_guess_ids :: "('proc::valueType \<Rightarrow> ('ls \<times> ('ls, 'operation::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
+  "procedures_cannot_guess_ids proc = 
+(\<forall>p ls impl uids. proc p = (ls, impl) \<longrightarrow>  procedure_cannot_guess_ids (TYPE('proc)) (uids\<union>uniqueIds p) ls impl)"
+
+lemmas use_procedures_cannot_guess_ids = procedures_cannot_guess_ids_def[THEN iffD1, rule_format]
+
+
+text "Show: if all procedures cannot guess ids, then program is also wellformed."
+
+
+lemma invocations_cannot_guess_ids_if_procedures:
+  assumes "procedures_cannot_guess_ids (procedure progr)"
+  shows "invocations_cannot_guess_ids progr"
+  unfolding invocations_cannot_guess_ids_def 
+proof (rule, rule show_invocation_cannot_guess_ids)
+  fix i x tr a S'
+  assume a0: "initialState progr ~~ tr @ [(i,a)] \<leadsto>* S'"
+    and a1: "x \<in> action_outputs a"
+    and a2: "x \<notin> {}"
+
+ 
+  
+
+  have s: "invocation_cannot_guess_ids (trace_inputs tr i) i S"
+    if "initialState progr ~~ tr \<leadsto>* S"
+      and "invocationOp S i \<noteq> None"
+    for S
+    using that  proof (induct rule: steps_induct)
+    case initial
+    then show ?case
+      by (simp add: initialState_def)
+  next
+    case (step S' tr a S'')
+
+    have [simp]: "prog S' = progr"
+      by (metis (no_types, lifting) distributed_state.simps(1) initialState_def step.steps steps_do_not_change_prog)
+
+
+    show ?case 
+    proof (cases "invocationOp S' i = None")
+      case True
+
+      have [simp]: "localState S' i = None"
+        using True invocation_ops_if_localstate_nonempty step.steps by blast
+
+
+      from step.step
+      obtain proc initialState impl
+        where c0: "a = (i, AInvoc proc)"
+          and S''_def: "S'' = S' \<lparr>localState := localState S'(i \<mapsto> initialState), currentProc := currentProc S'(i \<mapsto> impl), visibleCalls := visibleCalls S'(i \<mapsto> {}), invocationOp := invocationOp S'(i \<mapsto> proc)\<rparr>"
+          and c2: "procedure progr proc = (initialState, impl)"
+          and c3: "uniqueIds proc \<subseteq> knownIds S'"
+          and c4: "invocationOp S' i = None"
+        apply atomize_elim
+        using `invocationOp S' i = None` `invocationOp S'' i \<noteq> None`
+        by (auto simp add: step.simps split: if_splits)
+
+
+      from use_procedures_cannot_guess_ids[OF `procedures_cannot_guess_ids (procedure progr)`
+          `procedure progr proc = (initialState, impl)`]
+      have t: "procedure_cannot_guess_ids TYPE('a) ({} \<union> uniqueIds proc) initialState impl" .
+      
+      
+      hence "invocation_cannot_guess_ids (uniqueIds proc) i S''"
+      proof (fuzzy_rule use_procedure_cannot_guess_ids)
+        show "{} \<union> uniqueIds proc = uniqueIds proc" by simp
+        show " localState S'' i \<triangleq> initialState" by (simp add: S''_def)
+        show "currentProc S'' i \<triangleq> impl"  by (simp add: S''_def)
+      qed
+
+      have "(i,a) \<notin> set tr" if " \<And>t. a \<noteq> AInvcheck t" for a
+        using step.steps `invocationOp S' i = None` that
+        by (rule no_steps_in_i')
+
+      hence "trace_inputs (tr @ [a]) i = uniqueIds proc"
+        using `a = (i, AInvoc proc)`
+        by (auto simp add: trace_inputs_def action_inputs_cases split: action.splits)
+
+
+      show ?thesis
+        by (simp add: \<open>invocation_cannot_guess_ids (uniqueIds proc) i S''\<close> \<open>trace_inputs (tr @ [a]) i = uniqueIds proc\<close>)
+    next
+      case False
+      hence " invocation_cannot_guess_ids (trace_inputs tr i) i S'"
+        by (simp add: step.IH)
+
+      show ?thesis
+      proof (cases "get_invoc a = i")
+        case True
+        show ?thesis
+          using `invocation_cannot_guess_ids (trace_inputs tr i) i S'`
+        proof (fuzzy_rule show_invocation_cannot_guess_ids_step) 
+          show  "S' ~~ (i, snd a) \<leadsto> S''"
+            using `get_invoc a = i` step.step by auto
+          show "trace_inputs tr i \<union> action_inputs (get_action a) = trace_inputs (tr @ [a]) i"
+            by (auto simp add: trace_inputs_def `get_invoc a = i`)
+        qed
+      next
+        case False
+        show ?thesis
+        proof (fuzzy_rule show_invocation_cannot_guess_ids_step_other)
+          from `invocation_cannot_guess_ids (trace_inputs tr i) i S'`
+          show "invocation_cannot_guess_ids (trace_inputs (tr @ [a]) i) i S'"
+            using `get_invoc a \<noteq> i`
+            by (auto simp add: trace_inputs_def)
+          show "S' ~~ (get_invoc a, get_action a) \<leadsto> S''"
+            by (simp add: step.step)
+          show "get_invoc a \<noteq> i" using False.
+        qed
+      qed
+    qed
+  qed
+
+  from `initialState progr ~~ tr @ [(i,a)] \<leadsto>* S'`
+  obtain S1 where "initialState progr ~~ tr \<leadsto>* S1"
+    and "S1 ~~ (i,a) \<leadsto> S'"
+    using steps_appendBack by blast
+
+  show "x \<in> trace_inputs tr i"
+  proof (cases "invocationOp S1 i")
+    case None
+
+    have [simp]: "localState S1 i = None"
+      using None \<open>initialState progr ~~ tr \<leadsto>* S1\<close> invocation_ops_if_localstate_nonempty by blast
+
+    from `S1 ~~ (i,a) \<leadsto> S'` a1
+    show ?thesis
+      by (auto simp add: step.simps)
+  next
+    case (Some proc)
+    from s[OF `initialState progr ~~ tr \<leadsto>* S1`]
+    have t: "invocation_cannot_guess_ids (trace_inputs tr i) i S1"
+      using Some by blast
+
+    thus ?thesis 
+      using `S1 ~~ (i,a) \<leadsto> S'` a1
+      by (rule invocation_cannot_guess_ids_step)
+  qed
+qed
+
+
+
 
 
 

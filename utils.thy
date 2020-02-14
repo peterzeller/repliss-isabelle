@@ -5,7 +5,7 @@ theory utils
     "HOL-Library.Monad_Syntax"
 begin
 
-
+subsection "Syntactic Sugar"
 
 text "This theory contains definition and Lemmas that could be in the standard library."
 
@@ -16,6 +16,17 @@ abbreviation eqsome :: "'a option \<Rightarrow> 'a \<Rightarrow> bool" (infixr "
 
 abbreviation orElse :: "'a option \<Rightarrow> 'a \<Rightarrow> 'a" (infixr "orElse" 70) where
   "x orElse y \<equiv> case x of Some a \<Rightarrow> a | None \<Rightarrow> y"
+
+
+text "A definition that is not automatically expanded:" 
+definition Def (infix "::=" 50) where
+"x ::= y \<equiv> x = y"
+
+definition DefSome (infix "::\<triangleq>" 50) where
+"x ::\<triangleq> y \<equiv> y = Some x"
+
+
+subsection "Logic"
 
 lemma iffI2: "\<lbrakk>A \<Longrightarrow> B; \<not>A \<Longrightarrow> \<not>B\<rbrakk> \<Longrightarrow> A \<longleftrightarrow> B"
   by auto
@@ -29,9 +40,32 @@ lemma subset_h1: "X \<subseteq> Y \<Longrightarrow> \<forall>x. x\<in>X \<longri
   by blast
 
 
-lemma LeastI2:
-  "\<lbrakk>x = (LEAST x::nat. P x); P y\<rbrakk> \<Longrightarrow> P x"
-  by (simp add: LeastI)
+lemma rewrite_and_implies:
+  shows "a \<and> b \<longrightarrow> c \<longleftrightarrow> a \<longrightarrow> b \<longrightarrow> c"
+  by auto
+
+
+
+lemma flip: "(\<not>Q \<Longrightarrow> \<not>P) \<Longrightarrow> P \<longrightarrow> Q"
+  by auto
+
+
+
+lemma exists_cases1: 
+  shows "(\<exists>x. (x = A \<longrightarrow> P x) \<and> (x \<noteq> A \<longrightarrow> Q x)) 
+    \<longleftrightarrow>  (P A) \<or> (\<exists>x. x \<noteq> A \<and> Q x)"
+  by auto
+
+lemma exists_cases2: 
+  shows "(\<exists>x. (x \<noteq> A \<longrightarrow> Q x) \<and> (x = A \<longrightarrow> P x)) 
+    \<longleftrightarrow>  (P A) \<or> (\<exists>x. x \<noteq> A \<and> Q x)"
+  by auto
+
+
+lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or> (\<exists>n. P (Suc n)))"
+  using zero_induct by blast
+
+subsection "Lists"
 
 lemma append_eq_conv_conj2: 
   "(xs = ys @ zs) \<longleftrightarrow> (take (length ys) xs = ys \<and> (drop (length ys) xs) = zs)"  for xs ys zs
@@ -49,12 +83,198 @@ lemma eq_tl: "\<lbrakk>xs \<noteq> []; \<And>a as. xs = a#as \<Longrightarrow> d
   by (cases xs, auto)
 
 
+lemma nth_append_second:
+  "i \<ge> length xs \<Longrightarrow> (xs@ys)!i = ys!(i - length xs)"
+  by (auto simp add:  nth_append split: if_splits)
+
+lemma nth_cons_tail:
+  "i > 0 \<Longrightarrow> (x#xs)!i = xs!(i - 1)"
+  by (auto simp add:  nth_Cons split: nat.splits)
+
+lemma nth_append_first:
+  "i < length xs \<Longrightarrow> (xs@ys)!i = xs!i"
+  by (auto simp add:  nth_append split: if_splits)
+
+
+lemma show_appendEqH: 
+  "\<lbrakk>n \<le> length ys; length xs \<ge> n; take n xs = take n ys; drop n xs = zs\<rbrakk> \<Longrightarrow> xs = (take n ys) @ zs"
+  by (metis append_take_drop_id) 
+
+
+lemma nth_drop_if: 
+"drop n xs ! i = (if n \<le> length xs then xs ! (n + i) else [] ! i)"
+  by auto
+
+definition "in_sequence xs x y \<equiv> \<exists>i j. i<j \<and> j<length xs \<and> xs!i = x \<and> xs!j=y "
+
+
+
+
+
+lemma in_sequence_nil[simp]: "in_sequence [] = (\<lambda>x y. False)"
+  apply (rule ext)+
+  by (auto simp add: in_sequence_def)
+
+
+lemma in_sequence_cons:
+  "in_sequence (x # xs) a b \<longleftrightarrow> (x=a \<and> b\<in>set xs \<or> in_sequence xs a b)"
+  apply (auto simp add: in_sequence_def)
+    apply (metis (no_types, lifting) Suc_diff_eq_diff_pred Suc_less_eq Suc_pred gr_implies_not_zero not_gr_zero nth_Cons' zero_less_diff)
+   apply (metis Suc_mono in_set_conv_nth nth_Cons_0 nth_Cons_Suc zero_less_Suc)
+  by (meson Suc_mono nth_Cons_Suc)
+
+lemma in_sequence_append:
+  "in_sequence (xs @ ys) a b \<longleftrightarrow> (a\<in>set xs \<and> b\<in>set ys \<or> in_sequence xs a b \<or> in_sequence ys a b)"
+proof (induct xs)
+  case Nil
+  then show ?case
+    by auto 
+next
+  case (Cons x xs)
+  have "in_sequence ((x#xs) @ ys) a b 
+      \<longleftrightarrow> x = a \<and> b \<in> set (xs@ys) \<or> in_sequence (xs@ys) a b"
+    by (auto simp add: in_sequence_cons)
+
+  also have "... \<longleftrightarrow> x = a \<and> b \<in> set (xs@ys) \<or> (a\<in>set xs \<and> b\<in>set ys \<or> in_sequence xs a b \<or> in_sequence ys a b)"
+    using Cons by auto
+
+  also have "... \<longleftrightarrow> (a\<in>set (x#xs) \<and> b\<in>set ys \<or> in_sequence (x#xs) a b \<or> in_sequence ys a b)"
+    by (auto simp add: in_sequence_cons)
+
+  finally show ?case by simp
+qed
+
+
+lemma in_sequence_in1: "in_sequence xs x y \<Longrightarrow> x\<in>set xs"
+  by (metis in_sequence_def in_set_conv_nth less_imp_le less_le_trans)
+
+
+lemma in_sequence_in2: "in_sequence xs x y \<Longrightarrow> y\<in>set xs"
+  by (metis in_sequence_def nth_mem)
+
+
+
+
+definition "before_in_list xs x y \<equiv> \<exists>i j. i < j \<and> j < length xs \<and> xs!i=x \<and> xs!j=y"
+
+lemma before_in_list_def2:
+  "before_in_list xs x y \<longleftrightarrow> (\<exists>xsa xsb. xs = xsa@xsb \<and> x\<in>set xsa \<and> y\<in>set xsb)"
+  unfolding before_in_list_def
+proof (intro iffI  conjI; elim exE conjE)
+
+  show "\<exists>xsa xsb. xs = xsa @ xsb \<and> x \<in> set xsa \<and> y \<in> set xsb"
+    if c0: "i < j"
+      and c1: "j < length xs"
+      and c2: "xs ! i = x"
+      and c3: "xs ! j = y"
+    for  i j
+  proof (intro exI conjI)
+
+    show "xs = take j xs @ drop j xs"
+      by simp
+
+    show "x \<in> set (take j xs)"
+      using c0 c1 c2 in_set_conv_nth by fastforce
+    show " y \<in> set (drop j xs)"
+      by (metis Cons_nth_drop_Suc c1 c3 list.set_intros(1))
+  qed
+
+  show "\<exists>i j. i < j \<and> j < length xs \<and> xs ! i = x \<and> xs ! j = y"
+    if c0: "xs = xsa @ xsb"
+      and c1: "x \<in> set xsa"
+      and c2: "y \<in> set xsb"
+    for  xsa xsb
+  proof -
+    from c1 obtain i where "xsa ! i = x" and "i < length xsa"
+      by (meson in_set_conv_nth)
+    from c2 obtain j where "xsb ! j = y" and "j < length xsb"
+      by (meson in_set_conv_nth)
+    show ?thesis
+    proof (intro exI conjI)
+      show "i < length xsa +j"
+        by (simp add: \<open>i < length xsa\<close> add.commute trans_less_add2)
+      show "length xsa + j < length xs"
+        by (simp add: \<open>j < length xsb\<close> c0)
+      show " xs ! i = x"
+        by (simp add: \<open>i < length xsa\<close> \<open>xsa ! i = x\<close> c0 nth_append_first)
+      show "xs ! (length xsa + j) = y"
+        by (simp add: \<open>xsb ! j = y\<close> c0)
+    qed
+  qed
+qed
+
+
+
+
+lemma before_in_list_cons:
+  "before_in_list (x#xs) a b \<longleftrightarrow> (if x = a then b\<in>set xs else before_in_list xs a b )"
+proof (auto simp add: before_in_list_def2)
+
+  show "b \<in> set xs"
+    if c0: "x = a"
+      and c1: "a # xs = xsa @ xsb"
+      and c2: "a \<in> set xsa"
+      and c3: "b \<in> set xsb"
+    for  xsa xsb
+    using that by (metis Un_iff empty_iff empty_set list.sel(3) set_append tl_append2)
+
+  show "\<exists>xsa xsb. a # xs = xsa @ xsb \<and> a \<in> set xsa \<and> b \<in> set xsb"
+    if c0: "x = a"
+      and c1: "b \<in> set xs"
+  proof (intro exI conjI)
+    show "a # xs = [a] @ xs" by simp
+  qed (auto simp add: c1)
+
+
+  show "\<exists>xsa xsb. xs = xsa @ xsb \<and> a \<in> set xsa \<and> b \<in> set xsb"
+    if c0: "x \<noteq> a"
+      and c1: "x # xs = xsa @ xsb"
+      and c2: "a \<in> set xsa"
+      and c3: "b \<in> set xsb"
+    for  xsa xsb
+  proof (intro exI conjI)
+    show "xs = tl xsa @ xsb"
+      by (metis c1 c2 equals0D list.sel(3) set_empty tl_append2)
+    show "a \<in> set (tl xsa)"
+      by (metis c0 c1 c2 hd_append list.collapse list.sel(1) set_ConsD tl_Nil)
+  qed (simp add: c3)
+
+
+  show "\<exists>xsaa xsba. x # xsa @ xsb = xsaa @ xsba \<and> a \<in> set xsaa \<and> b \<in> set xsba"
+    if c0: "x \<noteq> a"
+      and c1: "xs = xsa @ xsb"
+      and c2: "a \<in> set xsa"
+      and c3: "b \<in> set xsb"
+    for  xsa xsb
+  proof (intro exI conjI)
+    show "x # xsa @ xsb = (x#xsa) @ xsb" by simp
+  qed(auto simp add: that)
+qed
+
+lemma before_in_list_contains_l: "before_in_list cs x y \<Longrightarrow> x\<in>set cs"
+  by (metis before_in_list_def dual_order.strict_trans in_set_conv_nth)
+
+lemma  before_in_list_contains_r: "before_in_list cs x y \<Longrightarrow> y\<in>set cs"
+  by (metis before_in_list_def in_set_conv_nth)
+
+
+lemma before_in_list_empty[simp]: "\<not>before_in_list [] x y"
+  by (simp add: before_in_list_def)
+
+
+subsection "Math"
+
 lemma sumSplit:
   fixes f :: "nat \<Rightarrow> nat"
   shows "(\<Sum>i<x+y . f i) = (\<Sum>i<x . f i) + (\<Sum>i<y . f (x+i))"
   by (induct y, auto)
 
 
+subsection "Least"
+
+lemma LeastI2:
+  "\<lbrakk>x = (LEAST x::nat. P x); P y\<rbrakk> \<Longrightarrow> P x"
+  by (simp add: LeastI)
 
 
 lemma usePropertyOfLeast:
@@ -77,22 +297,7 @@ lemma nth_secondHalf_eq:
   shows "(xs@zs)!i = (ys@zs)!i"
   using assms by (auto simp add: nth_append)
 
-lemma nth_append_second:
-  "i \<ge> length xs \<Longrightarrow> (xs@ys)!i = ys!(i - length xs)"
-  by (auto simp add:  nth_append split: if_splits)
-
-lemma nth_cons_tail:
-  "i > 0 \<Longrightarrow> (x#xs)!i = xs!(i - 1)"
-  by (auto simp add:  nth_Cons split: nat.splits)
-
-lemma nth_append_first:
-  "i < length xs \<Longrightarrow> (xs@ys)!i = xs!i"
-  by (auto simp add:  nth_append split: if_splits)
-
-
-lemma show_appendEqH: 
-  "\<lbrakk>n \<le> length ys; length xs \<ge> n; take n xs = take n ys; drop n xs = zs\<rbrakk> \<Longrightarrow> xs = (take n ys) @ zs"
-  by (metis append_take_drop_id) 
+subsection "Maximum of a set of nats"
 
 definition max_natset :: "nat set \<Rightarrow> nat" where
   "max_natset S \<equiv> if S = {} then 0 else Suc (Max S)"
@@ -126,6 +331,8 @@ lemma show_max_natset_smaller_Collect:
   by (rule show_max_natset_smaller, 
       insert assms, force+)
 
+
+subsection "Induction over greatest and smallest elements"
 
 lemma finiteH: 
   "finite {x::nat. 0 < x \<and> x < A \<and> P x}"
@@ -363,293 +570,14 @@ lemma show_Inf_smaller:
   by (metis Inf_nat_def1 assms(1) assms(2) assms(3) bdd_above_bot cInf_less_iff empty_iff)
 
 
-lemma rewrite_and_implies:
-  shows "a \<and> b \<longrightarrow> c \<longleftrightarrow> a \<longrightarrow> b \<longrightarrow> c"
-  by auto
 
 
 
-lemma nth_drop_if: 
-"drop n xs ! i = (if n \<le> length xs then xs ! (n + i) else [] ! i)"
-  by auto
 
 
-lemma flip: "(\<not>Q \<Longrightarrow> \<not>P) \<Longrightarrow> P \<longrightarrow> Q"
-  by auto
 
-lemma in_dom:
-  assumes "S \<subseteq> dom T" and "x \<in> S" 
-  shows "\<exists>y. T x \<triangleq> y"
-  using assms by blast
 
 
-
-lemma in_img_simp: "y\<in>f`S \<longleftrightarrow> (\<exists>x\<in>S. f x = y)"
-  by auto
-
-definition "in_sequence xs x y \<equiv> \<exists>i j. i<j \<and> j<length xs \<and> xs!i = x \<and> xs!j=y "
-
-
-lemma in_sequence_nil[simp]: "in_sequence [] = (\<lambda>x y. False)"
-  apply (rule ext)+
-  by (auto simp add: in_sequence_def)
-
-
-lemma in_sequence_cons:
-  "in_sequence (x # xs) a b \<longleftrightarrow> (x=a \<and> b\<in>set xs \<or> in_sequence xs a b)"
-  apply (auto simp add: in_sequence_def)
-    apply (metis (no_types, lifting) Suc_diff_eq_diff_pred Suc_less_eq Suc_pred gr_implies_not_zero not_gr_zero nth_Cons' zero_less_diff)
-   apply (metis Suc_mono in_set_conv_nth nth_Cons_0 nth_Cons_Suc zero_less_Suc)
-  by (meson Suc_mono nth_Cons_Suc)
-
-lemma in_sequence_append:
-  "in_sequence (xs @ ys) a b \<longleftrightarrow> (a\<in>set xs \<and> b\<in>set ys \<or> in_sequence xs a b \<or> in_sequence ys a b)"
-proof (induct xs)
-  case Nil
-  then show ?case
-    by auto 
-next
-  case (Cons x xs)
-  have "in_sequence ((x#xs) @ ys) a b 
-      \<longleftrightarrow> x = a \<and> b \<in> set (xs@ys) \<or> in_sequence (xs@ys) a b"
-    by (auto simp add: in_sequence_cons)
-
-  also have "... \<longleftrightarrow> x = a \<and> b \<in> set (xs@ys) \<or> (a\<in>set xs \<and> b\<in>set ys \<or> in_sequence xs a b \<or> in_sequence ys a b)"
-    using Cons by auto
-
-  also have "... \<longleftrightarrow> (a\<in>set (x#xs) \<and> b\<in>set ys \<or> in_sequence (x#xs) a b \<or> in_sequence ys a b)"
-    by (auto simp add: in_sequence_cons)
-
-  finally show ?case by simp
-qed
-
-
-lemma in_sequence_in1: "in_sequence xs x y \<Longrightarrow> x\<in>set xs"
-  by (metis in_sequence_def in_set_conv_nth less_imp_le less_le_trans)
-
-
-lemma in_sequence_in2: "in_sequence xs x y \<Longrightarrow> y\<in>set xs"
-  by (metis in_sequence_def nth_mem)
-
-
-lemma domExists_simp: "x \<in> dom f \<longleftrightarrow> (\<exists>y. f x \<triangleq> y)"
-  by (auto)
-
-
-definition "before_in_list xs x y \<equiv> \<exists>i j. i < j \<and> j < length xs \<and> xs!i=x \<and> xs!j=y"
-
-lemma before_in_list_def2:
-  "before_in_list xs x y \<longleftrightarrow> (\<exists>xsa xsb. xs = xsa@xsb \<and> x\<in>set xsa \<and> y\<in>set xsb)"
-  unfolding before_in_list_def
-proof (intro iffI  conjI; elim exE conjE)
-
-  show "\<exists>xsa xsb. xs = xsa @ xsb \<and> x \<in> set xsa \<and> y \<in> set xsb"
-    if c0: "i < j"
-      and c1: "j < length xs"
-      and c2: "xs ! i = x"
-      and c3: "xs ! j = y"
-    for  i j
-  proof (intro exI conjI)
-
-    show "xs = take j xs @ drop j xs"
-      by simp
-
-    show "x \<in> set (take j xs)"
-      using c0 c1 c2 in_set_conv_nth by fastforce
-    show " y \<in> set (drop j xs)"
-      by (metis Cons_nth_drop_Suc c1 c3 list.set_intros(1))
-  qed
-
-  show "\<exists>i j. i < j \<and> j < length xs \<and> xs ! i = x \<and> xs ! j = y"
-    if c0: "xs = xsa @ xsb"
-      and c1: "x \<in> set xsa"
-      and c2: "y \<in> set xsb"
-    for  xsa xsb
-  proof -
-    from c1 obtain i where "xsa ! i = x" and "i < length xsa"
-      by (meson in_set_conv_nth)
-    from c2 obtain j where "xsb ! j = y" and "j < length xsb"
-      by (meson in_set_conv_nth)
-    show ?thesis
-    proof (intro exI conjI)
-      show "i < length xsa +j"
-        by (simp add: \<open>i < length xsa\<close> add.commute trans_less_add2)
-      show "length xsa + j < length xs"
-        by (simp add: \<open>j < length xsb\<close> c0)
-      show " xs ! i = x"
-        by (simp add: \<open>i < length xsa\<close> \<open>xsa ! i = x\<close> c0 nth_append_first)
-      show "xs ! (length xsa + j) = y"
-        by (simp add: \<open>xsb ! j = y\<close> c0)
-    qed
-  qed
-qed
-
-
-
-
-lemma before_in_list_cons:
-  "before_in_list (x#xs) a b \<longleftrightarrow> (if x = a then b\<in>set xs else before_in_list xs a b )"
-proof (auto simp add: before_in_list_def2)
-
-  show "b \<in> set xs"
-    if c0: "x = a"
-      and c1: "a # xs = xsa @ xsb"
-      and c2: "a \<in> set xsa"
-      and c3: "b \<in> set xsb"
-    for  xsa xsb
-    using that by (metis Un_iff empty_iff empty_set list.sel(3) set_append tl_append2)
-
-  show "\<exists>xsa xsb. a # xs = xsa @ xsb \<and> a \<in> set xsa \<and> b \<in> set xsb"
-    if c0: "x = a"
-      and c1: "b \<in> set xs"
-  proof (intro exI conjI)
-    show "a # xs = [a] @ xs" by simp
-  qed (auto simp add: c1)
-
-
-  show "\<exists>xsa xsb. xs = xsa @ xsb \<and> a \<in> set xsa \<and> b \<in> set xsb"
-    if c0: "x \<noteq> a"
-      and c1: "x # xs = xsa @ xsb"
-      and c2: "a \<in> set xsa"
-      and c3: "b \<in> set xsb"
-    for  xsa xsb
-  proof (intro exI conjI)
-    show "xs = tl xsa @ xsb"
-      by (metis c1 c2 equals0D list.sel(3) set_empty tl_append2)
-    show "a \<in> set (tl xsa)"
-      by (metis c0 c1 c2 hd_append list.collapse list.sel(1) set_ConsD tl_Nil)
-  qed (simp add: c3)
-
-
-  show "\<exists>xsaa xsba. x # xsa @ xsb = xsaa @ xsba \<and> a \<in> set xsaa \<and> b \<in> set xsba"
-    if c0: "x \<noteq> a"
-      and c1: "xs = xsa @ xsb"
-      and c2: "a \<in> set xsa"
-      and c3: "b \<in> set xsb"
-    for  xsa xsb
-  proof (intro exI conjI)
-    show "x # xsa @ xsb = (x#xsa) @ xsb" by simp
-  qed(auto simp add: that)
-qed
-
-lemma before_in_list_contains_l: "before_in_list cs x y \<Longrightarrow> x\<in>set cs"
-  by (metis before_in_list_def dual_order.strict_trans in_set_conv_nth)
-
-lemma  before_in_list_contains_r: "before_in_list cs x y \<Longrightarrow> y\<in>set cs"
-  by (metis before_in_list_def in_set_conv_nth)
-
-
-lemma before_in_list_empty[simp]: "\<not>before_in_list [] x y"
-  by (simp add: before_in_list_def)
-
-
-definition 
-"map_update_all s_callOrigin localCalls tx \<equiv>  s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c, tx)) localCalls))"
-
-lemma map_update_all_empty[simp]: "map_update_all co [] t = co"
-  by (simp add: map_update_all_def) 
-
-lemma map_update_all_get: 
-"map_update_all co cs tx c = (if c\<in>set cs then Some tx else co c)"
- using split_list by (auto simp add: map_update_all_def map_add_def  dest: map_of_SomeD split: option.splits, fastforce)
-
-lemma map_update_all_None:
-"map_update_all m xs y x = None \<longleftrightarrow> (x\<notin>set xs \<and> m x = None)"
-  by (induct xs, auto simp add: map_update_all_def)
-
-lemma map_update_all_Some_same:
-"map_update_all m xs y x \<triangleq> y \<longleftrightarrow> (x\<in>set xs \<or> m x \<triangleq> y)"
-  by (induct xs, auto simp add: map_update_all_def)
-
-lemma map_update_all_Some_other:
-  assumes "y' \<noteq> y"
-  shows "map_update_all m xs y x \<triangleq> y' \<longleftrightarrow> (x\<notin>set xs \<and> m x \<triangleq> y')"
-  using assms  by (induct xs, auto simp add: map_update_all_def)
-
-
-lemma map_of_None: "map_of xs x = None \<longleftrightarrow> (\<forall>y. (x,y)\<notin>set xs)"
-  by (induct xs, auto)
-lemma map_of_Some: "\<lbrakk>distinct (map fst xs)\<rbrakk> \<Longrightarrow>  map_of xs x = Some y \<longleftrightarrow> ((x,y)\<in>set xs)"
-  by (induct xs, auto, (metis map_of_eq_None_iff map_of_is_SomeI option.simps(3)))
-
-
-lemma exists_cases1: 
-  shows "(\<exists>x. (x = A \<longrightarrow> P x) \<and> (x \<noteq> A \<longrightarrow> Q x)) 
-    \<longleftrightarrow>  (P A) \<or> (\<exists>x. x \<noteq> A \<and> Q x)"
-  by auto
-
-lemma exists_cases2: 
-  shows "(\<exists>x. (x \<noteq> A \<longrightarrow> Q x) \<and> (x = A \<longrightarrow> P x)) 
-    \<longleftrightarrow>  (P A) \<or> (\<exists>x. x \<noteq> A \<and> Q x)"
-  by auto
-
-
-
-definition restrict_relation :: "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a rel" (infixl "|r"  110)
-  where "r |r A \<equiv> Restr r A" \<comment> \<open>This is a definition because Restr is just an abbreviation 
-                                 and does not behave well when using methods like auto.\<close>
-
-definition downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100)  where 
-  "S \<down> R \<equiv> S \<union> {x | x y . (x,y)\<in>R \<and> y\<in>S}"
-
-lemma downwardsClosure_in:
-  "x \<in> S \<down> R \<longleftrightarrow> (x\<in>S \<or> (\<exists>y\<in>S. (x,y)\<in>R))"
-  by (auto simp add: downwardsClosure_def)
-
-lemma downwardsClosure_subset:
-  "S \<down> R \<subseteq> S \<union> fst ` R"
-  by (auto simp add: downwardsClosure_in Domain.DomainI fst_eq_Domain)
-
-
-
-lemma restrict_map_noop: "dom m \<subseteq> S \<Longrightarrow> m |` S = m"
-   using domIff by (auto simp add: restrict_map_def intro!: ext, force)
-
-
-lemma restrict_map_noop2[simp]: "m |` dom m = m"
-  by (simp add: restrict_map_noop)
-
-lemma restrict_relation_noop: "Field r \<subseteq> S \<Longrightarrow> r |r S = r"
-  by (auto simp add: restrict_relation_def FieldI1 FieldI2 subset_h1)
-
-
-text "A definition that is not automatically expanded:" 
-definition Def (infix "::=" 50) where
-"x ::= y \<equiv> x = y"
-
-definition DefSome (infix "::\<triangleq>" 50) where
-"x ::\<triangleq> y \<equiv> y = Some x"
-
-
-lemma exists_nat_split: "(\<exists>n::nat. P n) \<longleftrightarrow> (P 0 \<or> (\<exists>n. P (Suc n)))"
-  using zero_induct by blast
-
-
-
-lemma infinite_if_mappable_to_nat:
-  assumes mapping: "\<And>n::nat. \<exists>x\<in>S. f x \<ge> n"
-  shows "infinite S"
-proof auto
-  assume "finite S"
-  hence "finite (f ` S)"
-    by force
-
-  define m where "m \<equiv> Max (f ` S)"
-
-  from mapping[where n="Suc m"] obtain x where
-    "x\<in>S" and "f x \<ge> Suc m"
-    by auto
-
-  have "f x \<in> (f ` S)"
-    using \<open>x \<in> S\<close> by blast
-
-  have "f x > m"
-    using Suc_le_eq \<open>Suc m \<le> f x\<close> by blast
-  hence "f x > Max (f ` S)"
-    using m_def by blast
-  thus False
-    using Max_ge \<open>f x \<in> f ` S\<close> \<open>finite (f ` S)\<close> leD by blast
-qed
 
 
 subsection "Well orders"
@@ -860,6 +788,120 @@ lemma ran_empty_iff[simp] :"(ran F = {}) \<longleftrightarrow> F = Map.empty"
 lemma eq_map_empty[simp] :"(M = Map.empty) \<longleftrightarrow> (\<forall>x. M x = None)"
   by (rule fun_eq_iff)
 
+
+
+definition 
+"map_update_all s_callOrigin localCalls tx \<equiv>  s_callOrigin ++ (Map.map_of (map (\<lambda>c. (c, tx)) localCalls))"
+
+lemma map_update_all_empty[simp]: "map_update_all co [] t = co"
+  by (simp add: map_update_all_def) 
+
+lemma map_update_all_get: 
+"map_update_all co cs tx c = (if c\<in>set cs then Some tx else co c)"
+ using split_list by (auto simp add: map_update_all_def map_add_def  dest: map_of_SomeD split: option.splits, fastforce)
+
+lemma map_update_all_None:
+"map_update_all m xs y x = None \<longleftrightarrow> (x\<notin>set xs \<and> m x = None)"
+  by (induct xs, auto simp add: map_update_all_def)
+
+lemma map_update_all_Some_same:
+"map_update_all m xs y x \<triangleq> y \<longleftrightarrow> (x\<in>set xs \<or> m x \<triangleq> y)"
+  by (induct xs, auto simp add: map_update_all_def)
+
+lemma map_update_all_Some_other:
+  assumes "y' \<noteq> y"
+  shows "map_update_all m xs y x \<triangleq> y' \<longleftrightarrow> (x\<notin>set xs \<and> m x \<triangleq> y')"
+  using assms  by (induct xs, auto simp add: map_update_all_def)
+
+
+lemma map_of_None: "map_of xs x = None \<longleftrightarrow> (\<forall>y. (x,y)\<notin>set xs)"
+  by (induct xs, auto)
+lemma map_of_Some: "\<lbrakk>distinct (map fst xs)\<rbrakk> \<Longrightarrow>  map_of xs x = Some y \<longleftrightarrow> ((x,y)\<in>set xs)"
+  by (induct xs, auto, (metis map_of_eq_None_iff map_of_is_SomeI option.simps(3)))
+
+
+
+lemma restrict_map_noop: "dom m \<subseteq> S \<Longrightarrow> m |` S = m"
+   using domIff by (auto simp add: restrict_map_def intro!: ext, force)
+
+
+lemma restrict_map_noop2[simp]: "m |` dom m = m"
+  by (simp add: restrict_map_noop)
+
+
+subsection "Sets"
+
+lemma Set_fillter_insert[simp]: 
+"Set.filter f (insert x S) = (if f x then {x} else {}) \<union> Set.filter f S"
+  by (auto simp add: Set.filter_def)
+
+lemma Set_filter_empty[simp]: 
+"Set.filter f {} = {}"
+  by (auto simp add: Set.filter_def)
+
+
+lemma domExists_simp: "x \<in> dom f \<longleftrightarrow> (\<exists>y. f x \<triangleq> y)"
+  by (auto)
+
+
+lemma in_dom:
+  assumes "S \<subseteq> dom T" and "x \<in> S" 
+  shows "\<exists>y. T x \<triangleq> y"
+  using assms by blast
+
+
+lemma in_img_simp: "y\<in>f`S \<longleftrightarrow> (\<exists>x\<in>S. f x = y)"
+  by auto
+
+subsection "Relations"
+
+
+
+
+definition restrict_relation :: "'a rel \<Rightarrow> 'a set \<Rightarrow> 'a rel" (infixl "|r"  110)
+  where "r |r A \<equiv> Restr r A" \<comment> \<open>This is a definition because Restr is just an abbreviation 
+                                 and does not behave well when using methods like auto.\<close>
+
+definition downwardsClosure :: "'a set \<Rightarrow> 'a rel \<Rightarrow> 'a set"  (infixr "\<down>" 100)  where 
+  "S \<down> R \<equiv> S \<union> {x | x y . (x,y)\<in>R \<and> y\<in>S}"
+
+lemma downwardsClosure_in:
+  "x \<in> S \<down> R \<longleftrightarrow> (x\<in>S \<or> (\<exists>y\<in>S. (x,y)\<in>R))"
+  by (auto simp add: downwardsClosure_def)
+
+lemma downwardsClosure_subset:
+  "S \<down> R \<subseteq> S \<union> fst ` R"
+  by (auto simp add: downwardsClosure_in Domain.DomainI fst_eq_Domain)
+
+
+lemma restrict_relation_noop: "Field r \<subseteq> S \<Longrightarrow> r |r S = r"
+  by (auto simp add: restrict_relation_def FieldI1 FieldI2 subset_h1)
+
+
+lemma infinite_if_mappable_to_nat:
+  assumes mapping: "\<And>n::nat. \<exists>x\<in>S. f x \<ge> n"
+  shows "infinite S"
+proof auto
+  assume "finite S"
+  hence "finite (f ` S)"
+    by force
+
+  define m where "m \<equiv> Max (f ` S)"
+
+  from mapping[where n="Suc m"] obtain x where
+    "x\<in>S" and "f x \<ge> Suc m"
+    by auto
+
+  have "f x \<in> (f ` S)"
+    using \<open>x \<in> S\<close> by blast
+
+  have "f x > m"
+    using Suc_le_eq \<open>Suc m \<le> f x\<close> by blast
+  hence "f x > Max (f ` S)"
+    using m_def by blast
+  thus False
+    using Max_ge \<open>f x \<in> f ` S\<close> \<open>finite (f ` S)\<close> leD by blast
+qed
 
 subsection "Paths in Relations"
 
@@ -1235,3 +1277,6 @@ lemma cases_5[case_names case1 case2 case3 case4 case5]:
 lemma iffToImp: "P \<longleftrightarrow> Q \<Longrightarrow> Q \<longrightarrow> P"
   by sat
 end
+
+
+

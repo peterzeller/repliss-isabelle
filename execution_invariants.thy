@@ -2139,4 +2139,25 @@ next
 
 qed
 
+
+lemma no_steps_in_i':
+  assumes "initialState progr ~~ tr \<leadsto>* S"
+    and "invocationOp S i = None"
+    and "\<And>t. a \<noteq> AInvcheck t"
+  shows "(i, a) \<notin> set tr"
+  using assms proof (induct arbitrary: a  rule: steps_induct)
+  case initial
+  then show ?case
+    by simp
+next
+  case (step S' tr ac S'')
+  have "localState S' i = None"
+    by (metis initialState_def invation_info_set_iff_invocation_happened(2) localState_iff_exists_invoc option.discI step.prems step.step step.steps steps_appendFront steps_do_not_change_invocationOp steps_empty)
+
+
+  with step show ?case
+    by (auto simp add: step.simps split: if_splits)
+qed
+
+
 end
