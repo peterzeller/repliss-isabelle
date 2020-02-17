@@ -41,7 +41,7 @@ next
         using newId by (auto simp add:  step.simps)
     qed
   next
-    case (beginAtomic ls f ls' t S' vis vis' txns)
+    case (beginAtomic ls f ls' t S' vis vis')
     thus ?thesis by simp
   next
     case (endAtomic ls f ls' t valid)

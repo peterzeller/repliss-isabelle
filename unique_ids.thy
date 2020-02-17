@@ -49,6 +49,28 @@ definition trace_inputs :: "('proc::valueType, 'operation, 'any::valueType) trac
 definition trace_outputs :: "('proc, 'operation::valueType, 'any::valueType) trace \<Rightarrow>  invocId \<Rightarrow> uniqueId set" where
 "trace_outputs trace i \<equiv> \<Union>((action_outputs \<circ> snd) ` (Set.filter (\<lambda>a. fst a = i) (set trace)))"
 
+
+lemma trace_inputs_empty: "trace_inputs [] i = {}"
+  by (simp add: trace_inputs_def)
+
+lemma trace_outputs_empty: "trace_outputs [] i = {}"
+  by (simp add: trace_outputs_def)
+
+lemma trace_inputs_append: "trace_inputs (a@b) i = trace_inputs a i \<union> trace_inputs b i"
+  by (auto simp add: trace_inputs_def Set.filter_def)
+
+
+lemma trace_outputs_append: "trace_outputs (a@b) i = trace_outputs a i \<union> trace_outputs b i"
+  by (auto simp add: trace_outputs_def Set.filter_def)
+
+
+lemma trace_inputs_cons: "trace_inputs (a#b) i = (if get_invoc a = i then action_inputs (get_action a) else {}) \<union> trace_inputs b i"
+  by (auto simp add: trace_inputs_def Set.filter_def)
+
+
+lemma trace_outputs_cons: "trace_outputs (a#b) i = (if get_invoc a = i then action_outputs (get_action a) else {}) \<union> trace_outputs b i"
+  by (auto simp add: trace_outputs_def Set.filter_def)
+
 \<comment> \<open>uids are the ids that are already known in invocation i.
 The property states that no further unique ids may be produced in the output
 of invocation i without obtaining them as input first.\<close>
@@ -520,6 +542,20 @@ next
     by (auto simp add: step.simps split: if_splits,
         metis (mono_tags, hide_lams) action_outputs.simps(7) domIff invocation_cannot_guess_ids_step step.hyps(1) step.hyps(3) subsetD wf_knownIds_subset_generatedIds_h(1))
 qed
+
+
+lemma use_invocation_cannot_guess_ids_dbop:
+  assumes "invocation_cannot_guess_ids uids i S"
+and "S ~~ (i, ADbOp c Op res) \<leadsto> S'"
+  shows "uniqueIds Op \<subseteq> uids"
+  using action_outputs.simps(5) assms(1) assms(2) invocation_cannot_guess_ids_step by blast
+
+lemma use_invocation_cannot_guess_ids_return:
+  assumes "invocation_cannot_guess_ids uids i S"
+and "S ~~ (i, AReturn res) \<leadsto> S'"
+shows "uniqueIds res \<subseteq> uids"
+  using action_outputs.simps(7) assms(1) assms(2) invocation_cannot_guess_ids_step by blast
+
 
 (*
 text "We restrict the definition invocation_cannot_guess_ids to a 

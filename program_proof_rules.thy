@@ -66,7 +66,7 @@ definition execution_s_check where
        \<longrightarrow> (firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed ))
        \<longrightarrow> (\<forall>c. i_callOriginI_h s_callOrigin s_transactionOrigin c \<triangleq> i \<longrightarrow> c \<in> vis)
        \<longrightarrow> (generatedLocalPrivate \<subseteq> generatedLocal)
-       \<longrightarrow> (\<forall>v\<in>generatedLocalPrivate. uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) v)
+       \<longrightarrow> (\<forall>v\<in>generatedLocalPrivate. uid_is_private i S1 v)
        \<longrightarrow> traceCorrect_s  trace)"
 
 lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, rotated]
@@ -94,7 +94,7 @@ lemma execution_s_check_sound:
     and toImpl: "currentProc S i \<triangleq> toImpl"
     and generatedLocal: "generatedLocal = {x. generatedIds S x \<triangleq> i}"
     and generatedLocalPrivate1: "generatedLocalPrivate \<subseteq> generatedLocal"
-    and generatedLocalPrivate2: "\<forall>v\<in>generatedLocalPrivate. uid_is_private i (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S) (localState S) (currentProc S) v"
+    and generatedLocalPrivate2: "\<forall>v\<in>generatedLocalPrivate. uid_is_private i S v"
     and S_wf: "state_wellFormed S"
     and no_uncommitted: "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
     and no_currentTxn: "currentTransaction S i = None"
@@ -166,8 +166,7 @@ proof (auto simp add:  execution_s_correct_def)
       by (simp add: generatedLocalPrivate1)
 
     show "\<And>x. x \<in> generatedLocalPrivate \<Longrightarrow>
-         uid_is_private i (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S) (localState S)
-          (currentProc S) x"
+         uid_is_private i S x"
       by (simp add: generatedLocalPrivate2)
 
 
@@ -435,9 +434,34 @@ proof show_proof_rule
       have h4: "new_unique_not_in_invocationRes s_invocationRes (to_nat uidv)"
         using Step(1) Step(8) Step(9) assms(2) c5 new_unique_not_in_invocationRes_def wf_onlyGeneratedIdsInInvocationRes by blast
 
-      have h5: "new_unique_not_in_other_invocations i (localState S1(i \<mapsto> cont uidv)) (currentProc S1) (to_nat uidv)"
-        apply (auto simp add: new_unique_not_in_other_invocations_def)
-        by (metis (mono_tags, lifting) Step(1) Step(9) assms(2) c5 domIff in_mono wf_knownIds_subset_generatedIds_h(1))
+
+      have h5: "new_unique_not_in_other_invocations i S'a (to_nat uidv)"
+        unfolding new_unique_not_in_other_invocations_def
+      proof (intro allI impI)
+        fix i'
+        assume a0: "i' \<noteq> i"
+
+        have "program_wellFormed (prog S1)"
+          by (simp add: Step(9) assms(2))
+
+
+        obtain uids 
+          where "uids\<subseteq>dom (generatedIds S1)" and "invocation_cannot_guess_ids uids i' S1"
+          using wf_knownIds_subset_generatedIds_h(1)[OF `state_wellFormed S1` `program_wellFormed (prog S1)`]
+          by auto
+
+
+        from `uids\<subseteq>dom (generatedIds S1)`
+          and `generatedIds S1 (to_nat uidv) = None`
+        have " to_nat uidv \<notin> uids"
+          by auto
+
+
+        show "\<exists>uids. to_nat uidv \<notin> uids \<and> invocation_cannot_guess_ids uids i' S'a"
+          using Step(27) \<open>invocation_cannot_guess_ids uids i' S1\<close> \<open>to_nat uidv \<notin> uids\<close> a0 c2 show_invocation_cannot_guess_ids_step_other step_s_to_step by fastforce
+      qed
+
+
 
       have h6: "to_nat uidv \<notin> s_knownIds"
         using Step(1) Step(6) Step(9) assms(2) c5 wf_onlyGeneratedIdsInKnownIds by blast
@@ -502,21 +526,71 @@ proof show_proof_rule
 
       
 
-      show "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a)
-          (localState S'a) (currentProc S'a) v" if "v \<in> generatedLocalPrivate \<union> {to_nat uidv}" for v
+      show "uid_is_private i S'a v" if "v \<in> generatedLocalPrivate \<union> {to_nat uidv}" for v
         using that proof auto
 
-        show  "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a)
-       (currentProc S'a) (to_nat uidv)"
-          by (auto simp add: uid_is_private_def S'a_def Step h1 h2 h3 h4 h5 h6)
+        show  "uid_is_private i S'a (to_nat uidv)"
+          using S'a_def h5 by (auto simp add: uid_is_private_def S'a_def Step h1 h2 h3 h4 h5 h6)
 
-        show "v \<in> generatedLocalPrivate \<Longrightarrow>
-    uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a)
-     (currentProc S'a) v"
-          apply (auto simp add: Step S'a_def)
-          by (smt Step(2) Step(25) Step(6) Step(7) Step(8) map_upd_Some_unfold new_unique_not_in_other_invocations_def uid_is_private_def)
+          
 
+        show "uid_is_private i S'a v" if "v \<in> generatedLocalPrivate"
+          unfolding uid_is_private_def
+        proof (intro conjI)
+
+          have pre: "uid_is_private i S1 v" 
+            by (simp add: that Step(25))
+
+          show "new_unique_not_in_invocationOp (invocationOp S'a) v"
+            using pre by (auto simp add: uid_is_private_def S'a_def)
+
+
+          show "new_unique_not_in_calls (calls S'a) v"
+            using pre by (auto simp add: uid_is_private_def S'a_def)
+          show "new_unique_not_in_calls_result (calls S'a) v"
+            using pre by (auto simp add: uid_is_private_def S'a_def)
+          show "new_unique_not_in_invocationRes (invocationRes S'a) v"
+            using pre by (auto simp add: uid_is_private_def S'a_def)
+          show "v \<notin> knownIds S'a"
+            using pre by (auto simp add: uid_is_private_def S'a_def)
+          show "generatedIds S'a v \<triangleq> i"
+            using pre by (auto simp add: uid_is_private_def S'a_def)
+          show "new_unique_not_in_other_invocations i S'a v"
+            using pre proof (auto simp add: uid_is_private_def )
+
+            show "new_unique_not_in_other_invocations i S'a v"
+              if c0: "new_unique_not_in_invocationOp (invocationOp S1) v"
+                and c1: "new_unique_not_in_calls (calls S1) v"
+                and c2: "new_unique_not_in_calls_result (calls S1) v"
+                and c3: "new_unique_not_in_invocationRes (invocationRes S1) v"
+                and c4: "v \<notin> knownIds S1"
+                and c5: "generatedIds S1 v \<triangleq> i"
+                and c6: "new_unique_not_in_other_invocations i S1 v"
+             
+            using c6 proof (auto simp add: new_unique_not_in_other_invocations_def)
+            fix i'
+            assume a0: "\<forall>i'. i' \<noteq> i \<longrightarrow> (\<exists>uids. v \<notin> uids \<and> invocation_cannot_guess_ids uids i' S1)"
+              and a1: "i' \<noteq> i"
+
+            obtain uids where "v \<notin> uids" and "invocation_cannot_guess_ids uids i' S1"
+              using a0 a1 by auto
+
+            have "i \<noteq> i'" using a1 by simp
+
+            have "invocation_cannot_guess_ids uids i' S'a"
+              using `invocation_cannot_guess_ids uids i' S1` `S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
+              by (rule show_invocation_cannot_guess_ids_step_s_other)
+                (auto simp add: `action = ANewId uidv` `i \<noteq> i'`)
+
+
+            thus "\<exists>uids. v \<notin> uids \<and> invocation_cannot_guess_ids uids i' S'a"
+              using \<open>v \<notin> uids\<close> by blast
+
+          qed
+
+        qed
       qed
+    qed
         
 
     qed (simp add: S'a_def Step; fail)+
@@ -643,10 +717,10 @@ proof show_proof_rule
     `localState S1 i \<triangleq> (beginAtomic \<bind> cont)`
     `currentProc S1 i \<triangleq> toImpl`
     `\<And>proc. action \<noteq> AInvoc proc`
-  obtain t txns S' vis' vis''
+  obtain t  S' vis' vis''
     where c0: "localState S1 i \<triangleq> (beginAtomic \<bind> cont)"
       and c1: "currentProc S1 i \<triangleq> toImpl"
-      and c2: "action = ABeginAtomic t txns"
+      and c2: "action = ABeginAtomic t vis''"
       and c3: "Inv"
       and c4: "currentTransaction S1 i = None"
       and c5: "transactionStatus S1 t = None"
@@ -851,11 +925,10 @@ proof show_proof_rule
           fix v::nat
           assume "v\<in>generatedLocalPrivate"
           with `\<forall>v\<in>generatedLocalPrivate.
-                uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1)
-               (currentProc S1) v`
-          have "uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) v"
+                uid_is_private i S1 v`
+          have "uid_is_private i S1 v"
             by auto
-          hence "uid_is_private i (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S') (localState S') (currentProc S') v"
+          hence "uid_is_private i S' v"
             using Step(9) assms(1) growth growth_still_hidden by blast
 
           thus "uid_is_private' i (calls S') (invocationOp S') (invocationRes S') (knownIds S') v"
@@ -903,19 +976,59 @@ proof show_proof_rule
       show "generatedLocalPrivate \<subseteq> generatedLocal"
         by (simp add: Step(24))
 
-      show "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a) (currentProc S'a) x"
+      show "uid_is_private i S'a x"
         if c0: "x \<in> generatedLocalPrivate"
         for  x
       proof -
-        from c0 have "uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1)      (currentProc S1) x"
+        from c0 have "uid_is_private i S1 x"
           using Step by blast
 
-        hence "uid_is_private i (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
-         (localState S') (currentProc S') x"
+        hence "uid_is_private i S' x"
           using Step(9) assms(1) growth growth_still_hidden by blast
 
-        thus "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a) (currentProc S'a) x"
-          by (auto simp add: S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
+        show "uid_is_private i S'a x"
+          unfolding uid_is_private_def
+        proof (intro conjI)
+
+          show "new_unique_not_in_other_invocations i S'a x"
+            unfolding new_unique_not_in_other_invocations_def
+          proof (intro allI impI)
+            fix i' 
+            assume "i' \<noteq> i"
+
+            obtain uids where "x \<notin> uids" and "invocation_cannot_guess_ids uids i' S'"
+              by (meson \<open>i' \<noteq> i\<close> \<open>uid_is_private i S' x\<close> new_unique_not_in_other_invocations_def uid_is_private_def)
+
+            from  ` S1 ~~ (i, action, Inv) \<leadsto>\<^sub>S S'a`
+            have " S1 ~~ (i, ABeginAtomic t vis'', Inv) \<leadsto>\<^sub>S S'a"
+              by (simp add:  `action = ABeginAtomic t vis''`)
+
+            thm step_s_beginAtomic_to_steps
+            from `state_monotonicGrowth i S1 S'`
+            obtain tr
+              where "S1 ~~ tr \<leadsto>* S'"
+                and "\<forall>(i', a)\<in>set tr. i' \<noteq> i"
+                and "\<forall>i. (i, ACrash) \<notin> set tr" 
+              by (auto simp add: state_monotonicGrowth_def)
+
+
+            have " S' ~~ (i, ABeginAtomic t vis'') \<leadsto> S'a"
+              using c13 c14 c15 c17 c18 c20 by (auto simp add: step.simps S'a_def state_ext)
+
+
+
+
+            have "invocation_cannot_guess_ids uids i' S'a"
+              using \<open>S' ~~ (i, ABeginAtomic t vis'') \<leadsto> S'a\<close> \<open>i' \<noteq> i\<close> \<open>invocation_cannot_guess_ids uids i' S'\<close> show_invocation_cannot_guess_ids_step_other by blast
+
+            show "\<exists>uids. x \<notin> uids \<and> invocation_cannot_guess_ids uids i' S'a"
+              using \<open>invocation_cannot_guess_ids uids i' S'a\<close> \<open>x \<notin> uids\<close> by auto
+
+          qed
+
+        qed (insert `uid_is_private i S' x`, simp add: S'a_def uid_is_private_def new_unique_not_in_other_invocations_def; fail)+
+
+
       qed
 
     qed (simp add: S'a_def Step; fail)+
@@ -1041,7 +1154,7 @@ proof show_proof_rule
         by (simp add: Step)
 
       have h2: "updateHb s_happensBefore vis localCalls = happensBefore S1 |r dom (calls S1)"
-apply (simp add: Step)
+        apply (simp add: Step)
         apply (subst restrict_relation_noop, auto simp add: Field_def)
         using Step(1) Step(2) Step(3) happensBefore_in_calls_left happensBefore_in_calls_right by fastforce+
       
@@ -1275,11 +1388,17 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
       assume c0: "x \<in> generatedLocalPrivate"
 
       from c0
-      have "uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1)   (currentProc S1) x"
+      have "uid_is_private i S1 x"
         by (simp add: Step(25))
 
-      thus "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a) (localState S'a) (currentProc S'a) x"
-        by (auto simp add: S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
+      show "uid_is_private i S'a x"
+        unfolding uid_is_private_def
+      proof (intro conjI)
+
+        show " new_unique_not_in_other_invocations i S'a x"
+          using Step(27) \<open>uid_is_private i S1 x\<close> action_def new_unique_not_in_other_invocations_maintained uid_is_private_def by blast
+
+      qed (insert `uid_is_private i S1 x`, auto simp add: S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
 
 
 
@@ -1382,11 +1501,15 @@ proof show_proof_rule
       
       fix x
       assume a0: "x \<in> generatedLocalPrivate"
-      hence "uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) x"
+      hence "uid_is_private i S1 x"
         using Step(25) by blast
 
-      thus "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a)           (localState S'a) (currentProc S'a) x"
-        by (auto simp add:S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
+      show "uid_is_private i S'a x"
+        unfolding uid_is_private_def
+      proof (intro conjI)
+        show "new_unique_not_in_other_invocations i S'a x"
+          using Step(27) \<open>action = ALocal True\<close> \<open>uid_is_private i S1 x\<close> new_unique_not_in_other_invocations_maintained uid_is_private_def by blast
+      qed (insert `uid_is_private i S1 x`, auto simp add:S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
 
 
     qed (simp add: S'a_def Step; fail)+
@@ -1596,12 +1719,19 @@ proof show_proof_rule
       
       fix x
       assume a0: "x \<in> generatedLocalPrivate - uniqueIds op - uniqueIds res"
-      hence "uid_is_private i (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) x"
+      hence "uid_is_private i S1 x"
         using Step(25) by auto
 
 
-      thus "uid_is_private i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) (generatedIds S'a)           (localState S'a) (currentProc S'a) x"
-        using a0 by (auto simp add: S'a_def uid_is_private_def new_unique_not_in_calls_def new_unique_not_in_calls_result_def new_unique_not_in_other_invocations_def)
+      show "uid_is_private i S'a x"
+        unfolding uid_is_private_def
+      proof (intro conjI)
+
+        show "new_unique_not_in_other_invocations i S'a x"
+          using Step(27) \<open>uid_is_private i S1 x\<close> c4 new_unique_not_in_other_invocations_maintained uid_is_private_def by blast
+
+
+      qed (insert a0 `uid_is_private i S1 x`, auto simp add: S'a_def uid_is_private_def new_unique_not_in_calls_def new_unique_not_in_calls_result_def new_unique_not_in_other_invocations_def)
 
 
       

@@ -74,7 +74,7 @@ definition proof_state_rel :: "
        \<and> (ps_firstTx S \<longleftrightarrow> (\<nexists>c tx . callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> ps_i S \<and> transactionStatus S1 tx \<triangleq> Committed ))
        \<and> (\<forall>c. i_callOriginI_h (callOrigin S) (transactionOrigin S) c \<triangleq> (ps_i S) \<longrightarrow> c \<in> (ps_vis S))
        \<and> (ps_generatedLocalPrivate S \<subseteq> ps_generatedLocal S)
-       \<and> (\<forall>v\<in>ps_generatedLocalPrivate S. uid_is_private (ps_i S) (calls S1) (invocationOp S1) (invocationRes S1) (knownIds S1) (generatedIds S1) (localState S1) (currentProc S1) v)
+       \<and> (\<forall>v\<in>ps_generatedLocalPrivate S. uid_is_private (ps_i S) S1 v)
        \<and> (finite (dom (ps_store S)))
        \<and> (procedure_cannot_guess_ids (ps_localKnown S) (the (localState S1 (ps_i S))) toImpl)
        \<and> (ps_generatedLocal S \<subseteq> ps_localKnown S)
@@ -542,11 +542,41 @@ proof (rule ccontr)
 
           show "state_wellFormed S'" using \<open>state_wellFormed S'\<close> .
 
-          show "\<forall>v\<in>ps_generatedLocalPrivate PS'.
-       uid_is_private (ps_i PS') (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
-        (localState S') (currentProc S') v"
-            apply (auto simp add: i_def S'_def PS'_def proof_state_rel_fact[OF rel]  split: option.splits)
-            by (smt fun_upd_apply new_unique_not_in_other_invocations_def proof_state_rel_def rel uid_is_private_def)
+
+          from proof_state_rel_fact[OF rel] 
+          have old_priv: "uid_is_private (ps_i PS) S v" if "v \<in> ps_generatedLocalPrivate PS" for v
+            using that by auto
+
+
+          show "\<forall>v\<in>ps_generatedLocalPrivate PS'.  uid_is_private (ps_i PS') S' v"
+          proof (auto simp add: uid_is_private_def PS'_def)
+            fix v
+            assume a0: "v \<in> ps_generatedLocalPrivate PS"
+
+
+            show "new_unique_not_in_invocationOp (invocationOp S') v"
+              using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
+
+            show "new_unique_not_in_calls (calls S') v"
+             using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
+            show " new_unique_not_in_calls_result (calls S') v"
+              using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
+            show "new_unique_not_in_invocationRes (invocationRes S') v"
+              using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
+            show "v \<in> knownIds S' \<Longrightarrow> False"
+              using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
+            show "generatedIds S' v \<triangleq> ps_i PS"
+              using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
+            show "new_unique_not_in_other_invocations (ps_i PS) S' v"
+            proof (rule new_unique_not_in_other_invocations_maintained)
+              show "new_unique_not_in_other_invocations (ps_i PS) S v"
+                using old_priv[OF a0] by (auto simp add: uid_is_private_def)
+              from step
+              show "S ~~ (ps_i PS, action, Inv) \<leadsto>\<^sub>S S'"
+                using `i = ps_i PS` by simp
+            qed (simp add: action_def)+
+
+          qed
 
           show "finite (dom (ps_store PS'))"
             by (auto simp add: PS'_def)
@@ -572,7 +602,7 @@ proof (rule ccontr)
     case (WaitBeginAtomic n)
     show False
     proof (cmd_step_cases step: step insert: cmd_prefix simps: WaitBeginAtomic)
-      case (A S1 i' ls f ls' t Sn Sf vis vis' txns)
+      case (A S1 i' ls f ls' t Sn Sf vis vis' )
 
       have [simp]: "ps_localCalls PS = []"
         using A(26) A(8) i_def proof_state_rel_fact(13) proof_state_rel_fact(15) rel by fastforce
@@ -636,27 +666,23 @@ proof (rule ccontr)
             using proof_state_rel_fact(23) rel by blast
 
           from proof_state_rel_fact[OF rel]
-          have uid_private: "uid_is_private (ps_i PS) (calls S) (invocationOp S) (invocationRes S) 
-                                      (knownIds S) (generatedIds S) (localState S) (currentProc S) v"
+          have uid_private: "uid_is_private (ps_i PS) S v"
             if "v \<in> ps_generatedLocalPrivate PS"
             for v
             using that by auto
 
           show "\<forall>v\<in>ps_generatedLocalPrivate PS'.
-               uid_is_private (ps_i PS') (calls Sf) (invocationOp Sf) (invocationRes Sf) (knownIds Sf) (generatedIds Sf)
-                (localState Sf) (currentProc Sf) v"
+               uid_is_private (ps_i PS') Sf v"
           proof (rule ballI)
             fix v
             assume v_priv: "v \<in> ps_generatedLocalPrivate PS'"
 
             from `state_monotonicGrowth i' S Sn`
-            have "uid_is_private i' (calls Sn) (invocationOp Sn) (invocationRes Sn) (knownIds Sn) (generatedIds Sn)
-               (localState Sn) (currentProc Sn) v"
+            have "uid_is_private i' Sn v"
             proof (rule growth_still_hidden)
               show "program_wellFormed (prog S)"
                 by (simp add: prog_wf)
-              show "uid_is_private i' (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S) (localState S)
-               (currentProc S) v"
+              show "uid_is_private i' S v"
               proof (fuzzy_rule uid_private)
                 show "v \<in> ps_generatedLocalPrivate PS"
                   using v_priv by (auto simp add: PS'_def)
@@ -666,9 +692,10 @@ proof (rule ccontr)
 
 
             from this
-            show "uid_is_private (ps_i PS') (calls Sf) (invocationOp Sf) (invocationRes Sf) (knownIds Sf) (generatedIds Sf)
-            (localState Sf) (currentProc Sf) v"
-              by (auto simp add: PS'_def A new_unique_not_in_other_invocations_def uid_is_private_def)
+            show "uid_is_private (ps_i PS') Sf v"
+              apply (auto simp add: PS'_def A new_unique_not_in_other_invocations_def uid_is_private_def)
+              sledgehammer
+              sorry
           qed 
 
           have toImpl_ba: "toImpl (ps_store PS, cmd \<bind> cmdCont) = BeginAtomic (ps_store PS, n \<bind> cmdCont)"
@@ -845,9 +872,7 @@ proof (rule ccontr)
             apply (auto simp add: PS'_def)
             by (metis i_callOriginI_h_update_to4 proof_state_rel_fact(22) rel)
 
-          show "\<forall>v\<in>ps_generatedLocalPrivate PS'.
-       uid_is_private (ps_i PS') (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
-        (localState S') (currentProc S') v"
+          show "\<forall>v\<in>ps_generatedLocalPrivate PS'.  uid_is_private (ps_i PS') S' v"
             apply (auto simp add: PS'_def  `S' = S''` S''_def)
             by (smt \<open>i' = ps_i PS\<close> fun_upd_apply new_unique_not_in_other_invocations_def proof_state_rel_def rel uid_is_private_def)
 

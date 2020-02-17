@@ -105,7 +105,7 @@ inductive step_s :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state 
               localState := (localState S')(i \<mapsto> ls'),
               visibleCalls := (visibleCalls S')(i \<mapsto> vis')
     \<rparr>)
-   \<rbrakk> \<Longrightarrow> S ~~ (i, ABeginAtomic t txns, True) \<leadsto>\<^sub>S S''" 
+   \<rbrakk> \<Longrightarrow> S ~~ (i, ABeginAtomic t vis', True) \<leadsto>\<^sub>S S''" 
 | endAtomic: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 

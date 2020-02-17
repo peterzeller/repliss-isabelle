@@ -251,7 +251,7 @@ lemma querySpec_progr[simp]: "querySpec progr = crdtSpec"
 
 lemma progr_wf[simp]: "program_wellFormed progr"
 proof (auto simp add: program_wellFormed_def)
-  show "procedures_cannot_guess_ids procedures"
+  have "procedures_cannot_guess_ids procedures"
   proof (auto simp add: procedures_cannot_guess_ids_def procedures_def uniqueIds_proc_def split: proc.splits)
     show "\<And>n m uids. procedure_cannot_guess_ids uids (registerUser_impl (String n) (String m)) toImpl"
       by (auto simp add: registerUser_impl_def, show_procedures_cannot_guess_ids  )
@@ -265,6 +265,8 @@ proof (auto simp add: program_wellFormed_def)
     show " \<And>x4 uids. procedure_cannot_guess_ids (uids \<union> uniqueIds (UserId x4)) (getUser_impl (UserId x4)) toImpl"
       by (auto simp add: getUser_impl_def, show_procedures_cannot_guess_ids  )
   qed
+  thus "invocations_cannot_guess_ids progr"
+    by (simp add: pscgi_to_iscgi)
 
   show "queries_cannot_guess_ids crdtSpec"
   proof (simp add:  crdtSpec_def, standard)

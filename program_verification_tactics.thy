@@ -10,6 +10,7 @@ theory program_verification_tactics
     execution_invariants_s
     execution_invariants_unused
     crdt_specs
+    unique_ids_procedure_check
 begin
 
 text "We define some tactics to generate proof obligations for showing a programs correctness.

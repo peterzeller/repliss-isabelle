@@ -473,7 +473,7 @@ lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exist
 
 lemma progr_wf[simp]: "program_wellFormed progr"
 proof (auto simp add: program_wellFormed_def)
-  show "procedures_cannot_guess_ids procedures"
+  have "procedures_cannot_guess_ids procedures"
   proof (auto simp add: procedures_cannot_guess_ids_def procedures_def uniqueIds_proc_def split: proc.splits)
 
     show "\<And>x11 x12 uids. procedure_cannot_guess_ids uids (sendMessage_impl (String x11) (String x12)) toImpl"
@@ -488,6 +488,8 @@ proof (auto simp add: program_wellFormed_def)
     show "\<And>x4 uids. procedure_cannot_guess_ids (insert (to_nat x4) uids) (getMessage_impl (MessageId x4)) toImpl "
       by (auto simp add: getMessage_impl_def, show_procedures_cannot_guess_ids  )
   qed
+  thus "invocations_cannot_guess_ids progr"
+    by (simp add: pscgi_to_iscgi)
 
   show "queries_cannot_guess_ids crdtSpec"
   proof (auto simp add:  crdtSpec_def queries_cannot_guess_ids_def split: operation.splits)

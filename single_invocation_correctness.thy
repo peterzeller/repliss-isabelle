@@ -196,7 +196,7 @@ next
     case (newId C s ls f ls' uid)
     then show ?case using i2 by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
-    case (beginAtomic C s ls f ls' t C' C'' vis vis' txns)
+    case (beginAtomic C s ls f ls' t C' C'' vis vis' )
     then show ?case using i2 state_monotonicGrowth_invocationOp[OF \<open>state_monotonicGrowth s C C'\<close>]
       by (auto simp add: step_s.simps state_monotonicGrowth_def elim: use_map_le )
   next
@@ -372,7 +372,7 @@ from \<open>S ~~ (i, a) \<leadsto>\<^sub>S S'\<close>
     with \<open>state_wellFormed S\<close> show ?case 
       by (rule state_wellFormed_combine1, simp)
   next
-    case (beginAtomic C s ls f ls' t C' vis vis' newTxns txns)
+    case (beginAtomic C s ls f ls' t C' vis vis' newTxns )
     then show ?case 
       by blast
   next
