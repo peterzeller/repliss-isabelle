@@ -212,15 +212,14 @@ qed
 
 
 
-fun toImpl :: "(('val store \<times> (('val,'operation::small, 'val::small) io)), 'operation, 'val) procedureImpl" where
-  "toImpl (store, WaitLocalStep n) = (let (ok, store', n') = n store in LocalStep (ok \<and> (finite (dom store) \<longrightarrow> finite (dom (store')))) (store', n'))"
-| "toImpl (store, WaitBeginAtomic n) = BeginAtomic (store, n)"
-| "toImpl (store, WaitEndAtomic n) = EndAtomic (store, n)"
-| "toImpl (store, WaitNewId P n) = NewId (\<lambda>i. if P i then Some (store, n i) else None)"
-| "toImpl (store, WaitDbOperation op n) = DbOperation op (\<lambda>r. (store, n r))"
-| "toImpl (store, WaitReturn v) = Return v"
-| "toImpl (store, Loop body n) = LocalStep True (store, bind (from_V body) (\<lambda>r. if r then n else Loop body n))"
-
+fun toImpl :: "(('val store \<times> uniqueId set \<times> (('val,'operation::{small,valueType}, 'val::{small,valueType}) io)), 'operation, 'val) procedureImpl" where
+  "toImpl (store, knownUids, WaitLocalStep n) = (let (ok, store', n') = n store in LocalStep (ok \<and> (finite (dom store) \<longrightarrow> finite (dom (store')))) (store', knownUids, n'))"
+| "toImpl (store, knownUids, WaitBeginAtomic n) = BeginAtomic (store, knownUids, n)"
+| "toImpl (store, knownUids, WaitEndAtomic n) = EndAtomic (store, knownUids,  n)"
+| "toImpl (store, knownUids, WaitNewId P n) = NewId (\<lambda>i. if P i then Some (store, knownUids \<union> uniqueIds i,  n i) else None)"
+| "toImpl (store, knownUids, WaitDbOperation op n) = (if uniqueIds op \<subseteq> knownUids then DbOperation op (\<lambda>r. (store, knownUids \<union> uniqueIds r, n r)) else LocalStep False ???)"
+| "toImpl (store, knownUids, WaitReturn v) = (if uniqueIds v \<subseteq> knownUids then  Return v else LocalStep False ??? )"
+| "toImpl (store, knownUids, Loop body n) = LocalStep True (store, knownUids, bind (from_V body) (\<lambda>r. if r then n else Loop body n))"
 
 
 adhoc_overloading Monad_Syntax.bind bind
@@ -308,25 +307,47 @@ definition update :: "('a::countable) ref \<Rightarrow> ('a \<Rightarrow> 'a) \<
 
 
 
-lemma toImpl_simps[simp]:
-"\<And>store. toImpl (store, newId P) = NewId (\<lambda>i. if P i then Some (store, return i) else None)"
-"\<And>store. toImpl (store, pause) = LocalStep True (store, return ())"
-"\<And>store. toImpl (store, beginAtomic) = BeginAtomic (store, return ())"
-"\<And>store. toImpl (store, endAtomic) = EndAtomic (store, return ())"
-"\<And>store. toImpl (store, call op ) = DbOperation op  (\<lambda>r. (store, return r))"
-"\<And>store. toImpl (store, return x) = Return x"
+lemma toImpl_simps_newId[simp]:
+"toImpl (store, u, newId P) = NewId (\<lambda>i. if P i then Some (store, u \<union> uniqueIds i, return i) else None)"
+by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
+lemma toImpl_simps_pause[simp]:
+"toImpl (store, u, pause) = LocalStep True (store, u, return ())"
+by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
+lemma toImpl_simps_beginAtomic[simp]:
+"toImpl (store, u, beginAtomic) = BeginAtomic (store, u, return ())"
+by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
+lemma toImpl_simps_endAtomic[simp]:
+"toImpl (store, u, endAtomic) = EndAtomic (store, u, return ())"
+by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
+lemma toImpl_simps_call[simp]:
+   "toImpl (store, u, call op ) = (if uniqueIds op \<subseteq> u then DbOperation op  (\<lambda>r. (store, u \<union> uniqueIds r, return r)) else LocalStep False ???)"
+  by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: HOL.ext split: io.splits)
+lemma toImpl_simps_return[simp]:
+  "toImpl (store, u, return x) = (if uniqueIds x \<subseteq> u then Return x else LocalStep False ???)"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
 
-schematic_goal "toImpl (store, newId P \<bind> x) = ?x"
+schematic_goal "toImpl (store, u, newId P \<bind> x) = ?x"
  by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
 
 
-lemma toImpl_bind_simps[simp]:
-"\<And>store P x. toImpl (store, newId P \<bind> x) = NewId (\<lambda>i. if P i then Some (store, x i) else None)"
-"\<And>store x. toImpl (store, pause \<bind> x) = LocalStep True (store, x ())"
-"\<And>store x. toImpl (store, beginAtomic \<bind> x) = BeginAtomic (store, x ())"
-"\<And>store x. toImpl (store, endAtomic \<bind> x) = EndAtomic (store, x ())"
-"\<And>store x. toImpl (store, call op  \<bind> x) = DbOperation op  (\<lambda>r. (store, x r))"
+lemma toImpl_bind_simps_newid[simp]:
+"toImpl (store, u, newId P \<bind> x) = NewId (\<lambda>i. if P i then Some (store, u \<union> uniqueIds i, x i) else None)"
+  by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
+
+lemma toImpl_bind_simps_pause[simp]:
+"toImpl (store, u, pause \<bind> x) = LocalStep True (store, u, x ())"
+  by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
+
+lemma toImpl_bind_simps_beginAtomic[simp]:
+"toImpl (store, u, beginAtomic \<bind> x) = BeginAtomic (store, u, x ())"
+  by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
+
+lemma toImpl_bind_simps_endAtomic[simp]:
+" toImpl (store, u, endAtomic \<bind> x) = EndAtomic (store, u, x ())"
+  by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
+
+lemma toImpl_bind_simps_call[simp]:
+"toImpl (store, u, call op  \<bind> x) = (if uniqueIds op \<subseteq> u then DbOperation op  (\<lambda>r. (store, u \<union> uniqueIds r, x r)) else LocalStep False ???)"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
 
 
@@ -404,11 +425,11 @@ qed
 
 
 lemma atomic_simp1[simp]: 
-"toImpl (s, atomic f) = BeginAtomic (s, f \<bind> (\<lambda>r. endAtomic \<bind> (\<lambda>_. return r)))"
+"toImpl (s, u, atomic f) = BeginAtomic (s, u, f \<bind> (\<lambda>r. endAtomic \<bind> (\<lambda>_. return r)))"
   by (auto simp add: atomic_def)
 
 lemma atomic_simp2[simp]: 
-"toImpl (s, atomic f \<bind> x) = BeginAtomic (s, f \<bind> (\<lambda>a. endAtomic \<bind> (\<lambda>b. x a)))"
+"toImpl (s, u, atomic f \<bind> x) = BeginAtomic (s, u, f \<bind> (\<lambda>a. endAtomic \<bind> (\<lambda>b. x a)))"
   by (auto simp add: atomic_def)
 
 

@@ -3224,16 +3224,6 @@ loop_a_def[language_construct_defs]
 \<comment> \<open>loop construct is not added here, since unfolding it might diverge.
     the loops added are just syntactic sugar for loop.\<close>
 
-instantiation bool :: valueType begin
-definition [simp]: "uniqueIds_bool \<equiv> \<lambda>b::bool. {}::uniqueId set"
-definition [simp]: "default_bool \<equiv> False"
-instance by standard auto
-end
-
-instantiation unit :: valueType begin
-definition [simp]: "uniqueIds_unit \<equiv> \<lambda>b::unit. {}::uniqueId set"
-instance by standard auto
-end
 
 
 

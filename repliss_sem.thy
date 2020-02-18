@@ -34,6 +34,16 @@ class valueType = countable + default +
 definition 
   "uniqueIdsInList xs = (\<Union>x\<in>set xs. uniqueIds x)"
 
+instantiation bool :: valueType begin
+definition [simp]: "uniqueIds_bool \<equiv> \<lambda>b::bool. {}::uniqueId set"
+definition [simp]: "default_bool \<equiv> False"
+instance by standard auto
+end
+
+instantiation unit :: valueType begin
+definition [simp]: "uniqueIds_unit \<equiv> \<lambda>b::unit. {}::uniqueId set"
+instance by standard auto
+end
 
 
 
@@ -790,6 +800,17 @@ definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rig
 
 definition "isAInvoc action = (case action of AInvoc _   \<Rightarrow> True | _ \<Rightarrow> False)"
 
+lemma traceCorrect_append:
+"traceCorrect (xs@ys) \<longleftrightarrow> traceCorrect xs \<and> traceCorrect ys"
+  by (auto simp add: traceCorrect_def)
+
+lemma traceCorrect_cons:
+"traceCorrect (x#ys) \<longleftrightarrow> actionCorrect (get_action x) \<and> traceCorrect ys"
+  by (auto simp add: traceCorrect_def)
+
+lemma traceCorrect_empty:
+"traceCorrect []"
+  by (auto simp add: traceCorrect_def)
 
 lemma show_programCorrect:
   assumes "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s \<rbrakk> \<Longrightarrow> traceCorrect trace"
