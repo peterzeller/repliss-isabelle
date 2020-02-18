@@ -141,21 +141,11 @@ lemma [simp]: "procedure progr = procedures"
 "invariant progr = inv"
   by (auto simp add: progr_def)
 
-instantiation unit :: valueType begin
-definition [simp]: "uniqueIds_unit (x::unit) = ({}::uniqueId set)"
-instance by standard auto
-end
 
 lemma progr_wf[simp]: "program_wellFormed progr"
 proof (auto simp add: program_wellFormed_def)
-  show "procedures_cannot_guess_ids procedures"
-  proof (auto simp add: procedures_cannot_guess_ids_def procedures_def uniqueIds_proc_def split: proc.splits)
-
-    show "\<And>x uids.
-       procedure_cannot_guess_ids uids (Map.empty, max_impl x) impl_language_loops.toImpl "
-      apply (auto simp add: max_impl_def, show_procedures_cannot_guess_ids)
-      sorry
-  qed
+  show "invocations_cannot_guess_ids progr"
+    sorry
 
   show "queries_cannot_guess_ids crdtSpec"
   proof (auto simp add:  crdtSpec_def queries_cannot_guess_ids_def split: )

@@ -76,7 +76,7 @@ definition proof_state_rel :: "
        \<and> (ps_generatedLocalPrivate S \<subseteq> ps_generatedLocal S)
        \<and> (\<forall>v\<in>ps_generatedLocalPrivate S. uid_is_private (ps_i S) S1 v)
        \<and> (finite (dom (ps_store S)))
-       \<and> (procedure_cannot_guess_ids (ps_localKnown S) (the (localState S1 (ps_i S))) toImpl)
+       \<and> (invocation_cannot_guess_ids (ps_localKnown S) (ps_i S) S1)
        \<and> (ps_generatedLocal S \<subseteq> ps_localKnown S)
 "
 
@@ -458,31 +458,37 @@ proof (rule ccontr)
     using proof_state_rel_fact(25) rel by blast
 
 
-    have no_guess: "(procedure_cannot_guess_ids (ps_localKnown PS) (the (localState S (ps_i PS))) toImpl)"
+    have no_guess: "(invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S)"
       by (simp add: proof_state_rel_fact[OF rel])
 
     have "(the (localState S (ps_i PS))) = (ps_store PS, cmd \<bind> cmdCont)"
     using i_def ls by auto
-    
-    
-  have uniqueIdCases1:
-       "  (\<exists> ok ls' . toImpl (the (localState S (ps_i PS))) = LocalStep ok ls' \<and> procedure_cannot_guess_ids (ps_localKnown PS) ls' toImpl)
-        \<or> (\<exists>ls'.    toImpl (the (localState S (ps_i PS))) = BeginAtomic ls' \<and> procedure_cannot_guess_ids (ps_localKnown PS) ls' toImpl)
-        \<or> (\<exists> ls'.   toImpl (the (localState S (ps_i PS))) = EndAtomic ls' \<and> procedure_cannot_guess_ids (ps_localKnown PS) ls' toImpl)
-        \<or> (\<exists>  f . toImpl (the (localState S (ps_i PS))) = NewId f \<and> (\<forall> uid ls'. f uid \<triangleq> ls' \<longrightarrow> procedure_cannot_guess_ids ((ps_localKnown PS) \<union> uniqueIds uid) ls' toImpl ))
-        \<or> (\<exists>  opr f . toImpl (the (localState S (ps_i PS))) = DbOperation opr f \<and> uniqueIds opr \<subseteq> (ps_localKnown PS) \<and> (\<forall> res. procedure_cannot_guess_ids ((ps_localKnown PS) \<union> uniqueIds res) (f res) toImpl ))
-        \<or> (\<exists>  r . toImpl (the (localState S (ps_i PS))) = Return r \<and> uniqueIds r \<subseteq> (ps_localKnown PS))"
-    by (rule procedure_cannot_guess_ids.cases[OF no_guess, simplified], auto)
 
-    
-  hence uniqueIdCases:
-     "  (\<exists> ok ls' . toImpl (ps_store PS, cmd \<bind> cmdCont) = LocalStep ok ls' \<and> procedure_cannot_guess_ids (ps_localKnown PS) ls' toImpl)
-      \<or> (\<exists>ls'.    toImpl (ps_store PS, cmd \<bind> cmdCont) = BeginAtomic ls' \<and> procedure_cannot_guess_ids (ps_localKnown PS) ls' toImpl)
-      \<or> (\<exists> ls'.   toImpl (ps_store PS, cmd \<bind> cmdCont) = EndAtomic ls' \<and> procedure_cannot_guess_ids (ps_localKnown PS) ls' toImpl)
-      \<or> (\<exists>  f . toImpl (ps_store PS, cmd \<bind> cmdCont) = NewId f \<and> (\<forall> uid ls'. f uid \<triangleq> ls' \<longrightarrow> procedure_cannot_guess_ids ((ps_localKnown PS) \<union> uniqueIds uid) ls' toImpl ))
-      \<or> (\<exists>  opr f . toImpl (ps_store PS, cmd \<bind> cmdCont) = DbOperation opr f \<and> uniqueIds opr \<subseteq> (ps_localKnown PS) \<and> (\<forall>res. procedure_cannot_guess_ids ((ps_localKnown PS) \<union> uniqueIds res) (f res) toImpl ))
-      \<or> (\<exists>  r . toImpl (ps_store PS, cmd \<bind> cmdCont) = Return r \<and> uniqueIds r \<subseteq> (ps_localKnown PS))"
-      by (auto simp add: `(the (localState S (ps_i PS))) = (ps_store PS, cmd \<bind> cmdCont)`)
+  have uip: "uid_is_private i S' uidv" 
+    if "uid_is_private i S uidv"
+      and "uidv \<notin> action_outputs action"
+    for uidv
+  proof (rule uid_is_private_step_s_same)
+    show "S ~~ (i, action, Inv) \<leadsto>\<^sub>S S'"
+      using `S ~~ (i, action, Inv) \<leadsto>\<^sub>S S'` .
+
+    show "state_wellFormed S"
+      by (simp add: \<open>state_wellFormed S\<close>)
+    show "program_wellFormed (prog S)"
+      using prog_wf by auto
+    show "uid_is_private i S uidv"
+      using that by simp
+    show "uidv \<notin> action_outputs action"
+      using that by simp
+  qed
+
+  hence uip': "uid_is_private (ps_i PS) S' uidv" 
+    if "uid_is_private (ps_i PS) S uidv"
+      and "uidv \<notin> action_outputs action"
+    for uidv
+    by (simp add: i_def that(1) that(2))
+
+
 
       
   show False
@@ -581,12 +587,19 @@ proof (rule ccontr)
           show "finite (dom (ps_store PS'))"
             by (auto simp add: PS'_def)
 
-            
-          show "procedure_cannot_guess_ids (ps_localKnown PS') (the (localState S' (ps_i PS'))) toImpl"
-            using uniqueIdCases[simplified toImpl, simplified]
-            by (auto simp add: PS'_def S'_def i_def c1)
-            
-            
+
+          show "invocation_cannot_guess_ids (ps_localKnown PS') (ps_i PS') S'"
+          proof (simp add: PS'_def)
+            show "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S'"
+              using no_guess
+            proof (fuzzy_rule show_invocation_cannot_guess_ids_step)
+              show "S ~~ (ps_i PS, action) \<leadsto> S'"
+                using step action_def step_s_to_step i_def by blast
+
+              show "ps_localKnown PS \<union> action_inputs action = ps_localKnown PS"
+                using action_def by simp
+            qed
+          qed
             
             
             
@@ -633,6 +646,9 @@ proof (rule ccontr)
           \<rparr>"
 
 
+      have [simp]: "ps_i PS' = ps_i PS"
+        by (simp add: PS'_def)
+
 
       show ?thesis
       proof (rule goal, intro exI conjI impI)
@@ -677,25 +693,27 @@ proof (rule ccontr)
             fix v
             assume v_priv: "v \<in> ps_generatedLocalPrivate PS'"
 
-            from `state_monotonicGrowth i' S Sn`
-            have "uid_is_private i' Sn v"
-            proof (rule growth_still_hidden)
-              show "program_wellFormed (prog S)"
-                by (simp add: prog_wf)
-              show "uid_is_private i' S v"
-              proof (fuzzy_rule uid_private)
-                show "v \<in> ps_generatedLocalPrivate PS"
-                  using v_priv by (auto simp add: PS'_def)
-                show "ps_i PS = i'" by simp
-              qed
+            have  "uid_is_private i' S v"
+            proof (fuzzy_rule uid_private)
+              show "v \<in> ps_generatedLocalPrivate PS"
+                using v_priv by (auto simp add: PS'_def)
+              show "ps_i PS = i'" by simp
+            qed
+
+           
+            have "uid_is_private i S' v"
+            proof (rule uip)
+              show "uid_is_private i S v"
+                using `i = i'` \<open>uid_is_private i' S v\<close> by blast
+
+              show "v \<notin> action_outputs action"
+                using `action = ABeginAtomic t vis'` by simp
             qed
 
 
             from this
             show "uid_is_private (ps_i PS') Sf v"
-              apply (auto simp add: PS'_def A new_unique_not_in_other_invocations_def uid_is_private_def)
-              sledgehammer
-              sorry
+              by (simp add: A(4) i_def)
           qed 
 
           have toImpl_ba: "toImpl (ps_store PS, cmd \<bind> cmdCont) = BeginAtomic (ps_store PS, n \<bind> cmdCont)"
@@ -704,14 +722,49 @@ proof (rule ccontr)
           
           have ls_Sf: "localState Sf (ps_i PS) \<triangleq> (ps_store PS, n \<bind> cmdCont)"
             by (auto simp add: A)
-          
-          show "procedure_cannot_guess_ids (ps_localKnown PS') (the (localState Sf (ps_i PS'))) impl_language_loops.toImpl"
-            using uniqueIdCases[simplified toImpl, simplified]
-            by (auto simp add: PS'_def  i_def toImpl_ba ls_Sf)
+
+
             
           show "ps_generatedLocal PS' \<subseteq> ps_localKnown PS'"
             using \<open>ps_generatedLocal PS \<subseteq> ps_localKnown PS\<close> PS'_def by auto
-            
+
+
+          show "invocation_cannot_guess_ids (ps_localKnown PS') (ps_i PS') Sf"
+          proof (simp add: PS'_def A(4)[symmetric])
+
+            have "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS)  S"
+              by (simp add: no_guess)
+
+            from `state_monotonicGrowth i' S Sn`
+            obtain tr
+              where "state_wellFormed S"
+                and "S ~~ tr \<leadsto>* Sn" 
+                and "\<forall>(i'',a)\<in>set tr. i'' \<noteq> i'"
+                and "\<forall>i. (i, ACrash) \<notin> set tr"
+              by (auto simp add: state_monotonicGrowth_def)
+
+
+            from no_guess `S ~~ tr \<leadsto>* Sn`
+            have "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS)  Sn"
+            proof (rule show_invocation_cannot_guess_ids_steps_other)
+              show "\<forall>(i', a)\<in>set tr. i' \<noteq> ps_i PS"
+                using A(26) \<open>\<forall>(i'', a)\<in>set tr. i'' \<noteq> i'\<close> i_def by blast
+            qed
+
+            have ls_split: "ls = (fst ls, snd ls)"
+              by force
+
+            have " Sn ~~ (ps_i PS, ABeginAtomic t vis' ) \<leadsto> S'"
+              using A ls_split by (auto simp add: step.simps state_ext intro!: exI[where x=Sn] exI HOL.ext)
+
+            from `invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS)  Sn`
+              and `Sn ~~ (ps_i PS, ABeginAtomic t vis' ) \<leadsto> S'`
+            show "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S'"
+            proof (fuzzy_rule show_invocation_cannot_guess_ids_step)
+              show "ps_localKnown PS \<union> action_inputs (ABeginAtomic t vis') = ps_localKnown PS"
+                by simp
+            qed
+          qed
             
         qed ((insert A, (auto simp add: PS'_def sorted_by_empty)[1]); fail)+
 
@@ -734,7 +787,7 @@ proof (rule ccontr)
           show "Inv"
             using A by simp
 
-          show "action = ABeginAtomic t txns"
+          show "action = ABeginAtomic t vis'"
             using A by simp
 
           have [simp]: "(transactionOrigin Sn)(t := None) = transactionOrigin Sn"
@@ -873,14 +926,34 @@ proof (rule ccontr)
             by (metis i_callOriginI_h_update_to4 proof_state_rel_fact(22) rel)
 
           show "\<forall>v\<in>ps_generatedLocalPrivate PS'.  uid_is_private (ps_i PS') S' v"
-            apply (auto simp add: PS'_def  `S' = S''` S''_def)
-            by (smt \<open>i' = ps_i PS\<close> fun_upd_apply new_unique_not_in_other_invocations_def proof_state_rel_def rel uid_is_private_def)
 
-            
-          show "procedure_cannot_guess_ids (ps_localKnown PS') (the (localState S' (ps_i PS'))) impl_language_loops.toImpl"
-            using uniqueIdCases[simplified toImpl, simplified]
-            by (auto simp add: PS'_def  i_def  ls'_def)
-            
+          proof (auto simp add: PS'_def )
+            fix v
+            assume a0: "v \<in> ps_generatedLocalPrivate PS"
+
+            have "uid_is_private (ps_i PS) S v"
+              using a0 proof_state_rel_fact(24) rel by blast
+
+            show "uid_is_private (ps_i PS) S' v"
+            proof (fuzzy_rule uip)
+              show "uid_is_private i S v"
+                by (simp add: \<open>uid_is_private (ps_i PS) S v\<close> i_def)
+              show "v \<notin> action_outputs action"
+                by (simp add: A(11)) 
+              show "i = ps_i PS"
+                by (simp add: i_def) 
+            qed
+          qed
+
+          show "invocation_cannot_guess_ids (ps_localKnown PS') (ps_i PS') S'"
+          proof (simp add: PS'_def, use no_guess in \<open>fuzzy_rule show_invocation_cannot_guess_ids_step\<close>)
+            show "S ~~ (ps_i PS, action) \<leadsto> S'"
+              using A(11) i_def local.step step_s_to_step by blast
+            show "ps_localKnown PS \<union> action_inputs action = ps_localKnown PS"
+              using `action = AEndAtomic` by simp
+          qed
+
+
 
         qed ((insert proof_state_rel_fact[OF rel], (auto simp add: sorted_by_empty i_def S''_def PS'_def `S' = S''` `i = i'` `i' = ps_i PS`  split: option.splits)[1]); fail)+
 
@@ -955,15 +1028,35 @@ proof (rule ccontr)
           by (simp add: S'_def ls''_def cmd'_def `i = i'`)
 
 
-        have uid_priv: "uid_is_private (ps_i PS) (calls PS) (invocationOp PS) (invocationRes PS) (knownIds PS)
-             (generatedIds S(uid \<mapsto> i')) (localState S(i' \<mapsto> ls'')) (currentProc S) uid"
-          apply (auto simp add: uid_is_private_def \<open>i' = ps_i PS\<close>)
-          using A(5) \<open>state_wellFormed S\<close> new_unique_not_in_invocationOp_def prog_wf proof_state_rel_fact(7) rel wf_onlyGeneratedIdsInInvocationOps apply fastforce
-              apply (metis (no_types, lifting) A(5) \<open>state_wellFormed S\<close> new_unique_not_in_calls_def prog_wf proof_state_rel_fact(2) rel wf_onlyGeneratedIdsInCalls)
-          using A(5) \<open>state_wellFormed S\<close> new_unique_not_in_calls_result_def prog_wf proof_state_rel_fact(2) rel wf_onlyGeneratedIdsInCallResults apply fastforce
-          using A(5) \<open>state_wellFormed S\<close> new_unique_not_in_invocationRes_def prog_wf proof_state_rel_fact(8) rel wf_onlyGeneratedIdsInInvocationRes apply fastforce
-          using A(5) \<open>state_wellFormed S\<close> prog_wf proof_state_rel_fact(6) rel wf_onlyGeneratedIdsInKnownIds apply blast
-          by (smt A(5) Un_iff \<open>state_wellFormed S\<close> domIff fun_upd_apply new_unique_not_in_other_invocations_def prog_wf subset_Un_eq wf_knownIds_subset_generatedIds_h(1))
+        have uid_priv: "uid_is_private (ps_i PS) S' uid"
+          unfolding uid_is_private_def
+        proof (intro conjI)
+          show "new_unique_not_in_invocationOp (invocationOp S') uid"
+            using A(5) A(8) \<open>state_wellFormed S\<close> new_unique_not_in_invocationOp_def prog_wf wf_onlyGeneratedIdsInInvocationOps by (auto simp add: A, blast)
+          show "new_unique_not_in_calls (calls S') uid"
+            using A(5) A(8) \<open>state_wellFormed S\<close> new_unique_not_in_calls_def prog_wf wf_onlyGeneratedIdsInCalls by (auto simp add: A, blast)
+          show "new_unique_not_in_calls_result (calls S') uid"
+            using A(5) A(8) \<open>state_wellFormed S\<close> new_unique_not_in_calls_result_def prog_wf wf_onlyGeneratedIdsInCallResults by (auto simp add: A, blast)
+          show "new_unique_not_in_invocationRes (invocationRes S') uid"
+            apply (auto simp add: A)
+            using A(5) A(8) \<open>state_wellFormed S\<close> new_unique_not_in_invocationRes_def prog_wf wf_onlyGeneratedIdsInInvocationRes by blast
+          show "uid \<notin> knownIds S'"
+            apply (auto simp add: A)
+            using A(5) A(8) \<open>state_wellFormed S\<close> prog_wf wf_onlyGeneratedIdsInKnownIds by blast
+          show "generatedIds S' uid \<triangleq> ps_i PS"
+            using \<open>i' = ps_i PS\<close> by (auto simp add: A)
+          have "new_unique_not_in_other_invocations (ps_i PS) S uid"
+          proof (rule wf_invocation_cannot_guess_ids_not_generated)
+            show "state_wellFormed S"
+              using \<open>state_wellFormed S\<close> by auto
+            show "program_wellFormed (prog S)"
+              by (simp add: prog_wf)
+            show "generatedIds S uid = None"
+              by (simp add: A(5))
+          qed
+          thus "new_unique_not_in_other_invocations (ps_i PS) S' uid"
+            using A(11) i_def local.step new_unique_not_in_other_invocations_maintained by blast
+        qed
 
 
         show "proof_state_rel PS' S'"
@@ -984,10 +1077,13 @@ proof (rule ccontr)
 
 
           show "\<forall>v\<in>ps_generatedLocalPrivate PS'.
-           uid_is_private (ps_i PS') (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
-            (localState S') (currentProc S') v"
-            apply (auto simp add: i_def S'_def PS'_def proof_state_rel_fact[OF rel] uid_priv  split: option.splits)
-            by (smt \<open>i' = ps_i PS\<close> map_upd_Some_unfold new_unique_not_in_other_invocations_def proof_state_rel_def rel uid_is_private_def)
+           uid_is_private (ps_i PS') S' v"
+          proof (auto simp add: PS'_def)
+            show "uid_is_private (ps_i PS) S' uid"
+              using uid_priv by blast
+            show "uid_is_private (ps_i PS) S' v" if "v \<in> ps_generatedLocalPrivate PS" for v
+              using A(11) i_def proof_state_rel_fact(24) rel that uip by auto
+          qed
 
 
           have toImpl_ls: "toImpl (ps_store PS, cmd \<bind> cmdCont) = NewId ls'"
@@ -997,14 +1093,14 @@ proof (rule ccontr)
           have ls''_def: "ls'' = (the (localState S' (ps_i PS)))"
             by (auto simp add: S'_def \<open>i' = ps_i PS\<close>)
           
-            
-            
-          show "procedure_cannot_guess_ids (ps_localKnown PS') (the (localState S' (ps_i PS'))) impl_language_loops.toImpl"
-            using uniqueIdCases[simplified toImpl, simplified]
-            apply (auto simp add: PS'_def  i_def  toImpl_ls)
-            apply (drule_tac x=uidv in spec)
-            apply (auto simp add: `ls' uidv \<triangleq> ls''` ls''_def `uniqueIds uidv = {uid}`)
-            by (metis old.prod.exhaust)
+          show "invocation_cannot_guess_ids (ps_localKnown PS') (ps_i PS') S'"
+          proof (simp add: PS'_def, use no_guess in \<open>fuzzy_rule show_invocation_cannot_guess_ids_step\<close>)
+            show "S ~~ (ps_i PS, action) \<leadsto> S'"
+              using A(11) i_def local.step step_s_to_step by blast
+            show "ps_localKnown PS \<union> action_inputs action = insert uid (ps_localKnown PS)"
+              using `action = ANewId uidv` `uniqueIds uidv = {uid}` by auto
+          qed
+  
             
             
 
@@ -1039,8 +1135,15 @@ proof (rule ccontr)
           show "uid \<notin> ps_generatedLocal PS"
             using A(5) proof_state_rel_fact(9) rel by fastforce
 
-          show "uid_fresh uid PS"
-            by (meson uid_fresh_def uid_is_private'_implies uid_priv)
+          from uid_is_private'_implies[OF uid_priv]
+          have h: " uid_is_private' (ps_i PS) (calls S') (invocationOp S') (invocationRes S') (knownIds S') uid" .
+
+          have "uid_is_private' (ps_i PS) (calls PS) (invocationOp PS) (invocationRes PS) (knownIds PS) uid"
+            using h
+            by (auto simp add: S'_def  proof_state_rel_fact[OF rel])
+
+          thus "uid_fresh uid PS"
+            by (auto simp add: uid_fresh_def)
 
           show "PS' = PS
                 \<lparr>  ps_localKnown := insert uid (ps_localKnown PS),
@@ -1187,7 +1290,7 @@ proof (rule ccontr)
           have  prog_wf': "program_wellFormed (prog S')"
             by (metis local.step prog_wf steps_s_empty steps_s_step unchangedProg)
 
-          hence "procedures_cannot_guess_ids (procedure (prog S'))" 
+          hence "invocations_cannot_guess_ids (prog S')" 
             and "queries_cannot_guess_ids (querySpec (prog S'))"
             by (auto simp add: program_wellFormed_def)
 
@@ -1199,14 +1302,21 @@ proof (rule ccontr)
 
           have "localState S' i' \<triangleq> ls' res" 
             by (auto simp add: S'_def )
-            
-          show "procedure_cannot_guess_ids (ps_localKnown PS') (the (localState S' (ps_i PS'))) impl_language_loops.toImpl"
-          using uniqueIdCases[simplified toImpl, simplified]
-           by (auto simp add: PS'_def  i_def toImpl_db `localState S' i' \<triangleq> ls' res` )
 
-          from uniqueIdCases[simplified toImpl, simplified]
+
+          show "invocation_cannot_guess_ids (ps_localKnown PS') (ps_i PS') S'"
+          proof (simp add: PS'_def, use no_guess in \<open>fuzzy_rule show_invocation_cannot_guess_ids_step\<close>)
+            show "S ~~ (i', action) \<leadsto> S'"
+              using A(10) A(11) local.step step_s_to_step by blast
+            show "ps_i PS = i'"
+              by simp
+            show "action_inputs action = uniqueIds res"
+              using ` action = ADbOp c Op res` by auto
+          qed
+  
+          from use_invocation_cannot_guess_ids_return[OF no_guess]
           have "uniqueIds Op \<subseteq> ps_localKnown PS"
-            by (auto simp add: PS'_def  i_def toImpl_db `localState S' i' \<triangleq> ls' res` )
+            by (metis A(11) action.distinct(33) action.distinct(53) i_def local.step no_guess step_s_to_step use_invocation_cannot_guess_ids_dbop)
 
           from prog_wf
           have "query_cannot_guess_ids (uniqueIds opr) (querySpec (prog S) opr)" for opr
@@ -1228,53 +1338,9 @@ proof (rule ccontr)
             
             
           show " \<forall>v\<in>ps_generatedLocalPrivate PS'.
-            uid_is_private (ps_i PS') (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
-            (localState S') (currentProc S') v"
-            proof (auto simp add: PS'_def S'_def)
-            fix v
-            assume "v \<in> ps_generatedLocalPrivate PS"
-            and "v \<notin> uniqueIds Op"
+            uid_is_private (ps_i PS') S' v"
+            using A(10) A(11) action_outputs.simps(5) i_def proof_state_rel_def rel uip by (auto simp add: PS'_def, blast)
 
-            have "v \<in> ps_localKnown PS"
-               using \<open>v \<in> ps_generatedLocalPrivate PS\<close> proof_state_rel_fact(23) proof_state_rel_fact(27) rel by blast
-            
-            have old: "uid_is_private i' (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S)
-            (localState S) (currentProc S) v"
-              using A(10) \<open>v \<in> ps_generatedLocalPrivate PS\<close> i_def proof_state_rel_fact(24) rel by blast
-            
-            
-            show "uid_is_private i' (calls S(c \<mapsto> Call Op res)) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S)
-            (localState S(i' \<mapsto> ls' res)) (currentProc S) v"
-            proof (auto simp add: uid_is_private_def; ((insert old, auto simp add: uid_is_private_def); fail)?)
-            
-              have "new_unique_not_in_calls (calls S) v"
-                by (meson old uid_is_private_def) 
-              thus "new_unique_not_in_calls (calls S(c \<mapsto> Call Op res)) v" 
-                by (auto simp add: new_unique_not_in_calls_def \<open>v \<notin> uniqueIds Op\<close>)
-              
-              have "new_unique_not_in_calls_result (calls S) v"
-                by (meson old uid_is_private_def)
-              thus "new_unique_not_in_calls_result (calls S(c \<mapsto> Call Op res)) v" 
-                apply (auto simp add: new_unique_not_in_calls_result_def \<open>v \<notin> uniqueIds Op\<close>)
-                apply (frule uniqueIdsRes)
-                apply (rule `v \<notin> uniqueIds Op`)
-                apply (auto simp add: getContextH_def restrict_map_def split: option.splits if_splits)
-                by (metis \<open>new_unique_not_in_calls (calls S) v\<close> call.exhaust_sel new_unique_not_in_calls_def)
-              
-              
-              
-              have "new_unique_not_in_other_invocations i' (localState S) (currentProc S) v"
-                by (meson old uid_is_private_def) 
-              
-              
-              show "new_unique_not_in_other_invocations i' (localState S(i' \<mapsto> ls' res)) (currentProc S) v" 
-              apply (auto simp add: new_unique_not_in_other_invocations_def )
-              by (meson \<open>new_unique_not_in_other_invocations i' (localState S) (currentProc S) v\<close> new_unique_not_in_other_invocations_def)
-              
-              
-              
-            qed
-          qed
 
         qed ((insert proof_state_rel_fact[OF rel], (auto simp add: PS'_def S'_def sorted_by_empty)[1]); fail)+
       
@@ -1368,23 +1434,18 @@ proof (rule ccontr)
           show " \<exists>ps_ls. localState S' (ps_i PS) \<triangleq> (ps_store PS, ps_ls)"
             using ls_S' by auto
 
-          show "\<forall>v\<in>ps_generatedLocalPrivate PS.
-       uid_is_private (ps_i PS) (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
-        (localState S') (currentProc S') v"
-             proof (intro ballI conjI)
-            fix v
-            assume "v \<in> ps_generatedLocalPrivate PS"
-            hence "uid_is_private (ps_i PS) (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S)
-              (localState S) (currentProc S) v"
-              using proof_state_rel_fact(24) rel by blast
-            thus "uid_is_private (ps_i PS) (calls S') (invocationOp S') (invocationRes S') (knownIds S') (generatedIds S')
-          (localState S') (currentProc S') v"
-              by (auto simp add: S'_def uid_is_private_def new_unique_not_in_other_invocations_def)
-          qed
+          show "\<forall>v\<in>ps_generatedLocalPrivate PS. uid_is_private (ps_i PS) S' v"
+            using A(7) proof_state_rel_fact(24) rel uip' by fastforce
 
-          show "procedure_cannot_guess_ids (ps_localKnown PS) (the (localState S' (ps_i PS))) impl_language_loops.toImpl"
-            using uniqueIdCases[simplified toImpl, simplified]
-            by (auto simp add:  S'_def i_def toImpl1 )
+
+          show "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S'"
+          proof (use no_guess in \<open>fuzzy_rule show_invocation_cannot_guess_ids_step\<close>)
+            show "S ~~ (ps_i PS, action) \<leadsto> S'"
+              using A(7) i_def local.step step_s_to_step by blast
+
+            show "ps_localKnown PS \<union> action_inputs action = ps_localKnown PS"
+              using ` action = ALocal ok` by auto
+          qed
 
 
         qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def S'_def   split: option.splits)[1]); fail)+
@@ -2028,13 +2089,13 @@ lemma execution_s_check_sound:
     and toImpl: "currentProc S i \<triangleq> toImpl"
     and generatedLocal: "generatedLocal = {x. generatedIds S x \<triangleq> i}"
     and generatedLocalPrivate1: "generatedLocalPrivate \<subseteq> generatedLocal"
-    and generatedLocalPrivate2: "\<forall>v\<in>generatedLocalPrivate. uid_is_private i (calls S) (invocationOp S) (invocationRes S) (knownIds S) (generatedIds S) (localState S) (currentProc S) v"
+    and generatedLocalPrivate2: "\<forall>v\<in>generatedLocalPrivate. uid_is_private i S v"
     and S_wf: "state_wellFormed S"
     and no_uncommitted: "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
     and no_currentTxn: "currentTransaction S i = None"
     and firstTx_def: "(firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed ))"
     and localKnown: "localKnown = generatedLocal \<union> uniqueIds (the (invocationOp S i))"
-    and no_guess: "procedure_cannot_guess_ids localKnown (Map.empty, ls) toImpl"
+    and no_guess: "invocation_cannot_guess_ids localKnown i S"
     and P: "\<And>S' res. P S' res \<Longrightarrow> 
         invariant (prog S) (invariantContext.truncate 
               (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
@@ -2083,13 +2144,13 @@ proof (auto simp add:  execution_s_correct_def)
       apply (auto simp add: PS_def)
       by (metis (mono_tags, lifting) S_wf assms(2) i_callOriginI_h_def not_None_eq option.case_eq_if option.sel state_wellFormed_ls_visibleCalls_callOrigin)
 
-    thm wf_knownIds_subset_generatedIds_h(1)
-    show "procedure_cannot_guess_ids (ps_localKnown PS) (the (localState S (ps_i PS))) impl_language_loops.toImpl"
-      by (auto simp add: PS_def ls_def no_guess)
 
     show "ps_generatedLocal PS \<subseteq> ps_localKnown PS"
       by (auto simp add: PS_def localKnown)
 
+    show " invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S"
+      using PS_def no_guess by force
+          
 
   qed (insert assms, simp; fail)+
 
@@ -2245,18 +2306,15 @@ proof (rule execution_s_check_sound[where P=P])
       using a2 initialState_noTxns2 initialStates'_same by fastforce
 
 
-    have pcgi: "procedures_cannot_guess_ids (procedure progr)"
+    have pcgi: "invocations_cannot_guess_ids progr"
       using \<open>prog S = progr\<close> prog_wf program_wellFormed_def by blast
 
-    then
-    show "procedure_cannot_guess_ids (uniqueIds (the (invocationOp S i))) (Map.empty, ls) impl_language_loops.toImpl"
-    proof (fuzzy_rule procedures_cannot_guess_ids_def[THEN iffD1, rule_format])
-      show " procedure progr proc = ((Map.empty, ls), impl_language_loops.toImpl)"
-        using proc a1 a3 by (auto simp add: S_def progr_def)
-
-      show "{} \<union> uniqueIds proc = uniqueIds (the (invocationOp S i))"
-        by (auto simp add: S_def)
-    qed
+    then 
+    show "invocation_cannot_guess_ids (uniqueIds (the (invocationOp S i))) i S"
+      using `program_wellFormed (prog S)`
+        and `S \<in> initialStates' progr i`
+      using invocation_cannot_guess_ids_initialStates
+      by blast
 
     show "\<And>S' res.
        P S' res \<Longrightarrow>
@@ -3177,24 +3235,6 @@ definition [simp]: "uniqueIds_unit \<equiv> \<lambda>b::unit. {}::uniqueId set"
 instance by standard auto
 end
 
-lemma pcgi_bind:
-assumes a: " procedure_cannot_guess_ids uids (store, cmd \<bind> (\<lambda>x. return ())) toImpl"
-    and b: "\<And>uids store. procedure_cannot_guess_ids uids (store, cnt ()) toImpl"
-  shows "procedure_cannot_guess_ids uids (store, cmd \<bind> cnt) toImpl"
-
-lemma                    
-  assumes a: "\<And>uids store. procedure_cannot_guess_ids uids (store, bdy) toImpl"
-    and b: "\<And>uids store. procedure_cannot_guess_ids uids (store, cnt ()) toImpl"
-  shows "procedure_cannot_guess_ids uids (store, loop bdy \<bind> cnt) toImpl"
-proof (rule procedure_cannot_guess_ids.coinduct)
-
-  have "toImpl (store, loop bdy \<bind> cnt) = LocalStep True (store, bdy \<bind> (\<lambda>r. if r then cnt () else Loop (to_V bdy) (cnt ())))"
-    by (auto simp add: loop_def)
-
-  show "procedure_cannot_guess_ids uids (store, loop bdy \<bind> cnt) toImpl"
-  proof (rule pcgi_local)  
-    show "toImpl (store, loop bdy \<bind> cnt) = LocalStep True (store, bdy \<bind> (\<lambda>r. if r then cnt () else Loop (to_V bdy) (cnt ())))"
-      by (auto simp add: loop_def)
 
 
 
