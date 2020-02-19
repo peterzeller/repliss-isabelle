@@ -425,7 +425,7 @@ proof (auto simp add: committedCallsH_def isCommittedH_def )
     for  x y
   proof - 
     obtain tx where "callOrigin S x \<triangleq> tx"
-      by (metis c0 domD domI local.wf wellFormed_callOrigin_dom)
+      using c0 local.wf wellFormed_callOrigin_dom3 by force
 
     moreover have "transactionStatus S tx \<triangleq> Committed"
       by (metis (full_types) \<open>callOrigin S x \<triangleq> tx\<close> domD domIff local.wf noUncommitted transactionStatus.exhaust wf_no_transactionStatus_origin_for_nothing)

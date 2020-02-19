@@ -7,6 +7,7 @@ theory example_loop_max
     unique_ids
     program_proof_rules_loops
     app_verification_helpers
+    unique_ids_loops
 begin
 
 
