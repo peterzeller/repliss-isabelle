@@ -103,14 +103,14 @@ instance by (standard, auto)
 end
 
 abbreviation  toImpl2 where
- "toImpl2 (x :: (val,operation,val) io) \<equiv> ((Map.empty, x) , toImpl)"
+ "toImpl2 proc (x :: (val,operation,val) io) \<equiv> ((Map.empty, uniqueIds proc, x) , toImpl)"
 
-type_synonym localState = "val store \<times> (val, operation, val) io"
+type_synonym localState = "val store  \<times> uniqueId set \<times> (val, operation, val) io"
 
 definition procedures :: "proc \<Rightarrow> (localState \<times> (localState, operation, val) procedureImpl)" where
   "procedures invoc \<equiv>
   case invoc of
-    PMax n \<Rightarrow> toImpl2 (max_impl n)
+    PMax n \<Rightarrow> toImpl2 invoc (max_impl n)
 "
 
 
@@ -146,6 +146,7 @@ lemma [simp]: "procedure progr = procedures"
 lemma progr_wf[simp]: "program_wellFormed progr"
 proof (auto simp add: program_wellFormed_def)
   show "invocations_cannot_guess_ids progr"
+
     sorry
 
   show "queries_cannot_guess_ids crdtSpec"
@@ -200,7 +201,7 @@ proof M_show_programCorrect
       next
         case execution
 
-        have ls: "localState S i \<triangleq> (Map.empty, max_impl list)"
+        have ls: "localState S i \<triangleq> (Map.empty, {}, max_impl list)"
             by (auto simp add: PMax procedures_def )
 
         show "execution_s_correct S i"

@@ -49,7 +49,7 @@ definition proof_state_rel :: "
      ('proc::valueType, 'any::valueType, 'operation::valueType) proof_state 
   \<Rightarrow> ('proc, ('any store \<times> uniqueId set \<times> ('any, 'operation, 'any) io), 'operation, 'any) state 
   \<Rightarrow> bool" where
-"proof_state_rel S S1 \<equiv> 
+  "proof_state_rel S S1 \<equiv> 
          state_wellFormed S1
        \<and> calls S1 = calls S
        \<and> happensBefore S1 = updateHb (happensBefore S) (ps_vis S) (ps_localCalls S)
@@ -140,7 +140,7 @@ proof (rule wfI)
     case (WaitLocalStep x)
     show ?case
     proof (rule induct[rule_format])
-      
+
       show "P y"
         if c0: "(y, impl_language_loops.io.WaitLocalStep x) \<in> {(x, y). x \<in> io_nested y}"
         for  y
@@ -218,7 +218,7 @@ definition step_io :: "
   \<Rightarrow> ('a, 'operation, 'any) io
   \<Rightarrow> bool \<comment> \<open>step is correct\<close>
   \<Rightarrow> bool " where
-"step_io progInv qrySpec S cmd action S' cmd' Inv \<equiv> 
+  "step_io progInv qrySpec S cmd action S' cmd' Inv \<equiv> 
   case cmd of
     WaitReturn r \<Rightarrow> False
   | WaitLocalStep cont \<Rightarrow> 
@@ -277,10 +277,11 @@ definition step_io :: "
           ps_generatedLocalPrivate := ps_generatedLocalPrivate S \<union> {uid}
          \<rparr>)
   | WaitDbOperation oper n \<Rightarrow>
-       ps_tx S \<noteq> None
-       \<and> Inv
-       \<and> (\<exists>c res. 
-        calls S c = None
+       (if Inv then
+          \<exists>c res. 
+           calls S c = None
+         \<and> ps_tx S \<noteq> None
+         \<and> uniqueIds oper \<subseteq> ps_localKnown S 
          \<and> qrySpec oper (getContextH (calls S) (updateHb (happensBefore S) (ps_vis S) (ps_localCalls S)) (Some (ps_vis S \<union> set (ps_localCalls S)))) res
          \<and> cmd' = n res
          \<and> (S' = S\<lparr>
@@ -289,6 +290,8 @@ definition step_io :: "
             calls := (calls S)(c \<mapsto> Call oper res),
             ps_localCalls := ps_localCalls S @ [c]
           \<rparr>)
+        else
+          S' = S \<and> cmd' = cmd \<and> \<not>(uniqueIds oper \<subseteq> ps_localKnown S) 
         )
   | Loop body n \<Rightarrow> 
       cmd' = from_V body \<bind> (\<lambda>r. if r then n else Loop body n)
@@ -313,7 +316,7 @@ inductive steps_io :: "
   \<Rightarrow> ('proc, 'any, 'operation) proof_state
   \<Rightarrow> 'a option
   \<Rightarrow> bool " for progInv qrySpec where
-steps_io_final:
+  steps_io_final:
   "steps_io progInv qrySpec S (WaitReturn res) S (Some res)"
 | steps_io_error:
   "step_io progInv qrySpec S cmd action S' cmd' False
@@ -341,21 +344,21 @@ I should define semantic equality below.
 lemma cmd_is_local:
   assumes noReturn: "\<And>r. cmd \<noteq> WaitReturn r"
   shows
-"(cmd \<bind> cmdCont = WaitLocalStep n)
+    "(cmd \<bind> cmdCont = WaitLocalStep n)
 \<longleftrightarrow> (\<exists>n'. cmd = WaitLocalStep n' 
       \<and> (\<forall>store. 
           let (ok,  st, cmd) = n store;
               (ok', st', cmd') = n' store
           in st = st' \<and> ok = ok' \<and> cmd = (cmd' \<bind> cmdCont))) "
-using noReturn  apply (induct cmd)
-      apply (auto simp add: noReturn dest!: fun_cong2 intro!: HOL.ext split: prod.splits)
+  using noReturn  apply (induct cmd)
+        apply (auto simp add: noReturn dest!: fun_cong2 intro!: HOL.ext split: prod.splits)
 proof -
-fix x :: "(nat \<Rightarrow> 'c option) \<Rightarrow> bool \<times> (nat \<Rightarrow> 'c option) \<times> ('a, 'b, 'c) impl_language_loops.io" and s :: "nat \<Rightarrow> 'c option" and x1 :: bool and a :: "nat \<Rightarrow> 'c option" and b :: "('a, 'b, 'c) impl_language_loops.io"
+  fix x :: "(nat \<Rightarrow> 'c option) \<Rightarrow> bool \<times> (nat \<Rightarrow> 'c option) \<times> ('a, 'b, 'c) impl_language_loops.io" and s :: "nat \<Rightarrow> 'c option" and x1 :: bool and a :: "nat \<Rightarrow> 'c option" and b :: "('a, 'b, 'c) impl_language_loops.io"
   assume a1: "\<forall>store x1 a b x1a aa ba. x store = (x1a, aa, ba) \<longrightarrow> n store = (x1, a, b) \<longrightarrow> a = aa \<and> x1 = x1a \<and> b = ba \<bind> cmdCont"
   assume a2: "x s = (x1, a, b)"
-obtain bb :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) impl_language_loops.io \<Rightarrow> bool" and zz :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) impl_language_loops.io \<Rightarrow> nat \<Rightarrow> 'c option" and ii :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) impl_language_loops.io \<Rightarrow> ('d, 'b, 'c) impl_language_loops.io" where
-  f3: "\<forall>p. p = (bb p, zz p, ii p)"
-  by (meson prod_cases3)
+  obtain bb :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) impl_language_loops.io \<Rightarrow> bool" and zz :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) impl_language_loops.io \<Rightarrow> nat \<Rightarrow> 'c option" and ii :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) impl_language_loops.io \<Rightarrow> ('d, 'b, 'c) impl_language_loops.io" where
+    f3: "\<forall>p. p = (bb p, zz p, ii p)"
+    by (meson prod_cases3)
   then have "n s = (bb (n s), zz (n s), ii (n s))"
     by meson
   then have f4: "zz (n s) = a \<and> (\<not> bb (n s)) \<noteq> x1 \<and> ii (n s) = b \<bind> cmdCont"
@@ -367,7 +370,7 @@ obtain bb :: "bool \<times> (nat \<Rightarrow> 'c option) \<times> ('d, 'b, 'c) 
 qed
 
 abbreviation
-"currentCommand S i \<equiv> snd (snd (the (localState S i)))"
+  "currentCommand S i \<equiv> snd (snd (the (localState S i)))"
 
 
 
@@ -377,15 +380,15 @@ lemma prop_subst': "t = s \<Longrightarrow> PROP P t \<Longrightarrow> PROP P s"
 \<comment> \<open>Strange rotations and shifting to remove the first equality that you
 usually get when using a cases rule.\<close>
 method remove_first_equality = (
-   (rotate_tac 1),
-   ((erule rev_mp)+)?,
-   (rule impI),
-   (erule prop_subst'),
-   ((rule impI)+)?,
-   ((erule rev_mp)+)?,
-   (unfold triv_forall_equality)?,
-   ((rule impI)+)?
-)
+    (rotate_tac 1),
+    ((erule rev_mp)+)?,
+    (rule impI),
+    (erule prop_subst'),
+    ((rule impI)+)?,
+    ((erule rev_mp)+)?,
+    (unfold triv_forall_equality)?,
+    ((rule impI)+)?
+    )
 
 lemma "\<And>y a b q. \<lbrakk>x = y; A x y a; B x y b; C x y \<rbrakk> \<Longrightarrow> D x y a"
   apply remove_first_equality
@@ -399,7 +402,7 @@ method cmd_step_cases uses step insert simps  =
     (((auto simp add: simps split: prod.splits)[1]; fail)?); 
     ((erule Pair_inject)+)?,
     goal_cases A)
-(*
+  (*
   erule prop_subst;
   goal_cases A)
 *)
@@ -448,10 +451,10 @@ proof (rule ccontr)
     using proof_state_rel_fact(25) rel by blast
 
 
-    have no_guess: "(invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S)"
-      by (simp add: proof_state_rel_fact[OF rel])
+  have no_guess: "(invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S)"
+    by (simp add: proof_state_rel_fact[OF rel])
 
-    have "(the (localState S (ps_i PS))) = (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont)"
+  have "(the (localState S (ps_i PS))) = (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont)"
     using i_def ls by auto
 
   have uip: "uid_is_private i S' uidv" 
@@ -480,7 +483,7 @@ proof (rule ccontr)
 
 
 
-      
+
   show False
   proof (cases cmd)
     case (WaitLocalStep n)
@@ -554,7 +557,7 @@ proof (rule ccontr)
               using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
 
             show "new_unique_not_in_calls (calls S') v"
-             using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
+              using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
             show " new_unique_not_in_calls_result (calls S') v"
               using a0 old_priv[OF a0] by (auto simp add: uid_is_private_def S'_def)
             show "new_unique_not_in_invocationRes (invocationRes S') v"
@@ -590,9 +593,9 @@ proof (rule ccontr)
                 using action_def by simp
             qed
           qed
-            
-            
-            
+
+
+
         qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def S'_def PS'_def  split: option.splits)[1]); fail)+
 
 
@@ -690,7 +693,7 @@ proof (rule ccontr)
               show "ps_i PS = i'" by simp
             qed
 
-           
+
             have "uid_is_private i S' v"
             proof (rule uip)
               show "uid_is_private i S v"
@@ -707,14 +710,14 @@ proof (rule ccontr)
           qed 
 
           have toImpl_ba: "toImpl (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont) = BeginAtomic (ps_store PS, ps_localKnown PS, n \<bind> cmdCont)"
-          using toImpl `f ls = BeginAtomic ls'` `currentProc S i' \<triangleq> f` `localState S i' \<triangleq> ls` i_def ls
-          by auto
-          
+            using toImpl `f ls = BeginAtomic ls'` `currentProc S i' \<triangleq> f` `localState S i' \<triangleq> ls` i_def ls
+            by auto
+
           have ls_Sf: "localState Sf (ps_i PS) \<triangleq> (ps_store PS, ps_localKnown PS, n \<bind> cmdCont)"
             by (auto simp add: A)
 
 
-            
+
           show "ps_generatedLocal PS' \<subseteq> ps_localKnown PS'"
             using \<open>ps_generatedLocal PS \<subseteq> ps_localKnown PS\<close> PS'_def by auto
 
@@ -755,7 +758,7 @@ proof (rule ccontr)
                 by simp
             qed
           qed
-            
+
         qed ((insert A, (auto simp add: PS'_def sorted_by_empty)[1]); fail)+
 
 
@@ -1080,7 +1083,7 @@ proof (rule ccontr)
 
           have ls''_def: "ls'' = (the (localState S' (ps_i PS)))"
             by (auto simp add: S'_def \<open>i' = ps_i PS\<close>)
-          
+
           show "invocation_cannot_guess_ids (ps_localKnown PS') (ps_i PS') S'"
           proof (simp add: PS'_def, use no_guess in \<open>fuzzy_rule show_invocation_cannot_guess_ids_step\<close>)
             show "S ~~ (ps_i PS, action) \<leadsto> S'"
@@ -1088,14 +1091,14 @@ proof (rule ccontr)
             show "ps_localKnown PS \<union> action_inputs action = insert uid (ps_localKnown PS)"
               using `action = ANewId uidv` `uniqueIds uidv = {uid}` by auto
           qed
-  
-            
-            
+
+
+
 
         qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def  S'_def PS'_def  split: option.splits)[1]); fail)+
 
-            
-            
+
+
         show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' cmd' Inv"
         proof (auto simp add: step_io_def WaitNewId, intro exI conjI)
           show "action = ANewId uidv"
@@ -1153,6 +1156,7 @@ proof (rule ccontr)
       hence a: "action \<noteq> ADbOp c Op res" for c Op res
         by blast
 
+\<comment> \<open>TODO move to utils\<close>
       have if_simp1: "((if c then x else y) = z) \<longleftrightarrow> (if c then x = z else y = z)" for c and  x y z :: "('ls, 'operation, 'any) localAction"
         by auto
 
@@ -1162,50 +1166,54 @@ proof (rule ccontr)
 
       show False
         apply (rule step_s.cases[OF step];     remove_first_equality)
-        apply (insert a cmd_prefix )
+              apply (insert a cmd_prefix )
               apply (auto simp add: WaitDbOperation if_simp1  if_simp2 split: prod.splits cong: if_cong)
         apply (rule ccontr)
       proof (goal_cases A)
-        case (A store locakKnown cmd')
+        case (A store locakKnown cmd' x)
 
-        \<comment> \<open>TODO show that \<close>
+        define PS' where "PS' = PS"
 
-        then show ?case
-          sledgehammer
-          sorry
-      qed
+        show False
+        proof (rule goal, intro exI conjI impI)
+          show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' cmd Inv"
+            using `cmd = impl_language_loops.io.WaitDbOperation oper n`
+              `x \<in> uniqueIds oper` `x \<notin> ps_localKnown PS`
+            by (auto simp add: step_io_def `\<not> Inv` PS'_def)
 
-
-
-      proof (cmd_step_cases step: step insert: a cmd_prefix simps: WaitDbOperation)
+        qed (simp add: `\<not>Inv`)+
       qed
     next
       case True
+      from this
+      obtain c Op res where "action = ADbOp c Op res"
+        by blast
 
       have validUids: "uniqueIds oper \<subseteq> ps_localKnown PS"
-        using False True by blast
+        using step `action = ADbOp c Op res` `cmd = impl_language_loops.io.WaitDbOperation oper n`
+        by (auto simp add: step_s.simps split: if_splits)
 
 
-    show False
-    proof (cmd_step_cases step: step insert: cmd_prefix simps: WaitDbOperation validUids)
-      case (A i' ls f Op ls' t c res vis)
+      show False
+      proof (cmd_step_cases step: step insert: cmd_prefix simps: WaitDbOperation validUids)
+        case (A i' ls f Op ls' t c res vis)
 
 
-      have [simp]: "i = i'" using A by simp
-      have [simp]: "ps_i PS = i'"
-        using i_def by auto 
+        have [simp]: "i = i'" using A by simp
+        have [simp]: "ps_i PS = i'"
+          using i_def by auto 
 
-      have Inv
-        by (simp add: A(12))
+        have Inv
+          by (simp add: A(12))
 
-      have S'_def: "S' = S
+        have S'_def: "S' = S
         \<lparr>localState := localState S(i' \<mapsto> ls' res), calls := calls S(c \<mapsto> Call Op res),
            callOrigin := callOrigin S(c \<mapsto> t), visibleCalls := visibleCalls S(i' \<mapsto> vis \<union> {c}),
            happensBefore := happensBefore S \<union> vis \<times> {c}\<rparr>"
-        using A by simp
+          using A by simp
 
-      have [simp]: "oper = Op"
-        using A WaitDbOperation i_def ls toImpl `uniqueIds oper \<subseteq> ps_localKnown PS` by auto
+        have [simp]: "oper = Op"
+          using A WaitDbOperation i_def ls toImpl `uniqueIds oper \<subseteq> ps_localKnown PS` by auto
 
 
         define PS' where "PS' \<equiv> PS\<lparr> 
@@ -1215,194 +1223,196 @@ proof (rule ccontr)
             ps_localCalls := ps_localCalls PS @ [c]
       \<rparr>"
 
-      show False
-      proof (rule goal, intro exI conjI impI)
+        show False
+        proof (rule goal, intro exI conjI impI)
 
-        show "currentCommand S' i = n res \<bind> cmdCont"
-          apply (simp add: S'_def)
-          using A(2) A(3) A(4) WaitDbOperation i_def ls toImpl validUids by auto
+          show "currentCommand S' i = n res \<bind> cmdCont"
+            apply (simp add: S'_def)
+            using A(2) A(3) A(4) WaitDbOperation i_def ls toImpl validUids by auto
 
-        have vis_def: "vis = ps_vis PS \<union> set (ps_localCalls PS)"
-          by (metis A(10) A(8) i_def option.inject proof_state_rel_fact(12) rel)
+          have vis_def: "vis = ps_vis PS \<union> set (ps_localCalls PS)"
+            by (metis A(10) A(8) i_def option.inject proof_state_rel_fact(12) rel)
 
-        have t_def: "t = the (ps_tx PS)"
-          by (metis A(10) A(5) i_def option.sel proof_state_rel_fact(13) rel)
+          have t_def: "t = the (ps_tx PS)"
+            by (metis A(10) A(5) i_def option.sel proof_state_rel_fact(13) rel)
 
-        have ps_tx: "ps_tx PS \<triangleq> t"
-          by (metis A(10) A(5) i_def proof_state_rel_fact(13) rel)
-
-
-
-        show "proof_state_rel PS' S'"
-          unfolding proof_state_rel_def 
-        proof (intro conjI)
-
-          show "state_wellFormed S'"
-            by (simp add: \<open>state_wellFormed S'\<close>)
-
-          show "happensBefore S' = updateHb (happensBefore PS') (ps_vis PS') (ps_localCalls PS')"
-            by (auto simp add: vis_def proof_state_rel_fact(3)[OF rel] updateHb_simp1 S'_def PS'_def in_sequence_append in_sequence_cons updateHb_cases updateHb_chain)
+          have ps_tx: "ps_tx PS \<triangleq> t"
+            by (metis A(10) A(5) i_def proof_state_rel_fact(13) rel)
 
 
-          show "callOrigin S' = map_update_all (callOrigin PS') (ps_localCalls PS') (the (ps_tx PS'))"
-            by (auto simp add: S'_def PS'_def map_update_all_get t_def proof_state_rel_fact(4)[OF rel] intro!: HOL.ext)
 
-            
-          show "\<exists>ps_ls. localState S' (ps_i PS') \<triangleq> (ps_store PS', ps_localKnown PS', ps_ls)"
-            using A(2) A(3) A(4) WaitDbOperation ls toImpl validUids by (auto simp add: S'_def PS'_def)
+          show "proof_state_rel PS' S'"
+            unfolding proof_state_rel_def 
+          proof (intro conjI)
 
-          show "visibleCalls S' (ps_i PS') \<triangleq> (ps_vis PS' \<union> set (ps_localCalls PS'))"
-            by (auto simp add: S'_def PS'_def vis_def)
+            show "state_wellFormed S'"
+              by (simp add: \<open>state_wellFormed S'\<close>)
 
-          show "case ps_tx PS' of None \<Rightarrow> ps_localCalls PS' = [] | Some tx' \<Rightarrow> set (ps_localCalls PS') = {c. callOrigin S' c \<triangleq> tx'}"
-            apply (auto simp add: proof_state_rel_fact(4)[OF rel] map_update_all_get ps_tx S'_def PS'_def split: option.splits)
-            using proof_state_rel_fact(15)[OF rel]
-            by (metis (mono_tags, lifting) map_update_all_get mem_Collect_eq option.simps(5) proof_state_rel_fact(4) ps_tx rel)
-
-          have sorted: "sorted_by (happensBefore S) (ps_localCalls PS)"
-            by (simp add: proof_state_rel_fact(16) rel)
-
-          have "c \<notin> set (ps_localCalls PS)"
-            using A(6) A(8) \<open>state_wellFormed S\<close> vis_def wellFormed_visibleCallsSubsetCalls2 by auto
+            show "happensBefore S' = updateHb (happensBefore PS') (ps_vis PS') (ps_localCalls PS')"
+              by (auto simp add: vis_def proof_state_rel_fact(3)[OF rel] updateHb_simp1 S'_def PS'_def in_sequence_append in_sequence_cons updateHb_cases updateHb_chain)
 
 
-          show "sorted_by (happensBefore S') (ps_localCalls PS')"
-          proof (auto simp add: S'_def PS'_def sorted_by_append_iff sorted_by_single)
-
-            show "sorted_by (happensBefore S \<union> vis \<times> {c}) (ps_localCalls PS)"
-              using sorted \<open>c \<notin> set (ps_localCalls PS)\<close> 
-              by (auto simp add: sorted_by_def)
-            show "\<And>x. \<lbrakk>x \<in> set (ps_localCalls PS); (c, x) \<in> happensBefore S\<rbrakk> \<Longrightarrow> False"
-              using A(6) \<open>state_wellFormed S\<close> wellFormed_happensBefore_calls_l by blast
-            show "\<lbrakk>c \<in> set (ps_localCalls PS); c \<in> vis\<rbrakk> \<Longrightarrow> False"
-              using \<open>c \<notin> set (ps_localCalls PS)\<close> by blast
-          qed
-
-          have "c \<notin> ps_vis PS"
-            using A(6) A(8) \<open>state_wellFormed S\<close> vis_def wellFormed_visibleCallsSubsetCalls2 by auto
+            show "callOrigin S' = map_update_all (callOrigin PS') (ps_localCalls PS') (the (ps_tx PS'))"
+              by (auto simp add: S'_def PS'_def map_update_all_get t_def proof_state_rel_fact(4)[OF rel] intro!: HOL.ext)
 
 
-          show "ps_vis PS' \<inter> set (ps_localCalls PS') = {}"
-            using proof_state_rel_fact(17)[OF rel]
-            by (auto simp add: PS'_def `c \<notin> ps_vis PS`)
+            show "\<exists>ps_ls. localState S' (ps_i PS') \<triangleq> (ps_store PS', ps_localKnown PS', ps_ls)"
+              using A(2) A(3) A(4) WaitDbOperation ls toImpl validUids by (auto simp add: S'_def PS'_def)
 
-          have co_c: "callOrigin PS c = None"
-            by (metis (no_types, lifting) A(6) \<open>c \<notin> set (ps_localCalls PS)\<close> \<open>state_wellFormed S\<close> map_update_all_get proof_state_rel_fact(4) rel wellFormed_callOrigin_dom3) 
+            show "visibleCalls S' (ps_i PS') \<triangleq> (ps_vis PS' \<union> set (ps_localCalls PS'))"
+              by (auto simp add: S'_def PS'_def vis_def)
+
+            show "case ps_tx PS' of None \<Rightarrow> ps_localCalls PS' = [] | Some tx' \<Rightarrow> set (ps_localCalls PS') = {c. callOrigin S' c \<triangleq> tx'}"
+              apply (auto simp add: proof_state_rel_fact(4)[OF rel] map_update_all_get ps_tx S'_def PS'_def split: option.splits)
+              using proof_state_rel_fact(15)[OF rel]
+              by (metis (mono_tags, lifting) map_update_all_get mem_Collect_eq option.simps(5) proof_state_rel_fact(4) ps_tx rel)
+
+            have sorted: "sorted_by (happensBefore S) (ps_localCalls PS)"
+              by (simp add: proof_state_rel_fact(16) rel)
+
+            have "c \<notin> set (ps_localCalls PS)"
+              using A(6) A(8) \<open>state_wellFormed S\<close> vis_def wellFormed_visibleCallsSubsetCalls2 by auto
 
 
-          show "dom (callOrigin PS') \<inter> set (ps_localCalls PS') = {}"
-            using proof_state_rel_fact(18)[OF rel]
-            by (auto simp add: PS'_def co_c)
+            show "sorted_by (happensBefore S') (ps_localCalls PS')"
+            proof (auto simp add: S'_def PS'_def sorted_by_append_iff sorted_by_single)
 
-          have co_hb: "c \<notin> Field (happensBefore PS)"
-            by (metis A(6) Field_Un Un_iff \<open>state_wellFormed S\<close> proof_state_rel_fact(3) rel updateHb_simp_split wellFormed_happensBefore_Field)
+              show "sorted_by (happensBefore S \<union> vis \<times> {c}) (ps_localCalls PS)"
+                using sorted \<open>c \<notin> set (ps_localCalls PS)\<close> 
+                by (auto simp add: sorted_by_def)
+              show "\<And>x. \<lbrakk>x \<in> set (ps_localCalls PS); (c, x) \<in> happensBefore S\<rbrakk> \<Longrightarrow> False"
+                using A(6) \<open>state_wellFormed S\<close> wellFormed_happensBefore_calls_l by blast
+              show "\<lbrakk>c \<in> set (ps_localCalls PS); c \<in> vis\<rbrakk> \<Longrightarrow> False"
+                using \<open>c \<notin> set (ps_localCalls PS)\<close> by blast
+            qed
+
+            have "c \<notin> ps_vis PS"
+              using A(6) A(8) \<open>state_wellFormed S\<close> vis_def wellFormed_visibleCallsSubsetCalls2 by auto
 
 
-          show "Field (happensBefore PS') \<inter> set (ps_localCalls PS') = {}"
-            using proof_state_rel_fact(19)[OF rel]
-            by (auto simp add: PS'_def co_hb)
+            show "ps_vis PS' \<inter> set (ps_localCalls PS') = {}"
+              using proof_state_rel_fact(17)[OF rel]
+              by (auto simp add: PS'_def `c \<notin> ps_vis PS`)
 
-          show "distinct (ps_localCalls PS')"
-            using proof_state_rel_fact(20)[OF rel]
-            by (auto simp add: PS'_def \<open>c \<notin> set (ps_localCalls PS)\<close> )
+            have co_c: "callOrigin PS c = None"
+              by (metis (no_types, lifting) A(6) \<open>c \<notin> set (ps_localCalls PS)\<close> \<open>state_wellFormed S\<close> map_update_all_get proof_state_rel_fact(4) rel wellFormed_callOrigin_dom3) 
 
-          show "ps_firstTx PS' =
+
+            show "dom (callOrigin PS') \<inter> set (ps_localCalls PS') = {}"
+              using proof_state_rel_fact(18)[OF rel]
+              by (auto simp add: PS'_def co_c)
+
+            have co_hb: "c \<notin> Field (happensBefore PS)"
+              by (metis A(6) Field_Un Un_iff \<open>state_wellFormed S\<close> proof_state_rel_fact(3) rel updateHb_simp_split wellFormed_happensBefore_Field)
+
+
+            show "Field (happensBefore PS') \<inter> set (ps_localCalls PS') = {}"
+              using proof_state_rel_fact(19)[OF rel]
+              by (auto simp add: PS'_def co_hb)
+
+            show "distinct (ps_localCalls PS')"
+              using proof_state_rel_fact(20)[OF rel]
+              by (auto simp add: PS'_def \<open>c \<notin> set (ps_localCalls PS)\<close> )
+
+            show "ps_firstTx PS' =
             (\<nexists>c tx. callOrigin S' c \<triangleq> tx \<and> transactionOrigin S' tx \<triangleq> ps_i PS' \<and> transactionStatus S' tx \<triangleq> Committed)"
-            apply ( simp add: PS'_def S'_def)
-            apply safe
-            using A(5) \<open>state_wellFormed S\<close> not_uncommitted_cases wellFormed_currentTransactionUncommitted apply blast
-            using A(10) i_def proof_state_rel_fact(21) rel apply blast
-            by (metis A(6) \<open>ps_i PS = i'\<close> \<open>state_wellFormed S\<close> option.distinct(1) proof_state_rel_fact(21) rel wellFormed_callOrigin_dom3)
-
-            
-          have  prog_wf': "program_wellFormed (prog S')"
-            by (metis local.step prog_wf steps_s_empty steps_s_step unchangedProg)
-
-          hence "invocations_cannot_guess_ids (prog S')" 
-            and "queries_cannot_guess_ids (querySpec (prog S'))"
-            by (auto simp add: program_wellFormed_def)
+              apply ( simp add: PS'_def S'_def)
+              apply safe
+              using A(5) \<open>state_wellFormed S\<close> not_uncommitted_cases wellFormed_currentTransactionUncommitted apply blast
+              using A(10) i_def proof_state_rel_fact(21) rel apply blast
+              by (metis A(6) \<open>ps_i PS = i'\<close> \<open>state_wellFormed S\<close> option.distinct(1) proof_state_rel_fact(21) rel wellFormed_callOrigin_dom3)
 
 
-          have toImpl_db: "toImpl (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont) = DbOperation Op ls'"
-            using toImpl `currentProc S i' \<triangleq> f` `f ls = DbOperation Op ls'` `localState S i' \<triangleq> ls` ls by auto
-            
+            have  prog_wf': "program_wellFormed (prog S')"
+              by (metis local.step prog_wf steps_s_empty steps_s_step unchangedProg)
+
+            hence "invocations_cannot_guess_ids (prog S')" 
+              and "queries_cannot_guess_ids (querySpec (prog S'))"
+              by (auto simp add: program_wellFormed_def)
 
 
-          have "localState S' i' \<triangleq> ls' res" 
-            by (auto simp add: S'_def )
+            have toImpl_db: "toImpl (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont) = DbOperation Op ls'"
+              using toImpl `currentProc S i' \<triangleq> f` `f ls = DbOperation Op ls'` `localState S i' \<triangleq> ls` ls by auto
 
 
-          show "invocation_cannot_guess_ids (ps_localKnown PS') (ps_i PS') S'"
-          proof (simp add: PS'_def, use no_guess in \<open>fuzzy_rule show_invocation_cannot_guess_ids_step\<close>)
-            show "S ~~ (i', action) \<leadsto> S'"
-              using A(10) A(11) local.step step_s_to_step by blast
-            show "ps_i PS = i'"
-              by simp
-            show "action_inputs action = uniqueIds res"
-              using ` action = ADbOp c Op res` by auto
-          qed
-  
-          from use_invocation_cannot_guess_ids_return[OF no_guess]
-          have "uniqueIds Op \<subseteq> ps_localKnown PS"
-            by (metis A(11) action.distinct(33) action.distinct(53) i_def local.step no_guess step_s_to_step use_invocation_cannot_guess_ids_dbop)
 
-          from prog_wf
-          have "query_cannot_guess_ids (uniqueIds opr) (querySpec (prog S) opr)" for opr
-            by (auto simp add: program_wellFormed_def queries_cannot_guess_ids_def)
+            have "localState S' i' \<triangleq> ls' res" 
+              by (auto simp add: S'_def )
 
-          hence qcgi: "query_cannot_guess_ids (uniqueIds Op) (querySpec (prog S) Op)" .
 
-          from qcgi[simplified query_cannot_guess_ids_def, rule_format, OF `querySpec (prog S) Op (getContext S i') res`]
-          have " uniqueIds res
+            show "invocation_cannot_guess_ids (ps_localKnown PS') (ps_i PS') S'"
+            proof (simp add: PS'_def, use no_guess in \<open>fuzzy_rule show_invocation_cannot_guess_ids_step\<close>)
+              show "S ~~ (i', action) \<leadsto> S'"
+                using A(10) A(11) local.step step_s_to_step by blast
+              show "ps_i PS = i'"
+                by simp
+              show "action_inputs action = uniqueIds res"
+                using ` action = ADbOp c Op res` by auto
+            qed
+
+            from use_invocation_cannot_guess_ids_return[OF no_guess]
+            have "uniqueIds Op \<subseteq> ps_localKnown PS"
+              by (metis A(11) action.distinct(33) action.distinct(53) i_def local.step no_guess step_s_to_step use_invocation_cannot_guess_ids_dbop)
+
+            from prog_wf
+            have "query_cannot_guess_ids (uniqueIds opr) (querySpec (prog S) opr)" for opr
+              by (auto simp add: program_wellFormed_def queries_cannot_guess_ids_def)
+
+            hence qcgi: "query_cannot_guess_ids (uniqueIds Op) (querySpec (prog S) Op)" .
+
+            from qcgi[simplified query_cannot_guess_ids_def, rule_format, OF `querySpec (prog S) Op (getContext S i') res`]
+            have " uniqueIds res
               \<subseteq> uniqueIds Op \<union> \<Union> {x. \<exists>cId c. x = uniqueIds (call_operation c) \<and> calls (getContext S i') cId \<triangleq> c}"
               .
 
-          hence uniqueIdsRes: "\<exists>cId c. calls (getContext S i') cId \<triangleq> c \<and> x \<in> uniqueIds (call_operation c)" 
-            if "x \<in> uniqueIds res" 
-            and "x \<notin> uniqueIds Op"
-            for x
-            using that
-            using A(7) qcgi by fastforce 
-            
-            
-          show " \<forall>v\<in>ps_generatedLocalPrivate PS'.
+            hence uniqueIdsRes: "\<exists>cId c. calls (getContext S i') cId \<triangleq> c \<and> x \<in> uniqueIds (call_operation c)" 
+              if "x \<in> uniqueIds res" 
+                and "x \<notin> uniqueIds Op"
+              for x
+              using that
+              using A(7) qcgi by fastforce 
+
+
+            show " \<forall>v\<in>ps_generatedLocalPrivate PS'.
             uid_is_private (ps_i PS') S' v"
-            using A(10) A(11) action_outputs.simps(5) i_def proof_state_rel_def rel uip by (auto simp add: PS'_def, blast)
+              using A(10) A(11) action_outputs.simps(5) i_def proof_state_rel_def rel uip by (auto simp add: PS'_def, blast)
 
 
-        qed ((insert proof_state_rel_fact[OF rel], (auto simp add: PS'_def S'_def sorted_by_empty)[1]); fail)+
-      
+          qed ((insert proof_state_rel_fact[OF rel], (auto simp add: PS'_def S'_def sorted_by_empty)[1]); fail)+
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' (n res) Inv"
-        proof (auto simp add: step_io_def WaitDbOperation; (intro exI conjI)?)
-        
-        show "ps_tx PS \<triangleq> t"
-        by (simp add: ps_tx)
 
-        show "calls PS c = None"
-        using A(6) proof_state_rel_fact(2) rel by fastforce
+          show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' (n res) Inv"
+          proof (auto simp add: step_io_def WaitDbOperation; (intro exI conjI)?)
 
-        have  vis: "visibleCalls S i' \<triangleq> (ps_vis PS \<union> set (ps_localCalls PS))"
-          using A(8) vis_def by blast
+            show "ps_tx PS \<triangleq> t"
+              by (simp add: ps_tx)
 
-        have ctxt_same: "(getContextH (calls S) (happensBefore S) (Some (ps_vis PS \<union> set (ps_localCalls PS))))
+            show "calls PS c = None"
+              using A(6) proof_state_rel_fact(2) rel by fastforce
+
+            have  vis: "visibleCalls S i' \<triangleq> (ps_vis PS \<union> set (ps_localCalls PS))"
+              using A(8) vis_def by blast
+
+            have ctxt_same: "(getContextH (calls S) (happensBefore S) (Some (ps_vis PS \<union> set (ps_localCalls PS))))
             = (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
                   (Some (ps_vis PS \<union> set (ps_localCalls PS))))"
-          by (auto simp add: getContextH_def proof_state_rel_fact[OF rel])
-          
-        from `querySpec (prog S) Op (getContext S i') res`
-        show "querySpec (prog S) Op
+              by (auto simp add: getContextH_def proof_state_rel_fact[OF rel])
+
+            from `querySpec (prog S) Op (getContext S i') res`
+            show "querySpec (prog S) Op
          (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
            (Some (ps_vis PS \<union> set (ps_localCalls PS))))
            res" 
-          by (auto simp add: vis ctxt_same)
+              by (auto simp add: vis ctxt_same)
 
-        show "Inv"
-          using \<open>Inv\<close> by blast
+            show "uniqueIds Op \<subseteq> ps_localKnown PS"
+              using validUids by auto
 
 
-     qed (auto simp add: PS'_def)
-    qed
+
+          qed (auto simp add: PS'_def \<open>Inv\<close>)
+        qed
+      qed
     qed
   next
     case (WaitReturn n)
@@ -1495,7 +1505,7 @@ qed
 lemma step_io_same_i:
   assumes "step_io progInv qrySpec S cmd action S' cmd' Inv"
   shows "ps_i S' = ps_i S"
-  using assms  by ( auto simp add: step_io_def split: io.splits )
+  using assms  by ( auto simp add: step_io_def split: io.splits if_splits)
 
 
 definition proof_state_wellFormed' :: "('proc, 'any, 'operation) proof_state \<Rightarrow> bool" where 
@@ -1823,6 +1833,13 @@ next
       show "program_wellFormed (prog S)"
         using `program_wellFormed (prog S)` .
 
+      
+      show "uniqueIds Op \<subseteq> ps_localKnown PS"
+        if c0: "action = ADbOp c Op res"
+        for  c Op res
+        by (metis Suc.prems(1) Suc.prems(3) \<open>\<And>thesis. (\<And>S1. \<lbrakk>S ~~ (i, action, ok) \<leadsto>\<^sub>S S1; S1 ~~ (i, tr') \<leadsto>\<^sub>S* S'\<rbrakk> \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> action.distinct(33) action.distinct(53) proof_state_rel_def step_s_to_step that use_invocation_cannot_guess_ids_dbop)
+
+
 
     qed
 
@@ -1932,10 +1949,10 @@ text "Correctness of execution when executing only a prefix of the trace:"
 
 definition "execution_s_correct_p" where
 "execution_s_correct_p S i ls1 P \<equiv> 
-    \<forall>trace S' store ls2 store' ls1'. 
+    \<forall>trace S' store lk ls2 store' lk' ls1'. 
           (S ~~ (i, trace) \<leadsto>\<^sub>S* S') 
-      \<longrightarrow> (localState S i \<triangleq> (store, bind ls1 ls2))
-      \<longrightarrow> (localState S' i \<triangleq> (store', bind ls1' ls2))
+      \<longrightarrow> (localState S i \<triangleq> (store, lk, bind ls1 ls2))
+      \<longrightarrow> (localState S' i \<triangleq> (store', lk', bind ls1' ls2))
       \<longrightarrow> traceCorrect_s trace \<and> (\<forall>res. ls1' = WaitReturn res \<longrightarrow>  P S' res)"
 
 lemmas use_execution_s_correct_p = 
@@ -1949,7 +1966,7 @@ lemmas use_execution_s_correct_p_P =
 
 lemma execution_s_correct_to_p:
   assumes ec_p: "execution_s_correct_p S i ls1 P"
-    and S_ls: "localState S i \<triangleq> (store, ls1)"
+    and S_ls: "localState S i \<triangleq> (store, localKnown, ls1)"
     and P: "\<And>S' res. P S' res \<Longrightarrow> 
         invariant (prog S) (invariantContext.truncate 
               (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
@@ -2002,7 +2019,7 @@ proof (auto simp add:  execution_s_correct_def)
         by (metis (no_types, lifting) S_ls has_invocationOp_forever local.wf option.exhaust option.simps(3) wf_localState_needs_invocationOp)
     qed
 
-    have "localState S i \<triangleq> (store, ls1 \<bind> impl_language_loops.return)"
+    have "localState S i \<triangleq> (store, localKnown, ls1 \<bind> impl_language_loops.return)"
       using S_ls by auto
 
     show ?case 
@@ -2017,26 +2034,26 @@ proof (auto simp add:  execution_s_correct_def)
         case None
 
         from `a = (x, False)` `S' ~~ (i, a) \<leadsto>\<^sub>S S''` `localState S'' i = None` `currentProc S' i \<triangleq> toImpl`
-        obtain store'' ls'' res
+        obtain store'' localKnown'' ls'' res
           where a0: "a = (AReturn res, False)"
             and a1: "x = AReturn res"
             and not_invariant: "\<not> invariant (prog S')             (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S')               (calls S') (knownIds S' \<union> uniqueIds res) (invocationOp S') (invocationRes S'(i \<mapsto> res)))"
-            and a3: "localState S' i \<triangleq> (store'', ls'')"
+            and a3: "localState S' i \<triangleq> (store'', localKnown'', ls'')"
             and a4: "currentProc S' i \<triangleq> toImpl"
-            and a5: "toImpl (store'', ls'') = Return res"
+            and a5: "toImpl (store'', localKnown'', ls'') = Return res"
             and a6: "currentTransaction S' i = None"
             and S''_def: "S'' = S'         \<lparr>localState := (localState S')(i := None), currentProc := (currentProc S')(i := None),            visibleCalls := (visibleCalls S')(i := None), invocationRes := invocationRes S'(i \<mapsto> res),            knownIds := knownIds S' \<union> uniqueIds res\<rparr>"
           by (auto simp add: step_s.simps)
 
-        from ec_p \<open>S ~~ (i, tr) \<leadsto>\<^sub>S* S'\<close> \<open>localState S i \<triangleq> (store, ls1 \<bind> impl_language_loops.return)\<close> 
+        from ec_p \<open>S ~~ (i, tr) \<leadsto>\<^sub>S* S'\<close> \<open>localState S i \<triangleq> (store, localKnown, ls1 \<bind> impl_language_loops.return)\<close> 
         have "P S' res" 
         proof (rule use_execution_s_correct_p_P)
-          from `toImpl (store'', ls'') = Return res`
+          from `toImpl (store'', localKnown'', ls'') = Return res`
           show "ls'' = impl_language_loops.io.WaitReturn res"
-            by (cases ls'', auto split: prod.splits)
+            by (cases ls'', auto split: prod.splits if_splits)
 
-          from `localState S' i \<triangleq> (store'', ls'')`
-          show " localState S' i \<triangleq> (store'', ls'' \<bind> impl_language_loops.return)"
+          from `localState S' i \<triangleq> (store'', localKnown'', ls'')`
+          show " localState S' i \<triangleq> (store'', localKnown'', ls'' \<bind> impl_language_loops.return)"
             by auto
         qed
         from P[OF this]
@@ -2104,10 +2121,10 @@ proof (auto simp add:  execution_s_correct_def)
         
 
         from ec_p 
-        have "traceCorrect_s (tr @ [a]) \<and> (\<forall>res. snd S''_ls = impl_language_loops.io.WaitReturn res \<longrightarrow> P S'' res)"
-          using \<open>S ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S''\<close> \<open>localState S i \<triangleq> (store, ls1 \<bind> impl_language_loops.return)\<close>
+        have "traceCorrect_s (tr @ [a]) \<and> (\<forall>res. snd (snd S''_ls) = impl_language_loops.io.WaitReturn res \<longrightarrow> P S'' res)"
+          using \<open>S ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S''\<close> \<open>localState S i \<triangleq> (store, localKnown, ls1 \<bind> impl_language_loops.return)\<close>
         proof (rule use_execution_s_correct_p)
-          show "localState S'' i \<triangleq> (fst S''_ls, snd S''_ls \<bind> impl_language_loops.return)"
+          show "localState S'' i \<triangleq> (fst S''_ls, fst (snd S''_ls), snd (snd S''_ls) \<bind> impl_language_loops.return)"
             by (simp add: Some)
         qed
           
@@ -2159,7 +2176,7 @@ text "It is sufficient to check with @{term execution_s_check} to ensure that th
 
 
 lemma execution_s_check_sound:
-  assumes ls_def: "localState S i \<triangleq> (Map.empty, ls)"
+  assumes ls_def: "localState S i \<triangleq> (Map.empty, localKnown, ls)"
     and vis_def: "visibleCalls S i \<triangleq> vis"
     and progr_def: "prog S = progr"
     and toImpl: "currentProc S i \<triangleq> toImpl"
@@ -2172,10 +2189,11 @@ lemma execution_s_check_sound:
     and firstTx_def: "(firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed ))"
     and localKnown: "localKnown = generatedLocal \<union> uniqueIds (the (invocationOp S i))"
     and no_guess: "invocation_cannot_guess_ids localKnown i S"
-    and P: "\<And>S' res. P S' res \<Longrightarrow> 
+    and P_inv: "\<And>S' res. P S' res \<Longrightarrow> 
         invariant (prog S) (invariantContext.truncate 
               (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
                   knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
+    and P_ids: "\<And>S' res. P S' res \<Longrightarrow> uniqueIds res \<subseteq> ps_localKnown S'"
     and prog_wf: "program_wellFormed (prog S)"
     and PS_def: "PS = \<lparr>
       calls = (calls S),
@@ -2274,30 +2292,29 @@ proof (auto simp add:  execution_s_correct_def)
       by (auto split: option.splits)
       
     from `\<not> invariant_return (invariant (prog S)) PS' (Some r)`
-    have notInv: "\<not> invariant (prog S)
-        (invariantContext.truncate (PS'\<lparr>invocationRes := invocationRes PS'(ps_i PS' \<mapsto> r), knownIds := knownIds PS' \<union> uniqueIds r\<rparr>))"
-      unfolding invariant_return_def by simp
+    have notInv1: "(\<not> invariant (prog S) (invariantContext.truncate (PS'\<lparr>invocationRes := invocationRes PS'(ps_i PS' \<mapsto> r), knownIds := knownIds PS' \<union> uniqueIds r\<rparr>)))
+             \<or> \<not>(uniqueIds r \<subseteq> ps_localKnown PS')"
+      unfolding invariant_return_def by (auto simp add: )
 
-    from P[OF c3]
-    have inv: "invariant (prog S)
-       (invariantContext.truncate
-         (PS'\<lparr>invocationRes := invocationRes PS'(i \<mapsto> r), knownIds := knownIds PS' \<union> uniqueIds r\<rparr>))"
-      by auto
+    thus False
+    proof 
+      assume notInv: "(\<not> invariant (prog S) (invariantContext.truncate (PS'\<lparr>invocationRes := invocationRes PS'(ps_i PS' \<mapsto> r), knownIds := knownIds PS' \<union> uniqueIds r\<rparr>)))"
 
-    have "ps_i PS' = i"
-      using \<open>i = ps_i PS\<close> steps_io steps_io_same_i by blast
+      thus False
+        using P_inv \<open>i = ps_i PS\<close> c3 steps_io steps_io_same_i by fastforce
+    next
+      assume "\<not> uniqueIds r \<subseteq> ps_localKnown PS'"
 
-
-    from inv and notInv
-    show False
-      by (auto simp add: `ps_i PS' = i`)
+      thus False
+        using P_ids c3 by blast
+    qed
   qed
 qed
 
 
 
 lemma execution_s_check_sound3:
-  assumes a1: "localState S i \<triangleq> (Map.empty, ls)"
+  assumes a1: "localState S i \<triangleq> (Map.empty, uniqueIds op, ls)"
     and a2: "S \<in> initialStates' progr i"
     and a3: "currentProc S i \<triangleq> toImpl"
     and a4: "invocationOp S i \<triangleq> op"
@@ -2306,6 +2323,7 @@ lemma execution_s_check_sound3:
         invariant (prog S) (invariantContext.truncate 
               (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
                   knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
+    and P_ids: "\<And>S' res. P S' res \<Longrightarrow> uniqueIds res \<subseteq> ps_localKnown S'"
     and inv: "invariant progr (invariantContext.truncate S)"
     and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
 \<lbrakk>
@@ -2386,11 +2404,11 @@ proof (rule execution_s_check_sound[where P=P])
       using \<open>prog S = progr\<close> prog_wf program_wellFormed_def by blast
 
     then 
-    show "invocation_cannot_guess_ids (uniqueIds (the (invocationOp S i))) i S"
+    show "invocation_cannot_guess_ids (uniqueIds op) i S"
       using `program_wellFormed (prog S)`
         and `S \<in> initialStates' progr i`
-      using invocation_cannot_guess_ids_initialStates
-      by blast
+      using invocation_cannot_guess_ids_initialStates a4
+      by fastforce
 
     show "\<And>S' res.
        P S' res \<Longrightarrow>
@@ -2442,7 +2460,10 @@ proof (rule execution_s_check_sound[where P=P])
 
     qed
 
-qed simp+
+    show "\<And>S' res. P S' res \<Longrightarrow> uniqueIds res \<subseteq> ps_localKnown S'"
+      using P_ids .
+
+qed (simp add: a4)+
 
 
 
@@ -2607,7 +2628,7 @@ next
   then show ?thesis using assms  by (auto simp add: step_io_def split: prod.splits) 
 next
   case (WaitDbOperation x51 x52)
-  then show ?thesis using assms  by (auto simp add: step_io_def split: prod.splits) 
+  then show ?thesis using assms  by (auto simp add: step_io_def split: prod.splits if_splits) 
 next
   case (WaitReturn x6)
   then show ?thesis using assms  by (auto simp add: step_io_def split: prod.splits) 
@@ -2675,8 +2696,11 @@ next
   case (WaitNewId x41 x42)
   then show ?thesis using assms by (auto simp add: step_io_def)
 next
-  case (WaitDbOperation x51 x52)
-  then show ?thesis using assms by (auto simp add: step_io_def)
+  case (WaitDbOperation Op cmdCont)
+  then show ?thesis using assms apply (auto simp add: step_io_def)
+    subgoal for c y res
+      by (auto intro: exI[where x=c])
+    done
 next
   case (WaitReturn x6)
   then show ?thesis using assms by (auto simp add: step_io_def)
