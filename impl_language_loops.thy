@@ -217,8 +217,8 @@ fun toImpl :: "(('val store \<times> uniqueId set \<times> (('val,'operation::{s
 | "toImpl (store, knownUids, WaitBeginAtomic n) = BeginAtomic (store, knownUids, n)"
 | "toImpl (store, knownUids, WaitEndAtomic n) = EndAtomic (store, knownUids,  n)"
 | "toImpl (store, knownUids, WaitNewId P n) = NewId (\<lambda>i. if P i then Some (store, knownUids \<union> uniqueIds i,  n i) else None)"
-| "toImpl (store, knownUids, WaitDbOperation op n) = (if uniqueIds op \<subseteq> knownUids then DbOperation op (\<lambda>r. (store, knownUids \<union> uniqueIds r, n r)) else LocalStep False ???)"
-| "toImpl (store, knownUids, WaitReturn v) = (if uniqueIds v \<subseteq> knownUids then  Return v else LocalStep False ??? )"
+| "toImpl (store, knownUids, WaitDbOperation op n) = (if uniqueIds op \<subseteq> knownUids then DbOperation op (\<lambda>r. (store, knownUids \<union> uniqueIds r, n r)) else LocalStep False (store, knownUids, WaitDbOperation op n))"
+| "toImpl (store, knownUids, WaitReturn v) = (if uniqueIds v \<subseteq> knownUids then  Return v else LocalStep False (store, knownUids, WaitReturn v))"
 | "toImpl (store, knownUids, Loop body n) = LocalStep True (store, knownUids, bind (from_V body) (\<lambda>r. if r then n else Loop body n))"
 
 
@@ -320,10 +320,10 @@ lemma toImpl_simps_endAtomic[simp]:
 "toImpl (store, u, endAtomic) = EndAtomic (store, u, return ())"
 by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
 lemma toImpl_simps_call[simp]:
-   "toImpl (store, u, call op ) = (if uniqueIds op \<subseteq> u then DbOperation op  (\<lambda>r. (store, u \<union> uniqueIds r, return r)) else LocalStep False ???)"
+   "toImpl (store, u, call op ) = (if uniqueIds op \<subseteq> u then DbOperation op  (\<lambda>r. (store, u \<union> uniqueIds r, return r)) else LocalStep False (store, u, call op))"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: HOL.ext split: io.splits)
 lemma toImpl_simps_return[simp]:
-  "toImpl (store, u, return x) = (if uniqueIds x \<subseteq> u then Return x else LocalStep False ???)"
+  "toImpl (store, u, return x) = (if uniqueIds x \<subseteq> u then Return x else LocalStep False (store, u, return x))"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def return_def intro!: ext split: io.splits)
 
 schematic_goal "toImpl (store, u, newId P \<bind> x) = ?x"
@@ -347,7 +347,7 @@ lemma toImpl_bind_simps_endAtomic[simp]:
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
 
 lemma toImpl_bind_simps_call[simp]:
-"toImpl (store, u, call op  \<bind> x) = (if uniqueIds op \<subseteq> u then DbOperation op  (\<lambda>r. (store, u \<union> uniqueIds r, x r)) else LocalStep False ???)"
+"toImpl (store, u, call op  \<bind> x) = (if uniqueIds op \<subseteq> u then DbOperation op  (\<lambda>r. (store, u \<union> uniqueIds r, x r)) else LocalStep False (store, u, call op  \<bind> x))"
   by (auto simp add: newId_def pause_def beginAtomic_def endAtomic_def call_def intro!: ext split: io.splits)
 
 

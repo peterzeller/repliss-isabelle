@@ -1170,7 +1170,7 @@ proof (rule ccontr)
               apply (auto simp add: WaitDbOperation if_simp1  if_simp2 split: prod.splits cong: if_cong)
         apply (rule ccontr)
       proof (goal_cases A)
-        case (A store locakKnown cmd' x)
+        case (A x)
 
         define PS' where "PS' = PS"
 
@@ -1699,9 +1699,9 @@ next
         where  "u \<notin> ps_localKnown PS"
           and action_def: "action = ALocal False"
           and c5: "u \<in> uniqueIds res"
-          and c6: "S1 = S\<lparr>localState := localState S(i \<mapsto> ???)\<rparr>"
+          and c6: "S1 = (S\<lparr>localState := localState S1(i \<mapsto> (ps_store PS, ps_localKnown PS, impl_language_loops.io.WaitReturn res))\<rparr>)"
           and c7: "\<not> ok"
-        by (auto simp add: step_s.simps  split: if_splits) (auto)
+        by (auto simp add: step_s.simps  split: if_splits) 
 
       define PS' where "PS' \<equiv> PS"
 

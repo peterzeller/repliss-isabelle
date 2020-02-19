@@ -146,8 +146,13 @@ lemma [simp]: "procedure progr = procedures"
 lemma progr_wf[simp]: "program_wellFormed progr"
 proof (auto simp add: program_wellFormed_def)
   show "invocations_cannot_guess_ids progr"
+  proof (rule invocations_cannot_guess_ids_io)
 
-    sorry
+    show "impl = impl_language_loops.toImpl \<and> localKnown = uniqueIds proc"
+      if c0: "procedure progr proc = ((store, localKnown, cmd), impl)"
+      for  proc store localKnown cmd impl
+      using that by (auto simp add: progr_def procedures_def split: proc.splits)
+  qed
 
   show "queries_cannot_guess_ids crdtSpec"
   proof (auto simp add:  crdtSpec_def queries_cannot_guess_ids_def split: )
@@ -307,10 +312,6 @@ proof M_show_programCorrect
                 by (auto simp add: inv_def inv1_def final(7) only_store_changed_def, force)
             qed
           qed
-
-
-
-
         qed (auto simp add: finalCheck_def)
       qed
     qed
