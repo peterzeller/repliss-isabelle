@@ -487,6 +487,19 @@ proof (rule invContextH_same_allCommitted)
 lemmas invContext_same_allCommitted' = invContext_same_allCommitted[simplified invContextH2_def]
 
 
+lemma wf_localState_currentProc_m:
+  assumes "S ~~ tr \<leadsto>* S'"
+    and "(localState S i = None \<longleftrightarrow> currentProc S i = None)"
+  shows "(localState S' i = None \<longleftrightarrow> currentProc S' i = None)"
+  using assms proof (induct rule: steps_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step S' tr a S'')
+  then show ?case  by (auto simp add: step.simps split: if_splits)
+qed
+
+
 lemma wf_localState_currentProc:
   assumes "state_wellFormed S"
   shows "localState S i = None \<longleftrightarrow> currentProc S i = None"
