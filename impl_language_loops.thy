@@ -3,7 +3,7 @@ theory impl_language_loops
   imports Main 
     "HOL-Library.Monad_Syntax"
   repliss_sem
-"ZFC_in_HOL.ZFC_Typeclasses"
+  ZFC_utils
 begin
 
 text "We need to hide some ZFC constants so that the normal ones are still visible:"
@@ -55,7 +55,7 @@ instance
 end
 
 
-
+datatype 'any loopResult = Continue 'any | Break 'any
 
 datatype ('a,'operation, 'any) io =
     WaitLocalStep "'any store \<Rightarrow> bool \<times> 'any store \<times> ('a,'operation, 'any) io"
@@ -64,45 +64,23 @@ datatype ('a,'operation, 'any) io =
   | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitDbOperation 'operation "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitReturn "'a" 
-  | Loop "V" "('a,'operation, 'any) io" \<comment> \<open>body is an (bool, 'operation, 'any) io encoded a type V. 
+  | Loop 'any "V" "'any \<Rightarrow> ('a,'operation, 'any) io" \<comment> \<open>body is an 'any \<Rightarrow> ('any loopResult, 'operation, 'any) io encoded a type V. 
                                             Had to use dynamic typing here as Isabelle has no GADTs. \<close>
+
 
 
 text "Actually show that we can embedd io into ZFCs V type:"
 
-definition to_V :: "'a::embeddable \<Rightarrow> V" where
-"to_V \<equiv> SOME f. inj f"
-
-definition from_V :: "V \<Rightarrow> 'a::embeddable" where
-"from_V \<equiv> the_inv to_V"
 
 
-lemma to_V_inj: "inj to_V"
-  unfolding to_V_def proof -
-
-  show "inj (SOME f::'a::embeddable \<Rightarrow> V. inj f)"
-    by (rule someI_ex[where P=inj], rule ex_inj)
-qed
-
-lemma to_V_use_inj: "to_V x = to_V y \<Longrightarrow> x = y"
-  by (meson injD to_V_inj)
-
-
-lemma from_V_rev[simp]: 
-"from_V (to_V x) = x"
-  by (simp add: from_V_def the_inv_f_f to_V_inj)
-
-
-
-
-function (domintros) io_to_V :: "('a::small,'operation::small, 'any::small) io \<Rightarrow> V" where
+function (domintros) io_to_V :: "('a::embeddable,'operation::embeddable, 'any::small) io \<Rightarrow> V" where
   "io_to_V (WaitLocalStep n)  = to_V (0::nat, to_V (\<lambda>s. let (a,b,c) = n s in to_V (a, b, io_to_V c)))"
 | "io_to_V (WaitBeginAtomic n)  =  to_V (1::nat, io_to_V n)"
 | "io_to_V (WaitEndAtomic n)  = to_V (2::nat, io_to_V n) "
 | "io_to_V (WaitNewId P n)  =  to_V (3::nat, to_V (P, (\<lambda>x. io_to_V (n x))))"
 | "io_to_V (WaitDbOperation op n)  =  to_V (4::nat, to_V (op, (\<lambda>x. io_to_V (n x))))"
 | "io_to_V (WaitReturn s)  =  to_V (5::nat, to_V s)"
-| "io_to_V (Loop body n)  =  to_V (6::nat, to_V (body, io_to_V n))"
+| "io_to_V (Loop i body n)  =  to_V (6::nat, to_V (i, body, (\<lambda>x. io_to_V (n x))))"
   by (pat_completeness, auto)
 termination
 proof auto
@@ -111,6 +89,7 @@ proof auto
     by (metis io_to_V.domintros(1) range_eqI)
 qed
 
+
 lemma fun_cong2: "f = g \<Longrightarrow> \<forall>x. f x = g x"
   by simp
 
@@ -118,7 +97,7 @@ lemma fun_cong2: "f = g \<Longrightarrow> \<forall>x. f x = g x"
 
 lemma io_to_V_inj: "inj io_to_V"
 proof
-  fix x y :: "('a::small,'operation::small, 'any::small) io"
+  fix x y :: "('a::embeddable,'operation::embeddable, 'any::small) io"
   assume a0: "x \<in> UNIV"
     and a1: "y \<in> UNIV"
     and a2: "io_to_V x = io_to_V y"
@@ -180,25 +159,78 @@ proof
     case (WaitReturn r)
      thus ?case by (cases y, auto dest!: to_V_use_inj)
   next
-    case (Loop a b)
-     thus ?case by (cases y, auto dest!: to_V_use_inj)
+    case (Loop i bdy cont)
+    thus ?case proof (cases y, auto dest!: to_V_use_inj, rename_tac cont')
+      fix cont'
+      assume a0: "y = Loop i bdy cont'"
+        and IH: "\<And>x3aa y. \<lbrakk>x3aa \<in> range cont; io_to_V x3aa = io_to_V y\<rbrakk> \<Longrightarrow> x3aa = y"
+        and a2: "(\<lambda>x. io_to_V (cont x)) = (\<lambda>x. io_to_V (cont' x))"
+        and a3: "io_to_V (Loop i bdy cont) = io_to_V y"
+
+      from a2
+      have "io_to_V (cont x) = io_to_V (cont' x)" for x
+        by meson
+      hence "(cont x) = (cont' x)" for x
+        by (simp add: IH rangeI)
+      thus "cont = cont' "
+        by blast
+    qed
   qed
 qed
 
 
 
-instance io :: (small, small, small) embeddable
+instance io :: (embeddable, embeddable, small) embeddable
   by (standard, force intro: io_to_V_inj)
+
+definition loopResult_to_V where
+  "loopResult_to_V l = (case l of 
+    (Break x) \<Rightarrow> to_V (False, x)
+  | (Continue x) \<Rightarrow> to_V (True, x))"
+
+lemma loopResult_to_V_inj: "inj loopResult_to_V"
+  by (standard, use to_V_use_inj in \<open>auto simp add: loopResult_to_V_def  split: loopResult.splits\<close>)
+
+instance loopResult :: (embeddable) embeddable
+  by (standard, force intro: loopResult_to_V_inj)
+
+instance loopResult :: (small) small
+proof (rule show_small_type_class, intro conjI exI)
+
+  have "\<exists>(f::'a \<Rightarrow> V). inj f \<and>   small (range f)"
+    using small down by auto 
+
+  show "inj loopResult_to_V"
+    by (simp add: loopResult_to_V_inj)
+
+  have "small (range (to_V :: (bool\<times>'a)\<Rightarrow>V))"
+    using to_V_small by blast
+
+
+  thus "small (range (loopResult_to_V::'a loopResult\<Rightarrow>V))"
+  proof (rule smaller_than_small)
+
+    show "range (loopResult_to_V::'a loopResult\<Rightarrow>V) \<subseteq>range (to_V :: (bool\<times>'a)\<Rightarrow>V)"
+      by (auto simp add: loopResult_to_V_def split: loopResult.splits)
+  qed
+qed
+
+definition loop_body_from_V :: "V \<Rightarrow> 'any \<Rightarrow> ('any loopResult, 'operation::embeddable, 'any::small) io" where
+"loop_body_from_V \<equiv> from_V"
+
+definition loop_body_to_V :: "('any \<Rightarrow> ('any loopResult, 'operation::embeddable, 'any::small) io) \<Rightarrow> V" where
+"loop_body_to_V \<equiv> to_V"
 
 
 function (domintros) bind :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io" (infixl "\<bind>io" 54)  where
-  "bind (WaitLocalStep n) f = (WaitLocalStep (\<lambda>s. let (a,b,c) = n s in (a, b, bind c f)))"
+  "bind (WaitLocalStep n) f = (WaitLocalStep (\<lambda>s. let (a,b,c) = n s  
+                                                  in (a, b, bind c f)))"
 | "bind (WaitBeginAtomic n) f = (WaitBeginAtomic (bind n f))"
 | "bind (WaitEndAtomic n) f = (WaitEndAtomic (bind n f))"
 | "bind (WaitNewId P n) f = (WaitNewId P (\<lambda>i.  bind (n i) f))"
 | "bind (WaitDbOperation op n) f = (WaitDbOperation op (\<lambda>i.  bind (n i) f))"
 | "bind (WaitReturn s) f = (f s)"
-| "bind (Loop body n) f = (Loop body (bind n f))"
+| "bind (Loop i body n) f = (Loop i body (\<lambda>x. bind (n x) f))"
   by (pat_completeness, auto)
 termination
   using [[show_sorts]]
@@ -213,13 +245,31 @@ qed
 
 
 fun toImpl :: "(('val store \<times> uniqueId set \<times> (('val,'operation::{small,valueType}, 'val::{small,valueType}) io)), 'operation, 'val) procedureImpl" where
-  "toImpl (store, knownUids, WaitLocalStep n) = (let (ok, store', n') = n store in LocalStep (ok \<and> (finite (dom store) \<longrightarrow> finite (dom (store')))) (store', knownUids, n'))"
-| "toImpl (store, knownUids, WaitBeginAtomic n) = BeginAtomic (store, knownUids, n)"
-| "toImpl (store, knownUids, WaitEndAtomic n) = EndAtomic (store, knownUids,  n)"
-| "toImpl (store, knownUids, WaitNewId P n) = NewId (\<lambda>i. if P i then Some (store, knownUids \<union> uniqueIds i,  n i) else None)"
-| "toImpl (store, knownUids, WaitDbOperation op n) = (if uniqueIds op \<subseteq> knownUids then DbOperation op (\<lambda>r. (store, knownUids \<union> uniqueIds r, n r)) else LocalStep False (store, knownUids, WaitDbOperation op n))"
-| "toImpl (store, knownUids, WaitReturn v) = (if uniqueIds v \<subseteq> knownUids then  Return v else LocalStep False (store, knownUids, WaitReturn v))"
-| "toImpl (store, knownUids, Loop body n) = LocalStep True (store, knownUids, bind (from_V body) (\<lambda>r. if r then n else Loop body n))"
+  "toImpl (store, knownUids, WaitLocalStep n) = (
+        let (ok, store', n') = n store 
+        in LocalStep (ok \<and> (finite (dom store) \<longrightarrow> finite (dom (store')))) 
+                      (store', knownUids, n'))"
+| "toImpl (store, knownUids, WaitBeginAtomic n) = 
+        BeginAtomic (store, knownUids, n)"
+| "toImpl (store, knownUids, WaitEndAtomic n) = 
+        EndAtomic (store, knownUids,  n)"
+| "toImpl (store, knownUids, WaitNewId P n) = 
+        NewId (\<lambda>i. if P i then Some (store, knownUids \<union> uniqueIds i,  n i) else None)"
+| "toImpl (store, knownUids, WaitDbOperation op n) = (
+        if uniqueIds op \<subseteq> knownUids then 
+          DbOperation op (\<lambda>r. (store, knownUids \<union> uniqueIds r, n r)) 
+        else 
+          LocalStep False (store, knownUids, WaitDbOperation op n))"
+| "toImpl (store, knownUids, WaitReturn v) = (
+        if uniqueIds v \<subseteq> knownUids then 
+          Return v 
+        else 
+          LocalStep False (store, knownUids, WaitReturn v))"
+| "toImpl (store, knownUids, Loop i body n) = 
+        LocalStep True 
+            (store, knownUids, (loop_body_from_V body i) \<bind>io (\<lambda>r. 
+               case r of Break x \<Rightarrow> n x 
+                       | Continue x \<Rightarrow> Loop x body n))"
 
 
 adhoc_overloading Monad_Syntax.bind bind
@@ -436,7 +486,10 @@ lemma atomic_simp2[simp]:
 subsection "Syntactic sugar for loops"
 
 definition loop :: "(bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
-"loop body \<equiv> Loop (to_V body) (return ())"
+"loop body \<equiv> Loop 
+      undefined 
+      (loop_body_to_V (\<lambda>_. body \<bind>io (\<lambda>x. return ((if x then Break else Continue) undefined)))) 
+      (\<lambda>_. return ())"
 
 
 end

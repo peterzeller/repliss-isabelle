@@ -126,7 +126,7 @@ fun io_nested :: "('a,'operation, 'any) io \<Rightarrow> ('a,'operation, 'any) i
 | "io_nested (WaitNewId P n)  =  range n"
 | "io_nested (WaitDbOperation op n)  =  range n"
 | "io_nested (WaitReturn s)  =  {}"
-| "io_nested (Loop body n)  = {n}" 
+| "io_nested (Loop i body n)  = range n" 
 
 lemma io_nested_wf: "wf {(x,y). x\<in>io_nested y}"
 proof (rule wfI)
@@ -293,8 +293,8 @@ definition step_io :: "
         else
           S' = S \<and> cmd' = cmd \<and> \<not>(uniqueIds oper \<subseteq> ps_localKnown S) 
         )
-  | Loop body n \<Rightarrow> 
-      cmd' = from_V body \<bind> (\<lambda>r. if r then n else Loop body n)
+  | Loop i body n \<Rightarrow> 
+      cmd' = from_V body i \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x )
       \<and> Inv
       \<and> (S' = S)
 "
