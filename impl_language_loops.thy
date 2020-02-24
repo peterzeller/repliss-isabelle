@@ -64,7 +64,7 @@ datatype ('a,'operation, 'any) io =
   | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitDbOperation 'operation "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitReturn "'a" 
-  | Loop 'any "V" "'any \<Rightarrow> ('a,'operation, 'any) io" \<comment> \<open>body is an 'any \<Rightarrow> ('any loopResult, 'operation, 'any) io encoded a type V. 
+  | Loop 'any "V" "'any \<Rightarrow> ('a,'operation, 'any) io" \<comment> \<open>body is an @{typ \<open>'any \<Rightarrow> ('any loopResult, 'operation, 'any) io\<close>} encoded a type V. 
                                             Had to use dynamic typing here as Isabelle has no GADTs. \<close>
 
 
