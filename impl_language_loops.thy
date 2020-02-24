@@ -221,6 +221,9 @@ definition loop_body_from_V :: "V \<Rightarrow> 'any \<Rightarrow> ('any loopRes
 definition loop_body_to_V :: "('any \<Rightarrow> ('any loopResult, 'operation::embeddable, 'any::small) io) \<Rightarrow> V" where
 "loop_body_to_V \<equiv> to_V"
 
+lemma loop_body_from_V_rev[simp]: "loop_body_from_V (loop_body_to_V x) = x"
+  by (simp add: loop_body_from_V_def loop_body_to_V_def)
+
 
 function (domintros) bind :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io" (infixl "\<bind>io" 54)  where
   "bind (WaitLocalStep n) f = (WaitLocalStep (\<lambda>s. let (a,b,c) = n s  

@@ -294,7 +294,7 @@ definition step_io :: "
           S' = S \<and> cmd' = cmd \<and> \<not>(uniqueIds oper \<subseteq> ps_localKnown S) 
         )
   | Loop i body n \<Rightarrow> 
-      cmd' = from_V body i \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x )
+      cmd' = loop_body_from_V body i \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x )
       \<and> Inv
       \<and> (S' = S)
 "
@@ -1420,7 +1420,7 @@ proof (rule ccontr)
     show False
       by auto
   next
-    case (Loop body n)
+    case (Loop init body n)
     show False
     proof (cmd_step_cases step: step insert: cmd_prefix simps: Loop)
       case (A i' ls f ok ls')
@@ -1449,7 +1449,8 @@ proof (rule ccontr)
           using A(2) \<open>the (localState S (ps_i PS)) = (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont)\<close> toImpl_ls by auto
 
 
-        have ls_S': "localState S' (ps_i PS) \<triangleq> (ps_store PS, ps_localKnown PS, from_V body \<bind> (\<lambda>r. if r then n \<bind> cmdCont else Loop body (n \<bind> cmdCont)))"
+        have ls_S'1: "localState S' (ps_i PS) \<triangleq> (ps_store PS, ps_localKnown PS, 
+            loop_body_from_V body init \<bind> (\<lambda>r. case r of Break x \<Rightarrow> n x \<bind> cmdCont | Continue x \<Rightarrow> Loop x body n \<bind> cmdCont))"
 
           using \<open>the (localState S (ps_i PS)) = (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont)\<close> `f ls = LocalStep ok ls'` `currentProc S i' \<triangleq> f` toImpl `localState S i' \<triangleq> ls`
             `currentCommand S i = cmd \<bind> cmdCont` Loop
@@ -1457,9 +1458,17 @@ proof (rule ccontr)
          
 
 
-        hence ls_S': "localState S' (ps_i PS) \<triangleq> (ps_store PS, ps_localKnown PS, (from_V body \<bind> (\<lambda>r. if r then n else Loop body n)) \<bind> cmdCont)"
-          apply auto
-          by (metis (full_types, hide_lams) impl_language_loops.bind.simps(7))
+        have ls_S': "localState S' (ps_i PS) \<triangleq> (ps_store PS, ps_localKnown PS, 
+                (loop_body_from_V body init \<bind>io (\<lambda>r. case r of Break x \<Rightarrow> n x | Continue x \<Rightarrow> Loop x body n)) \<bind>io cmdCont)" (is ?g)
+        proof -
+          have "(\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n \<bind> cmdCont | Break x \<Rightarrow> n x \<bind> cmdCont)
+              = (\<lambda>a. (case a of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x) \<bind> cmdCont)"
+            by (auto split: loopResult.splits)
+          
+          with ls_S'1
+          show ?g
+            by auto
+        qed
 
 
         show "proof_state_rel PS S'"
@@ -1489,12 +1498,13 @@ proof (rule ccontr)
         qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def S'_def   split: option.splits)[1]); fail)+
 
 
-        show "currentCommand S' i = (from_V body \<bind> (\<lambda>r. if r then n else Loop body n)) \<bind> cmdCont"
+        show "currentCommand S' i = (loop_body_from_V body init \<bind>io (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) \<bind>io cmdCont"
           using i_def ls_S' by auto
 
         show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS
-         (from_V body \<bind> (\<lambda>r. if r then n else Loop body n)) Inv"
+         (loop_body_from_V body init \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) Inv"
           by (auto simp add: step_io_def Loop `Inv`)
+
 
 
       qed
@@ -2609,6 +2619,12 @@ lemma WaitReturn_combined:
 \<Longrightarrow> (\<exists>ri. cmd = WaitReturn ri \<and> cont ri = WaitReturn r)"
   by (cases cmd) auto
 
+lemma arg_cong_bind: 
+  assumes "\<And>x. n x = n' x"
+  shows "((a \<bind>io n) = (a \<bind>io n'))"
+  by (rule arg_cong[where f="\<lambda>x. a \<bind>io x"], use assms in blast)
+
+
 lemma step_io_bind_split:
   assumes "step_io progInv qrySpec S (cmd \<bind> cont) action S' cmdCont' Inv"
   shows "(\<exists>cmd'. step_io progInv qrySpec S cmd action S' cmd' Inv \<and> cmdCont' = cmd' \<bind> cont)
@@ -2633,9 +2649,9 @@ next
   case (WaitReturn x6)
   then show ?thesis using assms  by (auto simp add: step_io_def split: prod.splits) 
 next
-  case (Loop bdy cnt)
+  case (Loop init bdy cnt)
   then show ?thesis using assms  
-    by (auto simp add: step_io_def intro!: arg_cong[where f="bind (from_V bdy)"] split: prod.splits) 
+    by (auto simp add: step_io_def intro!: arg_cong_bind split: prod.splits loopResult.splits) 
 qed
   
 
@@ -2705,9 +2721,9 @@ next
   case (WaitReturn x6)
   then show ?thesis using assms by (auto simp add: step_io_def)
 next
-  case (Loop bdy cnt)
+  case (Loop init bdy cnt)
   then show ?thesis using assms 
-    by (auto simp add: step_io_def intro!: arg_cong[where f="bind (from_V bdy)"] split: prod.splits) 
+    by (auto simp add: step_io_def intro!: arg_cong_bind split: prod.splits loopResult.splits) 
 qed
 
 lemma steps_io_combine_ok:
@@ -2788,15 +2804,15 @@ proof
     case (steps_io_step action Si cmd')
 
     from `step_io progInv qrySpec S (loop body) action Si cmd' True`
-    have cmd': "cmd' = body \<bind> (\<lambda>r. if r then impl_language_loops.return () else Loop (to_V body) (impl_language_loops.return ()))"
+    have cmd': "cmd' = body \<bind>io (\<lambda>r. if r then return () else loop body)"
      and "Si = S"
-      by (auto simp add: loop_def step_io_def from_V_rev)
+      by (auto simp add: loop_def step_io_def from_V_rev intro!: arg_cong_bind)
 
     show ?thesis
     proof (fuzzy_rule `steps_io progInv qrySpec Si cmd' S' res`)
       show "Si = S" using `Si = S` .
       show "cmd' = body \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop body)"
-        using cmd' by (auto simp add: loop_def intro: arg_cong)
+        using cmd' by auto
     qed
   qed
 next
@@ -2808,7 +2824,8 @@ next
       using a.
     show "step_io progInv qrySpec S (loop body) ??? S
      (body \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop body)) True"
-      by (auto simp add: loop_def  step_io_def from_V_rev intro: arg_cong)
+      by (auto simp add: loop_def  step_io_def  intro!: arg_cong_bind)
+
   qed
 qed
 
@@ -2921,7 +2938,7 @@ proof -
         with `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
         have "cmd' = bdy \<bind> (\<lambda>r. if r then return () else loop bdy)"
           and "Sx' = Sx"
-          by (auto simp add: loop_def step_io_def from_V_rev intro: arg_cong)
+          by (auto simp add: loop_def step_io_def intro!: arg_cong_bind)
 
         show ?thesis
           using `cmd' = bdy \<bind> (\<lambda>r. if r then return () else loop bdy)`
@@ -2982,40 +2999,52 @@ proof -
             by (auto simp add: return_def)
           thus ?thesis ..
         next
-          case (Loop Lbdy Lcont)
+          case (Loop Linit Lbdy Lcont)
           with `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
               and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
-          have "bdyCont = Loop Lbdy Lcont"
+          have c0: "cmd1 = Loop Linit Lbdy (\<lambda>x. Lcont x \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy))"
+            and "bdyCont = Loop Linit Lbdy Lcont"
+            and cmd'1: "cmd' = loop_body_from_V Lbdy Linit \<bind> case_loopResult 
+                    (\<lambda>x. Loop x Lbdy (\<lambda>x. Lcont x \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy))) 
+                    (\<lambda>x. Lcont x \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy))"
+            and  "Sx' = Sx"
+            by (auto simp add: step_io_def)
+(*
+          have "bdyCont = Loop Linit Lbdy Lcont"
             and cmd'1: "cmd' =
-               from_V Lbdy \<bind>
-               (\<lambda>r. if r then Lcont \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)
-                    else Loop Lbdy (Lcont \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)))"
+               loop_body_from_V Lbdy Linit \<bind>io
+               (\<lambda>r. if r then Lcont undefined \<bind>io (\<lambda>r. if r then return () else loop bdy)
+                    else Loop Linit Lbdy (\<lambda>r'.  Lcont r' \<bind>io (\<lambda>r. if r then return () else loop bdy)))"
             and "Sx' = Sx"
-            and s: "step_io progInv qrySpec Sx bdyCont action Sx' (from_V Lbdy \<bind> (\<lambda>r. if r then Lcont else Loop Lbdy Lcont)) True"
+            and s: "step_io progInv qrySpec Sx bdyCont action Sx' (loop_body_from_V Lbdy \<bind>io (\<lambda>r. if r then Lcont undefined else Loop Linit Lbdy Lcont)) True"
             by (auto simp add: step_io_def)
 
 
           have cmd'2:
             "cmd' =
-               (from_V Lbdy \<bind>
+               (loop_body_from_V Lbdy \<bind>
                 (\<lambda>r. if r then Lcont else Loop Lbdy Lcont)) \<bind> 
                   (\<lambda>r. if r then impl_language_loops.return () else loop bdy)"
-            by (auto simp add: cmd'1  intro!: arg_cong[where f="bind (from_V Lbdy)"])
-
+            by (auto simp add: cmd'1  intro!: arg_cong_bind)
+*)
           show ?thesis
           proof (intro exI conjI)
             show "cmd' =
-               (from_V Lbdy \<bind>
-                (\<lambda>r. if r then Lcont else Loop Lbdy Lcont)) \<bind> 
-                  (\<lambda>r. if r then impl_language_loops.return () else loop bdy)" using cmd'2 .
+               (loop_body_from_V Lbdy Linit \<bind>io
+                (\<lambda>r. case r of Break x \<Rightarrow> Lcont x | Continue x \<Rightarrow> Loop x Lbdy Lcont)) \<bind>io 
+                  (\<lambda>r. if r then impl_language_loops.return () else loop bdy)" 
+              using cmd'1 by (auto simp add: intro!: arg_cong_bind  split: loopResult.splits)
 
-            show "step_io progInv qrySpec Sx bdyCont action Sx' (from_V Lbdy \<bind> (\<lambda>r. if r then Lcont else Loop Lbdy Lcont)) True"
-              using s.
+
+            show "step_io progInv qrySpec Sx bdyCont action Sx'
+                 (loop_body_from_V Lbdy Linit \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x Lbdy Lcont | Break x \<Rightarrow> Lcont x)) True"
+              using `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+              and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
+              by (auto simp add: step_io_def Loop)
           qed
         qed
       qed
 
-      thm steps_io_step.prems
 
       show ?thesis 
         using `cmd' = bdyCont' \<bind> (\<lambda>r. if r then return () else loop bdy)`
