@@ -274,6 +274,9 @@ fun toImpl :: "(('val store \<times> uniqueId set \<times> (('val,'operation::{s
                case r of Break x \<Rightarrow> n x 
                        | Continue x \<Rightarrow> Loop x body n))"
 
+abbreviation  toImpl' where
+ "toImpl' proc (x :: ('val,'operation,'val) io) \<equiv> ((Map.empty, uniqueIds proc, x) , toImpl)"
+
 
 adhoc_overloading Monad_Syntax.bind bind
 

@@ -102,15 +102,12 @@ definition [simp]: "default_proc \<equiv> PMax []"
 instance by (standard, auto)
 end
 
-abbreviation  toImpl2 where
- "toImpl2 proc (x :: (val,operation,val) io) \<equiv> ((Map.empty, uniqueIds proc, x) , toImpl)"
-
 type_synonym localState = "val store  \<times> uniqueId set \<times> (val, operation, val) io"
 
 definition procedures :: "proc \<Rightarrow> (localState \<times> (localState, operation, val) procedureImpl)" where
   "procedures invoc \<equiv>
   case invoc of
-    PMax n \<Rightarrow> toImpl2 invoc (max_impl n)
+    PMax n \<Rightarrow> toImpl' invoc (max_impl n)
 "
 
 
@@ -211,7 +208,7 @@ proof M_show_programCorrect
 
         show "execution_s_correct S i"
           using ls procedure_correct.in_initial_state
-        proof (fuzzy_rule program_proof_rules_loops.execution_s_check_sound3)
+        proof (fuzzy_rule execution_s_check_sound4)
           show "currentProc S i \<triangleq> toImpl"
             by (auto simp add:  PMax procedures_def )
 
@@ -226,8 +223,7 @@ proof M_show_programCorrect
             by (auto simp add: show_P)
 
           from `invariant_all' S`
-          show "invariant progr (invariantContext.truncate S)"
-            unfolding invContext'_truncate by auto
+          show "invariant_all' S" .
 
 
 
@@ -250,7 +246,7 @@ proof M_show_programCorrect
                   ps_store = Map.empty
                   \<rparr> 
                   (max_impl list) 
-                  (finalCheck inv i)" \<comment> \<open>TODO finalCheck could be fixed for the initial P (as variant)\<close>
+                  (finalCheck (invariant progr) i)" \<comment> \<open>TODO finalCheck could be fixed for the initial P (as variant)\<close>
             if c0: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
               and inv: "invariant progr
                          \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin,

@@ -3,11 +3,12 @@ section "Example: Chat application"
 theory example_chat
   imports 
     program_verification_tactics
-    impl_language
+    impl_language_loops
     crdt_specs2
     unique_ids
-    program_proof_rules
+    program_proof_rules_loops
     app_verification_helpers
+    unique_ids_loops
 begin
 
 
@@ -355,16 +356,17 @@ definition [simp]: "default_proc \<equiv> SendMessage [] []"
 instance by (standard, auto)
 end
 
-abbreviation  toImpl2 where
- "toImpl2 (x :: (val,operation,val) io) \<equiv> (x , toImpl)"
 
-definition procedures :: "proc \<Rightarrow> ((val, operation, val) io \<times> ((val, operation, val) io, operation, val) procedureImpl)" where
+
+type_synonym localState = "val store  \<times> uniqueId set \<times> (val, operation, val) io"
+
+definition procedures :: "proc \<Rightarrow> (localState \<times> (localState, operation, val) procedureImpl)" where
   "procedures invoc \<equiv>
   case invoc of
-    SendMessage author content \<Rightarrow> toImpl2 (sendMessage_impl (String author) (String content))
-  | EditMessage m newContent \<Rightarrow> toImpl2 (editMessage_impl (MessageId m) (String newContent))
-  | DeleteMessage m \<Rightarrow>  toImpl2 (deleteMessage_impl (MessageId m))
-  | GetMessage m  \<Rightarrow>  toImpl2 (getMessage_impl (MessageId m))
+    SendMessage author content \<Rightarrow> toImpl' invoc (sendMessage_impl (String author) (String content))
+  | EditMessage m newContent \<Rightarrow> toImpl' invoc (editMessage_impl (MessageId m) (String newContent))
+  | DeleteMessage m \<Rightarrow>  toImpl' invoc (deleteMessage_impl (MessageId m))
+  | GetMessage m  \<Rightarrow>  toImpl' invoc (getMessage_impl (MessageId m))
 "
 
 
@@ -444,7 +446,6 @@ definition inv :: "(proc, operation, val) invariantContext \<Rightarrow> bool" w
   \<and> inv4 (calls ctxt) (happensBefore ctxt)"
 
 
-type_synonym localState = "(val,operation,val) io"
 
 definition progr :: "(proc, localState, operation, val) prog" where
   "progr \<equiv> \<lparr>
@@ -473,23 +474,14 @@ lemma uniqueId_no_nested2: "x \<in> uniqueIds uid \<longleftrightarrow> (\<exist
 
 lemma progr_wf[simp]: "program_wellFormed progr"
 proof (auto simp add: program_wellFormed_def)
-  have "procedures_cannot_guess_ids procedures"
-  proof (auto simp add: procedures_cannot_guess_ids_def procedures_def uniqueIds_proc_def split: proc.splits)
+  show "invocations_cannot_guess_ids progr"
+  proof (rule invocations_cannot_guess_ids_io)
+    fix proc store localKnown cmd impl
+    assume a0: "procedure progr proc = ((store, localKnown, cmd), impl)"
 
-    show "\<And>x11 x12 uids. procedure_cannot_guess_ids uids (sendMessage_impl (String x11) (String x12)) toImpl"
-      by (auto simp add: sendMessage_impl_def, show_procedures_cannot_guess_ids  )
-
-    show "\<And>x21 x22 uids. procedure_cannot_guess_ids (insert (to_nat x21) uids) (editMessage_impl (MessageId x21) (String x22)) toImpl"
-     by (auto simp add: editMessage_impl_def, show_procedures_cannot_guess_ids  )
-
-    show "\<And>x3 uids. procedure_cannot_guess_ids (insert (to_nat x3) uids) (deleteMessage_impl (MessageId x3)) toImpl"
-      by (auto simp add: deleteMessage_impl_def, show_procedures_cannot_guess_ids  )
-
-    show "\<And>x4 uids. procedure_cannot_guess_ids (insert (to_nat x4) uids) (getMessage_impl (MessageId x4)) toImpl "
-      by (auto simp add: getMessage_impl_def, show_procedures_cannot_guess_ids  )
+    thus "impl = impl_language_loops.toImpl \<and> localKnown = uniqueIds proc"
+      by (auto simp add: progr_def procedures_def split: proc.splits)
   qed
-  thus "invocations_cannot_guess_ids progr"
-    by (simp add: pscgi_to_iscgi)
 
   show "queries_cannot_guess_ids crdtSpec"
   proof (auto simp add:  crdtSpec_def queries_cannot_guess_ids_def split: operation.splits)
@@ -594,11 +586,11 @@ proof M_show_programCorrect
 
         show "execution_s_correct S i"
           using procedure_correct.in_initial_state
-        proof (fuzzy_rule execution_s_check_sound3)
+        proof (fuzzy_rule execution_s_check_sound4)
           show "currentProc S i \<triangleq> toImpl"
             by (auto simp add: SendMessage procedures_def )
 
-          show "localState S i \<triangleq> sendMessage_impl (String author) (String content)"
+          show "localState S i \<triangleq> (Map.empty, uniqueIds (SendMessage author content), sendMessage_impl (String author) (String content))"
             by (auto simp add: SendMessage procedures_def )
 
           show "invocationOp S i \<triangleq> SendMessage author content"
@@ -606,11 +598,18 @@ proof M_show_programCorrect
 
           note sendMessage_impl_def[simp]
 
+          show "program_wellFormed (prog S)"
+            by simp
+            
+          show "invariant_all' S"
+            using execution.in_initial_state by blast
 
-          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> SendMessage author content)) (s_invocationRes(i := None)) {} {} {} [] None True (sendMessage_impl (String author) (String content))"
-            if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
+
+          show "execution_s_check (invariant progr) (querySpec progr) \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> SendMessage author content), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (SendMessage author content), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty\<rparr> (sendMessage_impl (String author) (String content)) (finalCheck (invariant progr) i)"
+            if tx_fresh: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
+              and inv_initial: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> SendMessage author content), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, goal_cases "AtCommit" "AtReturn" )
+          proof (repliss_vcg_l, goal_cases "AtCommit" "AtReturn" )
             case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
 
             have [simp]: "res = Undef"

@@ -2108,7 +2108,8 @@ lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THE
 
 definition
 "finalCheck Inv i S res \<equiv>
-Inv (invariantContext.truncate (S\<lparr>invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>))"
+Inv (invariantContext.truncate (S\<lparr>invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>))
+\<and> uniqueIds res \<subseteq> ps_localKnown S"
 
 lemmas show_finalCheck = finalCheck_def[THEN meta_eq_to_obj_eq, THEN iffD2, rule_format]
 
@@ -2405,6 +2406,72 @@ proof (rule execution_s_check_sound[where P=P])
       using P_ids .
 
 qed (simp add: a4)+
+
+
+lemma execution_s_check_sound4:
+  fixes S :: "('proc::valueType, 'any store \<times>  uniqueId set \<times> ('any,'operation, 'any) impl_language_loops.io, 'operation::valueType, 'any::valueType) state"
+  assumes a1: "localState S i \<triangleq> (Map.empty, uniqueIds op, ls)"
+    and a2: "S \<in> initialStates' progr i"
+    and a3: "currentProc S i \<triangleq> toImpl"
+    and a4: "invocationOp S i \<triangleq> op"
+    and prog_wf: "program_wellFormed (prog S)"
+    and inv: "invariant_all' S"
+    and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
+\<lbrakk>
+\<And>tx. s_transactionOrigin tx \<noteq> Some i;
+invariant progr \<lparr>
+  calls = s_calls,
+  happensBefore = s_happensBefore,
+  callOrigin = s_callOrigin,
+  transactionOrigin = s_transactionOrigin,
+  knownIds = s_knownIds,
+  invocationOp = s_invocationOp(i\<mapsto>op),
+  invocationRes = s_invocationRes(i:=None)
+\<rparr>
+\<rbrakk> \<Longrightarrow>
+  execution_s_check (invariant progr) (querySpec progr) \<lparr>
+      calls = s_calls,
+      happensBefore = s_happensBefore,
+      callOrigin = s_callOrigin,
+      transactionOrigin = s_transactionOrigin,
+      knownIds = s_knownIds,
+      invocationOp = s_invocationOp(i\<mapsto>op),
+      invocationRes = s_invocationRes(i:=None),
+      ps_i = i,
+      ps_generatedLocal = {},
+      ps_generatedLocalPrivate = {},
+      ps_localKnown = uniqueIds op,
+      ps_vis = {},
+      ps_localCalls = [],
+      ps_tx = None,
+      ps_firstTx = True,
+      ps_store = Map.empty\<rparr> ls (finalCheck (invariant progr) i)" 
+  shows "execution_s_correct S i"
+  using a1 a2 a3 a4 prog_wf inv c
+proof (fuzzy_rule execution_s_check_sound3[where P="finalCheck (invariant progr) i"])
+
+  show [simp]: "prog S = progr"
+    using a2 initialStates'_same initialStates_reachable_from_initialState prog_initial unchangedProg1 by fastforce
+
+
+  show "invariant (prog S) (invariantContext.truncate (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
+    if c0: "finalCheck (invariant progr) i S' res"
+    for  S':: "('proc, 'any, 'operation) proof_state" and res::'any
+    using that by (auto simp add: finalCheck_def)
+
+
+
+  show "uniqueIds res \<subseteq> ps_localKnown S'"
+    if c0: "finalCheck (invariant progr) i S' res"
+    for S':: "('proc, 'any, 'operation) proof_state" and res::'any
+    using that by (auto simp add: finalCheck_def)
+
+  show "invContext' S = invariantContext.truncate S"
+    by (simp add: invContext'_truncate)
+
+
+qed auto
+
 
 
 
