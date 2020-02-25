@@ -49,35 +49,35 @@ definition proof_state_rel :: "
      ('proc::valueType, 'any::valueType, 'operation::valueType) proof_state 
   \<Rightarrow> ('proc, ('any store \<times> uniqueId set \<times> ('any, 'operation, 'any) io), 'operation, 'any) state 
   \<Rightarrow> bool" where
-  "proof_state_rel S S1 \<equiv> 
-         state_wellFormed S1
-       \<and> calls S1 = calls S
-       \<and> happensBefore S1 = updateHb (happensBefore S) (ps_vis S) (ps_localCalls S)
-       \<and> callOrigin S1 = map_update_all (callOrigin S) (ps_localCalls S) (the (ps_tx S))
-       \<and> transactionOrigin S1 = (transactionOrigin S)
-       \<and> knownIds S1 = (knownIds S)
-       \<and> invocationOp S1 = (invocationOp S)
-       \<and> invocationRes S1 = (invocationRes S)
-       \<and> ps_generatedLocal S = {x. generatedIds S1 x \<triangleq> ps_i S}
-       \<and> (\<exists>ps_ls. localState S1 (ps_i S) \<triangleq> (ps_store S, ps_localKnown S,  ps_ls))
-       \<and> currentProc S1 (ps_i S) \<triangleq> toImpl 
-       \<and> visibleCalls S1 (ps_i S) \<triangleq>  (ps_vis S \<union> set (ps_localCalls S))
-       \<and> currentTransaction S1 (ps_i S) = ps_tx S
-       \<and> (\<forall>tx'. ps_tx S \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted)
-       \<and> (case ps_tx S of Some tx' \<Rightarrow> set (ps_localCalls S) =  {c. callOrigin S1 c \<triangleq> tx'} 
-                          | None \<Rightarrow> ps_localCalls S = [])
-       \<and> (sorted_by (happensBefore S1) (ps_localCalls S))
-       \<and> (ps_vis S \<inter> set (ps_localCalls S) = {})
-       \<and> (dom (callOrigin S) \<inter> set (ps_localCalls S) = {})
-       \<and> (Field (happensBefore S) \<inter> set (ps_localCalls S) = {})
-       \<and> distinct (ps_localCalls S)
-       \<and> (ps_firstTx S \<longleftrightarrow> (\<nexists>c tx . callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> ps_i S \<and> transactionStatus S1 tx \<triangleq> Committed ))
-       \<and> (\<forall>c. i_callOriginI_h (callOrigin S) (transactionOrigin S) c \<triangleq> (ps_i S) \<longrightarrow> c \<in> (ps_vis S))
-       \<and> (ps_generatedLocalPrivate S \<subseteq> ps_generatedLocal S)
-       \<and> (\<forall>v\<in>ps_generatedLocalPrivate S. uid_is_private (ps_i S) S1 v)
-       \<and> (finite (dom (ps_store S)))
-       \<and> (invocation_cannot_guess_ids (ps_localKnown S) (ps_i S) S1)
-       \<and> (ps_generatedLocal S \<subseteq> ps_localKnown S)
+  "proof_state_rel PS CS \<equiv> 
+         state_wellFormed CS
+       \<and> calls CS = calls PS
+       \<and> happensBefore CS = updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)
+       \<and> callOrigin CS = map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))
+       \<and> transactionOrigin CS = (transactionOrigin PS)
+       \<and> knownIds CS = (knownIds PS)
+       \<and> invocationOp CS = (invocationOp PS)
+       \<and> invocationRes CS = (invocationRes PS)
+       \<and> ps_generatedLocal PS = {x. generatedIds CS x \<triangleq> ps_i PS}
+       \<and> (\<exists>ps_ls. localState CS (ps_i PS) \<triangleq> (ps_store PS, ps_localKnown PS,  ps_ls))
+       \<and> currentProc CS (ps_i PS) \<triangleq> toImpl 
+       \<and> visibleCalls CS (ps_i PS) \<triangleq>  (ps_vis PS \<union> set (ps_localCalls PS))
+       \<and> currentTransaction CS (ps_i PS) = ps_tx PS
+       \<and> (\<forall>tx'. ps_tx PS \<noteq> Some tx' \<longrightarrow> transactionStatus CS tx' \<noteq> Some Uncommitted)
+       \<and> (case ps_tx PS of Some tx' \<Rightarrow> set (ps_localCalls PS) =  {c. callOrigin CS c \<triangleq> tx'} 
+                          | None \<Rightarrow> ps_localCalls PS = [])
+       \<and> (sorted_by (happensBefore CS) (ps_localCalls PS))
+       \<and> (ps_vis PS \<inter> set (ps_localCalls PS) = {})
+       \<and> (dom (callOrigin PS) \<inter> set (ps_localCalls PS) = {})
+       \<and> (Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {})
+       \<and> distinct (ps_localCalls PS)
+       \<and> (ps_firstTx PS \<longleftrightarrow> (\<nexists>c tx . callOrigin CS c \<triangleq> tx \<and> transactionOrigin CS tx \<triangleq> ps_i PS \<and> transactionStatus CS tx \<triangleq> Committed ))
+       \<and> (\<forall>c. i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c \<triangleq> (ps_i PS) \<longrightarrow> c \<in> (ps_vis PS))
+       \<and> (ps_generatedLocalPrivate PS \<subseteq> ps_generatedLocal PS)
+       \<and> (\<forall>v\<in>ps_generatedLocalPrivate PS. uid_is_private (ps_i PS) CS v)
+       \<and> (finite (dom (ps_store PS)))
+       \<and> (invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) CS)
+       \<and> (ps_generatedLocal PS \<subseteq> ps_localKnown PS)
 "
 
 \<comment> \<open>There might be a more elegant solution for this. Deatomize\<close>
