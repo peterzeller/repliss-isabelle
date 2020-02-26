@@ -196,6 +196,7 @@ definition step_io :: "
      \<and> uniqueIds uidv = {uid}
      \<and> uid \<notin> ps_generatedLocal S
      \<and> uid_fresh uid S
+     \<and> P uidv
      \<and> (S' = S\<lparr>
           ps_localKnown := ps_localKnown S \<union> {uid},
           ps_generatedLocal := ps_generatedLocal S \<union> {uid},
@@ -1064,6 +1065,10 @@ proof (rule ccontr)
             by (auto simp add: PS'_def)
           show "Inv"
             by (simp add: A(12))
+
+          show "P uidv"
+            using A(10) A(3) A(4) A(7) WaitNewId currentProc ls_def option.inject by fastforce
+
         qed
       qed
     qed
@@ -2543,7 +2548,7 @@ inductive_cases step_s_NewId: "S ~~ (i, ANewId uidv, Inv) \<leadsto>\<^sub>S S'"
 lemma execution_s_check_proof_rule:
   assumes noReturn: "\<And>r. cmd \<noteq> WaitReturn r"
 and cont: "
-\<And>action PS' cmd' ok. \<lbrakk>
+\<And>PS' cmd' ok. \<lbrakk>
   step_io Inv crdtSpec PS (cmd \<bind> cont) PS' cmd' ok;
   proof_state_wellFormed' PS
 \<rbrakk> \<Longrightarrow> 
@@ -3280,6 +3285,75 @@ proof (rule execution_s_check_proof_rule)
     using that validRef cont by (auto simp add:  step_io_def assign_def proof_state_wellFormed'_def )
 qed
 
+lemma execution_s_check_newId:
+  assumes infPred: "infinite (Collect tc)"
+    and cont: "\<And>v vn. \<lbrakk>
+    tc v;
+    vn \<notin> knownIds PS;
+    vn \<notin> ps_generatedLocal PS;
+    uniqueIds v = {vn}
+\<rbrakk> \<Longrightarrow>
+    execution_s_check Inv crdtSpec 
+      (PS\<lparr> ps_localKnown := ps_localKnown PS \<union> {vn},
+          ps_generatedLocal := ps_generatedLocal PS \<union> {vn}, 
+           ps_generatedLocalPrivate  := ps_generatedLocalPrivate PS \<union> {vn}
+           \<rparr>)
+      (cont v)
+      P"
+  shows "execution_s_check Inv crdtSpec PS  (newId tc \<bind>io cont) P"
+proof (rule execution_s_check_proof_rule)
+  show "\<And>r. impl_language_loops.newId tc \<noteq> impl_language_loops.io.WaitReturn r"
+    by (simp add: newId_def)
+
+  show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
+    if c0: "step_io Inv crdtSpec PS (impl_language_loops.newId tc \<bind> cont) PS' cmd' ok"
+      and c1: "proof_state_wellFormed' PS"
+    for PS' cmd' ok
+    using that 
+  proof (auto simp add:  step_io_def newId_def, intro exI conjI)
+    fix uidv uid
+    assume a0: "proof_state_wellFormed' PS"
+      and a1: "cmd' = cont uidv"
+      and a2: "ok"
+      and a3: "uniqueIds uidv = {uid}"
+      and a4: "uid \<notin> ps_generatedLocal PS"
+      and a5: "uid_fresh uid PS"
+      and a6: "PS' = PS         \<lparr>ps_localKnown := insert uid (ps_localKnown PS), ps_generatedLocal := insert uid (ps_generatedLocal PS),            ps_generatedLocalPrivate := insert uid (ps_generatedLocalPrivate PS)\<rparr>"
+      and step: "step_io Inv crdtSpec PS (impl_language_loops.newId tc \<bind> cont) PS' cmd' ok"
+      and a8: "proof_state_wellFormed' PS"
+      and a9: "tc uidv"
+
+
+
+    show "cont uidv = cont uidv" by simp
+
+
+      thm cont[where vn=uid and v=uidv]
+    have "execution_s_check Inv crdtSpec
+     (PS\<lparr>ps_localKnown := ps_localKnown PS \<union> {uid}, ps_generatedLocal := ps_generatedLocal PS \<union> {uid},
+           ps_generatedLocalPrivate := ps_generatedLocalPrivate PS \<union> {uid}\<rparr>)
+     (cont uidv) P"
+    proof (rule cont)
+      show "tc uidv"
+        by (simp add: a9)
+      show "uid \<notin> ps_generatedLocal PS"
+        using a4 by simp
+      from `uid_fresh uid PS`
+      show "uid \<notin> knownIds PS"
+        by (auto simp add: uid_fresh_def uid_is_private'_def)
+      show "uniqueIds uidv = {uid}"
+        by (simp add: a3)
+    qed
+
+
+    thus "execution_s_check Inv crdtSpec
+            (PS\<lparr>ps_localKnown := insert uid (ps_localKnown PS), ps_generatedLocal := insert uid (ps_generatedLocal PS),
+                  ps_generatedLocalPrivate := insert uid (ps_generatedLocalPrivate PS)\<rparr>)
+            (cont uidv) P"
+      by auto
+  qed
+qed
+
 lemma execution_s_check_return:
   assumes finalCheck: "proof_state_wellFormed' PS \<Longrightarrow> P PS r"
   shows "execution_s_check Inv crdtSpec PS (return r) P"
@@ -3295,6 +3369,7 @@ lemmas repliss_proof_rules =
   execution_s_check_assign
   execution_s_check_loop
   execution_s_check_return
+  execution_s_check_newId
   show_finalCheck
 
 method repliss_vcg_step1 uses asmUnfold = 
