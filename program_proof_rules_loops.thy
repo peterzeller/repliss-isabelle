@@ -144,27 +144,23 @@ definition step_io :: "
   \<Rightarrow> ('operation \<Rightarrow> ('operation, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool)
   \<Rightarrow> ('proc, 'any, 'operation) proof_state 
   \<Rightarrow> ('a, 'operation, 'any) io
-  \<Rightarrow> ('proc, 'operation, 'any) action \<comment> \<open>TODO: is action needed at all?\<close>
   \<Rightarrow> ('proc, 'any, 'operation) proof_state
   \<Rightarrow> ('a, 'operation, 'any) io
   \<Rightarrow> bool \<comment> \<open>step is correct\<close>
   \<Rightarrow> bool " where
-  "step_io progInv qrySpec S cmd action S' cmd' Inv \<equiv> 
+  "step_io progInv qrySpec S cmd S' cmd' Inv \<equiv> 
   case cmd of
     WaitReturn r \<Rightarrow> False
   | WaitLocalStep cont \<Rightarrow> 
-      (action = ALocal Inv
-      \<and> (\<exists>store' ok.  
+       (\<exists>store' ok.  
            cont (ps_store S) =  (ok, store', cmd') 
          \<and> (Inv \<longleftrightarrow> ok \<and> finite (dom store'))
          \<and> (S' = S\<lparr>      
             ps_store := store'
-           \<rparr>)))
+           \<rparr>))
   | WaitBeginAtomic n \<Rightarrow>
-      \<exists>t txns vis'
-        calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes'.
-          action = ABeginAtomic t txns
-        \<and> cmd' = n
+      \<exists>t vis' calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes'.
+          cmd' = n
         \<and> Inv
         \<and> proof_state_wellFormed S'
         \<and> progInv (invariantContext.truncate (S'\<lparr>transactionOrigin := transactionOrigin'(t := None) \<rparr>))
@@ -183,8 +179,7 @@ definition step_io :: "
         \<and> ps_growing S S'
         \<and> transactionOrigin S t = None
   | WaitEndAtomic n \<Rightarrow>
-       action = AEndAtomic  
-      \<and> cmd' = n
+        cmd' = n
       \<and> (S' = S\<lparr>
         happensBefore := updateHb (happensBefore S) (ps_vis S) (ps_localCalls S),
         callOrigin := map_update_all (callOrigin S) (ps_localCalls S) (the (ps_tx S)),
@@ -196,8 +191,7 @@ definition step_io :: "
       \<and> (Inv  \<longleftrightarrow> progInv (invariantContext.truncate S'))
   | WaitNewId P n \<Rightarrow>
     \<exists> uidv uid.
-        action = ANewId uidv
-     \<and> cmd' = n uidv
+       cmd' = n uidv
      \<and> Inv
      \<and> uniqueIds uidv = {uid}
      \<and> uid \<notin> ps_generatedLocal S
@@ -250,10 +244,10 @@ inductive steps_io :: "
   steps_io_final:
   "steps_io progInv qrySpec S (WaitReturn res) S (Some res)"
 | steps_io_error:
-  "step_io progInv qrySpec S cmd action S' cmd' False
+  "step_io progInv qrySpec S cmd S' cmd' False
   \<Longrightarrow> steps_io progInv qrySpec S cmd S' None"
 | steps_io_step:
-  "\<lbrakk>step_io progInv qrySpec S cmd action S' cmd' True;
+  "\<lbrakk>step_io progInv qrySpec S cmd S' cmd' True;
    steps_io progInv qrySpec S' cmd' S'' res
 \<rbrakk>
  \<Longrightarrow>  steps_io progInv qrySpec S cmd S'' res"
@@ -350,7 +344,7 @@ lemma step_io_simulation:
     and prog_wf: "program_wellFormed (prog S)"
     and no_generate_db: "\<And>c Op res. action = ADbOp c Op res \<Longrightarrow> uniqueIds Op \<subseteq> ps_localKnown PS"
   shows "\<exists>PS' cmd'. step_io (invariant (prog S)) (querySpec (prog S)) 
-                            PS cmd action PS' cmd' Inv 
+                            PS cmd PS' cmd' Inv 
                \<and> (Inv \<longrightarrow> proof_state_rel PS' S' \<and> currentCommand S' i = cmd' \<bind> cmdCont)" (is ?g)
 proof (rule ccontr)
   assume "\<not>?g"
@@ -458,7 +452,7 @@ proof (rule ccontr)
 
       show False
       proof (rule goal, intro exI conjI impI)
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' cmd' Inv"
+        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd' Inv"
           by (auto simp add: step_io_def c0 c2 action_def Inv PS'_def)
 
 
@@ -694,8 +688,8 @@ proof (rule ccontr)
 
 
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' n Inv"
-        proof (auto simp add: step_io_def `cmd = impl_language_loops.io.WaitBeginAtomic n`, intro exI conjI)
+        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' n Inv"
+        proof (auto simp add: step_io_def `cmd = impl_language_loops.io.WaitBeginAtomic n`; (intro exI conjI)?)
 
           show "proof_state_wellFormed PS'"
           proof (rule show_proof_state_wellFormed)
@@ -711,8 +705,6 @@ proof (rule ccontr)
           show "Inv"
             using A by simp
 
-          show "action = ABeginAtomic t vis'"
-            using A by simp
 
           have [simp]: "(transactionOrigin Sn)(t := None) = transactionOrigin Sn"
             using A(23) by auto
@@ -909,7 +901,7 @@ proof (rule ccontr)
           by (simp add: context_Same `Inv = valid` `valid = invariant_all S''` prog_same)
 
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' n Inv"
+        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' n Inv"
           by (clarsimp simp add: step_io_def WaitEndAtomic PS'_def inv A(11))
       qed
     qed
@@ -1030,10 +1022,8 @@ proof (rule ccontr)
 
 
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' cmd' Inv"
+        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd' Inv"
         proof (auto simp add: step_io_def WaitNewId, intro exI conjI)
-          show "action = ANewId uidv"
-            by (simp add: A(11))
 
           from `f ls = NewId ls'`
           have "toImpl ls = NewId ls'"
@@ -1107,7 +1097,7 @@ proof (rule ccontr)
 
         show False
         proof (rule goal, intro exI conjI impI)
-          show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' cmd Inv"
+          show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd Inv"
             using `cmd = impl_language_loops.io.WaitDbOperation oper n`
               `x \<in> uniqueIds oper` `x \<notin> ps_localKnown PS`
             by (auto simp add: step_io_def `\<not> Inv` PS'_def)
@@ -1312,7 +1302,7 @@ proof (rule ccontr)
           qed ((insert proof_state_rel_fact[OF rel], (auto simp add: PS'_def S'_def sorted_by_empty)[1]); fail)+
 
 
-          show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS' (n res) Inv"
+          show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' (n res) Inv"
           proof (auto simp add: step_io_def WaitDbOperation; (intro exI conjI)?)
 
             show "ps_tx PS \<triangleq> t"
@@ -1432,7 +1422,7 @@ proof (rule ccontr)
         show "currentCommand S' i = (loop_body_from_V body init \<bind>io (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) \<bind>io cmdCont"
           using i_def ls_S' by auto
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd action PS
+        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS
          (loop_body_from_V body init \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) Inv"
           by (auto simp add: step_io_def Loop `Inv`)
 
@@ -1444,7 +1434,7 @@ proof (rule ccontr)
 qed
 
 lemma step_io_same_i:
-  assumes "step_io progInv qrySpec S cmd action S' cmd' Inv"
+  assumes "step_io progInv qrySpec S cmd S' cmd' Inv"
   shows "ps_i S' = ps_i S"
   using assms  by ( auto simp add: step_io_def split: io.splits if_splits)
 
@@ -1456,7 +1446,7 @@ definition proof_state_wellFormed' :: "('proc, 'any, 'operation) proof_state \<R
 
 lemma step_io_wf_maintained:
   assumes wf: "proof_state_wellFormed' S"
-    and step: "step_io progInv qrySpec S cmd action S' cmd' True"
+    and step: "step_io progInv qrySpec S cmd S' cmd' True"
   shows "proof_state_wellFormed' S'"
 proof (cases cmd)
 case (WaitLocalStep x1)
@@ -1498,11 +1488,11 @@ lemma steps_io_wf_maintained:
   then show ?case 
     by auto
 next
-  case (steps_io_error  S cmd action S' cmd')
+  case (steps_io_error  S cmd S' cmd')
   then show ?case 
     by auto
 next
-  case (steps_io_step S cmd action S' cmd' S'' res)
+  case (steps_io_step S cmd S' cmd' S'' res)
   then show ?case 
     using step_io_wf_maintained by blast
 qed
@@ -1765,7 +1755,7 @@ next
       by simp
 
     have "\<exists>PS' cmd'.
-       step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) action PS' cmd' ok \<and>
+       step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) PS' cmd' ok \<and>
        (ok \<longrightarrow> proof_state_rel PS' S1 \<and> currentCommand S1 i = cmd' \<bind> impl_language_loops.return)"
       using `proof_state_rel PS S` first_step `i = ps_i PS` current
     proof (rule step_io_simulation)
@@ -1785,7 +1775,7 @@ next
     qed
 
     from this obtain PS' cmd' 
-      where step_io: "step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) action PS' cmd' ok"
+      where step_io: "step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) PS' cmd' ok"
         and step_io2: "(ok \<Longrightarrow> proof_state_rel PS' S1 \<and> currentCommand S1 i = cmd')"
       by auto
 
@@ -1864,7 +1854,7 @@ next
     next
       case False
 
-      from \<open>step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) action PS' cmd' ok\<close>
+      from \<open>step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) PS' cmd' ok\<close>
       have "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' None"
       proof (fuzzy_rule steps_io_error)
         show "ok = False" using False by simp
@@ -2087,11 +2077,11 @@ using assms proof (induct rule: steps_io.induct)
   then show ?case
     by simp
 next
-  case (steps_io_error  S cmd action S' cmd')
+  case (steps_io_error  S cmd S' cmd')
   then show ?case
     by (auto simp add: step_io_same_i)
 next
-  case (steps_io_step  S cmd action S' cmd' S'' res)
+  case (steps_io_step  S cmd S' cmd' S'' res)
   then show ?case 
     by (auto simp add: step_io_same_i)
 qed
@@ -2554,7 +2544,7 @@ lemma execution_s_check_proof_rule:
   assumes noReturn: "\<And>r. cmd \<noteq> WaitReturn r"
 and cont: "
 \<And>action PS' cmd' ok. \<lbrakk>
-  step_io Inv crdtSpec PS (cmd \<bind> cont) action PS' cmd' ok;
+  step_io Inv crdtSpec PS (cmd \<bind> cont) PS' cmd' ok;
   proof_state_wellFormed' PS
 \<rbrakk> \<Longrightarrow> 
   ok
@@ -2577,12 +2567,12 @@ proof (auto simp add: execution_s_check_def)
     case (steps_io_final S res)
     then show ?case by auto
   next
-    case (steps_io_error  S cmd action S' cmd')
+    case (steps_io_error  S cmd S' cmd')
     have False
       using steps_io_error.hyps steps_io_error.prems(2) steps_io_error.prems(3) by blast
     thus ?case ..
   next
-    case (steps_io_step S cmd action S' cmd' S'' res)
+    case (steps_io_step S cmd S' cmd' S'' res)
 
     from steps_io_step(5)[OF steps_io_step(1) `proof_state_wellFormed' S`]
     obtain r where "cmd' = cont r" and "execution_s_check Inv crdtSpec S' (cont r) P"
@@ -2624,16 +2614,16 @@ lemma arg_cong_bind:
 
 
 lemma step_io_bind_split:
-  assumes "step_io progInv qrySpec S (cmd \<bind> cont) action S' cmdCont' Inv"
-  shows "(\<exists>cmd'. step_io progInv qrySpec S cmd action S' cmd' Inv \<and> cmdCont' = cmd' \<bind> cont)
-        \<or> (\<exists>r. cmd = WaitReturn r \<and> step_io progInv qrySpec S (cont r) action S' cmdCont' Inv)"
+  assumes "step_io progInv qrySpec S (cmd \<bind> cont) S' cmdCont' Inv"
+  shows "(\<exists>cmd'. step_io progInv qrySpec S cmd S' cmd' Inv \<and> cmdCont' = cmd' \<bind> cont)
+        \<or> (\<exists>r. cmd = WaitReturn r \<and> step_io progInv qrySpec S (cont r) S' cmdCont' Inv)"
 proof (cases cmd)
   case (WaitLocalStep x1)
 then show ?thesis using assms  by (auto simp add: step_io_def split: prod.splits) 
 next
   case (WaitBeginAtomic x2)
   then show ?thesis using assms  
-    by (auto simp add: step_io_def split: prod.splits, force)
+    by (auto simp add: step_io_def split: prod.splits)
 next
   case (WaitEndAtomic x3)
   then show ?thesis using assms  by (auto simp add: step_io_def split: prod.splits) 
@@ -2675,12 +2665,12 @@ lemma steps_io_bind_split1:
   ultimately show ?case
     using \<open>cmd = impl_language_loops.io.WaitReturn ri\<close> steps_io.steps_io_final by fastforce
 next
-  case (steps_io_error S cmd1 action S' cmd2)
+  case (steps_io_error S cmd1 S' cmd2)
   then show ?case
     apply (auto simp add: step_io_bind_split)
     by (metis step_io_bind_split steps_io.steps_io_error steps_io_final)
 next
-  case (steps_io_step  S cmd action S' cmd' S'' res)
+  case (steps_io_step  S cmd S' cmd' S'' res)
   then show ?case 
     apply (auto simp add: step_io_bind_split)
     by (smt step_io_bind_split steps_io.steps_io_step steps_io_final)
@@ -2695,8 +2685,8 @@ lemma steps_io_bind_split:
 
 
 lemma step_io_combine:
-  assumes "step_io progInv qrySpec S cmd action S' cmd' ok"
-  shows "step_io progInv qrySpec S (cmd\<bind>cont) action S' (cmd'\<bind>cont) ok"
+  assumes "step_io progInv qrySpec S cmd S' cmd' ok"
+  shows "step_io progInv qrySpec S (cmd\<bind>cont) S' (cmd'\<bind>cont) ok"
 proof (cases cmd)
   case (WaitLocalStep x1)
   then show ?thesis using assms by (auto simp add: step_io_def)
@@ -2735,15 +2725,15 @@ proof (induct)
   then show ?case
     by auto
 next
-  case (steps_io_error  S cmd action S' cmd')
+  case (steps_io_error  S cmd S' cmd')
   then show ?case
     by auto
 next
-  case (steps_io_step S cmd action S' cmd' S''' res)
+  case (steps_io_step S cmd S' cmd' S''' res)
   show ?case
   proof (rule steps_io.steps_io_step)
-    from `step_io Inv crdtSpec S cmd action S' cmd' True`
-    show "step_io Inv crdtSpec S (cmd \<bind> cmd2) action S' (cmd' \<bind> cmd2) True"
+    from `step_io Inv crdtSpec S cmd S' cmd' True`
+    show "step_io Inv crdtSpec S (cmd \<bind> cmd2) S' (cmd' \<bind> cmd2) True"
       by (simp add: step_io_combine)
 
     show "steps_io Inv crdtSpec S' (cmd' \<bind> cmd2) S'' res2"
@@ -2795,13 +2785,13 @@ proof
     then show ?thesis
       by (simp add: loop_def)
   next
-    case (steps_io_error action cmd')
+    case (steps_io_error cmd')
     then show ?thesis
       by (simp add: step_io_def loop_def)
   next
-    case (steps_io_step action Si cmd')
+    case (steps_io_step Si cmd')
 
-    from `step_io progInv qrySpec S (loop body) action Si cmd' True`
+    from `step_io progInv qrySpec S (loop body) Si cmd' True`
     have cmd': "cmd' = body \<bind>io (\<lambda>r. if r then return () else loop body)"
      and "Si = S"
       by (auto simp add: loop_def step_io_def from_V_rev intro!: arg_cong_bind)
@@ -2820,7 +2810,7 @@ next
   proof (rule steps_io_step)
     show "steps_io progInv qrySpec S (body \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop body)) S' res"
       using a.
-    show "step_io progInv qrySpec S (loop body) ??? S
+    show "step_io progInv qrySpec S (loop body) S
      (body \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop body)) True"
       by (auto simp add: loop_def  step_io_def  intro!: arg_cong_bind)
 
@@ -2887,9 +2877,9 @@ proof -
     thus ?case
       using  steps_io_final.prems(2) by force 
   next
-    case (steps_io_error S cmd action S' cmd')
-    from `step_io progInv qrySpec S cmd action S' cmd' False`
-    have "\<exists>cmd'. step_io progInv qrySpec S bdyCont action S' cmd' False"
+    case (steps_io_error S cmd S' cmd')
+    from `step_io progInv qrySpec S cmd S' cmd' False`
+    have "\<exists>cmd'. step_io progInv qrySpec S bdyCont S' cmd' False"
       unfolding `cmd = bdyCont \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)`
       by (cases bdyCont, auto simp add: step_io_def return_def loop_def split: prod.splits if_splits)
     hence "steps_io progInv qrySpec S bdyCont S' None"
@@ -2898,7 +2888,7 @@ proof -
       using steps_io_error.prems(2) by force
     thus ?case ..
   next
-    case (steps_io_step Sx cmd1 action Sx' cmd' Sx'' res bdyCont )
+    case (steps_io_step Sx cmd1 Sx' cmd' Sx'' res bdyCont )
 
     thm steps_io_step.prems
 
@@ -2919,7 +2909,7 @@ proof -
         have "cmd1 = return ()"
           by auto
 
-        with `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+        with `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
         have False \<comment> \<open>Actually this case is handled in steps-io-final as not step is done.\<close>
           by (auto simp add: step_io_def return_def)
 
@@ -2933,7 +2923,7 @@ proof -
         have "cmd1 = loop bdy"
           by auto
 
-        with `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+        with `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
         have "cmd' = bdy \<bind> (\<lambda>r. if r then return () else loop bdy)"
           and "Sx' = Sx"
           by (auto simp add: loop_def step_io_def intro!: arg_cong_bind)
@@ -2952,42 +2942,42 @@ proof -
       case False
       hence "\<nexists>r. bdyCont = impl_language_loops.return r" .
 
-      with `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+      with `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
         and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
       obtain bdyCont'
         where "cmd' = bdyCont' \<bind> (\<lambda>r. if r then return () else loop bdy)"
-          and "step_io progInv qrySpec Sx bdyCont action Sx' bdyCont' True"
+          and "step_io progInv qrySpec Sx bdyCont Sx' bdyCont' True"
       proof (atomize_elim)
 
         show "\<exists>bdyCont'. cmd' = bdyCont' \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)
-          \<and>  step_io progInv qrySpec Sx bdyCont action Sx' bdyCont' True"
+          \<and>  step_io progInv qrySpec Sx bdyCont Sx' bdyCont' True"
         proof (cases bdyCont)
 
           case (WaitLocalStep x1)
           then show ?thesis 
-            using `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+            using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
               and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
             by (auto simp add: step_io_def split: prod.splits)
         next
           case (WaitBeginAtomic x2)
           then show ?thesis
-            using `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+            using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
               and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
             by (auto simp add: step_io_def intro!: exI split: prod.splits)
 
         next
           case (WaitEndAtomic x3)
-          then show ?thesis using `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+          then show ?thesis using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
               and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
             by (auto simp add: step_io_def split: prod.splits)
         next
           case (WaitNewId x41 x42)
-          then show ?thesis using `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+          then show ?thesis using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
               and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
             by (auto simp add: step_io_def split: prod.splits)
         next
           case (WaitDbOperation x51 x52)
-          then show ?thesis using `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+          then show ?thesis using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
               and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
             by (auto simp add: step_io_def split: prod.splits)
         next
@@ -2998,7 +2988,7 @@ proof -
           thus ?thesis ..
         next
           case (Loop Linit Lbdy Lcont)
-          with `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+          with `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
               and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
           have c0: "cmd1 = Loop Linit Lbdy (\<lambda>x. Lcont x \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy))"
             and "bdyCont = Loop Linit Lbdy Lcont"
@@ -3034,9 +3024,9 @@ proof -
               using cmd'1 by (auto simp add: intro!: arg_cong_bind  split: loopResult.splits)
 
 
-            show "step_io progInv qrySpec Sx bdyCont action Sx'
+            show "step_io progInv qrySpec Sx bdyCont Sx'
                  (loop_body_from_V Lbdy Linit \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x Lbdy Lcont | Break x \<Rightarrow> Lcont x)) True"
-              using `step_io progInv qrySpec Sx cmd1 action Sx' cmd' True`
+              using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
               and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
               by (auto simp add: step_io_def Loop)
           qed
@@ -3059,14 +3049,14 @@ proof -
             show "steps_io progInv qrySpec Sx' bdyCont' Sb br"
               using `steps_io progInv qrySpec Sx' bdyCont' Sb br` .
 
-            from `step_io progInv qrySpec Sx cmd1    action Sx' cmd'     True`
-            have s: "step_io progInv qrySpec Sx (bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)) action
+            from `step_io progInv qrySpec Sx cmd1 Sx' cmd'     True`
+            have s: "step_io progInv qrySpec Sx (bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)) 
                                             Sx' (bdyCont' \<bind> (\<lambda>r. if r then return () else loop bdy)) True"
               unfolding `cmd1 = bdyCont \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)` 
                 `cmd' = bdyCont' \<bind> (\<lambda>r. if r then return () else loop bdy)` .
 
-            show "step_io progInv qrySpec Sx bdyCont action Sx' bdyCont' True"
-              using `step_io progInv qrySpec Sx bdyCont action Sx' bdyCont' True` .
+            show "step_io progInv qrySpec Sx bdyCont Sx' bdyCont' True"
+              using `step_io progInv qrySpec Sx bdyCont Sx' bdyCont' True` .
           qed
         qed
       qed
@@ -3229,9 +3219,9 @@ proof (rule execution_s_check_proof_rule)
     by (simp add: makeRef_def)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
-    if step: "step_io Inv crdtSpec PS (makeRef a \<bind> cont) action PS' cmd' ok"
+    if step: "step_io Inv crdtSpec PS (makeRef a \<bind> cont) PS' cmd' ok"
       and PS_wf: "proof_state_wellFormed' PS"
-    for  action PS' cmd' ok
+    for  PS' cmd' ok
   proof
     have [simp]: "finite (dom (ps_store PS))"
       using PS_wf proof_state_wellFormed'_def by blast
@@ -3239,8 +3229,7 @@ proof (rule execution_s_check_proof_rule)
 
 
     from step
-    have  c0: "action = ALocal True"
-      and c1: "ok"
+    have  c1: "ok"
       and c2: "PS' = PS\<lparr>ps_store := ps_store PS(freshRef (dom (ps_store PS)) \<mapsto> intoAny a)\<rparr>"
       and c3: "cmd' = cont (Ref (freshRef (dom (ps_store PS))))"
       by (auto simp add: makeRef_def step_io_def Let_def )
@@ -3266,9 +3255,9 @@ proof (rule execution_s_check_proof_rule)
     by (simp add: read_def)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
-    if c0: "step_io Inv crdtSpec PS (read r \<bind> cont) action PS' cmd' ok"
+    if c0: "step_io Inv crdtSpec PS (read r \<bind> cont) PS' cmd' ok"
       and c1: "proof_state_wellFormed' PS"
-    for  action PS' cmd' ok
+    for  PS' cmd' ok
     using that validRef cont[simplified s_read_def] by (auto simp add:  step_io_def read_def proof_state_wellFormed'_def intro!: exI)
 qed
 
@@ -3285,9 +3274,9 @@ proof (rule execution_s_check_proof_rule)
     by (simp add: assign_def)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
-    if c0: "step_io Inv crdtSpec PS (r :\<leftarrow> v \<bind> cont) action PS' cmd' ok"
+    if c0: "step_io Inv crdtSpec PS (r :\<leftarrow> v \<bind> cont) PS' cmd' ok"
       and c1: "proof_state_wellFormed' PS"
-    for  action PS' cmd' ok
+    for  PS' cmd' ok
     using that validRef cont by (auto simp add:  step_io_def assign_def proof_state_wellFormed'_def )
 qed
 
