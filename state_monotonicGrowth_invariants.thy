@@ -208,6 +208,23 @@ lemma state_monotonicGrowth_invocationRes:
   shows "invocationRes S' s \<triangleq> info \<Longrightarrow> invocationRes S s \<triangleq> info"
   using assms by (auto simp add: state_monotonicGrowth_def invocationRes_mono)
 
+lemma state_monotonicGrowth_invocationRes_i:
+  assumes "state_monotonicGrowth i S' S"
+  shows "invocationRes S' i = invocationRes S i"
+  using assms proof (auto simp add: state_monotonicGrowth_def)
+  fix tr
+  assume a0: "state_wellFormed S'"
+    and steps: "S' ~~ tr \<leadsto>* S"
+    and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
+    and a3: "\<forall>i. (i, ACrash) \<notin> set tr"
+
+  from steps no_i
+  show "invocationRes S' i = invocationRes S i"
+    by (induct rule: steps.induct, auto simp add: step.simps)
+qed
+
+
+
 lemma state_monotonicGrowth_transactionStatus:
   assumes "state_monotonicGrowth i S' S"
   shows "transactionStatus S' tx \<le> transactionStatus S tx"
