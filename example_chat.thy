@@ -610,7 +610,7 @@ proof M_show_programCorrect
               and inv_initial: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> SendMessage author content), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
             apply repliss_vcg_l
-          proof (repliss_vcg_l, goal_cases "AtCommit" "AtReturn" )
+          proof (repliss_vcg_l, fuzzy_goal_cases "AtCommit" "AtReturn" )
             case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
 
             have [simp]: "res = Undef"
@@ -641,7 +641,7 @@ proof M_show_programCorrect
 
             from AtCommit
             show ?case
-            proof (auto simp add: inv_def, goal_cases  inv2 inv3 inv4)
+            proof (auto simp add: inv_def, fuzzy_goal_cases  inv2 inv3 inv4)
               case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
               then show ?case
                 by (auto simp add: inv2_def exists_cases1)
@@ -702,7 +702,7 @@ proof M_show_programCorrect
           show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> EditMessage m newContent)) (s_invocationRes(i := None)) {} {} {} [] None True (editMessage_impl (MessageId m) (String newContent))"
             if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
+          proof (repliss_vcg, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
 
             note `c \<noteq> ca`[simp]
@@ -782,7 +782,7 @@ proof M_show_programCorrect
 
             from Exists_AtCommit
             show ?case
-            proof (auto simp add: inv_def, goal_cases "inv2" "inv3" "inv4" )
+            proof (auto simp add: inv_def, fuzzy_goal_cases "inv2" "inv3" "inv4" )
               case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
               then show ?case 
                 by (auto simp add: inv2_def)
@@ -810,7 +810,7 @@ proof M_show_programCorrect
           next
             case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
             then show ?case 
-            proof (auto simp add: inv_def, goal_cases inv2 inv3 inv4)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
               case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
               then show ?case by (auto simp add: inv2_def)
             next
@@ -861,7 +861,7 @@ proof M_show_programCorrect
           show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> DeleteMessage m)) (s_invocationRes(i := None)) {} {} {} [] None True (deleteMessage_impl (MessageId m))"
             if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
+          proof (repliss_vcg, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
 
             from `c \<noteq> ca \<and> c \<noteq> cb \<and> ca \<noteq> cb`
@@ -879,7 +879,7 @@ proof M_show_programCorrect
               by (auto simp add: inv_def)
 
             show ?case
-            proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3 inv4)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3 inv4)
               case inv1
               from i1
               show ?case by auto
@@ -911,7 +911,7 @@ proof M_show_programCorrect
           next
             case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
             then show ?case
-            proof (auto simp add: inv_def, goal_cases inv2 inv3 inv4)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
               case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
               then show ?case
                 by (auto simp add: inv2_def)
@@ -942,7 +942,7 @@ proof M_show_programCorrect
         case after_invocation
         show ?case
           using show_P.invariant_pre GetMessage show_P.i_fresh
-        proof (auto simp add:  inv_def invContextH2_simps, goal_cases inv1 inv2)
+        proof (auto simp add:  inv_def invContextH2_simps, fuzzy_goal_cases inv1 inv2)
           case inv1
           then show ?case
             apply (auto simp add: inv1_def state_wellFormed_invocation_before_result)
@@ -974,10 +974,10 @@ proof M_show_programCorrect
           show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> GetMessage m)) (s_invocationRes(i := None)) {} {} {} [] None True (getMessage_impl (MessageId m))"
             if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
+          proof (repliss_vcg, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
             then show ?case 
-            proof (auto simp add: inv_def, goal_cases inv2 inv3 inv4)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
               case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
               then show ?case 
                 by (auto simp add: inv2_def)
@@ -1009,7 +1009,7 @@ proof M_show_programCorrect
 
 
             from Exists_AtReturn show ?case
-            proof (auto simp add: inv_def, goal_cases inv1)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv1)
               case (inv1 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
 
               
@@ -1326,7 +1326,7 @@ proof M_show_programCorrect
           next
             case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
             then show ?case
-            proof (auto simp add: inv_def, goal_cases inv2 inv3 inv4)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
               case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
               then show ?case 
                 by (auto simp add: inv2_def)

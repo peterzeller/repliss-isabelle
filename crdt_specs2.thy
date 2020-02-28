@@ -2,6 +2,7 @@ section "CRDT Specifications Part 2"
 theory crdt_specs2
   imports crdt_specs
  "fuzzyrule.fuzzyrule"
+ "fuzzyrule.fuzzy_goal_cases"
 begin
 
 
@@ -332,7 +333,7 @@ lemma  latest_assignments_rel:
 proof (auto simp add: latest_assignments'_def latestAssignments_def  latestAssignments_h_def 
     map_chain_eq_some dom_def
     split: option.splits registerOp.splits call.splits, 
-    goal_cases A B C D E F G H)
+    fuzzy_goal_cases A B C D E F G H)
   case (A a b y)
   then show ?case
     by (simp add: calls_sub_context)
@@ -669,7 +670,7 @@ proof (intro allI impI)
                   \<exists>upd_op.
                      extract_op (calls ctxt) c = C_out (NestedOp k upd_op) \<and>
                      is_update upd_op \<and> c \<notin> deleted_calls' Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)"
-        proof (auto simp add: Bex_def calls_sub_context option_bind_def dom_map_chain restrict_map_def split: option.splits, goal_cases A B)
+        proof (auto simp add: Bex_def calls_sub_context option_bind_def dom_map_chain restrict_map_def split: option.splits, fuzzy_goal_cases A B)
           case (A c y)
           show ?case
             apply (auto intro!: exI[where x=c])

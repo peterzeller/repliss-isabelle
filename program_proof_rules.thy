@@ -345,7 +345,7 @@ shows "P"
   using assms by auto
 
 method show_proof_rule = 
-  (subst  execution_s_check_def, intro allI impI, erule case_trace_not_empty3, erule(1) no_ainvoc, goal_cases Step)
+  (subst  execution_s_check_def, intro allI impI, erule case_trace_not_empty3, erule(1) no_ainvoc, fuzzy_goal_cases Step)
 
 inductive_cases step_s_NewId: "S ~~ (i, ANewId uidv, Inv) \<leadsto>\<^sub>S S'"
 
@@ -422,17 +422,17 @@ proof show_proof_rule
 
 
       have h1: "new_unique_not_in_calls s_calls (to_nat uidv)"
-        using Step(1) Step(2) Step(9) assms(2) c5 new_unique_not_in_calls_def wf_onlyGeneratedIdsInCalls by blast
+        using Step.calls_eq Step.prog_eq Step.state_wellFormed assms(2) c5 new_unique_not_in_calls_def wf_onlyGeneratedIdsInCalls by blast
 
 
       have h2: "new_unique_not_in_calls_result s_calls (to_nat uidv)"
-        using Step(1) Step(2) Step(9) assms(2) c5 new_unique_not_in_calls_result_def wf_onlyGeneratedIdsInCallResults by blast
+        using Step.calls_eq Step.prog_eq Step.state_wellFormed assms(2) c5 new_unique_not_in_calls_result_def wf_onlyGeneratedIdsInCallResults by blast
 
       have h3: "new_unique_not_in_invocationOp s_invocationOp (to_nat uidv)"
-        using Step(1) Step(7) Step(9) assms(2) c5 new_unique_not_in_invocationOp_def wf_onlyGeneratedIdsInInvocationOps by blast
+        using Step.invocationOp_eq Step.prog_eq Step.state_wellFormed assms(2) c5 new_unique_not_in_invocationOp_def wf_onlyGeneratedIdsInInvocationOps by blast
 
       have h4: "new_unique_not_in_invocationRes s_invocationRes (to_nat uidv)"
-        using Step(1) Step(8) Step(9) assms(2) c5 new_unique_not_in_invocationRes_def wf_onlyGeneratedIdsInInvocationRes by blast
+        using Step.invocationRes_eq Step.prog_eq Step.state_wellFormed assms(2) c5 new_unique_not_in_invocationRes_def wf_onlyGeneratedIdsInInvocationRes by blast
 
 
       have h5: "new_unique_not_in_other_invocations i S'a (to_nat uidv)"
@@ -442,7 +442,7 @@ proof show_proof_rule
         assume a0: "i' \<noteq> i"
 
         have "program_wellFormed (prog S1)"
-          by (simp add: Step(9) assms(2))
+          by (simp add: Step.prog_eq assms(2))
 
 
         obtain uids 
@@ -458,13 +458,13 @@ proof show_proof_rule
 
 
         show "\<exists>uids. to_nat uidv \<notin> uids \<and> invocation_cannot_guess_ids uids i' S'a"
-          using Step(27) \<open>invocation_cannot_guess_ids uids i' S1\<close> \<open>to_nat uidv \<notin> uids\<close> a0 c2 show_invocation_cannot_guess_ids_step_other step_s_to_step by fastforce
+          using Step.step_s \<open>invocation_cannot_guess_ids uids i' S1\<close> \<open>to_nat uidv \<notin> uids\<close> a0 c2 show_invocation_cannot_guess_ids_step_other step_s_to_step  by fastforce
       qed
 
 
 
       have h6: "to_nat uidv \<notin> s_knownIds"
-        using Step(1) Step(6) Step(9) assms(2) c5 wf_onlyGeneratedIdsInKnownIds by blast
+        using Step.knownIds_eq Step.prog_eq Step.state_wellFormed assms(2) c5 wf_onlyGeneratedIdsInKnownIds by blast
 
 
       show "execution_s_check
@@ -493,7 +493,7 @@ proof show_proof_rule
           using h6 by auto
 
         show "to_nat uidv \<notin> generatedLocal"
-          by (simp add: Step(10) c5)
+          by (simp add: Step.generatedLocal_def c5)
 
         show "uniqueIds uidv = {to_nat uidv}"
           by (simp add: c6)
@@ -512,7 +512,7 @@ proof show_proof_rule
         using Step state_wellFormed_combine_s1 by blast
 
       show "case tx of None \<Rightarrow> localCalls = [] | Some tx' \<Rightarrow> set localCalls = {c. callOrigin S'a c \<triangleq> tx'}"
-        using Step(16) by (auto simp add: S'a_def  split: option.splits)
+        using Step.case_option by  (auto simp add: S'a_def  split: option.splits)
 
       show "sorted_by (happensBefore S'a) localCalls"
         using Step by (auto simp add:S'a_def )
@@ -522,7 +522,7 @@ proof show_proof_rule
 
       show "generatedLocalPrivate \<union> {to_nat uidv} \<subseteq> generatedLocal \<union> {to_nat uidv}"
         apply (auto simp add: S'a_def Step)
-        by (meson Step(25) uid_is_private_def)
+        using Step.Ball uid_is_private_def by blast
 
       
 
@@ -539,7 +539,7 @@ proof show_proof_rule
         proof (intro conjI)
 
           have pre: "uid_is_private i S1 v" 
-            by (simp add: that Step(25))
+            by (simp add: Step.Ball that)
 
           show "new_unique_not_in_invocationOp (invocationOp S'a) v"
             using pre by (auto simp add: uid_is_private_def S'a_def)
@@ -835,7 +835,7 @@ proof show_proof_rule
             show " callOrigin S' |` dom (calls S') = callOrigin S'"
               by (metis wf_S' restrict_map_noop2 wellFormed_callOrigin_dom)
             show "invocationOp S' = (invocationOp S')(i := s_invocationOp i)"
-              using Step(7) growth state_monotonicGrowth_invocationOp_i by fastforce
+              using Step.invocationOp_eq growth state_monotonicGrowth_invocationOp_i  by fastforce
             show "invocationRes S' = (invocationRes S')(i := None)"
               by (simp add: c13 fun_upd_idem wf_S' wf_localState_noReturn)
           qed
@@ -843,7 +843,7 @@ proof show_proof_rule
 
         show "\<And>i op. s_invocationOp i \<triangleq> op \<Longrightarrow> invocationOp S'a i \<triangleq> op"
           apply(simp add: S'a_def)
-          using Step(7) growth state_monotonicGrowth_invocationOp by blast
+          using Step.invocationOp_eq growth state_monotonicGrowth_invocationOp by blast
 
         show "\<And>c. callOrigin S'a c \<noteq> Some t"
           using \<open>case Some t of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S'a c \<triangleq> tx'}\<close> by auto
@@ -929,7 +929,7 @@ proof show_proof_rule
           have "uid_is_private i S1 v"
             by auto
           hence "uid_is_private i S' v"
-            using Step(9) assms(1) growth growth_still_hidden by blast
+            using  Step.prog_eq assms(1) growth growth_still_hidden  by  blast
 
           thus "uid_is_private' i (calls S') (invocationOp S') (invocationRes S') (knownIds S') v"
             by (meson uid_is_private'_implies)
@@ -938,7 +938,7 @@ proof show_proof_rule
         show "(invocationOp S'a)(i := s_invocationOp i) = invocationOp S'a"
           apply (auto simp add: S'a_def)
           apply (rule fun_upd_idem)
-          using Step(7) growth state_monotonicGrowth_invocationOp_i by blast
+          using Step.invocationOp_eq growth state_monotonicGrowth_invocationOp_i by  blast
 
         show "(invocationRes S'a)(i := None) = invocationRes S'a"
           apply (auto simp add: S'a_def)
@@ -953,7 +953,7 @@ proof show_proof_rule
           using `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed)`
             c0 c1
           apply (auto simp add: S'a_def )
-          by (smt Step(1) c16 c17 c4 c8 domD domIff growth state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin transactionConsistent_Committed wellFormed_visibleCallsSubsetCalls2 wf_S' wf_callOrigin_and_calls wf_transactionConsistent_noTx)
+          by (smt Step.All_implies_not_transactionStatus_eq Step.state_wellFormed c16 c17 c8 domD domIff growth state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin wellFormed_callOrigin_dom3 wellFormed_currentTransaction_unique_h(2) wellFormed_state_transaction_consistent(1) wellFormed_visibleCallsSubsetCalls2 wf_S')
 
 
 
@@ -962,8 +962,8 @@ proof show_proof_rule
       from `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed)`
       show "firstTx = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> transactionOrigin S'a tx \<triangleq> i \<and> transactionStatus S'a tx \<triangleq> Committed)"
         apply (auto simp add: S'a_def)
-        apply (smt Step(1) c15 c16 c17 c4 c8 growth in_dom state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin wellFormed_callOrigin_dom wellFormed_currentTransactionUncommitted wellFormed_state_transaction_consistent(1) wellFormed_visibleCallsSubsetCalls_h(2) wf_S')
-        by (metis Step(1) c5 growth state_monotonicGrowth_callOrigin state_monotonicGrowth_transactionOrigin state_monotonicGrowth_transactionStatus2 wf_callOrigin_implies_transactionStatus_defined)
+        apply (smt Step.state_wellFormed c16 c17 c4 c8 domExists_simp domIff growth state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin transactionConsistent_Committed wellFormed_callOrigin_dom3 wellFormed_visibleCallsSubsetCalls2 wf_S' wf_transactionConsistent_noTx)
+        by (metis (mono_tags, lifting) Step.state_wellFormed c5 growth state_monotonicGrowth_callOrigin state_monotonicGrowth_transactionOrigin state_monotonicGrowth_transactionStatus2 wf_callOrigin_implies_transactionStatus_defined)
 
       show "\<And>c. i_callOriginI S'a c \<triangleq> i \<Longrightarrow> c \<in> vis''"
         apply (simp add: S'a_def i_callOriginI_h_def c21 split: option.splits if_splits)
@@ -974,7 +974,7 @@ proof show_proof_rule
         using growth state_monotonicGrowth_generatedIds_same1  by (simp add: S'a_def, fastforce)
 
       show "generatedLocalPrivate \<subseteq> generatedLocal"
-        by (simp add: Step(24))
+        using Step.less_eq by blast
 
       show "uid_is_private i S'a x"
         if c0: "x \<in> generatedLocalPrivate"
@@ -984,7 +984,7 @@ proof show_proof_rule
           using Step by blast
 
         hence "uid_is_private i S' x"
-          using Step(9) assms(1) growth growth_still_hidden by blast
+          using Step.prog_eq assms(1) growth growth_still_hidden  by  blast
 
         show "uid_is_private i S'a x"
           unfolding uid_is_private_def
@@ -1132,14 +1132,14 @@ proof show_proof_rule
     have allCommitted1: 
       "transactionStatus S1 tx' \<triangleq> Committed" if "tx' \<noteq> tx" and "callOrigin S1 c \<triangleq> tx'" for c tx'
       using that
-      by (metis (no_types, lifting) Step(1) Step(15) option.exhaust_sel option.inject transactionStatus.exhaust wf_no_transactionStatus_origin_for_nothing) 
+      by (metis (no_types, lifting) Step.All_implies_not_transactionStatus_eq Step.state_wellFormed not_uncommitted_cases option.exhaust option.sel wf_no_transactionStatus_origin_for_nothing)
 
     have tx_uncommitted: "transactionStatus S1 tx \<triangleq> Uncommitted"
-      using Step(1) Step(14) not_uncommitted_cases wellFormed_currentTransaction_unique_h(2) by blast
+      using Step.currentTransaction_eq Step.state_wellFormed not_uncommitted_cases wellFormed_currentTransaction_unique_h(2)  by  blast
 
     have allCommitted2: "transactionStatus S1 t \<triangleq> Committed \<longleftrightarrow> t \<noteq> tx \<and> transactionStatus S1 t \<noteq> None" for t
       apply (cases "transactionStatus S1 t", auto simp add: tx_uncommitted)
-      using Step(15) transactionStatus.exhaust by force
+      using Step.All_implies_not_transactionStatus_eq transactionStatus.exhaust  by  force
 
 
 
@@ -1156,14 +1156,14 @@ proof show_proof_rule
       have h2: "updateHb s_happensBefore vis localCalls = happensBefore S1 |r dom (calls S1)"
         apply (simp add: Step)
         apply (subst restrict_relation_noop, auto simp add: Field_def)
-        using Step(1) Step(2) Step(3) happensBefore_in_calls_left happensBefore_in_calls_right by fastforce+
+        using Step.happensBefore_eq Step.state_wellFormed h1 happensBefore_in_calls_left happensBefore_in_calls_right  by  fastforce+
       
 
       have h3: "map_update_all s_callOrigin localCalls tx = callOrigin S1 |` dom (calls S1)"
         apply (simp add: Step)
         apply (subst restrict_map_noop)
          apply auto
-        using Step(1) Step(2) Step(4) wellFormed_callOrigin_dom by fastforce+
+        using  Step.callOrigin_eq Step.state_wellFormed h1 wellFormed_callOrigin_dom  by  fastforce+
 
 
 
@@ -1171,23 +1171,25 @@ proof show_proof_rule
         transactionOrigin S1 |` {t. t \<noteq> tx \<longrightarrow> transactionStatus S1 t \<triangleq> Committed}"
         apply (simp add: Step )
         apply (subst restrict_map_noop)
-        by (auto simp add: `s_transactionOrigin tx = None` Step(1) Step(5) allCommitted2 wf_transaction_status_iff_origin)
+         apply (auto simp add: `s_transactionOrigin tx = None`  allCommitted2 wf_transaction_status_iff_origin)
+        by (metis Step.state_wellFormed Step.transactionOrigin_eq fun_upd_apply option.distinct(1) option.exhaust wf_transaction_status_iff_origin)
 
       have "localCalls \<noteq> []"
         by (simp add: tx_nonempty)
       have "distinct localCalls"
-        by (simp add: Step(21))
+        by (simp add: Step.distinct)
       have  co_tx_none: "\<forall>c\<in>set localCalls. s_callOrigin c = None"
-        using Step(19) by blast
+        using Step.inf_eq2 by blast
       have to_tx_none: " s_transactionOrigin tx = None"
         by (simp add: assms(2))
       have co_not_tx: "\<And>c. s_callOrigin c \<noteq> Some tx"
-        using Step(16) Step(4) co_tx_none map_update_all_Some_same by fastforce
+        using Step.callOrigin_eq Step.case_option co_tx_none map_update_all_Some_same by  fastforce
 
       have hb_wf_l:"\<And>c c'. (c, c') \<in> s_happensBefore \<Longrightarrow> \<exists>t. s_callOrigin c \<triangleq> t"
-        by (smt FieldI1 FieldI2 Step(1) Step(20) Step(3) Step(4) disjoint_iff_not_equal domExists_simp domIff map_update_all_get updateHb_simp2 wellFormed_happensBefore_calls_l wf_callOrigin_and_calls)
+        using FieldI1 FieldI2 Step.state_wellFormed (* TODO Step(20) *) (* TODO Step(3) *) (* TODO Step(4) *) disjoint_iff_not_equal domExists_simp domIff map_update_all_get updateHb_simp2 wellFormed_happensBefore_calls_l wf_callOrigin_and_calls
+        by (smt Step.callOrigin_eq Step.happensBefore_eq Step.inf_eq3 Step.state_wellFormed)
       have hb_wf_r: "\<And>c c'. (c, c') \<in> s_happensBefore \<Longrightarrow> \<exists>t. s_callOrigin c' \<triangleq> t"
-        by (metis (no_types, lifting) FieldI2 Step(1) Step(20) Step(3) Step(4) disjoint_iff_not_equal domExists_simp domIff map_update_all_get updateHb_simp2 wellFormed_happensBefore_calls_r wf_callOrigin_and_calls)
+        by (metis FieldI2 Step.callOrigin_eq Step.happensBefore_eq Step.inf_eq3 Step.state_wellFormed disjoint_iff_not_equal map_update_all_get option.exhaust updateHb_simp2 wellFormed_happensBefore_calls_r wf_callOrigin_and_calls)
 
       have  invocation_hb_simp:
         "invocation_happensBeforeH
@@ -1225,13 +1227,14 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
             then have "c \<notin> set localCalls \<and> s_callOrigin c \<triangleq> t"
               using that by blast
             then have f1: "t \<noteq> tx \<longrightarrow> callOrigin S1 c \<triangleq> t"
-              by (simp add: Step(4) map_update_all_Some_other)
+              by (simp add: Step.callOrigin_eq map_update_all_get)
             have "s_callOrigin c \<noteq> Some tx"
               using co_not_tx by blast
             then have "t \<noteq> tx"
               using that by blast
             then have "s_transactionOrigin(t \<mapsto> i) \<noteq> s_transactionOrigin"
-              using f1 by (metis (no_types) Step(1) Step(22) Step(5) \<open>firstTx\<close> allCommitted2 fun_upd_same fun_upd_twist state_wellFormed_transactionStatus_transactionOrigin)
+              using f1
+              by (metis Step.firstTx_def Step.transactionOrigin_eq \<open>firstTx\<close> allCommitted1 fun_upd_idem_iff fun_upd_other)
             then show "s_transactionOrigin t \<noteq> Some i"
               by (metis (no_types) fun_upd_triv)
           qed
@@ -1243,7 +1246,7 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
           where "s_callOrigin old_c \<triangleq> old_t"
             and "s_transactionOrigin old_t \<triangleq> i"
             and "transactionStatus S1 old_t \<triangleq> Committed"
-          using Step(22) Step(4) Step(5) allCommitted2 map_update_all_Some_other by fastforce
+          using Step.callOrigin_eq Step.firstTx_def Step.transactionOrigin_eq fun_upd_apply option.sel allCommitted2 map_update_all_Some_other by  fastforce
 
 
         show " invocation_happensBeforeH (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i)))
@@ -1258,10 +1261,10 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
             by simp
 
           show "Field s_happensBefore \<inter> set localCalls = {}"
-            by (simp add: Step(20))
+            by (simp add: Step.inf_eq3)
 
           show "\<And>c. i_callOriginI_h s_callOrigin s_transactionOrigin c \<triangleq> i \<Longrightarrow> c \<in> vis"
-            by (simp add: Step(23) i_callOriginI_h_update_to2)
+            by (simp add: Step.All_implies_member i_callOriginI_h_update_to2)
 
           show "\<And>c c'. \<lbrakk>c' \<in> vis; (c, c') \<in> s_happensBefore\<rbrakk> \<Longrightarrow> c \<in> vis"
           proof -
@@ -1269,13 +1272,14 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
             assume a1: "c' \<in> vis"
             assume a2: "(c, c') \<in> s_happensBefore"
             have f3: "\<forall>c. c \<notin> Field s_happensBefore \<or> (\<forall>ca. ca \<notin> set localCalls \<or> c \<noteq> ca)"
-              using Step(20) by auto
+              using Step.inf_eq3 by  auto
             have f4: "c' \<in> Field s_happensBefore"
               using a2 by (simp add: FieldI2)
             have "c \<in> Field s_happensBefore"
               using a2 by (simp add: FieldI1)
             then show "c \<in> vis"
-              using f4 f3 a2 a1 by (metis (no_types) Step(1) Step(13) Step(3) UnCI UnE updateHb_simp2 wf_vis_downwards_closed2)
+              using f4 f3 a2 a1 
+              by (metis Step.happensBefore_eq Step.state_wellFormed Step.visibleCalls_eq Un_iff updateHb_simp2 wf_vis_downwards_closed2)
           qed
 
 
@@ -1303,7 +1307,7 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
         show h7: "\<And>c c'. c \<in> set localCalls \<Longrightarrow> (c', c) \<notin> s_happensBefore"
           using co_tx_none hb_wf_r by fastforce
         show "\<And>c. c \<in> set localCalls \<Longrightarrow> c \<notin> vis"
-          using Step(18) by blast
+          using Step.inf_eq by  blast
 
         show "invocation_happensBeforeH (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i)))
          (updateHb s_happensBefore vis localCalls) =
@@ -1371,15 +1375,18 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
         using `localCalls \<noteq> []` by fastforce
 
 
+      thm Step(4)
+      find_theorems name: Step
+
 
       show "False = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> transactionOrigin S'a tx \<triangleq> i \<and> transactionStatus S'a tx \<triangleq> Committed)"
         using  \<open>c \<in> set localCalls\<close>  by (auto simp add: S'a_def intro!: exI[where x=c] exI[where x=tx]
-            Step(1) Step(14) state_wellFormed_current_transaction_origin
-            Step(4) map_update_all_Some_same, simp add: Step(4) map_update_all_Some_same) 
+            Step.state_wellFormed Step.currentTransaction_eq state_wellFormed_current_transaction_origin
+            Step.callOrigin_eq map_update_all_Some_same, simp add: Step.callOrigin_eq map_update_all_Some_same) 
 
       show "\<And>c. i_callOriginI S'a c \<triangleq> i \<Longrightarrow> c \<in> vis \<union> set localCalls"
         apply (auto simp add: S'a_def i_callOriginI_h_def split: option.splits)
-        using Step(1) Step(13) state_wellFormed_ls_visibleCalls_callOrigin by fastforce
+        using Step.state_wellFormed Step.visibleCalls_eq state_wellFormed_ls_visibleCalls_callOrigin by  fastforce
 
       show "generatedLocalPrivate \<subseteq> {x. generatedIds S'a x \<triangleq> i}"
         using Step by (simp add: S'a_def)
@@ -1389,14 +1396,14 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
 
       from c0
       have "uid_is_private i S1 x"
-        by (simp add: Step(25))
+        by (simp add: Step.Ball)
 
       show "uid_is_private i S'a x"
         unfolding uid_is_private_def
       proof (intro conjI)
 
         show " new_unique_not_in_other_invocations i S'a x"
-          using Step(27) \<open>uid_is_private i S1 x\<close> action_def new_unique_not_in_other_invocations_maintained uid_is_private_def by blast
+          using  Step.step_s \<open>uid_is_private i S1 x\<close> action_def new_unique_not_in_other_invocations_maintained uid_is_private_def  by  blast
 
       qed (insert `uid_is_private i S1 x`, auto simp add: S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
 
@@ -1485,30 +1492,30 @@ proof show_proof_rule
         by (auto simp add: S'a_def split: option.splits)
 
       show "sorted_by (happensBefore S'a) localCalls"
-        using Step(17) Step(3) by (simp add: S'a_def )
+        using Step.sorted_by by  (simp add: S'a_def )
+
 
 
       show " execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds
      s_invocationOp s_invocationRes {x. generatedIds S1 x \<triangleq> i} generatedLocalPrivate vis localCalls tx firstTx (cont ())"
       proof (fuzzy_rule cont)
         show "generatedLocal = {x. generatedIds S1 x \<triangleq> i}"
-          by (simp add: Step(10))
+          using Step.generatedLocal_def by blast
       qed
 
       show "generatedLocalPrivate \<subseteq> {x. generatedIds S1 x \<triangleq> i}"
-        apply auto
-        by (meson Step(25) uid_is_private_def)
+        using Step.Ball uid_is_private_def by auto
       
       fix x
       assume a0: "x \<in> generatedLocalPrivate"
       hence "uid_is_private i S1 x"
-        using Step(25) by blast
+        by (simp add: Step.Ball)
 
       show "uid_is_private i S'a x"
         unfolding uid_is_private_def
       proof (intro conjI)
         show "new_unique_not_in_other_invocations i S'a x"
-          using Step(27) \<open>action = ALocal True\<close> \<open>uid_is_private i S1 x\<close> new_unique_not_in_other_invocations_maintained uid_is_private_def by blast
+          using Step.step_s \<open>action = ALocal True\<close> \<open>uid_is_private i S1 x\<close> new_unique_not_in_other_invocations_maintained uid_is_private_def by  blast
       qed (insert `uid_is_private i S1 x`, auto simp add:S'a_def uid_is_private_def new_unique_not_in_other_invocations_def)
 
 
@@ -1630,13 +1637,14 @@ proof show_proof_rule
 
       show "case Some tx of None \<Rightarrow> localCalls @ [c] = []
             | Some tx' \<Rightarrow> set (localCalls @ [c]) = {c. callOrigin S'a c \<triangleq> tx'}"
-        using Step(16) Step(4)  by (auto simp add: s S'a_def Step map_add_def map_of_None split: option.splits del: )
+        using Step.case_option Step.callOrigin_eq by  (auto simp add: s S'a_def Step map_add_def map_of_None split: option.splits del: )
+
 
       have "c \<notin> set localCalls"
-        by (meson Step(1) UnCI c3 fresh_c wellFormed_visibleCallsSubsetCalls2)
+        using Step.state_wellFormed c3 fresh_c wellFormed_visibleCallsSubsetCalls2 by auto
 
       have "c \<notin> vis"
-        by (meson Step(1) UnCI c3 fresh_c wellFormed_visibleCallsSubsetCalls2)
+        by (meson Step.state_wellFormed UnCI c3 fresh_c wellFormed_visibleCallsSubsetCalls2)
 
 
       have "callOrigin S1 c = None"
@@ -1651,14 +1659,14 @@ proof show_proof_rule
       proof (auto simp add: sorted_by_append_iff sorted_by_single)
         from `sorted_by (happensBefore S1) localCalls`
         show "sorted_by (happensBefore S'a) localCalls"
-          apply (auto simp add: S'a_def)
-          apply (auto simp add: sorted_by_def)
-          by (metis (mono_tags, lifting) Step(1) Step(16) fresh_c less_trans mem_Collect_eq nth_mem option.distinct(1) option.simps(5) wellFormed_callOrigin_dom2)
+          using \<open>c \<notin> set localCalls\<close> by (auto simp add: S'a_def sorted_by_def)
+
+        thm Step(18)
 
         show "\<And>x. \<lbrakk>x \<in> set localCalls; (c, x) \<in> happensBefore S'a\<rbrakk> \<Longrightarrow> False"
           apply (auto simp add: S'a_def Step)
-          using Step(1) Step(3) fresh_c wellFormed_happensBefore_calls_l apply blast
-          using Step(18) apply auto[1]
+          using Step.state_wellFormed Step.happensBefore_eq fresh_c wellFormed_happensBefore_calls_l apply blast
+          using \<open>c \<notin> vis\<close> apply blast 
           using \<open>c \<notin> set localCalls\<close> by auto
       qed
 
@@ -1669,10 +1677,10 @@ proof show_proof_rule
 
       show "dom s_callOrigin \<inter> set (localCalls @ [c]) = {}"
         apply (auto simp add: `s_callOrigin c = None`)
-        using Step(19) by blast
+        using Step.inf_eq2 by blast 
 
       have "c \<notin> Field s_happensBefore"
-        by (smt DomainE FieldI2 Field_def RangeE Step(1) Step(20) Step(3) Un_iff disjoint_iff_not_equal fresh_c updateHb_simp2 wellFormed_happensBefore_calls_l wellFormed_happensBefore_calls_r)
+        by (metis Field_Un Step.happensBefore_eq Step.state_wellFormed UnI1 fresh_c updateHb_simp_split wellFormed_happensBefore_Field)
 
       from this and `Field s_happensBefore \<inter> set localCalls = {}`
       show "Field s_happensBefore \<inter> set (localCalls @ [c]) = {}"
@@ -1709,18 +1717,18 @@ proof show_proof_rule
       show "firstTx = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> transactionOrigin S'a tx \<triangleq> i \<and> transactionStatus S'a tx \<triangleq> Committed)"
         apply auto
          apply (auto simp add: S'a_def split: if_splits)
-        using Step(1) c2 not_uncommitted_cases wellFormed_currentTransaction_unique_h(2) apply blast
+        using c2 not_uncommitted_cases wellFormed_currentTransaction_unique_h(2) 
+        apply (simp add: wellFormed_currentTransaction_unique_h(2) Step.state_wellFormed)
         using \<open>callOrigin S1 c = None\<close> by force
 
       show "generatedLocalPrivate - uniqueIds op - uniqueIds res \<subseteq> {x. generatedIds S1 x \<triangleq> i}"
-        apply auto
-        by (meson Step(25) uid_is_private_def)
+        using Step.Ball uid_is_private_def by auto
 
       
       fix x
       assume a0: "x \<in> generatedLocalPrivate - uniqueIds op - uniqueIds res"
       hence "uid_is_private i S1 x"
-        using Step(25) by auto
+        using Step.Ball by auto
 
 
       show "uid_is_private i S'a x"
@@ -1728,7 +1736,7 @@ proof show_proof_rule
       proof (intro conjI)
 
         show "new_unique_not_in_other_invocations i S'a x"
-          using Step(27) \<open>uid_is_private i S1 x\<close> c4 new_unique_not_in_other_invocations_maintained uid_is_private_def by blast
+          using Step.step_s \<open>uid_is_private i S1 x\<close> c4 new_unique_not_in_other_invocations_maintained uid_is_private_def by  blast
 
 
       qed (insert a0 `uid_is_private i S1 x`, auto simp add: S'a_def uid_is_private_def new_unique_not_in_calls_def new_unique_not_in_calls_result_def new_unique_not_in_other_invocations_def)
@@ -1810,11 +1818,11 @@ proof show_proof_rule
 
     have commmitted: "committedTransactions S1 = dom s_transactionOrigin"
       apply (auto simp add: `transactionOrigin S1 = s_transactionOrigin`[symmetric] txStatus1)
-      apply (simp add: Step(1) txStatus3 wf_transaction_status_iff_origin)
-      by (simp add: Step(1) state_wellFormed_transactionStatus_transactionOrigin txStatus3)
+       apply (simp add: Step.state_wellFormed txStatus3 wf_transaction_status_iff_origin)
+      by (simp add: Step.state_wellFormed state_wellFormed_transactionStatus_transactionOrigin txStatus3)
 
     have committed2: "committedCalls S1 = dom (calls S1)"
-      using Step(1) committedCalls_allCommitted txStatus1 by blast 
+      using Step.state_wellFormed committedCalls_allCommitted txStatus1 by  blast 
 
     hence committed3: "committedCallsH s_callOrigin (transactionStatus S1) =  dom s_calls"
       by (simp add: Step)
@@ -1827,14 +1835,14 @@ proof show_proof_rule
       show "s_callOrigin = s_callOrigin |` dom s_calls"
       proof (rule restrict_map_noop[symmetric])
         show "dom s_callOrigin \<subseteq> dom s_calls"
-          using Step(1) Step(2) Step(4) wellFormed_callOrigin_dom by fastforce
+          using Step.state_wellFormed Step.callOrigin_eq Step.calls_eq wellFormed_callOrigin_dom  by  fastforce
       qed
 
       show "s_happensBefore = s_happensBefore |r dom s_calls"
       proof (rule restrict_relation_noop[symmetric])
         show "Field s_happensBefore \<subseteq> dom s_calls"
           apply (auto simp add: Field_def)
-          using Step(1) Step(2) Step(3) happensBefore_in_calls_left happensBefore_in_calls_right by fastforce+
+          using Step.state_wellFormed Step.calls_eq Step.happensBefore_eq happensBefore_in_calls_left happensBefore_in_calls_right  by  fastforce+
       qed
     qed
 

@@ -619,7 +619,7 @@ definition initialStates' :: "('proc::valueType, 'ls, 'operation::valueType, 'an
 
 lemma initialStates'_same:
   shows "initialStates progr i = initialStates' progr i"
-proof(auto simp add: initialStates_def initialStates'_def, goal_cases A B)
+proof(auto simp add: initialStates_def initialStates'_def, fuzzy_goal_cases A B)
   case (A S proc initState impl)
   then show ?case 
     by (auto simp add: invContext_same_allCommitted)

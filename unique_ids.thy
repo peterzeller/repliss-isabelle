@@ -2,6 +2,7 @@ section "Unique Identifiers"
 theory unique_ids
   imports execution_invariants
     "fuzzyrule.fuzzyrule"
+    "fuzzyrule.fuzzy_goal_cases"
 begin
 
 
@@ -521,7 +522,7 @@ lemma wf_onlyGeneratedIdsInInvocationOps:
 next
   case (step t a s)
   then show ?case 
-    using wf_onlyGeneratedIdsInKnownIds by (auto simp add: step.simps split: if_splits, goal_cases "new_invoc", blast)
+    using wf_onlyGeneratedIdsInKnownIds by (auto simp add: step.simps split: if_splits, blast)
 qed
 
 lemma wf_onlyGeneratedIdsInInvocationRes:

@@ -281,6 +281,10 @@ definition step_io :: "
         \<and> proof_state_wellFormed S'
         \<and> progInv (invariantContext.truncate (S'\<lparr>transactionOrigin := transactionOrigin'(t := None) \<rparr>))
         \<and> transactionOrigin' t \<triangleq> (ps_i S) 
+        \<and> (\<forall>t'. t' \<noteq> t \<longrightarrow> (transactionOrigin S t' \<triangleq> ps_i S \<longleftrightarrow> transactionOrigin' t' \<triangleq> ps_i S))
+        \<and> chooseSnapshot_h vis' (ps_vis S) (\<lambda>tx. Some Committed) callOrigin' happensBefore'
+        \<and> consistentSnapshotH calls' happensBefore' callOrigin' (\<lambda>tx. Some Committed) vis'
+        \<and> (\<forall>c. callOrigin' c \<noteq> Some t)
         \<and> (S' = S\<lparr>
              calls := calls',
              happensBefore := happensBefore',
@@ -422,6 +426,7 @@ lemma prop_subst': "t = s \<Longrightarrow> PROP P t \<Longrightarrow> PROP P s"
 \<comment> \<open>Strange rotations and shifting to remove the first equality that you
 usually get when using a cases rule.\<close>
 method remove_first_equality = (
+    ((drule allI impI)+)?,
     (rotate_tac 1),
     ((erule rev_mp)+)?,
     (rule impI),
@@ -436,6 +441,26 @@ lemma "\<And>y a b q. \<lbrakk>x = y; A x y a; B x y b; C x y \<rbrakk> \<Longri
   apply remove_first_equality
   oops
 
+lemma "\<lbrakk>S = Sxxxxxxxxxxxxxxxxxx; (i, action, Inv) = (ia, ABeginAtomic t vis', True); S' = S'';
+     localState Sxxxxxxxxxxxxxxxxxx ia \<triangleq> ls; currentProc Sxxxxxxxxxxxxxxxxxx ia \<triangleq> f; f ls = BeginAtomic ls';
+     currentTransaction Sxxxxxxxxxxxxxxxxxx ia = None; transactionStatus Sxxxxxxxxxxxxxxxxxx t = None;
+     prog S'a = prog Sxxxxxxxxxxxxxxxxxx; state_monotonicGrowth ia Sxxxxxxxxxxxxxxxxxx S'a;
+     \<And>t. transactionOrigin Sxxxxxxxxxxxxxxxxxx t \<triangleq> ia = transactionOrigin S'a t \<triangleq> ia; invariant_all S'a;
+     \<And>tx. transactionStatus S'a tx \<noteq> Some Uncommitted; state_wellFormed S'a; state_wellFormed S'';
+     localState S'a ia \<triangleq> ls; currentProc S'a ia \<triangleq> f; currentTransaction S'a ia = None;
+     visibleCalls Sxxxxxxxxxxxxxxxxxx ia \<triangleq> vis; visibleCalls S'a ia \<triangleq> vis; chooseSnapshot vis' vis S'a;
+     consistentSnapshot S'a vis'; transactionStatus S'a t = None; \<And>c. callOrigin S'a c \<noteq> Some t;
+     transactionOrigin S'a t = None;
+     S'' = S'a
+     \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommitted),
+        transactionOrigin := transactionOrigin S'a(t \<mapsto> ia), currentTransaction := currentTransaction S'a(ia \<mapsto> t),
+        localState := localState S'a(ia \<mapsto> ls'), visibleCalls := visibleCalls S'a(ia \<mapsto> vis')\<rparr>\<rbrakk>
+    \<Longrightarrow> False"
+  apply remove_first_equality
+  oops
+
+
+
 
 method cmd_step_cases uses step insert simps  = 
   (rule step_s.cases[OF step]; 
@@ -443,10 +468,10 @@ method cmd_step_cases uses step insert simps  =
     insert insert;
     (((auto simp add: simps split: prod.splits)[1]; fail)?); 
     ((erule Pair_inject)+)?,
-    goal_cases A)
+    fuzzy_goal_cases A)
   (*
   erule prop_subst;
-  goal_cases A)
+  fuzzy_goal_cases A)
 *)
 
 
@@ -676,7 +701,8 @@ proof (rule ccontr)
     case (WaitBeginAtomic n)
     show False
     proof (cmd_step_cases step: step insert: cmd_prefix simps: WaitBeginAtomic)
-      case (A S1 i' ls f ls' t Sn Sf vis vis' )
+      case (A i' ls f ls' t Sn Sf vis vis' )
+      
 
       have Sf_def: "Sf = Sn
       \<lparr>transactionStatus := transactionStatus Sn(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin Sn(t \<mapsto> i'),
@@ -685,16 +711,16 @@ proof (rule ccontr)
         using A by force
 
       have [simp]: "ps_localCalls PS = []"
-        using A(26) A(8) i_def proof_state_rel_fact(13) proof_state_rel_fact(15) rel by fastforce
+        using A i_def proof_state_rel_fact(13) proof_state_rel_fact(15) rel by fastforce
 
       have [simp]: "i' = ps_i PS"
         using A(26) i_def by blast
 
       have [simp]: "ls' = (ps_store PS, ps_localKnown PS, n \<bind> cmdCont)"
-        using A(5) A(6) A(7) WaitBeginAtomic i_def ls toImpl by auto
+        using A WaitBeginAtomic i_def ls toImpl by auto
 
       have Sn_toImpl[simp]: "currentProc Sn (ps_i PS) \<triangleq> toImpl"
-        using toImpl A(16) A(6) by auto
+        using toImpl A by auto
 
 
 
@@ -729,20 +755,20 @@ proof (rule ccontr)
 
           show "ps_generatedLocal PS' = {x. generatedIds Sf x \<triangleq> ps_i PS'}"
             apply (auto simp add: PS'_def A )
-            using A(11) proof_state_rel_fact(9) rel state_monotonicGrowth_generatedIds apply fastforce
-            using A(11) A(26) i_def proof_state_rel_fact(9) rel state_monotonicGrowth_generatedIds_same1 by fastforce
+            using A proof_state_rel_fact(9) rel state_monotonicGrowth_generatedIds apply fastforce
+            using A i_def proof_state_rel_fact(9) rel state_monotonicGrowth_generatedIds_same1 by fastforce
 
           from proof_state_rel_fact(21)[OF rel]
           show "ps_firstTx PS' =
                (\<nexists>c tx. callOrigin Sf c \<triangleq> tx \<and> transactionOrigin Sf tx \<triangleq> ps_i PS' \<and> transactionStatus Sf tx \<triangleq> Committed)"
             apply (auto simp add: PS'_def A )
-             apply (smt A(11) A(13) A(18) A(19) A(26) A(8) \<open>state_wellFormed S\<close> i_def in_dom state_monotonicGrowth_callOrigin state_monotonicGrowth_transactionOrigin_i state_wellFormed_ls_visibleCalls_callOrigin transactionConsistent_Committed wellFormed_callOrigin_dom wellFormed_visibleCallsSubsetCalls_h(2) wf_transactionConsistent_noTx)
-            by (metis (no_types, lifting) A(11) A(9) \<open>state_wellFormed S\<close> state_monotonicGrowth_callOrigin state_monotonicGrowth_transactionOrigin state_monotonicGrowth_transactionStatus2 wellFormed_state_callOrigin_transactionStatus)
+             apply (smt A \<open>state_wellFormed S\<close> i_def in_dom state_monotonicGrowth_callOrigin state_monotonicGrowth_transactionOrigin_i state_wellFormed_ls_visibleCalls_callOrigin transactionConsistent_Committed wellFormed_callOrigin_dom wellFormed_visibleCallsSubsetCalls_h(2) wf_transactionConsistent_noTx)
+            by (metis (no_types, lifting) A \<open>state_wellFormed S\<close> state_monotonicGrowth_callOrigin state_monotonicGrowth_transactionOrigin state_monotonicGrowth_transactionStatus2 wellFormed_state_callOrigin_transactionStatus)
 
 
           show "\<forall>c. i_callOriginI PS' c \<triangleq> ps_i PS' \<longrightarrow> c \<in> ps_vis PS'"
             apply (auto simp add: PS'_def A  i_callOriginI_h_def split: option.splits)
-            using A(13) A(19) A(20) chooseSnapshot_def state_wellFormed_ls_visibleCalls_callOrigin by fastforce
+            using A chooseSnapshot_def state_wellFormed_ls_visibleCalls_callOrigin by fastforce
 
           show "ps_generatedLocalPrivate PS' \<subseteq> ps_generatedLocal PS'"
             apply (auto simp add: PS'_def A )
@@ -780,7 +806,7 @@ proof (rule ccontr)
 
             from this
             show "uid_is_private (ps_i PS') Sf v"
-              by (simp add: A(4) i_def)
+              by (simp add: A(1) i_def)
           qed 
 
           have toImpl_ba: "toImpl (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont) = BeginAtomic (ps_store PS, ps_localKnown PS, n \<bind> cmdCont)"
@@ -826,10 +852,12 @@ proof (rule ccontr)
 
             from `invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS)  Sn`
               and `Sn ~~ (ps_i PS, ABeginAtomic t vis' ) \<leadsto> S'`
-            show "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S'"
+            show "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) Sf "
             proof (fuzzy_rule show_invocation_cannot_guess_ids_step)
               show "ps_localKnown PS \<union> action_inputs (ABeginAtomic t vis') = ps_localKnown PS"
                 by simp
+              show "S' = Sf"
+                by (simp add: A(1))
             qed
           qed
 
@@ -844,7 +872,7 @@ proof (rule ccontr)
           proof (rule show_proof_state_wellFormed)
 
             show "proof_state_rel PS' Sf"
-              using A(4) \<open>proof_state_rel PS' S'\<close> by blast
+              using A(1) \<open>proof_state_rel PS' S'\<close> by blast
           qed
 
 
@@ -854,23 +882,23 @@ proof (rule ccontr)
 
 
           have [simp]: "(transactionOrigin Sn)(t := None) = transactionOrigin Sn"
-            using A(23) by auto
+            using A(20) by auto
 
 
 
           have invContext_simp: "invariantContext.truncate (PS'\<lparr>transactionOrigin := ((transactionOrigin Sn)(t \<mapsto> ps_i PS))(t := None)\<rparr>)
           = invContext Sn"
             apply (auto simp add: invContextH_def PS'_def A invariantContext.defs committedCalls_allCommitted restrict_relation_def)
-               apply (meson A(13) option.exhaust wellFormed_happensBefore_calls_l)
-              apply (meson A(13) option.exhaust wellFormed_happensBefore_calls_r)
-             apply (metis A(13) restrict_map_noop2 wellFormed_callOrigin_dom)
-            by (smt A(13) A(2) Collect_cong domD dom_def mem_Collect_eq option.distinct(1) restrict_map_noop2 transactionStatus.exhaust wf_transaction_status_iff_origin)
+               apply (meson A(10) option.exhaust wellFormed_happensBefore_calls_l)
+              apply (meson A(10) option.exhaust wellFormed_happensBefore_calls_r)
+             apply (metis A(10) restrict_map_noop2 wellFormed_callOrigin_dom)
+            by (smt A Collect_cong domD dom_def mem_Collect_eq option.distinct(1) restrict_map_noop2 transactionStatus.exhaust wf_transaction_status_iff_origin)
 
           show "invariant (prog S)
          (invariantContext.truncate
            (PS'\<lparr>transactionOrigin := ((transactionOrigin Sn)(t \<mapsto> ps_i PS))(t := None)\<rparr>))"
             unfolding invContext_simp
-            using A(10) A(12) by auto
+            using A(7) A(9) by auto
 
           show "((transactionOrigin Sn)(t \<mapsto> ps_i PS)) t \<triangleq> ps_i PS"
             by simp
@@ -908,11 +936,11 @@ proof (rule ccontr)
           qed
 
           show "transactionOrigin PS t = None"
-            using A(9) \<open>state_wellFormed S\<close> proof_state_rel_fact(5) rel wf_transaction_status_iff_origin by fastforce
+            using A(6) \<open>state_wellFormed S\<close> proof_state_rel_fact(5) rel wf_transaction_status_iff_origin by fastforce
 
 
           have "currentTransaction S (ps_i PS) = None"
-            using A(8) \<open>i' = ps_i PS\<close> by blast 
+            using A(5) \<open>i' = ps_i PS\<close> by blast 
 
           have "currentTransaction S (ps_i PS) = ps_tx PS"
             using proof_state_rel_def rel by blast
@@ -921,6 +949,28 @@ proof (rule ccontr)
             using `currentTransaction S i' = None` `i = i'`
               \<open>currentTransaction S (ps_i PS) = ps_tx PS\<close>
             by simp
+
+          from proof_state_rel_fact[OF `proof_state_rel PS S`]
+          have " transactionOrigin S = transactionOrigin PS" by simp
+
+
+          show "\<forall>t'. t' \<noteq> t \<longrightarrow> transactionOrigin PS t' \<triangleq> ps_i PS = (transactionOrigin Sn(t \<mapsto> ps_i PS)) t' \<triangleq> ps_i PS"
+            using ` \<forall>t. transactionOrigin S t \<triangleq> i' = transactionOrigin Sn t \<triangleq> i'`
+              \<open>transactionOrigin S = transactionOrigin PS\<close>
+            by (auto simp add: PS'_def i_def)
+
+          from `chooseSnapshot vis' vis Sn`
+          show "chooseSnapshot_h vis' (ps_vis PS) (\<lambda>tx. Some Committed) (callOrigin Sn) (happensBefore Sn)"
+            using `visibleCalls S i' \<triangleq> vis` \<open>visibleCalls S (ps_i PS) \<triangleq> (ps_vis PS \<union> set (ps_localCalls PS))\<close>
+            by (auto simp add: chooseSnapshot_h_def)
+
+          from `consistentSnapshot Sn vis'`
+          show "consistentSnapshotI Sn vis'"
+            by (auto simp add: consistentSnapshotH_def transactionConsistent_committed_def transactionConsistent_def)
+
+          show "\<forall>c. callOrigin Sn c \<noteq> Some t"
+            by (simp add: A(24))
+
 
         qed
 
@@ -1269,7 +1319,7 @@ proof (rule ccontr)
               apply (insert a cmd_prefix )
               apply (auto simp add: WaitDbOperation if_simp1  if_simp2 split: prod.splits cong: if_cong)
         apply (rule ccontr)
-      proof (goal_cases A)
+      proof (fuzzy_goal_cases A)
         case (A x)
 
         define PS' where "PS' = PS"
@@ -2725,7 +2775,7 @@ shows "P"
   using assms by auto
 
 method show_proof_rule = 
-  (subst  execution_s_check_def, intro allI impI conjI, erule case_trace_not_empty3, erule(1) no_ainvoc, goal_cases Step)
+  (subst  execution_s_check_def, intro allI impI conjI, erule case_trace_not_empty3, erule(1) no_ainvoc, fuzzy_goal_cases Step)
 
 inductive_cases step_s_NewId: "S ~~ (i, ANewId uidv, Inv) \<leadsto>\<^sub>S S'"
 
@@ -3759,6 +3809,7 @@ proof (rule execution_s_check_proof_rule)
       show "\<And>c. callOrigin' c \<noteq> Some t"
         using wf_no_transactionStatus_origin_for_nothing[OF wf']
         apply auto
+
         sorry
 
       show " ps_vis PS \<subseteq> vis'"

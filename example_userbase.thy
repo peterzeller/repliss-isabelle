@@ -365,7 +365,7 @@ proof M_show_programCorrect
               (s_invocationOp(i \<mapsto> RegisterUser name mail)) (s_invocationRes(i := None)) {} {} {} [] None True
               (registerUser_impl (String name) (String mail))"
             for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, goal_cases "AtCommit" "AtReturn" )
+          proof (repliss_vcg, fuzzy_goal_cases "AtCommit" "AtReturn" )
             case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
 
 
@@ -410,7 +410,7 @@ proof M_show_programCorrect
 
             from AtCommit
             show ?case
-            proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3)
 
               case inv1
 
@@ -498,12 +498,12 @@ proof M_show_programCorrect
               (s_invocationOp(i \<mapsto> UpdateMail user mail)) (s_invocationRes(i := None)) {} {} {} [] None True
               (updateMail_impl (UserId user) (String mail))"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
+          proof (repliss_vcg, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
             
             from Exists_AtCommit
             show ?case
-            proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3)
               case inv1
               
               from `inv1 (s_invocationOp'(i \<mapsto> UpdateMail user mail)) (s_invocationRes'(i := None))
@@ -642,7 +642,7 @@ proof M_show_programCorrect
           show " execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds
         (s_invocationOp(i \<mapsto> RemoveUser user)) (s_invocationRes(i := None)) {} {} {} [] None True (removeUser_impl (UserId user))"
             for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" )
+          proof (repliss_vcg, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" )
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
 
             from \<open>crdtSpec (DeleteKey (UserId user)) \<lparr>calls = s_calls' |` vis', happensBefore = s_happensBefore' |r vis'\<rparr> res\<close>
@@ -651,7 +651,7 @@ proof M_show_programCorrect
 
             from Exists_AtCommit
             show ?case
-            proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3)
               case inv1
               from `inv1 (s_invocationOp'(i \<mapsto> RemoveUser user)) (s_invocationRes'(i := None))
                    (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
@@ -715,10 +715,10 @@ proof M_show_programCorrect
           show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> GetUser user))
         (s_invocationRes(i := None)) {} {} {} [] None True (getUser_impl (UserId user))"
             for s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
+          proof (repliss_vcg, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
             then show ?case
-            proof (auto simp add: inv_def, goal_cases inv1 inv2 inv3)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3)
               case (inv1 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
               then show ?case
                 by (auto simp add: inv1_def)
@@ -739,7 +739,7 @@ proof M_show_programCorrect
           next
             case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
             then show ?case
-            proof (auto simp add: inv_def, goal_cases inv1 )
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv1 )
               case (inv1 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
 
               text "From the query result, we get an update that is not affected by a remove."

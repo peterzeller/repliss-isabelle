@@ -996,7 +996,7 @@ proof -
     from steps 
     have "S1 ~~ tr \<leadsto>* (S3\<lparr>localState := localState S3(i \<mapsto> ls)\<rparr>)"
       using wf2 no_crash
-    proof (rule show_state_transfer2, goal_cases init step)
+    proof (rule show_state_transfer2, fuzzy_goal_cases init step)
       case init
       thus ?case 
         using local by (auto simp add: state_ext)
@@ -1017,7 +1017,7 @@ proof -
     have "S1 ~~ tr \<leadsto>* (S3\<lparr>localState := localState S3(i \<mapsto> ls), 
                           generatedIds := (generatedIds S3)(uid := None)\<rparr>)"
       using wf2 no_crash
-    proof (rule show_state_transfer2, goal_cases init step)
+    proof (rule show_state_transfer2, fuzzy_goal_cases init step)
       case init
       thus ?case 
         using newId by (auto simp add: state_ext)
@@ -1033,7 +1033,7 @@ proof -
         by auto
 
       have [simp]: "uid \<noteq> to_nat x" if "a =  ANewId x" for x
-        using \<open>generatedIds S2 uid \<triangleq> i\<close> local.step(1) steps that uid_used_only_once by blast
+        using \<open>generatedIds S2 uid \<triangleq> i\<close>steps that uid_used_only_once step.member by blast
 
       from step
       show ?case 
@@ -1052,7 +1052,7 @@ proof -
                    transactionOrigin := (transactionOrigin S3)(t := None),
                    visibleCalls := (visibleCalls S3)(i := visibleCalls S1 i)\<rparr>)"
       using wf2 no_crash
-    proof (rule show_state_transfer2, goal_cases init step)
+    proof (rule show_state_transfer2, fuzzy_goal_cases init step)
       case init
       thus ?case 
         using beginAtomic wf_transactionOrigin_and_status[OF wf] 
@@ -1065,7 +1065,7 @@ proof -
         using `isPrefix tr' tr`
         by (metis isPrefix_subset2)
       have tr'_no_crash: "\<And>i. (i, ACrash) \<notin> set tr'"
-        by (meson isPrefix_subset2 local.step(4) no_crash)
+        by (meson isPrefix_subset2 no_crash step.isPrefix)
 
       
 
@@ -1166,7 +1166,7 @@ proof -
                           visibleCalls := visibleCalls S3(i \<mapsto> vis), 
                           happensBefore := happensBefore S3 - vis \<times> {c}\<rparr>)"
       using wf2 no_crash
-    proof (rule show_state_transfer2, goal_cases init step)
+    proof (rule show_state_transfer2, fuzzy_goal_cases init step)
       case init
       thus ?case 
         using dbop wellFormed_happensBefore_calls_r[OF wf] wellFormed_callOrigin_dom3[OF wf]
@@ -1246,7 +1246,7 @@ proof -
       next
         case (ADbOp c' op res)
         with step show ?thesis 
-        proof (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext, goal_cases)
+        proof (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext, fuzzy_goal_cases)
           case (1 ls f ls' t' vis')
 
           have "getContextH (\<lambda>a. if a = c then None else calls Sa a) (happensBefore Sa - vis \<times> {c}) (Some vis')
@@ -1586,7 +1586,7 @@ lemma remove_context_switches_in_transactions:
   case (less trace S)
 
   show ?case
-  proof (rule classical, goal_cases trivial)
+  proof (rule classical, fuzzy_goal_cases trivial)
     case trivial
 
     hence trivial1: "(\<not>P \<Longrightarrow> ?case) \<Longrightarrow> P" for P
@@ -2012,7 +2012,7 @@ theorem show_programCorrect_noTransactionInterleaving'':
       no_invariant_checks_in_transaction trace
     \<rbrakk> \<Longrightarrow> traceCorrect trace"
   shows "programCorrect program"
-proof (rule show_programCorrect_noTransactionInterleaving', rule ccontr, goal_cases g)
+proof (rule show_programCorrect_noTransactionInterleaving', rule ccontr, fuzzy_goal_cases g)
   case (g trace s)
   obtain trace s
     where "initialState program ~~ trace \<leadsto>* s"

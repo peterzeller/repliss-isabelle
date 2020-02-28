@@ -1,7 +1,9 @@
 section "Consistency"
 
 theory consistency
-imports repliss_sem execution_invariants
+  imports repliss_sem 
+    execution_invariants
+    "fuzzyrule.fuzzy_goal_cases"
 begin
 
 
@@ -64,7 +66,7 @@ lemma chooseSnapshot_causallyConsistent_preserve:
     and a2': "trans (happensBefore S)"
     and a3: "causallyConsistent (happensBefore S) vis"
   shows "causallyConsistent (happensBefore S) snapshot"
-  using a1 a3 proof (auto simp add: chooseSnapshot_def downwardsClosure_def causallyConsistent_def, intro exI conjI, goal_cases A)
+  using a1 a3 proof (auto simp add: chooseSnapshot_def downwardsClosure_def causallyConsistent_def, intro exI conjI, fuzzy_goal_cases A)
   case (A newTxns c1 c2 y)
   show "(c2, y) \<in> happensBefore S"
     using `(c2, c1) \<in> happensBefore S`

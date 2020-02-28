@@ -51,14 +51,14 @@ next
 
     from AInvoc step_s
     show False
-    proof (auto simp add: step_s.simps, goal_cases InvocStep)
+    proof (auto simp add: step_s.simps, fuzzy_goal_cases InvocStep)
       case (InvocStep initState impl S_invoc)
-
+      
       have h1: "localState S_invoc i = None"
-        using InvocStep(6) InvocStep(9) wf_localState_to_invocationOp by blast
+        using InvocStep.invocationOp_def2 InvocStep.state_wellFormed wf_localState_to_invocationOp by blast
 
       have "\<And>x. x \<in> uniqueIds p \<Longrightarrow> x \<in> knownIds S_invoc"
-        using InvocStep(5) by blast
+        using InvocStep.less_eq by blast
 
       from h1 
       have "S_invoc ~~ (i,a) \<leadsto> S'"

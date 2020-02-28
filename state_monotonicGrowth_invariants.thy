@@ -98,7 +98,7 @@ lemma state_monotonicGrowth_step:
     and "i' \<noteq> i"
     and "a \<noteq> ACrash"
   shows "state_monotonicGrowth i S S''"
-  using assms proof (auto simp add: state_monotonicGrowth_def, goal_cases G )
+  using assms proof (auto simp add: state_monotonicGrowth_def, fuzzy_goal_cases G )
   case (G tr)
   then show ?case
     by (auto simp add: steps_step intro!: exI[where x="tr@[(i',a)]"])
@@ -309,7 +309,7 @@ proof
         have "callOrigin Sb c \<noteq> Some tx"
         proof (cases rule: step.cases)
           case (dbop i' ls f Op ls' t c' res vis)
-          then show ?thesis  using \<open>callOrigin Sa c \<noteq> Some tx\<close> proof (auto, goal_cases)
+          then show ?thesis  using \<open>callOrigin Sa c \<noteq> Some tx\<close> proof (auto, fuzzy_goal_cases)
             case 1
             show "?case"
               by (metis \<open>callOrigin S c \<noteq> Some tx\<close> a0 assms(1) assms(2) not_Some_eq state_monotonicGrowth_callOrigin state_monotonicGrowth_currentTransaction state_monotonicGrowth_visibleCalls state_monotonicGrowth_wf2 state_wellFormed_tx_to_visibleCalls that wellFormed_callOrigin_dom3 wellFormed_state_calls_from_current_transaction_in_vis wellFormed_visibleCallsSubsetCalls2)

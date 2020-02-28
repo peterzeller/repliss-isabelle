@@ -255,7 +255,7 @@ proof M_show_programCorrect
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
             apply (auto simp add: )
             apply (repliss_vcg_l asmUnfold: loop_inv_def)
-          proof (goal_cases loop_inv_start final loop_body )
+          proof (fuzzy_goal_cases loop_inv_start final loop_body )
             case loop_inv_start
             show ?case
               unfolding loop_inv_def
