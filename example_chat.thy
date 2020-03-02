@@ -541,6 +541,8 @@ proof -
 
 qed
 
+declare invariantContext.defs[simp]
+
 
 theorem chat_app_correct: "programCorrect progr"
 proof M_show_programCorrect
@@ -609,50 +611,49 @@ proof M_show_programCorrect
             if tx_fresh: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
               and inv_initial: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> SendMessage author content), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-            apply repliss_vcg_l
           proof (repliss_vcg_l, fuzzy_goal_cases "AtCommit" "AtReturn" )
-            case (AtCommit v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
+            case (AtCommit v vn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb PS')
 
             have [simp]: "res = Undef"
-              using local.AtCommit(16)
+              using AtCommit.crdtSpec
               by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def)
             have [simp]:"resa = Undef"
-              using local.AtCommit(17)
+              using AtCommit.crdtSpec2
               by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def)
 
             have [simp]:"resb = Undef"
-              using local.AtCommit(18)
+              using AtCommit.crdtSpec3
               by (auto simp add: crdtSpec_def struct_field_def set_rw_spec_def)
 
             have [simp]:  "in_sequence [c, ca, cb] c ca"
               by (simp add: in_sequence_cons)
 
-            have "new_unique_not_in_calls s_calls' (to_nat v)"
-              by (meson AtCommit(13) uid_is_private'_def)
+            have "new_unique_not_in_calls s_calls' vn"
+              by (meson AtCommit.uid_is_private' uid_is_private'_def)
 
 
-            hence no_v: "to_nat v \<notin> uniqueIds opr" if "s_calls' c \<triangleq> Call opr r" for c opr r
+            hence no_v: "vn \<notin> uniqueIds opr" if "s_calls' c \<triangleq> Call opr r" for c opr r
               by (meson new_unique_not_in_calls_def that)
 
             have [simp]: "s_calls' delete \<noteq> Some (Call (Message (DeleteKey v)) Undef)" for delete
               apply auto
               apply (drule no_v)
-             using `uniqueIds_val_r v = {to_nat v}` by auto
+             using `uniqueIds_val_r v = {vn}` by auto
 
             from AtCommit
             show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases  inv2 inv3 inv4)
-              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv2)
               then show ?case
-                by (auto simp add: inv2_def exists_cases1)
+                by (auto simp add: inv2_def exists_cases1 )
 
             next
-              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv3 )
               
               from inv3 show ?case 
                 by (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong, meson)
             next
-              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv4)
               then show ?case 
                 by (auto simp add: inv4_def is_update_operation_def in_sequence_cons updateHb_cases)
             qed
@@ -660,13 +661,12 @@ proof M_show_programCorrect
               
           next
             case (AtReturn v tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
-            then show ?case
+            from AtReturn.inv2
+            show ?case
               apply (auto simp add: inv_def)
               apply (auto simp add: inv1_def)
               by (smt map_upd_Some_unfold proc.inject(1))
-
           qed
-
         qed
       qed
 

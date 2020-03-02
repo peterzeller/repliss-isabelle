@@ -264,7 +264,8 @@ definition step_io :: "
   \<Rightarrow> bool \<comment> \<open>step is correct\<close>
   \<Rightarrow> bool " where
   "step_io progInv qrySpec S cmd S' cmd' Inv \<equiv> 
-  case cmd of
+  (Inv \<longrightarrow> proof_state_wellFormed S')
+  \<and> (case cmd of
     WaitReturn r \<Rightarrow> False
   | WaitLocalStep cont \<Rightarrow> 
        (\<exists>store' ok.  
@@ -278,7 +279,6 @@ definition step_io :: "
           cmd' = n
         \<and> Inv
         \<and> ps_tx S = None
-        \<and> proof_state_wellFormed S'
         \<and> progInv (invariantContext.truncate (S'\<lparr>transactionOrigin := transactionOrigin'(t := None) \<rparr>))
         \<and> transactionOrigin' t \<triangleq> (ps_i S) 
         \<and> (\<forall>t'. t' \<noteq> t \<longrightarrow> (transactionOrigin S t' \<triangleq> ps_i S \<longleftrightarrow> transactionOrigin' t' \<triangleq> ps_i S))
@@ -342,7 +342,7 @@ definition step_io :: "
   | Loop i body n \<Rightarrow> 
       cmd' = loop_body_from_V body i \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x )
       \<and> Inv
-      \<and> (S' = S)
+      \<and> (S' = S))
 "
 
 
@@ -620,10 +620,6 @@ proof (rule ccontr)
 
       show False
       proof (rule goal, intro exI conjI impI)
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd' Inv"
-          by (auto simp add: step_io_def c0 c2 action_def Inv PS'_def)
-
-
         show "proof_state_rel PS' S'" if Inv
           unfolding proof_state_rel_def 
         proof (intro conjI)
@@ -691,6 +687,10 @@ proof (rule ccontr)
 
         qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def S'_def PS'_def  split: option.splits)[1]); fail)+
 
+
+        
+        thus "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd' Inv"
+          by (auto simp add: step_io_def c0 c2 action_def Inv PS'_def show_proof_state_wellFormed)
 
         show "currentCommand S' i = cmd' \<bind> cmdCont"
           if c0: "Inv"
@@ -1127,7 +1127,9 @@ proof (rule ccontr)
 
 
         show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' n Inv"
-          by (clarsimp simp add: step_io_def WaitEndAtomic PS'_def inv A(11))
+          using show_proof_state_wellFormed[OF `proof_state_rel PS' S'`]
+          by (auto simp add: step_io_def WaitEndAtomic PS'_def inv A(11))
+
       qed
     qed
 
@@ -1248,7 +1250,7 @@ proof (rule ccontr)
 
 
         show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd' Inv"
-        proof (auto simp add: step_io_def WaitNewId, intro exI conjI)
+        proof (auto simp add: step_io_def WaitNewId; (intro exI conjI)?)
 
           from `f ls = NewId ls'`
           have "toImpl ls = NewId ls'"
@@ -1292,6 +1294,9 @@ proof (rule ccontr)
 
           show "P uidv"
             using A(10) A(3) A(4) A(7) WaitNewId currentProc ls_def option.inject by fastforce
+
+          show "Inv \<Longrightarrow> proof_state_wellFormed PS'"
+            using show_proof_state_wellFormed[OF `proof_state_rel PS' S'`] by simp
 
         qed
       qed
@@ -1558,7 +1563,8 @@ proof (rule ccontr)
             show "uniqueIds Op \<subseteq> ps_localKnown PS"
               using validUids by auto
 
-
+            show "Inv \<Longrightarrow> proof_state_wellFormed PS'"
+              using show_proof_state_wellFormed[OF `proof_state_rel PS' S'`] by simp
 
           qed (auto simp add: PS'_def \<open>Inv\<close>)
         qed
@@ -1651,11 +1657,11 @@ proof (rule ccontr)
         show "currentCommand S' i = (loop_body_from_V body init \<bind>io (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) \<bind>io cmdCont"
           using i_def ls_S' by auto
 
+              
         show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS
          (loop_body_from_V body init \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) Inv"
-          by (auto simp add: step_io_def Loop `Inv`)
-
-
+          using `proof_state_rel PS S`
+          by (auto simp add: step_io_def Loop `Inv` show_proof_state_wellFormed)
 
       qed
     qed
@@ -1728,6 +1734,102 @@ lemma proof_state_wellFormed'_localCalls_subset_calls':
   using assms unfolding proof_state_wellFormed'_def 
   by auto
 
+
+
+lemma proof_state_wellFormed_finite_store:
+  assumes "proof_state_wellFormed S"
+  shows "finite (dom (ps_store S))"
+  using assms unfolding proof_state_wellFormed_def
+  using proof_state_rel_fact(25) by blast 
+
+lemma proof_state_wellFormed_localCalls:
+  assumes "proof_state_wellFormed S"
+    and "ps_tx S = None"
+  shows "ps_localCalls S = []"
+  using assms unfolding proof_state_wellFormed_def
+  using proof_state_rel_fact(15) by force 
+
+lemma proof_state_wellFormed_happensBefore_subset_calls:
+  assumes "proof_state_wellFormed S"
+  shows "Field (happensBefore S) \<subseteq> dom (calls S)"
+proof -
+  from assms obtain S' where rel: "proof_state_rel S S'" 
+    unfolding proof_state_wellFormed_def by blast
+
+  hence "state_wellFormed S'"
+    using proof_state_rel_def by blast
+
+  have "Field (happensBefore S') \<subseteq> dom (calls S')"
+    by (meson \<open>state_wellFormed S'\<close> domIff subsetI wellFormed_happensBefore_Field)
+
+  thus ?thesis
+    apply (auto simp add: proof_state_rel_fact[OF rel])
+    by (metis (no_types, hide_lams) Field_Un Un_iff  domIff not_Some_eq  subsetD updateHb_simp_split)
+qed
+
+
+lemma proof_state_wellFormed_disjoint_happensBefore_localCalls:
+  assumes "proof_state_wellFormed S"
+  shows "Field (happensBefore S) \<inter> set (ps_localCalls S) = {}"
+  using assms 
+  using proof_state_rel_fact(19) proof_state_wellFormed_def by blast
+
+
+lemma proof_state_wellFormed_vis_subset_calls:
+  assumes "proof_state_wellFormed S"
+  shows "ps_vis S \<subseteq> dom (calls S)"
+proof -
+  from assms obtain S' where rel: "proof_state_rel S S'" 
+    unfolding proof_state_wellFormed_def by blast
+
+  hence "state_wellFormed S'"
+    using proof_state_rel_def by blast
+
+  from proof_state_rel_fact[OF rel]
+  have "visibleCalls S' (ps_i S) \<triangleq> (ps_vis S \<union> set (ps_localCalls S))" 
+    by simp
+
+
+  thus ?thesis
+    using \<open>calls S' = calls S\<close> \<open>state_wellFormed S'\<close>  wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
+qed
+
+
+lemma proof_state_wellFormed_vis_subset_calls':
+  assumes "proof_state_wellFormed S"
+  shows "c \<in> ps_vis S \<Longrightarrow> \<exists>y. calls S c \<triangleq> y"
+  using assms 
+  by (meson in_dom proof_state_wellFormed_vis_subset_calls)
+
+
+lemma proof_state_wellFormed_localCalls_subset_calls:
+  assumes "proof_state_wellFormed S"
+  shows "set (ps_localCalls S) \<subseteq> dom (calls S)"
+proof -
+  from assms obtain S' where rel: "proof_state_rel S S'" 
+    unfolding proof_state_wellFormed_def by blast
+
+  hence "state_wellFormed S'"
+    using proof_state_rel_def by blast
+
+  from proof_state_rel_fact[OF rel]
+  have "case ps_tx S of None \<Rightarrow> ps_localCalls S = [] | Some tx' \<Rightarrow> set (ps_localCalls S) = {c. callOrigin S' c \<triangleq> tx'}" 
+    by simp
+
+
+  thus ?thesis
+    apply (auto simp add:  split: option.splits)
+    by (metis \<open>calls S' = calls S\<close> \<open>state_wellFormed S'\<close> option.distinct(1) option.exhaust_sel wf_callOrigin_and_calls)
+qed
+
+lemma proof_state_wellFormed_localCalls_subset_calls':
+  assumes "proof_state_wellFormed S"
+  shows "c \<in> set (ps_localCalls S) \<Longrightarrow> \<exists>y. calls S c \<triangleq> y"
+  using assms 
+  by (meson domD proof_state_wellFormed_localCalls_subset_calls subset_iff)
+
+
+
 lemma proof_state_wellFormed_implies:
   assumes wf:
  "proof_state_wellFormed PS"
@@ -1773,9 +1875,14 @@ proof (intro conjI)
     by (metis (no_types, lifting) \<open>state_wellFormed S\<close> domExists_simp proof_state_rel_fact(2) rel wellFormed_callOrigin_dom)
 qed
 
-
-
 lemma step_io_wf_maintained:
+  assumes wf: "proof_state_wellFormed S"
+    and step: "step_io progInv qrySpec S cmd S' cmd' True"
+  shows "proof_state_wellFormed S'"
+  using assms by (auto simp add: step_io_def)
+
+
+lemma step_io_wf_maintained':
   assumes wf: "proof_state_wellFormed' S"
     and step: "step_io progInv qrySpec S cmd S' cmd' True"
   shows "proof_state_wellFormed' S'"
@@ -1880,7 +1987,7 @@ proof (conj_one_by_one pre: wf[simplified proof_state_wellFormed'_def])
   qed (use step pre in \<open>auto simp add: step_io_def split: io.splits\<close>)
 qed
 
-lemma steps_io_wf_maintained:
+lemma steps_io_wf_maintained'2:
   assumes wf: "proof_state_wellFormed' S"
     and steps: "steps_io progInv qrySpec S cmd S' res"
     and ok: "res \<noteq> None"
@@ -1896,13 +2003,41 @@ next
 next
   case (steps_io_step S cmd S' cmd' S'' res)
   then show ?case 
-    using step_io_wf_maintained by blast
+    using step_io_wf_maintained' by blast
 qed
+
+
 
 lemma steps_io_wf_maintained':
   assumes wf: "proof_state_wellFormed' S"
     and steps: "steps_io progInv qrySpec S cmd S' (Some res)"
   shows "proof_state_wellFormed' S'"
+  using local.wf steps steps_io_wf_maintained'2 by fastforce
+
+
+lemma steps_io_wf_maintained:
+  assumes wf: "proof_state_wellFormed S"
+    and steps: "steps_io progInv qrySpec S cmd S' res"
+    and ok: "res \<noteq> None"
+  shows "proof_state_wellFormed S'"
+  using steps wf ok proof (induct)
+  case (steps_io_final  S res)
+  then show ?case 
+    by auto
+next
+  case (steps_io_error  S cmd S' cmd')
+  then show ?case 
+    by auto
+next
+  case (steps_io_step S cmd S' cmd' S'' res)
+  then show ?case 
+    using step_io_wf_maintained by blast
+qed
+
+lemma steps_io_wf_maintained_Some:
+  assumes wf: "proof_state_wellFormed S"
+    and steps: "steps_io progInv qrySpec S cmd S' (Some res)"
+  shows "proof_state_wellFormed S'"
   using local.wf steps steps_io_wf_maintained by fastforce
 
 
@@ -2487,7 +2622,7 @@ qed
 definition 
 "execution_s_check progInv qrySpec S cmd P \<equiv>
   \<forall>S' res. steps_io progInv qrySpec S cmd  S' res
-    \<longrightarrow> proof_state_wellFormed' S
+    \<longrightarrow> proof_state_wellFormed S
     \<longrightarrow> (case res of Some r \<Rightarrow> P S' r | None \<Rightarrow> False)
   "
 
@@ -2594,7 +2729,7 @@ proof (auto simp add:  execution_s_correct_def)
     from c 
     have c1:  "(case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r)"
       if "steps_io (invariant progr) (querySpec progr) PS ls  S' res"
-        and "proof_state_wellFormed' PS"
+        and "proof_state_wellFormed PS"
       for S' res
       using execution_s_check_def that by blast+
 
@@ -2606,10 +2741,8 @@ proof (auto simp add:  execution_s_correct_def)
       show "prog S = progr"
         by (simp add: progr_def)
       thus "prog S = progr".
-      have "proof_state_wellFormed PS"
+      show "proof_state_wellFormed PS"
         using S_wf \<open>proof_state_rel PS S\<close> show_proof_state_wellFormed by blast
-      thus "proof_state_wellFormed' PS"
-        using proof_state_wellFormed_implies by blast
 
     qed
 
@@ -2942,7 +3075,7 @@ lemma execution_s_check_proof_rule:
 and cont: "
 \<And>PS' cmd' ok. \<lbrakk>
   step_io Inv crdtSpec PS (cmd \<bind> cont) PS' cmd' ok;
-  proof_state_wellFormed' PS
+  proof_state_wellFormed PS
 \<rbrakk> \<Longrightarrow> 
   ok
   \<and> (\<exists>res. cmd' = cont res
@@ -2951,7 +3084,7 @@ and cont: "
 proof (auto simp add: execution_s_check_def)
   fix S' res
   assume steps_io: "steps_io Inv crdtSpec PS (cmd \<bind> cont) S' res"
-    and PS_wf: "proof_state_wellFormed' PS"
+    and PS_wf: "proof_state_wellFormed PS"
 
   from noReturn
   have noReturn: "cmd \<bind> cont \<noteq> impl_language_loops.io.WaitReturn r" for r
@@ -2966,23 +3099,24 @@ proof (auto simp add: execution_s_check_def)
   next
     case (steps_io_error  S cmd S' cmd')
     have False
-      using steps_io_error.hyps steps_io_error.prems(2) steps_io_error.prems(3) by blast
+      using steps_io_error.hyps steps_io_error.prems(2) steps_io_error.prems(3)
+      by blast
     thus ?case ..
   next
     case (steps_io_step S cmd S' cmd' S'' res)
 
-    from steps_io_step(5)[OF steps_io_step(1) `proof_state_wellFormed' S`]
+    from steps_io_step(5)[OF steps_io_step(1) `proof_state_wellFormed S`]
     obtain r where "cmd' = cont r" and "execution_s_check Inv crdtSpec S' (cont r) P"
       by auto
 
-    from `proof_state_wellFormed' S`
-    have "proof_state_wellFormed' S'"
+    from `proof_state_wellFormed S`
+    have "proof_state_wellFormed S'"
       using step_io_wf_maintained steps_io_step.hyps(1) by blast
 
 
 
     show ?case
-      using `cmd' = cont r` `execution_s_check Inv crdtSpec S' (cont r) P` \<open>proof_state_wellFormed' S'\<close> execution_s_check_def steps_io_step.hyps(2) by blast
+      using `cmd' = cont r` `execution_s_check Inv crdtSpec S' (cont r) P` \<open>proof_state_wellFormed S'\<close> execution_s_check_def steps_io_step.hyps(2) by blast
   qed
 qed
 
@@ -3142,19 +3276,19 @@ qed
 lemma execution_s_check_split:
   assumes ec: "execution_s_check Inv crdtSpec S (cmd \<bind> cont) P"
 and steps: "steps_io Inv crdtSpec S cmd S' (Some res)"
-and wf: "proof_state_wellFormed' S"
+and wf: "proof_state_wellFormed S"
 shows "execution_s_check Inv crdtSpec S' (cont res) P"
   unfolding execution_s_check_def proof (intro allI impI)
 
   fix S'a res'
   assume a0: "steps_io Inv crdtSpec S' (cont res) S'a res'"
-    and a1: "proof_state_wellFormed' S'"
+    and a1: "proof_state_wellFormed S'"
 
 
   from ec
   have ec': "case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r" 
     if "steps_io Inv crdtSpec S (cmd \<bind> cont) S' res"
-      and "proof_state_wellFormed' S"
+      and "proof_state_wellFormed S"
     for S' res
     using execution_s_check_def that by blast
     
@@ -3164,11 +3298,12 @@ shows "execution_s_check Inv crdtSpec S' (cont res) P"
   proof (rule ec')
     show "steps_io Inv crdtSpec S (cmd \<bind> cont) S'a res'"
       by (meson a0 steps steps_io_combine_ok)
-    show "proof_state_wellFormed' S"
+    show "proof_state_wellFormed S"
       using wf .
   qed
 qed
 
+(*
 lemma steps_io_loop_unroll:
   shows "steps_io progInv qrySpec S (loop body) S' res
      \<longleftrightarrow> steps_io progInv qrySpec S (body \<bind> (\<lambda>r. if r then return () else loop body)) S' res" (is "?left \<longleftrightarrow> ?right")
@@ -3213,6 +3348,7 @@ next
 
   qed
 qed
+*)
 
 lemma steps_io_return:
   assumes "steps_io progInv qrySpec S (return r) S' res"
@@ -3478,7 +3614,7 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
   unfolding execution_s_check_def proof (intro allI impI)
   fix S' res
   assume steps_io: "steps_io Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) S' res"
-    and PS_wf: "proof_state_wellFormed' PS"
+    and PS_wf: "proof_state_wellFormed PS"
 
   from steps_io_bind_split[OF steps_io]
   obtain Si
@@ -3492,7 +3628,7 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
       | Some True \<Rightarrow> execution_s_check Inv crdtSpec PS' (cont ()) P 
       | Some False \<Rightarrow> LoopInv PS PS'"
     if "LoopInv PS PSl"
-      and "proof_state_wellFormed' PS"
+      and "proof_state_wellFormed PS"
       and "steps_io Inv crdtSpec PS body PS' loopR"
     for PSl PS' loopR
     by (smt PS_wf cont inv_pre option.case_eq_if that use_execution_s_check)
@@ -3506,18 +3642,18 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
     assume steps_loop: "steps_io Inv crdtSpec PS (loop body) Si r"
     from this
     have "Pl Si \<and> r \<triangleq> ()"
-    proof (rule loop_steps[where LoopInv="\<lambda>PSl. LoopInv PS PSl \<and> proof_state_wellFormed' PSl"])
-      show "LoopInv PS PS \<and> proof_state_wellFormed' PS"
+    proof (rule loop_steps[where LoopInv="\<lambda>PSl. LoopInv PS PSl \<and> proof_state_wellFormed PSl"])
+      show "LoopInv PS PS \<and> proof_state_wellFormed PS"
         by (simp add: inv_pre PS_wf)
 
 
-      show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed' Sb"
-        if "LoopInv PS S \<and> proof_state_wellFormed' S"
+      show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed Sb"
+        if "LoopInv PS S \<and> proof_state_wellFormed S"
           and steps: "steps_io Inv crdtSpec S body Sb br"
         for  S Sb br
       proof -
         from  that
-        have inv: "LoopInv PS S" and wf: "proof_state_wellFormed' S" 
+        have inv: "LoopInv PS S" and wf: "proof_state_wellFormed S" 
           by auto
 
         from cont[OF inv]
@@ -3527,7 +3663,7 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
         from use_execution_s_check[OF check, OF steps, OF wf]
         have c: "case br of None \<Rightarrow> False | Some r \<Rightarrow> if r then execution_s_check Inv crdtSpec Sb (cont ()) P else LoopInv PS Sb" .
 
-        show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed' Sb"
+        show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed Sb"
         proof (cases br)
           case None
           thus ?thesis
@@ -3562,8 +3698,9 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
             proof auto
               show "LoopInv PS Sb"
                 using c by auto
-              show "proof_state_wellFormed' Sb"
-                using local.wf steps steps_io_wf_maintained' by fastforce
+              show "proof_state_wellFormed Sb"
+
+                using local.wf steps steps_io_wf_maintained by fastforce
             qed
           qed
         qed
@@ -3617,11 +3754,11 @@ proof (rule execution_s_check_proof_rule)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
     if step: "step_io Inv crdtSpec PS (makeRef a \<bind> cont) PS' cmd' ok"
-      and PS_wf: "proof_state_wellFormed' PS"
+      and PS_wf: "proof_state_wellFormed PS"
     for  PS' cmd' ok
   proof
     have [simp]: "finite (dom (ps_store PS))"
-      using PS_wf proof_state_wellFormed'_def by blast
+      by (simp add: PS_wf proof_state_wellFormed'_finite_store proof_state_wellFormed_implies)
 
 
 
@@ -3653,9 +3790,11 @@ proof (rule execution_s_check_proof_rule)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
     if c0: "step_io Inv crdtSpec PS (read r \<bind> cont) PS' cmd' ok"
-      and c1: "proof_state_wellFormed' PS"
+      and c1: "proof_state_wellFormed PS"
     for  PS' cmd' ok
-    using that validRef cont[simplified s_read_def] by (auto simp add:  step_io_def read_def proof_state_wellFormed'_def intro!: exI)
+    using that validRef cont[simplified s_read_def] 
+      proof_state_wellFormed'_finite_store[OF proof_state_wellFormed_implies[OF c1]]
+    by (auto simp add:  step_io_def read_def  intro!: exI)
 qed
 
 lemma execution_s_check_assign:
@@ -3672,9 +3811,10 @@ proof (rule execution_s_check_proof_rule)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
     if c0: "step_io Inv crdtSpec PS (r :\<leftarrow> v \<bind> cont) PS' cmd' ok"
-      and c1: "proof_state_wellFormed' PS"
+      and c1: "proof_state_wellFormed PS"
     for  PS' cmd' ok
-    using that validRef cont by (auto simp add:  step_io_def assign_def proof_state_wellFormed'_def )
+    using that validRef cont proof_state_wellFormed_finite_store by (auto simp add:  step_io_def assign_def , blast+ )
+
 qed
 
 lemma execution_s_check_newId:
@@ -3699,12 +3839,12 @@ proof (rule execution_s_check_proof_rule)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
     if c0: "step_io Inv crdtSpec PS (impl_language_loops.newId tc \<bind> cont) PS' cmd' ok"
-      and c1: "proof_state_wellFormed' PS"
+      and c1: "proof_state_wellFormed PS"
     for PS' cmd' ok
     using that 
   proof (auto simp add:  step_io_def newId_def, intro exI conjI)
     fix uidv uid
-    assume a0: "proof_state_wellFormed' PS"
+    assume a0: "proof_state_wellFormed PS"
       and a1: "cmd' = cont uidv"
       and a2: "ok"
       and a3: "uniqueIds uidv = {uid}"
@@ -3712,7 +3852,6 @@ proof (rule execution_s_check_proof_rule)
       and a5: "uid_fresh uid PS"
       and a6: "PS' = PS         \<lparr>ps_localKnown := insert uid (ps_localKnown PS), ps_generatedLocal := insert uid (ps_generatedLocal PS),            ps_generatedLocalPrivate := insert uid (ps_generatedLocalPrivate PS)\<rparr>"
       and step: "step_io Inv crdtSpec PS (impl_language_loops.newId tc \<bind> cont) PS' cmd' ok"
-      and a8: "proof_state_wellFormed' PS"
       and a9: "tc uidv"
 
 
@@ -3794,7 +3933,7 @@ proof (rule execution_s_check_proof_rule)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
     if steo_io: "step_io Inv crdtSpec PS (impl_language_loops.beginAtomic \<bind> cont) PS' cmd' ok"
-      and wf: "proof_state_wellFormed' PS"
+      and wf: "proof_state_wellFormed PS"
     for  PS' cmd' ok
     using steo_io 
   proof (auto simp add:  step_io_def beginAtomic_def, fuzzy_goal_cases Step)
@@ -3848,7 +3987,7 @@ proof (rule execution_s_check_proof_rule)
       proof (auto simp add: proof_state_ext)
         show "ps_localCalls PS = []"
           using wf
-        proof (rule proof_state_wellFormed'_localCalls)
+        proof (rule proof_state_wellFormed_localCalls)
           show "ps_tx PS = None"
             using \<open>ps_tx PS = None\<close> by auto
         qed
@@ -3992,7 +4131,7 @@ proof (rule execution_s_check_proof_rule)
 
         from `callOrigin' c \<triangleq> tx` proof_state_rel_fact(4)[OF CS'_rel]
         have "callOrigin CS' c \<triangleq> tx"
-          by (auto simp add: Step.ps_tx_eq proof_state_wellFormed'_localCalls that(2))
+          by (auto simp add: Step.ps_tx_eq proof_state_wellFormed_localCalls that(2))
 
         have "transactionStatus CS' tx \<noteq> Some Committed"
           using `ps_firstTx PS` `transactionOrigin CS' tx \<triangleq> ps_i PS` `callOrigin CS' c \<triangleq> tx`
@@ -4066,7 +4205,7 @@ proof (rule execution_s_check_proof_rule)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
     if step_io: "step_io Inv crdtSpec PS (impl_language_loops.call Op \<bind> cont) PS' cmd' ok"
-      and wf: "proof_state_wellFormed' PS"
+      and wf: "proof_state_wellFormed PS"
     for  PS' cmd' ok
   proof 
 
@@ -4097,7 +4236,7 @@ proof (rule execution_s_check_proof_rule)
          res"
         proof (fuzzy_rule c3)
           have wf2: "Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}"
-            by (simp add: local.wf proof_state_wellFormed'_disjoint_happensBefore_localCalls)
+            by (simp add: local.wf proof_state_wellFormed_disjoint_happensBefore_localCalls)
 
           hence wf2': "x \<notin> set (ps_localCalls PS) \<and> y \<notin> set (ps_localCalls PS)" 
             if "(x,y)\<in>happensBefore PS"
@@ -4165,7 +4304,7 @@ proof (rule execution_s_check_proof_rule)
 
   show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
     if step_io: "step_io Inv crdtSpec PS (endAtomic \<bind> cont) PS' cmd' ok"
-      and wf: "proof_state_wellFormed' PS"
+      and wf: "proof_state_wellFormed PS"
     for  PS' cmd' ok
   proof
 
@@ -4176,7 +4315,7 @@ proof (rule execution_s_check_proof_rule)
       by (auto simp add: step_io_def endAtomic_def split: io.splits if_splits)
 
 
-    have "Inv (invariantContext.truncate PS')
+    have cont2: "Inv (invariantContext.truncate PS')
       \<and> execution_s_check Inv crdtSpec PS' (cont res) P"
     proof (rule cont)
 
@@ -4192,21 +4331,15 @@ proof (rule execution_s_check_proof_rule)
 
 
       show "distinct (ps_localCalls PS)"
-        sledgehammer[spass]
-        sorry
-      show "\<And>c. c \<in> set (ps_localCalls PS) \<Longrightarrow> callOrigin PS c = None"
-        sledgehammer[spass]
-        sorry
+        using local.wf proof_state_rel_fact(20) proof_state_wellFormed_def by blast
       show "\<And>c. c \<in> set (ps_localCalls PS) \<Longrightarrow> c \<notin> ps_vis PS"
-        sledgehammer[spass]
-        sorry
+        by (meson disjoint_iff_not_equal local.wf proof_state_rel_fact(17) proof_state_wellFormed_def)
       show "\<And>c c'. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c, c') \<notin> happensBefore PS"
-        sledgehammer[spass]
-        sorry
+        by (meson FieldI1 disjoint_iff_not_equal local.wf proof_state_wellFormed'_disjoint_happensBefore_localCalls proof_state_wellFormed_implies)
       show "\<And>c c'. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c', c) \<notin> happensBefore PS"
-        sledgehammer[spass]
-        sorry
-
+        by (meson FieldI2 disjoint_iff_not_equal local.wf proof_state_wellFormed'_disjoint_happensBefore_localCalls proof_state_wellFormed_implies)
+      show "\<And>c. c \<in> set (ps_localCalls PS) \<Longrightarrow> callOrigin PS c = None"
+        by (meson disjoint_iff_not_equal domIff local.wf proof_state_rel_fact(18) proof_state_wellFormed_def)
 
       show "invocation_happensBeforeH
           (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS(tx \<mapsto> ps_i PS))) 
@@ -4219,18 +4352,32 @@ proof (rule execution_s_check_proof_rule)
           else
           invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
           - {ps_i PS} \<times> {i'. (ps_i PS,i') \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS) })"
+        sorry
+    qed
 
+    thus "\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P"
+      using cmd'_def by auto
+
+
+    show ok unfolding ok_def 
+      by (fuzzy_rule cont2[THEN conjunct1], auto simp add: proof_state_ext PS'_def)
+
+    
+
+  qed
+qed
 
 
 
 lemma execution_s_check_return:
-  assumes finalCheck: "proof_state_wellFormed' PS \<Longrightarrow> P PS r"
+  assumes finalCheck: "proof_state_wellFormed PS \<Longrightarrow> P PS r"
   shows "execution_s_check Inv crdtSpec PS (return r) P"
   using finalCheck
 unfolding execution_s_check_def steps_io_return_iff by auto
 
 subsection "Verification Condition Generation Tactics"
 
+lemmas execution_s_check_endAtomic' = execution_s_check_endAtomic[rotated 2, OF context_conjI]
 
 lemmas repliss_proof_rules = 
   execution_s_check_makeRef
@@ -4241,10 +4388,11 @@ lemmas repliss_proof_rules =
   execution_s_check_newId
   execution_s_check_beginAtomic
   execution_s_check_call
+  execution_s_check_endAtomic'
   show_finalCheck
 
 method repliss_vcg_step1 uses asmUnfold = 
-  (rule repliss_proof_rules; ((subst(asm) asmUnfold)+)?; (intro impI conjI)?; clarsimp?; (intro impI conjI)?)
+  (rule repliss_proof_rules; ((subst(asm) asmUnfold)+)?; (intro impI conjI)?; clarsimp?; (intro impI conjI)?; (rule refl)?)
 
 method repliss_vcg_step uses asmUnfold = 
   (repliss_vcg_step1 asmUnfold: asmUnfold; (repliss_vcg_step asmUnfold: asmUnfold)?)
