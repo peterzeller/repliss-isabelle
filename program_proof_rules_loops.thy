@@ -1672,6 +1672,9 @@ definition proof_state_wellFormed' :: "('proc::valueType, 'any::valueType, 'oper
 "proof_state_wellFormed' S \<equiv> 
     finite (dom (ps_store S))
    \<and> (ps_tx S = None \<longrightarrow> ps_localCalls S = [])
+   \<and> Field (happensBefore S) \<subseteq> dom (calls S) - set (ps_localCalls S)
+   \<and> ps_vis S \<subseteq> dom (calls S)
+   \<and> set (ps_localCalls S) \<subseteq> dom (calls S)
 "
 
 lemma proof_state_wellFormed'_finite_store:
@@ -1687,40 +1690,194 @@ lemma proof_state_wellFormed'_localCalls:
   using assms unfolding proof_state_wellFormed'_def 
   by auto
 
+lemma proof_state_wellFormed'_happensBefore_subset_calls:
+  assumes "proof_state_wellFormed' S"
+  shows "Field (happensBefore S) \<subseteq> dom (calls S)"
+  using assms unfolding proof_state_wellFormed'_def 
+  by auto
+
+
+lemma proof_state_wellFormed'_disjoint_happensBefore_localCalls:
+  assumes "proof_state_wellFormed' S"
+  shows "Field (happensBefore S) \<inter> set (ps_localCalls S) = {}"
+  using assms unfolding proof_state_wellFormed'_def 
+  by auto
+
+lemma proof_state_wellFormed'_vis_subset_calls:
+  assumes "proof_state_wellFormed' S"
+  shows "ps_vis S \<subseteq> dom (calls S)"
+  using assms unfolding proof_state_wellFormed'_def 
+  by auto
+
+lemma proof_state_wellFormed'_vis_subset_calls':
+  assumes "proof_state_wellFormed' S"
+  shows "c \<in> ps_vis S \<Longrightarrow> \<exists>y. calls S c \<triangleq> y"
+  using assms unfolding proof_state_wellFormed'_def 
+  by auto
+
+
+lemma proof_state_wellFormed'_localCalls_subset_calls:
+  assumes "proof_state_wellFormed' S"
+  shows "set (ps_localCalls S) \<subseteq> dom (calls S)"
+  using assms unfolding proof_state_wellFormed'_def 
+  by auto
+
+lemma proof_state_wellFormed'_localCalls_subset_calls':
+  assumes "proof_state_wellFormed' S"
+  shows "c \<in> set (ps_localCalls S) \<Longrightarrow> \<exists>y. calls S c \<triangleq> y"
+  using assms unfolding proof_state_wellFormed'_def 
+  by auto
+
+lemma proof_state_wellFormed_implies:
+  assumes wf:
+ "proof_state_wellFormed PS"
+shows "proof_state_wellFormed' PS"
+  unfolding proof_state_wellFormed'_def
+proof (intro conjI)
+  from wf obtain S where rel: "proof_state_rel PS S"
+    unfolding proof_state_wellFormed_def by blast
+
+  have "state_wellFormed S"
+    using \<open>proof_state_rel PS S\<close> proof_state_rel_fact(1) by blast
+
+  thm proof_state_rel_fact[OF rel]
+  have "dom (callOrigin PS) \<inter> set (ps_localCalls PS) = {}"
+    using proof_state_rel_fact(18) rel by blast
+  have "Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}"
+    using proof_state_rel_fact(19) rel by blast
+
+  have tx_cases: "case ps_tx PS of None \<Rightarrow> ps_localCalls PS = [] | Some tx' \<Rightarrow> set (ps_localCalls PS) = {c. callOrigin S c \<triangleq> tx'}"
+    using proof_state_rel_fact(15) rel by blast
+
+  have "Field (happensBefore S) \<subseteq> dom (calls S)"
+    by (meson \<open>state_wellFormed S\<close> domIff subsetI wellFormed_happensBefore_Field)
+  have "Field (happensBefore PS) \<subseteq> Field (happensBefore S)"
+    by (auto simp add: proof_state_rel_fact[OF rel] Field_def updateHb_cases)
+
+  have "Field (happensBefore PS) \<subseteq> dom (calls PS)"
+    using \<open>Field (happensBefore PS) \<subseteq> Field (happensBefore S)\<close> \<open>Field (happensBefore S) \<subseteq> dom (calls S)\<close> proof_state_rel_fact(2) rel by fastforce
+
+  show "finite (dom (ps_store PS))"
+    using local.wf proof_state_rel_fact(25) proof_state_wellFormed_def by blast
+ show "ps_tx PS = None \<longrightarrow> ps_localCalls PS = []"
+    using \<open>proof_state_rel PS S\<close> proof_state_rel_fact(15) by fastforce
+  show "Field (happensBefore PS) \<subseteq> dom (calls PS) - set (ps_localCalls PS)"
+    using tx_cases \<open>Field (happensBefore PS) \<subseteq> dom (calls PS)\<close>
+    \<open>Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}\<close>
+    by (auto simp add: split: option.splits)
+  show "ps_vis PS \<subseteq> dom (calls PS)"
+    using \<open>state_wellFormed S\<close> proof_state_rel_fact(12) proof_state_rel_fact(2) rel wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
+  show "set (ps_localCalls PS) \<subseteq> dom (calls PS)"
+    using tx_cases \<open>Field (happensBefore PS) \<subseteq> dom (calls PS)\<close>
+    apply (auto simp add: split: option.splits)
+    by (metis (no_types, lifting) \<open>state_wellFormed S\<close> domExists_simp proof_state_rel_fact(2) rel wellFormed_callOrigin_dom)
+qed
+
 
 
 lemma step_io_wf_maintained:
   assumes wf: "proof_state_wellFormed' S"
     and step: "step_io progInv qrySpec S cmd S' cmd' True"
   shows "proof_state_wellFormed' S'"
-proof (cases cmd)
-case (WaitLocalStep x1)
-  then show ?thesis 
-    using wf step by (auto simp add: step_io_def proof_state_wellFormed'_def)
-next
-  case (WaitBeginAtomic x2)
-  then show ?thesis 
-    using wf step by (auto simp add: step_io_def proof_state_wellFormed'_def)
-next
-  case (WaitEndAtomic x3)
-  then show ?thesis
-    using wf step by (auto simp add: step_io_def proof_state_wellFormed'_def)
-next
-  case (WaitNewId x41 x42)
-  then show ?thesis 
-    using wf step by (auto simp add: step_io_def proof_state_wellFormed'_def)
-next
-  case (WaitDbOperation x51 x52)
-  then show ?thesis 
-    using wf step by (auto simp add: step_io_def proof_state_wellFormed'_def)
-next
-case (WaitReturn x6)
-  then show ?thesis 
-    using wf step by (auto simp add: step_io_def proof_state_wellFormed'_def)
-next
-  case (Loop x71 x72)
-  then show ?thesis 
-    using wf step by (auto simp add: step_io_def proof_state_wellFormed'_def)
+  unfolding proof_state_wellFormed'_def
+proof (conj_one_by_one pre: wf[simplified proof_state_wellFormed'_def])
+  show "finite (dom (ps_store S)) \<Longrightarrow> finite (dom (ps_store S'))"
+    using step by (auto simp add: step_io_def split: io.splits)
+  show "ps_tx S = None \<longrightarrow> ps_localCalls S = [] \<Longrightarrow> ps_tx S' = None \<longrightarrow> ps_localCalls S' = []"
+    using step by (auto simp add: step_io_def split: io.splits)
+  show "ps_vis S' \<subseteq> dom (calls S')" if pre: "ps_vis S \<subseteq> dom (calls S)"
+  proof (cases cmd)
+    case (WaitBeginAtomic x2)
+    then show ?thesis using step  
+    proof (auto simp add: step_io_def split: io.splits, fuzzy_goal_cases G)
+      case (G x t vis' calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes')
+     
+      from G.consistentSnapshotH
+      have "vis' \<subseteq> dom calls'"
+        by (simp add: consistentSnapshotH_def)
+
+      with `x \<in> vis'`
+      show "\<exists>y. calls' x \<triangleq> y"
+        by blast
+    qed
+  next
+    case (WaitEndAtomic x3)
+    then show ?thesis using step 
+    proof (auto simp add: step_io_def split: io.splits, fuzzy_goal_cases A B)
+      case (A x)
+
+      show "\<exists>y. calls S x \<triangleq> y"
+        by (simp add: A.member local.wf proof_state_wellFormed'_vis_subset_calls')
+    next
+      case (B x)
+      then show "\<exists>y. calls S x \<triangleq> y"
+        using local.wf proof_state_wellFormed'_localCalls_subset_calls' by blast
+    qed
+
+  qed (use step pre in \<open>auto simp add: step_io_def split: io.splits\<close>)
+
+  show "Field (happensBefore S') \<subseteq> dom (calls S') - set (ps_localCalls S')"
+    if pre: " Field (happensBefore S) \<subseteq> dom (calls S) - set (ps_localCalls S) "
+  proof (cases cmd)
+    case (WaitBeginAtomic x2)
+    then show ?thesis using step 
+    proof (auto simp add: step_io_def split: io.splits, fuzzy_goal_cases A B)
+      case (A x t vis' calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes')
+
+      from A.proof_state_wellFormed
+      have proof_state_wellFormed':  "proof_state_wellFormed'
+         (S\<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin',
+              transactionOrigin := transactionOrigin', knownIds := knownIds', invocationOp := invocationOp',
+              invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis'\<rparr>)"
+        by (rule proof_state_wellFormed_implies)
+
+
+      from proof_state_wellFormed'_happensBefore_subset_calls[OF proof_state_wellFormed']
+      have "Field happensBefore' \<subseteq> dom calls'"
+        by auto
+
+      from `x \<in> Field happensBefore'`
+      show "\<exists>y. calls' x \<triangleq> y"
+        using \<open>Field happensBefore' \<subseteq> dom calls'\<close> by blast
+    next
+      case (B x t vis' calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes')
+      
+      from `x \<in> Field happensBefore'`
+      show "False"
+        using B.member2 B.ps_tx_eq local.wf proof_state_wellFormed'_localCalls by force
+    qed
+  next
+    case (WaitEndAtomic x3)
+    then show ?thesis using step pre 
+      apply (auto simp add: step_io_def Field_def updateHb_cases split: io.splits)
+      subgoal
+        by blast
+      subgoal
+        using local.wf proof_state_wellFormed'_vis_subset_calls' by blast
+      subgoal
+        by (simp add: in_sequence_in1 local.wf proof_state_wellFormed'_localCalls_subset_calls')
+      subgoal
+        by blast
+      subgoal
+        using local.wf proof_state_wellFormed'_localCalls_subset_calls' by blast
+      subgoal 
+        by (simp add: in_sequence_in2 local.wf proof_state_wellFormed'_localCalls_subset_calls')
+      done
+  next
+  qed (use step pre in \<open>auto simp add: step_io_def split: io.splits\<close>)
+
+    
+  show "set (ps_localCalls S') \<subseteq> dom (calls S')"
+    if  pre: "set (ps_localCalls S) \<subseteq> dom (calls S)"
+  proof (cases cmd)
+    case (WaitBeginAtomic x2)
+    then show ?thesis using step pre
+    proof (auto simp add: step_io_def split: io.splits, fuzzy_goal_cases G)
+      case (G x t vis' calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes')
+      show "\<exists>y. calls' x \<triangleq> y"
+        using G.member G.ps_tx_eq local.wf proof_state_wellFormed'_localCalls by force
+    qed
+  qed (use step pre in \<open>auto simp add: step_io_def split: io.splits\<close>)
 qed
 
 lemma steps_io_wf_maintained:
@@ -1747,10 +1904,6 @@ lemma steps_io_wf_maintained':
     and steps: "steps_io progInv qrySpec S cmd S' (Some res)"
   shows "proof_state_wellFormed' S'"
   using local.wf steps steps_io_wf_maintained by fastforce
-
-lemma proof_state_wellFormed_implies:
- "proof_state_wellFormed PS \<Longrightarrow> proof_state_wellFormed' PS"
-  by (auto simp add: proof_state_wellFormed_def proof_state_rel_def  proof_state_wellFormed'_def)
 
 
 text \<open>We now show that all errors in an execution of the single-invocation semantics 
@@ -3595,8 +3748,7 @@ qed
 
 
 lemma execution_s_check_beginAtomic:
-  assumes infPred: "infinite (Collect tc)"
-    and cont: "\<And>tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis'
+  assumes cont: "\<And>tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis'
  s_invocationOp' s_invocationRes' PS'. \<lbrakk>
 Inv \<lparr>calls = s_calls', 
   happensBefore = s_happensBefore',
@@ -3884,10 +4036,192 @@ proof (rule execution_s_check_proof_rule)
         show "uid_is_private' (ps_i PS) calls' invocationOp' invocationRes' knownIds' v"
           by (simp add: a0 a1 a2 a3 a4 uid_is_private'_def)
       qed
-
     qed
   qed
 qed
+
+
+lemma execution_s_check_call:
+  assumes in_tx: "ps_tx PS \<triangleq> tx"
+    and unique_wf: "uniqueIds Op \<subseteq> ps_localKnown PS"
+and cont: "\<And>c res. \<lbrakk>
+crdtSpec Op \<lparr>
+      calls = calls PS |` (ps_vis PS \<union> set (ps_localCalls PS)), 
+      happensBefore=updateHb (happensBefore PS |r ps_vis PS) (ps_vis PS) (ps_localCalls PS)\<rparr> res
+\<rbrakk> \<Longrightarrow>
+    execution_s_check Inv crdtSpec 
+      (PS\<lparr>calls := (calls PS)(c \<mapsto> Call Op res), 
+        ps_generatedLocalPrivate := ps_generatedLocalPrivate PS - uniqueIds Op,
+        ps_localKnown := ps_localKnown PS \<union> uniqueIds res,
+        ps_localCalls := ps_localCalls PS @ [c]
+       \<rparr>)  
+      (cont res)
+      P"
+  shows "execution_s_check Inv crdtSpec PS (call Op \<bind>io cont) P"
+proof (rule execution_s_check_proof_rule)
+
+  show "\<And>r. impl_language_loops.call Op \<noteq> impl_language_loops.io.WaitReturn r" 
+    unfolding call_def by simp
+
+
+  show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
+    if step_io: "step_io Inv crdtSpec PS (impl_language_loops.call Op \<bind> cont) PS' cmd' ok"
+      and wf: "proof_state_wellFormed' PS"
+    for  PS' cmd' ok
+  proof 
+
+    from step_io  
+    obtain c y res
+      where c0: "ok"
+      and c1: "calls PS c = None"
+      and c2: "ps_tx PS \<triangleq> y"
+      and c3: "crdtSpec Op (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)) (Some (ps_vis PS \<union> set (ps_localCalls PS)))) res"
+      and c4: "cmd' = cont res"
+      and PS'_def: "PS' = PS \<lparr>ps_localKnown := ps_localKnown PS \<union> uniqueIds res, ps_generatedLocalPrivate := ps_generatedLocalPrivate PS - uniqueIds Op, calls := calls PS(c \<mapsto> Call Op res), ps_localCalls := ps_localCalls PS @ [c]\<rparr>"
+      by (auto simp add: step_io_def call_def unique_wf split: if_splits)
+
+    show "ok" using `ok` .
+
+    show "\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P"
+    proof (intro conjI exI[where x=res])
+      show "cmd' = cont res" using c4 .
+
+      show "execution_s_check Inv crdtSpec PS' (cont res) P"
+      proof (fuzzy_rule cont[where c=c])
+
+
+        
+        show "crdtSpec Op
+         \<lparr>calls = calls PS |` (ps_vis PS \<union> set (ps_localCalls PS)),
+            happensBefore = updateHb (happensBefore PS |r ps_vis PS) (ps_vis PS) (ps_localCalls PS)\<rparr>
+         res"
+        proof (fuzzy_rule c3)
+          have wf2: "Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}"
+            by (simp add: local.wf proof_state_wellFormed'_disjoint_happensBefore_localCalls)
+
+          hence wf2': "x \<notin> set (ps_localCalls PS) \<and> y \<notin> set (ps_localCalls PS)" 
+            if "(x,y)\<in>happensBefore PS"
+            for x y
+            using that by (meson FieldI1 FieldI2 disjoint_iff_not_equal) 
+
+          show " getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
+               (Some (ps_vis PS \<union> set (ps_localCalls PS))) =
+              \<lparr>calls = calls PS |` (ps_vis PS \<union> set (ps_localCalls PS)),
+                 happensBefore = updateHb (happensBefore PS |r ps_vis PS) (ps_vis PS) (ps_localCalls PS)\<rparr>"
+            using wf2'
+            by (auto simp add: getContextH_def updateHb_cases restrict_relation_def in_sequence_in1 in_sequence_in2 Field_def)
+        qed
+
+        show "PS\<lparr>calls := calls PS(c \<mapsto> Call Op res),
+           ps_generatedLocalPrivate := ps_generatedLocalPrivate PS - uniqueIds Op ,
+           ps_localKnown := ps_localKnown PS \<union> uniqueIds res,
+           ps_localCalls := ps_localCalls PS @ [c]\<rparr> =
+          PS'"
+          by (auto simp add: proof_state_ext PS'_def)
+      qed
+    qed
+  qed
+qed
+
+
+
+lemma execution_s_check_endAtomic:
+  assumes in_tx: "ps_tx PS \<triangleq> tx"
+    and tx_nonempty: "(ps_localCalls PS) \<noteq> []"
+and cont: "\<And>PS'. \<lbrakk>
+distinct (ps_localCalls PS);
+\<And>c. c\<in>set (ps_localCalls PS) \<Longrightarrow> callOrigin PS c = None;
+\<And>c. c\<in>set (ps_localCalls PS) \<Longrightarrow> c \<notin> ps_vis PS;
+\<And>c c'. c\<in>set (ps_localCalls PS) \<Longrightarrow> (c,c') \<notin> happensBefore PS;
+\<And>c c'. c\<in>set (ps_localCalls PS) \<Longrightarrow> (c',c) \<notin> happensBefore PS;
+invocation_happensBeforeH
+    (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS(tx \<mapsto> ps_i PS))) 
+    (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
+= 
+(if ps_firstTx PS then
+invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
+ \<union> {i' | i' c'. c' \<in> ps_vis PS \<and> i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c' \<triangleq> i' 
+   \<and> (\<forall>c''. i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c'' \<triangleq> i' \<longrightarrow> c'' \<in> ps_vis PS ) } \<times> {ps_i PS}
+else
+invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
+- {ps_i PS} \<times> {i'. (ps_i PS,i') \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS) });
+PS' = PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS), 
+        callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) tx,
+        ps_vis := ps_vis PS \<union> set (ps_localCalls PS),
+        ps_localCalls := [],
+        ps_firstTx := False,
+        ps_tx := None
+       \<rparr>
+
+\<rbrakk> \<Longrightarrow>
+    Inv (invariantContext.truncate PS')
+    \<and> execution_s_check Inv crdtSpec PS' (cont res) P"
+  shows "execution_s_check Inv crdtSpec PS (endAtomic \<bind>io cont) P"
+proof (rule execution_s_check_proof_rule)
+
+  show "\<And>r. impl_language_loops.endAtomic \<noteq> impl_language_loops.io.WaitReturn r"
+    unfolding endAtomic_def by simp
+
+
+  show "ok \<and> (\<exists>res. cmd' = cont res \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
+    if step_io: "step_io Inv crdtSpec PS (endAtomic \<bind> cont) PS' cmd' ok"
+      and wf: "proof_state_wellFormed' PS"
+    for  PS' cmd' ok
+  proof
+
+    from step_io
+    have cmd'_def: "cmd' = cont ()"
+      and PS'_def: "PS' =      ps_tx_update Map.empty       (PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),             callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))\<rparr>)      \<lparr>ps_localCalls := [], ps_vis := ps_vis PS \<union> set (ps_localCalls PS),         ps_firstTx := ps_firstTx PS \<and> ps_localCalls PS = []\<rparr>"
+      and ok_def: "ok \<longleftrightarrow> Inv (invariantContext.truncate            (ps_tx_update Map.empty              (PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),                    callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))\<rparr>)             \<lparr>ps_localCalls := [], ps_vis := ps_vis PS \<union> set (ps_localCalls PS),                ps_firstTx := ps_firstTx PS \<and> ps_localCalls PS = []\<rparr>))"
+      by (auto simp add: step_io_def endAtomic_def split: io.splits if_splits)
+
+
+    have "Inv (invariantContext.truncate PS')
+      \<and> execution_s_check Inv crdtSpec PS' (cont res) P"
+    proof (rule cont)
+
+
+      show " PS' =
+         (PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),
+              callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) tx, 
+              ps_vis := ps_vis PS \<union> set (ps_localCalls PS),
+              ps_localCalls := [], 
+              ps_firstTx := False, 
+              ps_tx := None\<rparr>)"
+        by (auto simp add: PS'_def proof_state_ext in_tx tx_nonempty)
+
+
+      show "distinct (ps_localCalls PS)"
+        sledgehammer[spass]
+        sorry
+      show "\<And>c. c \<in> set (ps_localCalls PS) \<Longrightarrow> callOrigin PS c = None"
+        sledgehammer[spass]
+        sorry
+      show "\<And>c. c \<in> set (ps_localCalls PS) \<Longrightarrow> c \<notin> ps_vis PS"
+        sledgehammer[spass]
+        sorry
+      show "\<And>c c'. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c, c') \<notin> happensBefore PS"
+        sledgehammer[spass]
+        sorry
+      show "\<And>c c'. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c', c) \<notin> happensBefore PS"
+        sledgehammer[spass]
+        sorry
+
+
+      show "invocation_happensBeforeH
+          (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS(tx \<mapsto> ps_i PS))) 
+          (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
+          = 
+          (if ps_firstTx PS then
+          invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
+           \<union> {i' | i' c'. c' \<in> ps_vis PS \<and> i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c' \<triangleq> i' 
+             \<and> (\<forall>c''. i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c'' \<triangleq> i' \<longrightarrow> c'' \<in> ps_vis PS ) } \<times> {ps_i PS}
+          else
+          invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
+          - {ps_i PS} \<times> {i'. (ps_i PS,i') \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS) })"
+
+
+
 
 lemma execution_s_check_return:
   assumes finalCheck: "proof_state_wellFormed' PS \<Longrightarrow> P PS r"
@@ -3905,6 +4239,8 @@ lemmas repliss_proof_rules =
   execution_s_check_loop
   execution_s_check_return
   execution_s_check_newId
+  execution_s_check_beginAtomic
+  execution_s_check_call
   show_finalCheck
 
 method repliss_vcg_step1 uses asmUnfold = 
@@ -3918,22 +4254,6 @@ method repliss_vcg_l uses impl asmUnfold =
 
 
 
-(*
-lemmas execution_s_check_endAtomic' = execution_s_check_endAtomic[rotated 3, OF context_conjI]
-  
-
-lemmas repliss_proof_rules = 
-  execution_s_check_newId
-  execution_s_check_beginAtomic
-  execution_s_check_endAtomic'
-  execution_s_check_pause
-  execution_s_check_dbop
-  execution_s_check_return
-
-method repliss_vcg_step = (rule repliss_proof_rules; (intro impI conjI)?; simp?; (intro impI conjI)?;  repliss_vcg_step?)
-
-method repliss_vcg uses impl = ((simp add: impl)?, (unfold atomic_def skip_def)?, simp? , repliss_vcg_step)
-*)
 
 declare newId_def[language_construct_defs] 
 atomic_def[language_construct_defs]  
