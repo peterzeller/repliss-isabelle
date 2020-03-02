@@ -3645,20 +3645,12 @@ proof (rule execution_s_check_proof_rule)
       and wf: "proof_state_wellFormed' PS"
     for  PS' cmd' ok
     using steo_io 
-  proof (auto simp add:  step_io_def beginAtomic_def)
-    fix t vis' calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes'
-    assume a0: "cmd' = cont ()"
-      and a1: "ok"
-      and ps_wf': "proof_state_wellFormed          (PS\<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin',                transactionOrigin := transactionOrigin', knownIds := knownIds', invocationOp := invocationOp',                invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis'\<rparr>)"
-      and Inv: "Inv (invariantContext.truncate               (PS\<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin', knownIds := knownIds',                     invocationOp := invocationOp', invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis',                     transactionOrigin := transactionOrigin'(t := None)\<rparr>))"
-      and a4: "transactionOrigin' t \<triangleq> ps_i PS"
-      and a5: "PS' = PS         \<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin',            transactionOrigin := transactionOrigin', knownIds := knownIds', invocationOp := invocationOp',            invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis'\<rparr>"
-      and ps_growing: "ps_growing PS          (PS\<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin',                transactionOrigin := transactionOrigin', knownIds := knownIds', invocationOp := invocationOp',                invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis'\<rparr>) t"
-      and a7: "transactionOrigin PS t = None"
-      and "ps_tx PS = None"
+  proof (auto simp add:  step_io_def beginAtomic_def, fuzzy_goal_cases Step)
+    case (Step t vis' calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes')
 
+    find_theorems name: "Step."
 
-    from ps_growing
+    from Step.ps_growing
     obtain CS CS'
      where CS_rel: "proof_state_rel PS CS"
      and CS'_rel: "proof_state_rel
@@ -3710,7 +3702,7 @@ proof (rule execution_s_check_proof_rule)
         qed
 
         show "transactionOrigin' = transactionOrigin'(t \<mapsto> ps_i PS)"
-          using a4 by auto
+          using Step.transactionOrigin'_eq by auto
 
        
 
@@ -3723,7 +3715,7 @@ proof (rule execution_s_check_proof_rule)
           by auto
         show "invocationRes' = invocationRes'(ps_i PS := None)"
           using growth
-          by (metis CS'_rel \<open>invocationRes CS' = invocationRes'\<close> a5 fun_upd_idem proof_state_rel_fact(10) proof_state_rel_wf state_wellFormed_no_result_when_running steo_io step_io_same_i)
+          by (metis CS'_rel Step.PS'___def \<open>invocationRes CS' = invocationRes'\<close> fun_upd_idem_iff proof_state_rel_fact(1) proof_state_rel_fact(10) state_wellFormed_no_result_when_running steo_io step_io_same_i)
       qed
 
       from show_proof_state_wellFormed[OF CS_rel]
@@ -3746,7 +3738,7 @@ proof (rule execution_s_check_proof_rule)
                    visibleCalls = s_visibleCalls, currentTransaction = s_currentTransaction\<rparr>"
         by blast
 
-      from proof_state_wellFormed_to_state_wellFormed[OF ps_wf']
+      from proof_state_wellFormed_to_state_wellFormed[OF Step.proof_state_wellFormed]
       obtain s_prog' s_transactionStatus' s_generatedIds' s_localState' ps_ls' s_currentProc' s_visibleCalls' s_currentTransaction'
         where "\<forall>tx'. t \<noteq> tx' \<longrightarrow> s_transactionStatus' tx' \<noteq> Some Uncommitted"
           and "ps_generatedLocal PS = {x. s_generatedIds' x \<triangleq> ps_i PS}"
@@ -3788,7 +3780,7 @@ proof (rule execution_s_check_proof_rule)
            transactionOrigin = (transactionOrigin'(t := None)), knownIds = knownIds',
            invocationOp = invocationOp'(ps_i PS := invocationOp PS (ps_i PS)),
            invocationRes = invocationRes'(ps_i PS := None)\<rparr>"
-      proof (fuzzy_rule Inv, auto simp add: invariantContext.defs)
+      proof (fuzzy_rule Step.Inv, auto simp add: invariantContext.defs)
         show "invocationOp' = invocationOp'(ps_i PS := invocationOp PS (ps_i PS))"
           using state_monotonicGrowth_invocationOp_i[OF growth]
           using \<open>invocationOp CS = invocationOp PS\<close> \<open>invocationOp CS' = invocationOp'\<close> by auto
@@ -3799,7 +3791,7 @@ proof (rule execution_s_check_proof_rule)
 
         hence "invocationRes' (ps_i PS) = None"
           using state_monotonicGrowth_invocationRes_i[OF growth]
-          by (metis CS'_rel \<open>invocationRes CS' = invocationRes'\<close> a5 proof_state_rel_fact(1) proof_state_rel_fact(10) state_wellFormed_no_result_when_running steo_io step_io_same_i)
+          by (metis CS'_rel Step.PS'___def \<open>invocationRes CS' = invocationRes'\<close> proof_state_rel_fact(1) proof_state_rel_fact(10) state_wellFormed_no_result_when_running steo_io step_io_same_i)
 
         thus "invocationRes' = invocationRes'(ps_i PS := None)"
           by auto
@@ -3807,63 +3799,92 @@ proof (rule execution_s_check_proof_rule)
       qed
 
       show "\<And>c. callOrigin' c \<noteq> Some t"
-        using wf_no_transactionStatus_origin_for_nothing[OF wf']
-        apply auto
+        using Step.All_not_callOrigin'_eq
+        by auto
 
-        sorry
-
-      show " ps_vis PS \<subseteq> vis'"
-sledgehammer[cvc4]
-        sorry
 
       show "vis' \<subseteq> dom calls'"
-        sledgehammer[cvc4]
-        sorry
+        by (meson Step.consistentSnapshotH consistentSnapshotH_def)
 
-      show "\<And>c tx. \<lbrakk>ps_firstTx PS; callOrigin' c \<triangleq> tx\<rbrakk> \<Longrightarrow> (transactionOrigin'(t := None)) tx \<noteq> Some (ps_i PS)"
-        sledgehammer[cvc4]
-        sorry
+
 
       show " causallyConsistent happensBefore' vis'"
-sledgehammer[cvc4]
-        sorry
+        using Step.consistentSnapshotH consistentSnapshotH_def by blast
 
       show " transactionConsistent_atomic callOrigin' vis'"
-sledgehammer[cvc4]
-        sorry
+        by (meson Step.consistentSnapshotH consistentSnapshotH_def transactionConsistent_def)
 
-      show "\<forall>v\<in>ps_generatedLocalPrivate PS. uid_is_private' (ps_i PS) calls' invocationOp' invocationRes' knownIds' v"
-sledgehammer[cvc4]
-        sorry
+
+
 
       show "ps_growing PS
      (PS\<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin',
            transactionOrigin := transactionOrigin', knownIds := knownIds', invocationOp := invocationOp',
            invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis'\<rparr>)
      t"
-        sorry
+        by (rule Step.ps_growing)
+    
 
-      show "PS\<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin',
-         transactionOrigin := transactionOrigin'(t := None)(t \<mapsto> ps_i PS), knownIds := knownIds',
-         invocationOp := invocationOp'(ps_i PS := invocationOp PS (ps_i PS)),
-         invocationRes := invocationRes'(ps_i PS := None), ps_vis := vis', ps_localCalls := [], ps_tx := Some t\<rparr> =
-    PS\<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin',
-         transactionOrigin := transactionOrigin', knownIds := knownIds', invocationOp := invocationOp',
-         invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis'\<rparr>"
-      proof (auto simp add: proof_state_ext)
-        show "transactionOrigin'(t \<mapsto> ps_i PS) = transactionOrigin'"
-sledgehammer[cvc4]
-          sorry
-        show "invocationOp'(ps_i PS := invocationOp PS (ps_i PS)) = invocationOp'"
-sledgehammer[cvc4]
-          sorry
-        show "invocationRes'(ps_i PS := None) = invocationRes'"
-sledgehammer[cvc4]
-          sorry
-        show "[] = ps_localCalls PS"
-sledgehammer[cvc4]
-          sorry
+      show "\<And>c tx. \<lbrakk>ps_firstTx PS; callOrigin' c \<triangleq> tx\<rbrakk> \<Longrightarrow> (transactionOrigin'(t := None)) tx \<noteq> Some (ps_i PS)"
+      proof (auto simp add: Step.All_implies_transactionOrigin_eq_eq[rule_format,symmetric])
+        fix c tx
+        assume "ps_firstTx PS"
+          and "callOrigin' c \<triangleq> tx"
+          and "tx \<noteq> t"
+          and "transactionOrigin PS tx \<triangleq> ps_i PS"
+
+        from state_monotonicGrowth_transactionOrigin_i[OF growth] `transactionOrigin PS tx \<triangleq> ps_i PS`
+        have "transactionOrigin CS' tx \<triangleq> ps_i PS"
+          by (auto simp add: `tx \<noteq> t` proof_state_rel_fact[OF CS_rel] dest: meta_spec[where x=tx] split: if_splits)
+
+
+        from `callOrigin' c \<triangleq> tx` proof_state_rel_fact(4)[OF CS'_rel]
+        have "callOrigin CS' c \<triangleq> tx"
+          by (auto simp add: Step.ps_tx_eq proof_state_wellFormed'_localCalls that(2))
+
+        have "transactionStatus CS' tx \<noteq> Some Committed"
+          using `ps_firstTx PS` `transactionOrigin CS' tx \<triangleq> ps_i PS` `callOrigin CS' c \<triangleq> tx`
+          by (rule proof_state_rel_fact(21)[OF CS'_rel, simplified, THEN iffD1, rule_format])
+
+        have "transactionStatus CS' tx = Some Uncommitted"
+          by (metis (mono_tags, lifting) CS'_rel Step.PS'___def \<open>callOrigin CS' c \<triangleq> tx\<close> \<open>transactionOrigin CS' tx \<triangleq> ps_i PS\<close> \<open>transactionStatus CS' tx \<noteq> Some Committed\<close> proof_state_rel_fact(1) proof_state_rel_fact(12) state_wellFormed_ls_visibleCalls_callOrigin steo_io step_io_same_i wellFormed_currentTransaction_unique_h(2) wellFormed_state_transaction_consistent(1))
+        
+        moreover have "transactionStatus CS' tx \<noteq> Some Uncommitted"
+          using proof_state_rel_fact(14)[OF CS'_rel] \<open>tx \<noteq> t\<close> by auto
+
+        ultimately show "False"
+          by blast
       qed
+
+      show " ps_vis PS \<subseteq> vis'"
+        using Step.chooseSnapshot_h chooseSnapshot_h_def by auto
+
+
+      show "\<forall>v\<in>ps_generatedLocalPrivate PS. uid_is_private' (ps_i PS) calls' invocationOp' invocationRes' knownIds' v"
+      proof auto
+        fix v
+        assume v: "v \<in> ps_generatedLocalPrivate PS"
+
+        thm CS_rel
+        thm CS'_rel
+        from proof_state_rel_fact(24)[OF CS_rel, simplified]
+        have "uid_is_private (ps_i PS) CS v" using v by simp
+        
+        from proof_state_rel_fact(24)[OF CS'_rel, simplified]
+        have "uid_is_private (ps_i PS) CS' v" using v by simp
+        hence a0: "new_unique_not_in_invocationOp invocationOp' v"
+          and a1: "new_unique_not_in_calls calls' v"
+          and a2: "new_unique_not_in_calls_result calls' v"
+          and a3: "new_unique_not_in_invocationRes invocationRes' v"
+          and a4: "v \<notin> knownIds'"
+          and a5: "generatedIds CS' v \<triangleq> ps_i PS"
+          and a6: "new_unique_not_in_other_invocations (ps_i PS) CS' v"
+          by (auto simp add: uid_is_private_def proof_state_rel_fact[OF CS'_rel])
+           
+        show "uid_is_private' (ps_i PS) calls' invocationOp' invocationRes' knownIds' v"
+          by (simp add: a0 a1 a2 a3 a4 uid_is_private'_def)
+      qed
+
     qed
   qed
 qed
