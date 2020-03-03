@@ -518,7 +518,7 @@ qed
 
 
 
-lemma query_result_undef:
+lemma query_result_undef_old:
   assumes wf: "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
      state_wellFormed
       \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
@@ -540,6 +540,55 @@ proof -
     by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
 
 qed
+
+
+\<comment> \<open>Move to helpers\<close>
+lemma get_query_spec2:
+  assumes wf: "proof_state_wellFormed S"
+    and upd_call: "calls S upd_c \<triangleq> Call oper upd_r"
+  shows "\<exists>ctxt. querySpec (ps_prog S) oper ctxt upd_r"
+proof -
+  from wf
+  obtain CS where rel: "proof_state_rel S CS"
+    using proof_state_wellFormed_def by blast
+
+  hence state_wf: "state_wellFormed CS"
+    using proof_state_rel_wf by blast
+
+  have upd_call': "calls CS upd_c \<triangleq> Call oper upd_r"
+    using rel upd_call proof_state_rel_calls[OF rel] by auto
+
+  have "prog CS = ps_prog S"
+    using proof_state_rel_prog rel by fastforce
+
+  from wf_queryspec[OF state_wf] upd_call' `prog CS = ps_prog S`
+  obtain ctxt where "querySpec (ps_prog S) oper ctxt upd_r"
+    apply atomize_elim
+    apply auto
+    by blast
+  thus ?thesis
+    by blast
+qed
+
+lemma query_result_undef:
+  assumes wf: "proof_state_wellFormed S"
+    and upd_call: "calls S upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
+    and upd_is_update: "is_update upd_op"
+    and progr: "ps_prog S = progr"
+  shows "upd_r = Undef"
+proof -
+
+  obtain ctxt where "querySpec progr (Message (NestedOp (MessageId m) upd_op)) ctxt upd_r"
+    using get_query_spec2 local.wf progr upd_call by fastforce
+
+
+  thus "upd_r = Undef"
+    using upd_is_update
+    by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
+
+qed
+
+
 
 declare invariantContext.defs[simp]
 
@@ -607,7 +656,7 @@ proof M_show_programCorrect
             using execution.in_initial_state by blast
 
 
-          show "execution_s_check (invariant progr) (querySpec progr) \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> SendMessage author content), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (SendMessage author content), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty\<rparr> (sendMessage_impl (String author) (String content)) (finalCheck (invariant progr) i)"
+          show "execution_s_check (invariant progr) (querySpec progr) \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> SendMessage author content), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (SendMessage author content), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (sendMessage_impl (String author) (String content)) (finalCheck (invariant progr) i)"
             if tx_fresh: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
               and inv_initial: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> SendMessage author content), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
@@ -685,25 +734,33 @@ proof M_show_programCorrect
 
         show "execution_s_correct S i"
           using procedure_correct.in_initial_state
-        proof (fuzzy_rule execution_s_check_sound3)
+        proof (fuzzy_rule execution_s_check_sound4)
           show "currentProc S i \<triangleq> toImpl"
-            by (auto simp add: EditMessage procedures_def )
-
-          show "localState S i \<triangleq> editMessage_impl (MessageId m) (String newContent)"
             by (auto simp add: EditMessage procedures_def )
 
           show "invocationOp S i \<triangleq> EditMessage m newContent"
             using EditMessage \<open>invocationOp S i \<triangleq> proc\<close> by blast
 
-          note editMessage_impl_def[simp]
+
+          show "localState S i \<triangleq> (Map.empty, uniqueIds (EditMessage m newContent), editMessage_impl (MessageId m) (String newContent))"
+            by (auto simp add: EditMessage procedures_def )
 
           
+          note editMessage_impl_def[simp]
 
-          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> EditMessage m newContent)) (s_invocationRes(i := None)) {} {} {} [] None True (editMessage_impl (MessageId m) (String newContent))"
-            if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
+          show "program_wellFormed (prog S)"
+            by simp
+
+          show "invariant_all' S"
+            using execution.in_initial_state by blast
+         
+          show "execution_s_check (invariant progr) (querySpec progr) \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> EditMessage m newContent), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (EditMessage m newContent), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (editMessage_impl (MessageId m) (String newContent)) (finalCheck (invariant progr) i)"
+            if tx_fresh: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
+              and inv_init: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> EditMessage m newContent), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
-            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
+          proof (repliss_vcg_l, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
+            
+            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c ca resa PS')
 
             note `c \<noteq> ca`[simp]
 
@@ -729,10 +786,11 @@ proof M_show_programCorrect
 
 
 
+            thm Exists_AtCommit.proof_state_wellFormed
 
-
-            hence "upd_r = Undef"
-              using Exists_AtCommit(9) query_result_undef by auto
+            have "upd_r = Undef"
+              using Exists_AtCommit.proof_state_wellFormed
+              by (rule query_result_undef[where upd_c=upd_c and upd_op=upd_op and m=m], use upd_call upd_is_update in auto)
 
 
             have "upd_c \<noteq> c"
@@ -783,41 +841,43 @@ proof M_show_programCorrect
             from Exists_AtCommit
             show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases "inv2" "inv3" "inv4" )
-              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv2)
               then show ?case 
                 by (auto simp add: inv2_def)
             next
-              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv3)
               show ?case 
                 apply (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong)
                  apply (rule exI[where x=upda_c])
                  apply (auto simp add: \<open>upda_c \<noteq> c\<close> \<open>upda_c \<noteq> ca\<close> upda_call)
                 using causallyConsistent_def inv3(6) upd_vis upda_before_upd apply fastforce
-                by (metis i3 inv3(13) inv3_def)
+                by (metis inv3.all6 inv3.inv3 inv3_def)
             next
-              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv4)
               then show ?case 
                 apply (auto simp add: inv4_def updateHb_cases in_sequence_cons)
                 by (metis (no_types, lifting) \<open>upd_r = Undef\<close> ipd_not_deleted upd_call upd_is_update)
             qed
               
           next
-            case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
+            case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c ca resa)
+
             then show ?case 
               apply (auto simp add: inv_def )
               apply (auto simp add: inv1_def cong: conj_cong)
               by (smt map_upd_Some_unfold proc.distinct(1))
           next
-            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res PS')
+  
             then show ?case 
             proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
-              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv2 )
               then show ?case by (auto simp add: inv2_def)
             next
-              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv3)
               then show ?case by (auto simp add: inv3_def updateHb_single cong: conj_cong, fastforce)
             next
-              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv4)
               then show ?case 
                 by (auto simp add: inv4_def updateHb_single)
             qed
@@ -846,11 +906,11 @@ proof M_show_programCorrect
 
         show "execution_s_correct S i"
           using procedure_correct.in_initial_state
-        proof (fuzzy_rule execution_s_check_sound3)
+        proof (fuzzy_rule execution_s_check_sound4)
           show "currentProc S i \<triangleq> toImpl"
             by (auto simp add: DeleteMessage procedures_def )
 
-          show "localState S i \<triangleq> deleteMessage_impl (MessageId m)"
+          show "localState S i \<triangleq> (Map.empty, uniqueIds (DeleteMessage m), deleteMessage_impl (MessageId m))"
             by (auto simp add: DeleteMessage procedures_def )
 
           show "invocationOp S i \<triangleq> DeleteMessage m"
@@ -858,15 +918,21 @@ proof M_show_programCorrect
 
           note deleteMessage_impl_def[simp]
 
-          show "execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds (s_invocationOp(i \<mapsto> DeleteMessage m)) (s_invocationRes(i := None)) {} {} {} [] None True (deleteMessage_impl (MessageId m))"
-            if tx_fresh: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
-            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-          proof (repliss_vcg, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
-            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
+          show "program_wellFormed (prog S)"
+            by simp
+            
+          show "invariant_all' S"
+            using execution.in_initial_state by blast
 
-            from `c \<noteq> ca \<and> c \<noteq> cb \<and> ca \<noteq> cb`
+          show "execution_s_check (invariant progr) (querySpec progr) \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> DeleteMessage m), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (DeleteMessage m), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (deleteMessage_impl (MessageId m)) (finalCheck (invariant progr) i)"
+            if tx_fresh: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
+              and inv_i: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> DeleteMessage m), invocationRes = s_invocationRes(i := None)\<rparr>"
+            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          proof (repliss_vcg_l, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn")
+            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c ca resa cb res PS')
+
             have [simp]: "c \<noteq> ca" "c \<noteq> cb" "ca \<noteq> cb"
-              by auto
+              by (simp add: Exists_AtCommit.not_c_eq Exists_AtCommit.not_c_eq2 Exists_AtCommit.not_ca_eq)+
 
 
             from `example_chat.inv
@@ -882,46 +948,47 @@ proof M_show_programCorrect
             proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3 inv4)
               case inv1
               from i1
-              show ?case by auto
+              show ?case
+                by (simp add: Exists_AtCommit.PS'_eq)
             next
               case inv2
               from i2
               show ?case
-                by (auto simp add: inv2_def)
+                by (auto simp add: inv2_def Exists_AtCommit.PS'_eq)
             next
               case inv3
               from i3
               show ?case 
-                apply (auto simp add: inv3_def updateHb_cases cong: conj_cong)
-                by (metis Exists_AtCommit(18)) 
+                apply (auto simp add: inv3_def updateHb_cases Exists_AtCommit.PS'_eq cong: conj_cong)
+                using Exists_AtCommit.all6 by blast
 
             next
               case inv4
               then show ?case
-                apply (auto simp add: inv4_def updateHb_cases in_sequence_cons)
-                using Exists_AtCommit(18) apply blast
+                using Exists_AtCommit.all6
+                apply (auto simp add: inv4_def updateHb_cases in_sequence_cons Exists_AtCommit.PS'_eq)
                 by (meson i4 inv4_def)
             qed
               
           next
-            case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa cb resb)
+            case (Exists_AtReturn)
             then show ?case
               apply (auto simp add: inv_def inv1_def)
               by (metis (no_types, lifting) option.inject proc.distinct(3))
           next
-            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res PS')
             then show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
-              case (inv2 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv2)
               then show ?case
                 by (auto simp add: inv2_def)
             next
-              case (inv3 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv3)
               then show ?case 
                 by (auto simp add: inv3_def updateHb_cases in_sequence_cons, fastforce)
 
             next
-              case (inv4 some_generatedIds some_generatedIds1 some_currentTransaction some_currentTransaction1 some_localState some_localState1 some_currentProc some_currentProc1 some_visibleCalls some_visibleCalls1 some_transactionStatus some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2)
+              case (inv4)
               then show ?case 
                 by (auto simp add: inv4_def updateHb_cases in_sequence_cons)
             qed

@@ -43,6 +43,7 @@ record ('proc, 'any, 'operation) proof_state = "('proc, 'operation, 'any) invari
   ps_tx :: "txid option"
   ps_firstTx :: bool
   ps_store :: "'any store"
+  ps_prog :: "('proc, ('any store \<times> uniqueId set \<times> ('any, 'operation, 'any) io), 'operation, 'any) prog"
 
 lemma proof_state_ext: "((x::('proc, 'any, 'operation) proof_state) = y) \<longleftrightarrow> (
     calls x = calls y
@@ -61,6 +62,7 @@ lemma proof_state_ext: "((x::('proc, 'any, 'operation) proof_state) = y) \<longl
   \<and> ps_tx x = ps_tx y
   \<and> ps_firstTx x = ps_firstTx y
   \<and> ps_store x = ps_store y
+  \<and> ps_prog x = ps_prog y
 )"
   by auto
 
@@ -102,43 +104,72 @@ definition proof_state_rel :: "
        \<and> (finite (dom (ps_store PS)))
        \<and> (invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) CS)
        \<and> (ps_generatedLocal PS \<subseteq> ps_localKnown PS)
+       \<and> prog CS = ps_prog PS
 "
 
 \<comment> \<open>There might be a more elegant solution for this. Deatomize\<close>
-lemmas proof_state_rel_fact = 
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-  proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2]
+
+lemmas proof_state_rel_wf = proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct1]
+lemmas proof_state_rel_calls =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_hb =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_callOrigin =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_txOrigin =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_knownIds =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_invocationOp =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_invocationRes =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_genLocal =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_ls =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_impl =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_vis =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_currentTx =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_noUncommitted =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_localCalls =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_localCallsSorted =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_vis_localCalls_disjoint =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_callOrigin_localCalls_disjoint =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_happensBefore_localCalls_disjoint =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_localCalls_distinct =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_firstTx =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_see_my_updates =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_localPrivateSub =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_uid_private =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_finiteStore =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_icgi =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_generatedLocalSub =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_prog =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2]
 
 
-lemma proof_state_rel_wf: 
-  "proof_state_rel S S1 \<Longrightarrow> state_wellFormed S1"
-  unfolding proof_state_rel_def
-  by auto
+lemmas proof_state_rel_facts = 
+  proof_state_rel_wf
+  proof_state_rel_calls
+  proof_state_rel_hb
+  proof_state_rel_callOrigin
+  proof_state_rel_txOrigin
+  proof_state_rel_knownIds
+  proof_state_rel_invocationOp
+  proof_state_rel_invocationRes
+  proof_state_rel_genLocal
+  proof_state_rel_ls
+  proof_state_rel_impl
+  proof_state_rel_vis
+  proof_state_rel_currentTx
+  proof_state_rel_noUncommitted
+  proof_state_rel_localCalls
+  proof_state_rel_localCallsSorted
+  proof_state_rel_vis_localCalls_disjoint
+  proof_state_rel_callOrigin_localCalls_disjoint
+  proof_state_rel_happensBefore_localCalls_disjoint
+  proof_state_rel_localCalls_distinct
+  proof_state_rel_firstTx
+  proof_state_rel_see_my_updates
+  proof_state_rel_localPrivateSub
+  proof_state_rel_uid_private
+  proof_state_rel_finiteStore
+  proof_state_rel_icgi
+  proof_state_rel_generatedLocalSub
+  proof_state_rel_prog
+
+
 
 text "Define execution of a command."
 
@@ -210,27 +241,27 @@ proof -
         subst state_ext, intro conjI, 
         unfold operationContext.simps distributed_state.simps state.simps invariantContext.simps)
       show "calls S = calls PS"
-        using proof_state_rel_fact(2) rel by blast
+        using proof_state_rel_calls rel by blast
       show "happensBefore S = updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)"
-        by (simp add: proof_state_rel_fact(3) rel) 
+        using proof_state_rel_hb rel by blast
 
       show "callOrigin S = map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))"
-        by (simp add: proof_state_rel_fact(4) rel) 
+        by (simp add: proof_state_rel_callOrigin rel)
       show "transactionOrigin S = transactionOrigin PS"
-        using proof_state_rel_fact(5) rel by blast 
+        using proof_state_rel_txOrigin rel by blast
       show "knownIds S = knownIds PS"
-        by (simp add: proof_state_rel_fact(6) rel) 
+        by (simp add: proof_state_rel_knownIds rel)
       show "invocationOp S = invocationOp PS"
-        by (simp add: proof_state_rel_fact(7) rel) 
+        using proof_state_rel_invocationOp rel by blast
       show "invocationRes S = invocationRes PS"
-        using proof_state_rel_fact(8) rel by blast 
+        using proof_state_rel_def rel by blast
     qed (simp; fail)+
 
     show "\<exists>s_ls. localState S (ps_i PS) \<triangleq> (ps_store PS, ps_localKnown PS, s_ls)"
-      using proof_state_rel_fact(10) rel by blast
+      by (simp add: proof_state_rel_ls rel)
 
 
-  qed ((auto simp add: proof_state_rel_fact[OF \<open>proof_state_rel PS S\<close>])[1]; fail)+
+  qed ((auto simp add: proof_state_rel_facts[OF \<open>proof_state_rel PS S\<close>])[1]; fail)+
 qed
 
 \<comment> \<open>TODO : more properties about freshness: uid cannot be used anywhere \<close>
@@ -523,16 +554,16 @@ proof (rule ccontr)
 
 
   have toImpl: "currentProc S (ps_i PS) \<triangleq> toImpl"
-    by (simp add: assms(1) proof_state_rel_fact(11))
+    by (simp add: assms(1) proof_state_rel_impl)
   hence currentProc[simp]: "currentProc S i \<triangleq> toImpl"
     using i_def by simp
 
 
   have ls[simp]: "localState S i \<triangleq> (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont)"
-    using cmd_prefix i_def proof_state_rel_fact(10) rel by force
+    using cmd_prefix i_def proof_state_rel_ls rel by force
 
   have "state_wellFormed S"
-    using proof_state_rel_fact(1) rel by auto
+    using proof_state_rel_wf rel by auto
   hence "state_wellFormed S'"
     using local.step state_wellFormed_combine_s1 by blast
 
@@ -541,11 +572,12 @@ proof (rule ccontr)
     by (simp add: \<open>state_wellFormed S\<close> wf_localState_to_invocationOp)
 
   have [simp]: "finite (dom (ps_store PS))"
-    using proof_state_rel_fact(25) rel by blast
+    using proof_state_rel_finiteStore rel by blast
 
 
   have no_guess: "(invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S)"
-    by (simp add: proof_state_rel_fact[OF rel])
+    by (simp add: proof_state_rel_icgi rel)
+
 
   have "(the (localState S (ps_i PS))) = (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont)"
     using i_def ls by auto
@@ -631,9 +663,8 @@ proof (rule ccontr)
           show "state_wellFormed S'" using \<open>state_wellFormed S'\<close> .
 
 
-          from proof_state_rel_fact[OF rel] 
           have old_priv: "uid_is_private (ps_i PS) S v" if "v \<in> ps_generatedLocalPrivate PS" for v
-            using that by auto
+            by (simp add: proof_state_rel_uid_private rel that)
 
 
           show "\<forall>v\<in>ps_generatedLocalPrivate PS'.  uid_is_private (ps_i PS') S' v"
@@ -685,7 +716,7 @@ proof (rule ccontr)
 
 
 
-        qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def S'_def PS'_def  split: option.splits)[1]); fail)+
+        qed ((insert proof_state_rel_facts[OF rel], (auto simp add: i_def S'_def PS'_def  split: option.splits)[1]); fail)+
 
 
         
@@ -711,13 +742,13 @@ proof (rule ccontr)
         using A by force
 
       have [simp]: "ps_localCalls PS = []"
-        using A i_def proof_state_rel_fact(13) proof_state_rel_fact(15) rel by fastforce
+        using A.currentTransaction_eq A.i_def i_def proof_state_rel_currentTx proof_state_rel_localCalls rel by fastforce 
 
       have [simp]: "i' = ps_i PS"
-        using A(26) i_def by blast
+        using A.i_def i_def by blast
 
       have [simp]: "ls' = (ps_store PS, ps_localKnown PS, n \<bind> cmdCont)"
-        using A WaitBeginAtomic i_def ls toImpl by auto
+        using A.currentProc_eq A.f_eq A.localState_eq WaitBeginAtomic \<open>the (localState S (ps_i PS)) = (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont)\<close> toImpl by auto
 
       have Sn_toImpl[simp]: "currentProc Sn (ps_i PS) \<triangleq> toImpl"
         using toImpl A by auto
@@ -755,10 +786,10 @@ proof (rule ccontr)
 
           show "ps_generatedLocal PS' = {x. generatedIds Sf x \<triangleq> ps_i PS'}"
             apply (auto simp add: PS'_def A )
-            using A proof_state_rel_fact(9) rel state_monotonicGrowth_generatedIds apply fastforce
-            using A i_def proof_state_rel_fact(9) rel state_monotonicGrowth_generatedIds_same1 by fastforce
+            using A.state_monotonicGrowth proof_state_rel_genLocal rel state_monotonicGrowth_generatedIds_same1 apply fastforce
+            using A.state_monotonicGrowth proof_state_rel_facts(9) rel state_monotonicGrowth_generatedIds_same1 by fastforce
 
-          from proof_state_rel_fact(21)[OF rel]
+          from proof_state_rel_firstTx[OF rel]
           show "ps_firstTx PS' =
                (\<nexists>c tx. callOrigin Sf c \<triangleq> tx \<and> transactionOrigin Sf tx \<triangleq> ps_i PS' \<and> transactionStatus Sf tx \<triangleq> Committed)"
             apply (auto simp add: PS'_def A )
@@ -772,9 +803,9 @@ proof (rule ccontr)
 
           show "ps_generatedLocalPrivate PS' \<subseteq> ps_generatedLocal PS'"
             apply (auto simp add: PS'_def A )
-            using proof_state_rel_fact(23) rel by blast
+            using proof_state_rel_localPrivateSub rel by blast
 
-          from proof_state_rel_fact[OF rel]
+          from proof_state_rel_facts[OF rel]
           have uid_private: "uid_is_private (ps_i PS) S v"
             if "v \<in> ps_generatedLocalPrivate PS"
             for v
@@ -861,6 +892,11 @@ proof (rule ccontr)
             qed
           qed
 
+          show "prog Sf = ps_prog PS'"
+            by (auto simp add: A.prog_eq \<open>prog S = ps_prog PS\<close> Sf_def PS'_def)
+
+
+
         qed ((insert A, (auto simp add: PS'_def sorted_by_empty)[1]); fail)+
 
 
@@ -936,7 +972,7 @@ proof (rule ccontr)
           qed
 
           show "transactionOrigin PS t = None"
-            using A(6) \<open>state_wellFormed S\<close> proof_state_rel_fact(5) rel wf_transaction_status_iff_origin by fastforce
+            using A.transactionStatus_eq  \<open>state_wellFormed S\<close> proof_state_rel_txOrigin rel wf_transaction_status_iff_origin by fastforce
 
 
           have "currentTransaction S (ps_i PS) = None"
@@ -950,7 +986,7 @@ proof (rule ccontr)
               \<open>currentTransaction S (ps_i PS) = ps_tx PS\<close>
             by simp
 
-          from proof_state_rel_fact[OF `proof_state_rel PS S`]
+          from proof_state_rel_facts[OF `proof_state_rel PS S`]
           have " transactionOrigin S = transactionOrigin PS" by simp
 
 
@@ -1043,28 +1079,28 @@ proof (rule ccontr)
             by (simp add: PS'_def)
 
           have [simp]: "ps_tx PS \<triangleq> t"
-            using A(5) \<open>i' = ps_i PS\<close> proof_state_rel_fact(13) rel by fastforce
+            using A.currentTransaction_eq \<open>i' = ps_i PS\<close> proof_state_rel_currentTx rel by fastforce
 
           have no_other_uncommitted: "transactionStatus S tx \<noteq> Some Uncommitted" if "t \<noteq> tx" for tx
-            by (rule proof_state_rel_fact(14)[OF rel, rule_format], simp add: that)
+
+            by (rule proof_state_rel_noUncommitted[OF rel, rule_format], simp add: that)
 
 
 
 
           show "\<forall>tx'. ps_tx PS' \<noteq> Some tx' \<longrightarrow> transactionStatus S' tx' \<noteq> Some Uncommitted"
-            apply (simp add: PS'_def  `S' = S''` S''_def)
-            using A(5) \<open>i' = ps_i PS\<close> proof_state_rel_fact(13) proof_state_rel_fact(14) rel by force
+            by (simp add: PS'_def  `S' = S''` S''_def no_other_uncommitted)
 
-          from proof_state_rel_fact(21)[OF rel]
+          from proof_state_rel_firstTx[OF rel]
           show "ps_firstTx PS' =
            (\<nexists>c tx. callOrigin S' c \<triangleq> tx \<and> transactionOrigin S' tx \<triangleq> ps_i PS' \<and> transactionStatus S' tx \<triangleq> Committed)"
-            using proof_state_rel_fact(15)[OF rel]
+            using proof_state_rel_localCalls[OF rel]
             apply (auto simp add: PS'_def  `S' = S''` S''_def)
             using A(5) \<open>i' = ps_i PS\<close> \<open>state_wellFormed S\<close> state_wellFormed_current_transaction_origin by blast
 
           show "\<forall>c. i_callOriginI PS' c \<triangleq> ps_i PS' \<longrightarrow> c \<in> ps_vis PS'"
             apply (auto simp add: PS'_def)
-            by (metis i_callOriginI_h_update_to4 proof_state_rel_fact(22) rel)
+            by (metis i_callOriginI_h_update_to4 proof_state_rel_see_my_updates rel)
 
           show "\<forall>v\<in>ps_generatedLocalPrivate PS'.  uid_is_private (ps_i PS') S' v"
 
@@ -1073,7 +1109,7 @@ proof (rule ccontr)
             assume a0: "v \<in> ps_generatedLocalPrivate PS"
 
             have "uid_is_private (ps_i PS) S v"
-              using a0 proof_state_rel_fact(24) rel by blast
+              using a0 proof_state_rel_uid_private rel by blast
 
             show "uid_is_private (ps_i PS) S' v"
             proof (fuzzy_rule uip)
@@ -1096,11 +1132,11 @@ proof (rule ccontr)
 
 
 
-        qed ((insert proof_state_rel_fact[OF rel], (auto simp add: sorted_by_empty i_def S''_def PS'_def `S' = S''` `i = i'` `i' = ps_i PS`  split: option.splits)[1]); fail)+
+        qed ((insert proof_state_rel_facts[OF rel], (auto simp add: sorted_by_empty i_def S''_def PS'_def `S' = S''` `i = i'` `i' = ps_i PS`  split: option.splits)[1]); fail)+
 
         have "\<And>t. transactionStatus S'' t \<noteq> Some Uncommitted"
           apply (auto simp add: S''_def)
-          using A(5) \<open>i' = ps_i PS\<close> proof_state_rel_fact(13) proof_state_rel_fact(14) rel by fastforce
+          by (metis A.currentTransaction_eq \<open>state_wellFormed S\<close> option.inject proof_state_rel_noUncommitted rel wellFormed_currentTransaction_unique_h(2))
 
 
 
@@ -1110,13 +1146,14 @@ proof (rule ccontr)
           using \<open>state_wellFormed S\<close> wellFormed_callOrigin_dom apply fastforce
             apply (simp add: \<open>state_wellFormed S\<close> wellFormed_callOrigin_dom2)
           using A(5) \<open>state_wellFormed S\<close> wellFormed_currentTransaction_unique_h(2) apply fastforce
-          by (smt A(5) \<open>state_wellFormed S\<close> not_None_eq not_uncommitted_cases proof_state_rel_fact(14) rel wellFormed_callOrigin_dom3 wellFormed_currentTransaction_unique_h(2) wf_no_transactionStatus_origin_for_nothing)
+          using \<open>state_wellFormed S\<close> not_None_eq not_uncommitted_cases rel wellFormed_callOrigin_dom3 wellFormed_currentTransaction_unique_h(2) wf_no_transactionStatus_origin_for_nothing 
+          by (smt A.currentTransaction_eq proof_state_rel_noUncommitted)
 
 
 
         have context_Same: "invariantContext.truncate PS' = invContext S''"
           apply (auto simp add: invContext_same_allCommitted'[OF `state_wellFormed S''` `\<And>t. transactionStatus S'' t \<noteq> Some Uncommitted`])
-          by (auto simp add: PS'_def S''_def invariantContext.defs proof_state_rel_fact[OF rel])
+          by (auto simp add: PS'_def S''_def invariantContext.defs proof_state_rel_facts[OF rel])
 
 
         have prog_same: "prog S'' = prog S"
@@ -1209,9 +1246,7 @@ proof (rule ccontr)
             using S'_wf by simp
 
           show "ps_generatedLocal PS' = {x. generatedIds S' x \<triangleq> ps_i PS'}"
-            apply (auto simp add: PS'_def S'_def `i' = ps_i PS`)
-            using proof_state_rel_fact(9) rel apply auto[1]
-            using proof_state_rel_fact(9) rel by auto
+            by (auto simp add: PS'_def S'_def `i' = ps_i PS` proof_state_rel_genLocal[OF rel])
 
           show "\<exists>ps_ls. localState S' (ps_i PS') \<triangleq> (ps_store PS', ps_localKnown PS', ps_ls)"
             by (auto simp add: PS'_def S'_def `i' = ps_i PS` ls''_def `uniqueIds uidv = {uid}`)
@@ -1226,7 +1261,7 @@ proof (rule ccontr)
             show "uid_is_private (ps_i PS) S' uid"
               using uid_priv by blast
             show "uid_is_private (ps_i PS) S' v" if "v \<in> ps_generatedLocalPrivate PS" for v
-              using A(11) i_def proof_state_rel_fact(24) rel that uip by auto
+              by (simp add: A.action_def proof_state_rel_uid_private rel that uip')
           qed
 
 
@@ -1245,7 +1280,7 @@ proof (rule ccontr)
 
 
 
-        qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def  S'_def PS'_def  split: option.splits)[1]); fail)+
+        qed ((insert proof_state_rel_facts[OF rel], (auto simp add: i_def  S'_def PS'_def  split: option.splits)[1]); fail)+
 
 
 
@@ -1272,14 +1307,14 @@ proof (rule ccontr)
             by (simp add: A(6))
 
           show "uid \<notin> ps_generatedLocal PS"
-            using A(5) proof_state_rel_fact(9) rel by fastforce
+            using A.generatedIds_eq proof_state_rel_genLocal rel by force
 
           from uid_is_private'_implies[OF uid_priv]
           have h: " uid_is_private' (ps_i PS) (calls S') (invocationOp S') (invocationRes S') (knownIds S') uid" .
 
           have "uid_is_private' (ps_i PS) (calls PS) (invocationOp PS) (invocationRes PS) (knownIds PS) uid"
             using h
-            by (auto simp add: S'_def  proof_state_rel_fact[OF rel])
+            by (auto simp add: S'_def  proof_state_rel_facts[OF rel])
 
           thus "uid_fresh uid PS"
             by (auto simp add: uid_fresh_def)
@@ -1386,13 +1421,13 @@ proof (rule ccontr)
             using A(2) A(3) A(4) WaitDbOperation i_def ls toImpl validUids by auto
 
           have vis_def: "vis = ps_vis PS \<union> set (ps_localCalls PS)"
-            by (metis A(10) A(8) i_def option.inject proof_state_rel_fact(12) rel)
+            by (metis A.i_def A.visibleCalls_eq i_def option.sel proof_state_rel_facts(12) rel)
 
           have t_def: "t = the (ps_tx PS)"
-            by (metis A(10) A(5) i_def option.sel proof_state_rel_fact(13) rel)
+            by (metis A.currentTransaction_eq \<open>ps_i PS = i'\<close> option.sel proof_state_rel_currentTx rel)
 
           have ps_tx: "ps_tx PS \<triangleq> t"
-            by (metis A(10) A(5) i_def proof_state_rel_fact(13) rel)
+            by (metis A.currentTransaction_eq A.i_def i_def proof_state_rel_currentTx rel)
 
 
 
@@ -1404,11 +1439,11 @@ proof (rule ccontr)
               by (simp add: \<open>state_wellFormed S'\<close>)
 
             show "happensBefore S' = updateHb (happensBefore PS') (ps_vis PS') (ps_localCalls PS')"
-              by (auto simp add: vis_def proof_state_rel_fact(3)[OF rel] updateHb_simp1 S'_def PS'_def in_sequence_append in_sequence_cons updateHb_cases updateHb_chain)
+              by (auto simp add: vis_def proof_state_rel_hb[OF rel] updateHb_simp1 S'_def PS'_def in_sequence_append in_sequence_cons updateHb_cases updateHb_chain)
 
 
             show "callOrigin S' = map_update_all (callOrigin PS') (ps_localCalls PS') (the (ps_tx PS'))"
-              by (auto simp add: S'_def PS'_def map_update_all_get t_def proof_state_rel_fact(4)[OF rel] intro!: HOL.ext)
+              by (auto simp add: S'_def PS'_def map_update_all_get t_def proof_state_rel_callOrigin[OF rel] intro!: HOL.ext)
 
 
             show "\<exists>ps_ls. localState S' (ps_i PS') \<triangleq> (ps_store PS', ps_localKnown PS', ps_ls)"
@@ -1418,12 +1453,12 @@ proof (rule ccontr)
               by (auto simp add: S'_def PS'_def vis_def)
 
             show "case ps_tx PS' of None \<Rightarrow> ps_localCalls PS' = [] | Some tx' \<Rightarrow> set (ps_localCalls PS') = {c. callOrigin S' c \<triangleq> tx'}"
-              apply (auto simp add: proof_state_rel_fact(4)[OF rel] map_update_all_get ps_tx S'_def PS'_def split: option.splits)
-              using proof_state_rel_fact(15)[OF rel]
-              by (metis (mono_tags, lifting) map_update_all_get mem_Collect_eq option.simps(5) proof_state_rel_fact(4) ps_tx rel)
+              apply (auto simp add: proof_state_rel_callOrigin[OF rel] map_update_all_get ps_tx S'_def PS'_def split: option.splits)
+              using proof_state_rel_localCalls[OF rel]
+              by (metis (mono_tags, lifting) map_update_all_get mem_Collect_eq option.simps(5) proof_state_rel_callOrigin ps_tx rel)
 
             have sorted: "sorted_by (happensBefore S) (ps_localCalls PS)"
-              by (simp add: proof_state_rel_fact(16) rel)
+              by (simp add: proof_state_rel_localCallsSorted rel)
 
             have "c \<notin> set (ps_localCalls PS)"
               using A(6) A(8) \<open>state_wellFormed S\<close> vis_def wellFormed_visibleCallsSubsetCalls2 by auto
@@ -1446,27 +1481,27 @@ proof (rule ccontr)
 
 
             show "ps_vis PS' \<inter> set (ps_localCalls PS') = {}"
-              using proof_state_rel_fact(17)[OF rel]
+              using proof_state_rel_vis_localCalls_disjoint[OF rel]
               by (auto simp add: PS'_def `c \<notin> ps_vis PS`)
 
             have co_c: "callOrigin PS c = None"
-              by (metis (no_types, lifting) A(6) \<open>c \<notin> set (ps_localCalls PS)\<close> \<open>state_wellFormed S\<close> map_update_all_get proof_state_rel_fact(4) rel wellFormed_callOrigin_dom3) 
+              by (metis A.calls_eq \<open>state_wellFormed S\<close> map_update_all_None proof_state_rel_callOrigin rel wellFormed_callOrigin_dom3)
 
 
             show "dom (callOrigin PS') \<inter> set (ps_localCalls PS') = {}"
-              using proof_state_rel_fact(18)[OF rel]
+              using proof_state_rel_callOrigin_localCalls_disjoint[OF rel]
               by (auto simp add: PS'_def co_c)
 
             have co_hb: "c \<notin> Field (happensBefore PS)"
-              by (metis A(6) Field_Un Un_iff \<open>state_wellFormed S\<close> proof_state_rel_fact(3) rel updateHb_simp_split wellFormed_happensBefore_Field)
+              by (metis A.calls_eq Field_Un UnCI \<open>state_wellFormed S\<close> proof_state_rel_hb rel updateHb_simp_split wellFormed_happensBefore_Field)
 
 
             show "Field (happensBefore PS') \<inter> set (ps_localCalls PS') = {}"
-              using proof_state_rel_fact(19)[OF rel]
+              using proof_state_rel_happensBefore_localCalls_disjoint[OF rel]
               by (auto simp add: PS'_def co_hb)
 
             show "distinct (ps_localCalls PS')"
-              using proof_state_rel_fact(20)[OF rel]
+              using proof_state_rel_localCalls_distinct[OF rel]
               by (auto simp add: PS'_def \<open>c \<notin> set (ps_localCalls PS)\<close> )
 
             show "ps_firstTx PS' =
@@ -1474,8 +1509,8 @@ proof (rule ccontr)
               apply ( simp add: PS'_def S'_def)
               apply safe
               using A(5) \<open>state_wellFormed S\<close> not_uncommitted_cases wellFormed_currentTransactionUncommitted apply blast
-              using A(10) i_def proof_state_rel_fact(21) rel apply blast
-              by (metis A(6) \<open>ps_i PS = i'\<close> \<open>state_wellFormed S\<close> option.distinct(1) proof_state_rel_fact(21) rel wellFormed_callOrigin_dom3)
+              using \<open>ps_i PS = i'\<close> proof_state_rel_firstTx rel apply blast
+              by (metis A.calls_eq \<open>ps_i PS = i'\<close> \<open>state_wellFormed S\<close> option.distinct(1) proof_state_rel_firstTx rel wellFormed_callOrigin_dom3)
 
 
             have  prog_wf': "program_wellFormed (prog S')"
@@ -1533,7 +1568,7 @@ proof (rule ccontr)
               using A(10) A(11) action_outputs.simps(5) i_def proof_state_rel_def rel uip by (auto simp add: PS'_def, blast)
 
 
-          qed ((insert proof_state_rel_fact[OF rel], (auto simp add: PS'_def S'_def sorted_by_empty)[1]); fail)+
+          qed ((insert proof_state_rel_facts[OF rel], (auto simp add: PS'_def S'_def sorted_by_empty)[1]); fail)+
 
 
           show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' (n res) Inv"
@@ -1543,7 +1578,7 @@ proof (rule ccontr)
               by (simp add: ps_tx)
 
             show "calls PS c = None"
-              using A(6) proof_state_rel_fact(2) rel by fastforce
+              using A.calls_eq proof_state_rel_calls rel by fastforce
 
             have  vis: "visibleCalls S i' \<triangleq> (ps_vis PS \<union> set (ps_localCalls PS))"
               using A(8) vis_def by blast
@@ -1551,7 +1586,7 @@ proof (rule ccontr)
             have ctxt_same: "(getContextH (calls S) (happensBefore S) (Some (ps_vis PS \<union> set (ps_localCalls PS))))
             = (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
                   (Some (ps_vis PS \<union> set (ps_localCalls PS))))"
-              by (auto simp add: getContextH_def proof_state_rel_fact[OF rel])
+              by (auto simp add: getContextH_def proof_state_rel_facts[OF rel])
 
             from `querySpec (prog S) Op (getContext S i') res`
             show "querySpec (prog S) Op
@@ -1638,8 +1673,8 @@ proof (rule ccontr)
             using ls_S' by auto
 
           show "\<forall>v\<in>ps_generatedLocalPrivate PS. uid_is_private (ps_i PS) S' v"
-            using A(7) proof_state_rel_fact(24) rel uip' by fastforce
 
+            using A.action_def proof_state_rel_uid_private rel uip' by fastforce
 
           show "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S'"
           proof (use no_guess in \<open>fuzzy_rule show_invocation_cannot_guess_ids_step\<close>)
@@ -1651,7 +1686,7 @@ proof (rule ccontr)
           qed
 
 
-        qed ((insert proof_state_rel_fact[OF rel], (auto simp add: i_def S'_def   split: option.splits)[1]); fail)+
+        qed ((insert proof_state_rel_facts[OF rel], (auto simp add: i_def S'_def   split: option.splits)[1]); fail)+
 
 
         show "currentCommand S' i = (loop_body_from_V body init \<bind>io (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) \<bind>io cmdCont"
@@ -1740,14 +1775,14 @@ lemma proof_state_wellFormed_finite_store:
   assumes "proof_state_wellFormed S"
   shows "finite (dom (ps_store S))"
   using assms unfolding proof_state_wellFormed_def
-  using proof_state_rel_fact(25) by blast 
+  using proof_state_rel_finiteStore by blast
 
 lemma proof_state_wellFormed_localCalls:
   assumes "proof_state_wellFormed S"
     and "ps_tx S = None"
   shows "ps_localCalls S = []"
   using assms unfolding proof_state_wellFormed_def
-  using proof_state_rel_fact(15) by force 
+  using proof_state_rel_localCalls by fastforce
 
 lemma proof_state_wellFormed_happensBefore_subset_calls:
   assumes "proof_state_wellFormed S"
@@ -1763,7 +1798,7 @@ proof -
     by (meson \<open>state_wellFormed S'\<close> domIff subsetI wellFormed_happensBefore_Field)
 
   thus ?thesis
-    apply (auto simp add: proof_state_rel_fact[OF rel])
+    apply (auto simp add: proof_state_rel_facts[OF rel])
     by (metis (no_types, hide_lams) Field_Un Un_iff  domIff not_Some_eq  subsetD updateHb_simp_split)
 qed
 
@@ -1772,7 +1807,7 @@ lemma proof_state_wellFormed_disjoint_happensBefore_localCalls:
   assumes "proof_state_wellFormed S"
   shows "Field (happensBefore S) \<inter> set (ps_localCalls S) = {}"
   using assms 
-  using proof_state_rel_fact(19) proof_state_wellFormed_def by blast
+  using proof_state_rel_happensBefore_localCalls_disjoint proof_state_wellFormed_def by blast
 
 
 lemma proof_state_wellFormed_vis_subset_calls:
@@ -1785,7 +1820,7 @@ proof -
   hence "state_wellFormed S'"
     using proof_state_rel_def by blast
 
-  from proof_state_rel_fact[OF rel]
+  from proof_state_rel_facts[OF rel]
   have "visibleCalls S' (ps_i S) \<triangleq> (ps_vis S \<union> set (ps_localCalls S))" 
     by simp
 
@@ -1812,7 +1847,7 @@ proof -
   hence "state_wellFormed S'"
     using proof_state_rel_def by blast
 
-  from proof_state_rel_fact[OF rel]
+  from proof_state_rel_facts[OF rel]
   have "case ps_tx S of None \<Rightarrow> ps_localCalls S = [] | Some tx' \<Rightarrow> set (ps_localCalls S) = {c. callOrigin S' c \<triangleq> tx'}" 
     by simp
 
@@ -1840,39 +1875,39 @@ proof (intro conjI)
     unfolding proof_state_wellFormed_def by blast
 
   have "state_wellFormed S"
-    using \<open>proof_state_rel PS S\<close> proof_state_rel_fact(1) by blast
+    using \<open>proof_state_rel PS S\<close> proof_state_rel_facts(1) by blast
 
-  thm proof_state_rel_fact[OF rel]
+  thm proof_state_rel_facts[OF rel]
   have "dom (callOrigin PS) \<inter> set (ps_localCalls PS) = {}"
-    using proof_state_rel_fact(18) rel by blast
+    using proof_state_rel_facts(18) rel by blast
   have "Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}"
-    using proof_state_rel_fact(19) rel by blast
+    using proof_state_rel_facts(19) rel by blast
 
   have tx_cases: "case ps_tx PS of None \<Rightarrow> ps_localCalls PS = [] | Some tx' \<Rightarrow> set (ps_localCalls PS) = {c. callOrigin S c \<triangleq> tx'}"
-    using proof_state_rel_fact(15) rel by blast
+    using proof_state_rel_facts(15) rel by blast
 
   have "Field (happensBefore S) \<subseteq> dom (calls S)"
     by (meson \<open>state_wellFormed S\<close> domIff subsetI wellFormed_happensBefore_Field)
   have "Field (happensBefore PS) \<subseteq> Field (happensBefore S)"
-    by (auto simp add: proof_state_rel_fact[OF rel] Field_def updateHb_cases)
+    by (auto simp add: proof_state_rel_facts[OF rel] Field_def updateHb_cases)
 
   have "Field (happensBefore PS) \<subseteq> dom (calls PS)"
-    using \<open>Field (happensBefore PS) \<subseteq> Field (happensBefore S)\<close> \<open>Field (happensBefore S) \<subseteq> dom (calls S)\<close> proof_state_rel_fact(2) rel by fastforce
+    using \<open>Field (happensBefore PS) \<subseteq> Field (happensBefore S)\<close> \<open>Field (happensBefore S) \<subseteq> dom (calls S)\<close> proof_state_rel_facts(2) rel by fastforce
 
   show "finite (dom (ps_store PS))"
-    using local.wf proof_state_rel_fact(25) proof_state_wellFormed_def by blast
+    using local.wf proof_state_rel_facts(25) proof_state_wellFormed_def by blast
  show "ps_tx PS = None \<longrightarrow> ps_localCalls PS = []"
-    using \<open>proof_state_rel PS S\<close> proof_state_rel_fact(15) by fastforce
+    using \<open>proof_state_rel PS S\<close> proof_state_rel_facts(15) by fastforce
   show "Field (happensBefore PS) \<subseteq> dom (calls PS) - set (ps_localCalls PS)"
     using tx_cases \<open>Field (happensBefore PS) \<subseteq> dom (calls PS)\<close>
     \<open>Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}\<close>
     by (auto simp add: split: option.splits)
   show "ps_vis PS \<subseteq> dom (calls PS)"
-    using \<open>state_wellFormed S\<close> proof_state_rel_fact(12) proof_state_rel_fact(2) rel wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
+    using \<open>state_wellFormed S\<close> proof_state_rel_facts(12) proof_state_rel_facts(2) rel wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
   show "set (ps_localCalls PS) \<subseteq> dom (calls PS)"
     using tx_cases \<open>Field (happensBefore PS) \<subseteq> dom (calls PS)\<close>
     apply (auto simp add: split: option.splits)
-    by (metis (no_types, lifting) \<open>state_wellFormed S\<close> domExists_simp proof_state_rel_fact(2) rel wellFormed_callOrigin_dom)
+    by (metis (no_types, lifting) \<open>state_wellFormed S\<close> domExists_simp proof_state_rel_facts(2) rel wellFormed_callOrigin_dom)
 qed
 
 lemma step_io_wf_maintained:
@@ -2127,7 +2162,7 @@ next
       by blast
 
     have "currentProc S i \<triangleq> toImpl"
-      by (simp add: Suc.prems(1) Suc.prems(3) proof_state_rel_fact(11))
+      by (simp add: Suc.prems(1) Suc.prems(3) proof_state_rel_facts(11))
 
 
     have "ps_i PS = i"
@@ -2142,8 +2177,7 @@ next
       `currentProc S i \<triangleq> toImpl`
       wf_localState_currentProc[OF wf] wf_localState_to_invocationOp[OF wf]
     have c3: "localState S i \<triangleq> (ps_store PS, ps_localKnown PS, impl_language_loops.io.WaitReturn res)"
-      thm Pair_inject Suc.prems(1) Suc.prems(3) option.sel
-      using proof_state_rel_fact(10)[OF `proof_state_rel PS S`]
+      using proof_state_rel_facts(10)[OF `proof_state_rel PS S`]
       by ( auto simp add: step_s.simps `ps_i PS = i`)
 
 
@@ -2218,7 +2252,7 @@ next
         by (simp add: tr_def traceCorrect_s_def)
 
       have "ps_tx PS = None"
-        using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_fact(13) by fastforce
+        using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_facts(13) by fastforce
 
       show ?thesis
       proof (intro conjI exI)
@@ -2240,7 +2274,7 @@ next
 
           have h2: "committedCallsH (map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))) (transactionStatus S)
           = dom (calls PS)"
-            using Suc.prems(1) allCommitted proof_state_rel_fact(2) proof_state_rel_fact(4) by fastforce
+            using Suc.prems(1) allCommitted proof_state_rel_facts(2) proof_state_rel_facts(4) by fastforce
 
 
           have ctx_same: "(invContextH (callOrigin S) (transactionOrigin S) (transactionStatus S) (happensBefore S) (calls S)
@@ -2249,25 +2283,25 @@ next
             \<comment> \<open>TODO extract this into lemma (invContextH and truncate if all committed)\<close>
             apply (auto simp add: invContextH_def invariantContext.defs allCommitted h2 restrict_relation_def
                 updateHb_simp_distinct2 `i = ps_i PS` restrict_map_def domD domIff
-                proof_state_rel_fact[OF `proof_state_rel PS S`]
+                proof_state_rel_facts[OF `proof_state_rel PS S`]
                 intro!: HOL.ext)
             subgoal
-              using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_fact(13) proof_state_rel_fact(15) by fastforce
+              using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_facts(13) proof_state_rel_facts(15) by fastforce
             subgoal
-              using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_fact(13) proof_state_rel_fact(15) by fastforce
+              using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_facts(13) proof_state_rel_facts(15) by fastforce
             subgoal
-              using Suc.prems(1) happensBefore_in_calls_left local.wf proof_state_rel_fact(2) proof_state_rel_fact(3) updateHb_simp_distinct2 by fastforce
+              using Suc.prems(1) happensBefore_in_calls_left local.wf proof_state_rel_facts(2) proof_state_rel_facts(3) updateHb_simp_distinct2 by fastforce
             subgoal
-              using Suc.prems(1) happensBefore_in_calls_right local.wf proof_state_rel_fact(2) proof_state_rel_fact(3) updateHb_simp_distinct2 by fastforce
+              using Suc.prems(1) happensBefore_in_calls_right local.wf proof_state_rel_facts(2) proof_state_rel_facts(3) updateHb_simp_distinct2 by fastforce
             subgoal
               apply (auto simp add: map_update_all_def)
-              using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_fact(13) proof_state_rel_fact(15) by fastforce
+              using Suc.prems(1) Suc.prems(3) c4 proof_state_rel_facts(13) proof_state_rel_facts(15) by fastforce
             subgoal
-              by (metis Suc.prems(1) local.wf map_update_all_None proof_state_rel_fact(2) proof_state_rel_fact(4) wellFormed_callOrigin_dom3)
+              by (metis Suc.prems(1) local.wf map_update_all_None proof_state_rel_facts(2) proof_state_rel_facts(4) wellFormed_callOrigin_dom3)
             subgoal for x
               apply (case_tac "transactionStatus S x", auto)
-              using Suc.prems(1) local.wf proof_state_rel_fact(5) wf_transaction_status_iff_origin apply fastforce
-              by (metis (no_types, lifting) Suc.prems(1) Suc.prems(3) c4 option.discI proof_state_rel_fact(13) proof_state_rel_fact(14) transactionStatus.exhaust)
+              using Suc.prems(1) local.wf proof_state_rel_facts(5) wf_transaction_status_iff_origin apply fastforce
+              by (metis (no_types, lifting) Suc.prems(1) Suc.prems(3) c4 option.discI proof_state_rel_facts(13) proof_state_rel_facts(14) transactionStatus.exhaust)
 
             using \<open>Some res \<triangleq> r\<close> by blast+
 
@@ -2675,7 +2709,8 @@ lemma execution_s_check_sound:
       ps_localCalls = [],
       ps_tx = (currentTransaction S i),
       ps_firstTx = firstTx,
-      ps_store = Map.empty\<rparr>"
+      ps_store = Map.empty,
+      ps_prog = prog S\<rparr>"
     and c: "execution_s_check (invariant progr) (querySpec progr) PS ls P"
     \<comment> \<open>The execution check ensures that executing statement s only produces valid traces ending in a state 
    satisfying P.\<close>
@@ -2816,7 +2851,8 @@ invariant progr \<lparr>
       ps_localCalls = [],
       ps_tx = None,
       ps_firstTx = True,
-      ps_store = Map.empty\<rparr> ls P" 
+      ps_store = Map.empty,
+      ps_prog = progr\<rparr> ls P" 
   shows "execution_s_correct S i"
   using a1 
 proof (rule execution_s_check_sound[where P=P])
@@ -2890,7 +2926,8 @@ proof (rule execution_s_check_sound[where P=P])
         ps_tx = currentTransaction S i,
         ps_firstTx =
           \<forall>c tx. transactionOrigin S tx \<triangleq> i \<longrightarrow> callOrigin S c \<triangleq> tx \<longrightarrow> transactionStatus S tx \<noteq> Some Committed,
-        ps_store = Map.empty\<rparr>
+        ps_store = Map.empty,
+        ps_prog = progr\<rparr>
      ls P"
     proof (fuzzy_rule c)
       show "\<And>tx. transactionOrigin S tx \<noteq> Some i"
@@ -2925,7 +2962,21 @@ proof (rule execution_s_check_sound[where P=P])
     show "\<And>S' res. P S' res \<Longrightarrow> uniqueIds res \<subseteq> ps_localKnown S'"
       using P_ids .
 
-qed (simp add: a4)+
+
+    show "\<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S, transactionOrigin = transactionOrigin S,
+       knownIds = knownIds S, invocationOp = invocationOp S, invocationRes = invocationRes S, ps_i = i, ps_generatedLocal = {},
+       ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (the (invocationOp S i)), ps_vis = {}, ps_localCalls = [],
+       ps_tx = currentTransaction S i,
+       ps_firstTx = \<forall>c tx. transactionOrigin S tx \<triangleq> i \<longrightarrow> callOrigin S c \<triangleq> tx \<longrightarrow> transactionStatus S tx \<noteq> Some Committed,
+       ps_store = Map.empty, ps_prog = progr\<rparr> =
+    \<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S, transactionOrigin = transactionOrigin S,
+       knownIds = knownIds S, invocationOp = invocationOp S, invocationRes = invocationRes S, ps_i = i, ps_generatedLocal = {},
+       ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds op, ps_vis = {}, ps_localCalls = [],
+       ps_tx = currentTransaction S i, ps_firstTx = \<forall>c tx. transactionOrigin S tx \<triangleq> i \<longrightarrow> callOrigin S c \<triangleq> tx \<longrightarrow> transactionStatus S tx \<noteq> Some Committed, ps_store = Map.empty, ps_prog = prog S\<rparr>"
+      by (auto simp add: a4 \<open>prog S = progr\<close>)
+
+
+qed (simp add: a4; fail )+
 
 
 lemma execution_s_check_sound4:
@@ -2965,7 +3016,8 @@ invariant progr \<lparr>
       ps_localCalls = [],
       ps_tx = None,
       ps_firstTx = True,
-      ps_store = Map.empty\<rparr> ls (finalCheck (invariant progr) i)" 
+      ps_store = Map.empty,
+      ps_prog = progr\<rparr> ls (finalCheck (invariant progr) i)" 
   shows "execution_s_correct S i"
   using a1 a2 a3 a4 prog_wf inv c
 proof (fuzzy_rule execution_s_check_sound3[where P="finalCheck (invariant progr) i"])
@@ -4006,7 +4058,7 @@ proof (rule execution_s_check_proof_rule)
           by auto
         show "invocationRes' = invocationRes'(ps_i PS := None)"
           using growth
-          by (metis CS'_rel Step.PS'___def \<open>invocationRes CS' = invocationRes'\<close> fun_upd_idem_iff proof_state_rel_fact(1) proof_state_rel_fact(10) state_wellFormed_no_result_when_running steo_io step_io_same_i)
+          by (metis CS'_rel Step.PS'___def \<open>invocationRes CS' = invocationRes'\<close> fun_upd_idem_iff proof_state_rel_facts(1) proof_state_rel_facts(10) state_wellFormed_no_result_when_running steo_io step_io_same_i)
       qed
 
       from show_proof_state_wellFormed[OF CS_rel]
@@ -4078,11 +4130,11 @@ proof (rule execution_s_check_proof_rule)
 
         have "invocationRes PS (ps_i PS) = None"
           using wf_localState_noReturn
-          using CS_rel \<open>invocationRes CS = invocationRes PS\<close> proof_state_rel_fact(10) proof_state_rel_wf by fastforce
+          using CS_rel \<open>invocationRes CS = invocationRes PS\<close> proof_state_rel_facts(10) proof_state_rel_wf by fastforce
 
         hence "invocationRes' (ps_i PS) = None"
           using state_monotonicGrowth_invocationRes_i[OF growth]
-          by (metis CS'_rel Step.PS'___def \<open>invocationRes CS' = invocationRes'\<close> proof_state_rel_fact(1) proof_state_rel_fact(10) state_wellFormed_no_result_when_running steo_io step_io_same_i)
+          by (metis CS'_rel Step.PS'___def \<open>invocationRes CS' = invocationRes'\<close> proof_state_rel_facts(1) proof_state_rel_facts(10) state_wellFormed_no_result_when_running steo_io step_io_same_i)
 
         thus "invocationRes' = invocationRes'(ps_i PS := None)"
           by auto
@@ -4126,22 +4178,22 @@ proof (rule execution_s_check_proof_rule)
 
         from state_monotonicGrowth_transactionOrigin_i[OF growth] `transactionOrigin PS tx \<triangleq> ps_i PS`
         have "transactionOrigin CS' tx \<triangleq> ps_i PS"
-          by (auto simp add: `tx \<noteq> t` proof_state_rel_fact[OF CS_rel] dest: meta_spec[where x=tx] split: if_splits)
+          by (auto simp add: `tx \<noteq> t` proof_state_rel_facts[OF CS_rel] dest: meta_spec[where x=tx] split: if_splits)
 
 
-        from `callOrigin' c \<triangleq> tx` proof_state_rel_fact(4)[OF CS'_rel]
+        from `callOrigin' c \<triangleq> tx` proof_state_rel_callOrigin[OF CS'_rel]
         have "callOrigin CS' c \<triangleq> tx"
           by (auto simp add: Step.ps_tx_eq proof_state_wellFormed_localCalls that(2))
 
         have "transactionStatus CS' tx \<noteq> Some Committed"
           using `ps_firstTx PS` `transactionOrigin CS' tx \<triangleq> ps_i PS` `callOrigin CS' c \<triangleq> tx`
-          by (rule proof_state_rel_fact(21)[OF CS'_rel, simplified, THEN iffD1, rule_format])
+          by (rule proof_state_rel_facts(21)[OF CS'_rel, simplified, THEN iffD1, rule_format])
 
         have "transactionStatus CS' tx = Some Uncommitted"
-          by (metis (mono_tags, lifting) CS'_rel Step.PS'___def \<open>callOrigin CS' c \<triangleq> tx\<close> \<open>transactionOrigin CS' tx \<triangleq> ps_i PS\<close> \<open>transactionStatus CS' tx \<noteq> Some Committed\<close> proof_state_rel_fact(1) proof_state_rel_fact(12) state_wellFormed_ls_visibleCalls_callOrigin steo_io step_io_same_i wellFormed_currentTransaction_unique_h(2) wellFormed_state_transaction_consistent(1))
+          by (metis (mono_tags, lifting) CS'_rel Step.PS'___def \<open>callOrigin CS' c \<triangleq> tx\<close> \<open>transactionOrigin CS' tx \<triangleq> ps_i PS\<close> \<open>transactionStatus CS' tx \<noteq> Some Committed\<close> proof_state_rel_facts(1) proof_state_rel_facts(12) state_wellFormed_ls_visibleCalls_callOrigin steo_io step_io_same_i wellFormed_currentTransaction_unique_h(2) wellFormed_state_transaction_consistent(1))
         
         moreover have "transactionStatus CS' tx \<noteq> Some Uncommitted"
-          using proof_state_rel_fact(14)[OF CS'_rel] \<open>tx \<noteq> t\<close> by auto
+          using proof_state_rel_facts(14)[OF CS'_rel] \<open>tx \<noteq> t\<close> by auto
 
         ultimately show "False"
           by blast
@@ -4158,10 +4210,10 @@ proof (rule execution_s_check_proof_rule)
 
         thm CS_rel
         thm CS'_rel
-        from proof_state_rel_fact(24)[OF CS_rel, simplified]
+        from proof_state_rel_facts(24)[OF CS_rel, simplified]
         have "uid_is_private (ps_i PS) CS v" using v by simp
         
-        from proof_state_rel_fact(24)[OF CS'_rel, simplified]
+        from proof_state_rel_facts(24)[OF CS'_rel, simplified]
         have "uid_is_private (ps_i PS) CS' v" using v by simp
         hence a0: "new_unique_not_in_invocationOp invocationOp' v"
           and a1: "new_unique_not_in_calls calls' v"
@@ -4170,7 +4222,7 @@ proof (rule execution_s_check_proof_rule)
           and a4: "v \<notin> knownIds'"
           and a5: "generatedIds CS' v \<triangleq> ps_i PS"
           and a6: "new_unique_not_in_other_invocations (ps_i PS) CS' v"
-          by (auto simp add: uid_is_private_def proof_state_rel_fact[OF CS'_rel])
+          by (auto simp add: uid_is_private_def proof_state_rel_facts[OF CS'_rel])
            
         show "uid_is_private' (ps_i PS) calls' invocationOp' invocationRes' knownIds' v"
           by (simp add: a0 a1 a2 a3 a4 uid_is_private'_def)
@@ -4331,15 +4383,15 @@ proof (rule execution_s_check_proof_rule)
 
 
       show "distinct (ps_localCalls PS)"
-        using local.wf proof_state_rel_fact(20) proof_state_wellFormed_def by blast
+        using local.wf proof_state_rel_facts(20) proof_state_wellFormed_def by blast
       show "\<And>c. c \<in> set (ps_localCalls PS) \<Longrightarrow> c \<notin> ps_vis PS"
-        by (meson disjoint_iff_not_equal local.wf proof_state_rel_fact(17) proof_state_wellFormed_def)
+        by (meson disjoint_iff_not_equal local.wf proof_state_rel_facts(17) proof_state_wellFormed_def)
       show "\<And>c c'. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c, c') \<notin> happensBefore PS"
         by (meson FieldI1 disjoint_iff_not_equal local.wf proof_state_wellFormed'_disjoint_happensBefore_localCalls proof_state_wellFormed_implies)
       show "\<And>c c'. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c', c) \<notin> happensBefore PS"
         by (meson FieldI2 disjoint_iff_not_equal local.wf proof_state_wellFormed'_disjoint_happensBefore_localCalls proof_state_wellFormed_implies)
       show "\<And>c. c \<in> set (ps_localCalls PS) \<Longrightarrow> callOrigin PS c = None"
-        by (meson disjoint_iff_not_equal domIff local.wf proof_state_rel_fact(18) proof_state_wellFormed_def)
+        by (meson disjoint_iff_not_equal domIff local.wf proof_state_rel_facts(18) proof_state_wellFormed_def)
 
       show "invocation_happensBeforeH
           (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS(tx \<mapsto> ps_i PS))) 
