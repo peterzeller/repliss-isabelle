@@ -137,9 +137,9 @@ assumes wf: "state_wellFormed S"
 \<comment> \<open>contains only committed calls and calls from current transaction:\<close>
 shows "\<And>s vis c tx. \<lbrakk>visibleCalls S s \<triangleq> vis; c\<in>vis; callOrigin S c \<triangleq> tx\<rbrakk> \<Longrightarrow> transactionStatus S tx \<triangleq> Committed \<or> currentTransaction S s \<triangleq> tx"
 \<comment> \<open>contains all calls from a transaction\<close>
-  and "\<And>s vis c1 c2. \<lbrakk>visibleCalls S s \<triangleq> vis; c1\<in>vis; callOrigin S c1 = callOrigin S c2\<rbrakk> \<Longrightarrow> c2\<in>vis"
+  and "\<And>s vis c c'. \<lbrakk>visibleCalls S s \<triangleq> vis; c\<in>vis; callOrigin S c = callOrigin S c'\<rbrakk> \<Longrightarrow> c'\<in>vis"
 \<comment> \<open>happens-before consistent with transactions\<close>
-  and "\<And>x1 y1 x2 y2. \<lbrakk>callOrigin S x1 \<noteq> callOrigin S y1; callOrigin S x1 = callOrigin S x2; callOrigin S y1 = callOrigin S y2 \<rbrakk> \<Longrightarrow>  (x1,y1) \<in> happensBefore S \<longleftrightarrow> (x2, y2) \<in> happensBefore S"
+  and "\<And>x y x' y'. \<lbrakk>callOrigin S x \<noteq> callOrigin S y; callOrigin S x = callOrigin S x'; callOrigin S y = callOrigin S y' \<rbrakk> \<Longrightarrow>  (x,y) \<in> happensBefore S \<longleftrightarrow> (x', y') \<in> happensBefore S"
 \<comment> \<open>happens-before only towards committed transactions or to the same transaction\<close>  
   and "\<And>x y tx tx'. \<lbrakk>(x,y)\<in>happensBefore S; callOrigin S y \<triangleq> tx; callOrigin S x \<triangleq> tx'\<rbrakk> \<Longrightarrow> transactionStatus S tx' \<triangleq> Committed \<or> tx' = tx"
 using assms  proof (induct  rule: wellFormed_induct)

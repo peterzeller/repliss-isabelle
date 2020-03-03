@@ -9,6 +9,7 @@ theory example_chat
     program_proof_rules_loops
     app_verification_helpers
     unique_ids_loops
+    proof_state_facts
 begin
 
 
@@ -612,7 +613,7 @@ proof M_show_programCorrect
       using show_P by auto
     have "invocationRes S i = None"
       using show_P apply auto
-      using state_wellFormed_invocation_before_result by blast
+      using wf_result_after_invocation by blast
 
     have "uniqueIds proc \<subseteq> knownIds S"
       using show_P by auto
@@ -786,7 +787,6 @@ proof M_show_programCorrect
 
 
 
-            thm Exists_AtCommit.proof_state_wellFormed
 
             have "upd_r = Undef"
               using Exists_AtCommit.proof_state_wellFormed

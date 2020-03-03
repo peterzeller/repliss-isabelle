@@ -275,6 +275,17 @@ definition "ps_growing S S' t \<equiv>
   \<exists>CS CS'.
     proof_state_rel S CS
   \<and> proof_state_rel S' CS'
+  \<and> ps_localCalls S = []
+  \<and> ps_localCalls S' = []
+  \<and> ps_tx S = None
+  \<and> ps_tx S' \<triangleq> t
+  \<and> ps_i S' = ps_i S
+  \<and> ps_prog S' = ps_prog S
+  \<and> ps_generatedLocal S' = ps_generatedLocal S
+  \<and> ps_generatedLocalPrivate S' = ps_generatedLocalPrivate S
+  \<and> ps_localKnown S' = ps_localKnown S
+  \<and> ps_firstTx S' = ps_firstTx S
+  \<and> ps_store S' = ps_store S
   \<and> state_monotonicGrowth (ps_i S) CS (CS' \<lparr>
         transactionStatus := (transactionStatus CS')(t := None), 
         transactionOrigin := (transactionOrigin CS')(t := None),
@@ -756,7 +767,6 @@ proof (rule ccontr)
 
 
 
-
       define PS' where "PS' \<equiv> PS\<lparr>
              calls := calls Sn,
              happensBefore := happensBefore Sn,
@@ -967,9 +977,11 @@ proof (rule ccontr)
               unfolding proof_state_rel_def
               by (conj_one_by_one pre: \<open>proof_state_rel PS' S'\<close>[simplified proof_state_rel_def])
                 (simp add: A PS'_def Sf_def)+
-
-
-          qed
+            show "ps_localCalls PS = []"
+              using \<open>ps_localCalls PS = []\<close> by blast
+            show " ps_tx PS = None"
+              using A.currentTransaction_eq proof_state_rel_currentTx rel by fastforce
+          qed (simp add: PS'_def; fail)+
 
           show "transactionOrigin PS t = None"
             using A.transactionStatus_eq  \<open>state_wellFormed S\<close> proof_state_rel_txOrigin rel wf_transaction_status_iff_origin by fastforce
