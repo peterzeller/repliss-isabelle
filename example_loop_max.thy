@@ -243,7 +243,8 @@ proof M_show_programCorrect
                   ps_localCalls = [], 
                   ps_tx = None, 
                   ps_firstTx = True, 
-                  ps_store = Map.empty
+                  ps_store = Map.empty,
+                  ps_prog = progr
                   \<rparr> 
                   (max_impl list) 
                   (finalCheck (invariant progr) i)" \<comment> \<open>TODO finalCheck could be fixed for the initial P (as variant)\<close>
