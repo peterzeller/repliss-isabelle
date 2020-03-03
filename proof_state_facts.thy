@@ -251,24 +251,27 @@ lemma ps_wf_current_tx_not_before_others:
 
 
 
-
+(*
 lemma ps_i_callOriginI_notI1:
   assumes "proof_state_wellFormed S_pre" 
     and "invocationOp S_pre i = None" 
   shows "i_callOriginI S_pre c \<noteq> Some i"
-  by (metis (no_types, lifting) assms(1) assms(2) i_callOriginI_h_def option.case_eq_if option.simps(3) proof_state_rel_invocationOp proof_state_rel_txOrigin proof_state_rel_wf proof_state_wellFormed_def wf_no_invocation_no_origin)
 
+  by (metis (no_types, lifting) assms(1) assms(2) i_callOriginI_h_def option.case_eq_if option.simps(3) proof_state_rel_invocationOp proof_state_rel_txOrigin proof_state_rel_wf proof_state_wellFormed_def wf_no_invocation_no_origin)
+*)
+(*
 lemma ps_i_callOriginI_notI2:
   assumes "proof_state_wellFormed S_pre" 
     and "i_callOriginI S_pre c = Some i" 
   shows "invocationOp S_pre i \<noteq> None"
   using assms(1) assms(2) ps_i_callOriginI_notI1 by auto
+*)
 
 lemma ps_wellFormed_current_transaction_origin:     
   assumes "proof_state_wellFormed S"
     and "ps_tx S \<triangleq> tx"
-  shows "transactionOrigin S tx \<triangleq> ps_i S"
-  by (metis assms(1) assms(2) proof_state_rel_currentTx proof_state_rel_txOrigin ps_wellFormed_to_wf state_wellFormed_current_transaction_origin)
+  shows "transactionOrigin S tx = None"
+  using assms(1) assms(2) proof_state_rel_transactionOriginNone proof_state_wellFormed_def by blast
 
 
 lemma ps_wellFormed_ls_visibleCalls_callOrigin:     
@@ -359,7 +362,8 @@ lemma ps_monotonicGrowth_transactionOrigin_i:
     by (simp add: `t \<noteq> tx`)
 
   thus "transactionOrigin S' t \<triangleq> ps_i S = transactionOrigin S t \<triangleq> ps_i S"
-    unfolding proof_state_rel_txOrigin[OF rel1] proof_state_rel_txOrigin[OF rel2] .
+    unfolding proof_state_rel_txOrigin[OF rel1] proof_state_rel_txOrigin[OF rel2]
+    by (metis (no_types, lifting) assms(1) assms(2) fun_upd_other option.case_eq_if option.sel ps_growing_no_tx1 ps_growing_no_tx2)
 qed
 
 
@@ -408,7 +412,7 @@ lemma ps_monotonicGrowth_transactionOrigin:
     and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
   have "transactionOrigin CS t \<triangleq> i'"
-    using assms(2) proof_state_rel_txOrigin rel1 by fastforce
+    using assms(1) assms(2) proof_state_rel_txOrigin ps_growing_no_tx1 rel1 by fastforce
 
 
   from state_monotonicGrowth_transactionOrigin[OF g `transactionOrigin CS t \<triangleq> i'`]
@@ -417,7 +421,7 @@ lemma ps_monotonicGrowth_transactionOrigin:
 
 
   thus "transactionOrigin S t \<triangleq> i'"
-    using proof_state_rel_txOrigin rel2 by force
+    using assms(1) assms(3) proof_state_rel_txOrigin ps_growing_no_tx2 rel2 by fastforce
 qed
 
 

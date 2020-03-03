@@ -429,8 +429,7 @@ proof M_show_programCorrect
               from `inv1 (s_invocationOp'(i \<mapsto> RegisterUser name mail)) (s_invocationRes'(i := None))
                   (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
               show ?case
-                apply (auto simp add: inv1_def)
-                by (smt fun_upd_triv inv1.s_transactionOrigin'___eq)
+                by (auto simp add: inv1_def)
 
 
 
@@ -528,8 +527,7 @@ proof M_show_programCorrect
               from `inv1 (s_invocationOp'(i \<mapsto> UpdateMail user mail)) (s_invocationRes'(i := None))
                (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
               show ?case
-                apply (auto simp add: inv1_def)
-                by (smt fun_upd_triv inv1.s_transactionOrigin'___eq) 
+                by (auto simp add: inv1_def)
 
             next
               case inv2
@@ -614,13 +612,8 @@ proof M_show_programCorrect
               show ?case 
                 using NotExists_AtCommit.invocation_happensBeforeH_eq
                 using NotExists_AtCommit.inv
-                apply (auto simp add: inv_def inv1_def inv2_def inv3_def 
-                      i_callOriginI_h_update_to3 map_update_all_get updateHb_single NotExists_AtCommit.PS'_eq)
-                subgoal
-                  by (smt NotExists_AtCommit.s_transactionOrigin'_eq fun_upd_triv)
-                subgoal
-                  by meson
-                done
+                by (auto simp add: inv_def inv1_def inv2_def inv3_def 
+                      i_callOriginI_h_update_to3 map_update_all_get updateHb_single NotExists_AtCommit.PS'_eq, meson)
 
 
 
@@ -690,10 +683,7 @@ proof M_show_programCorrect
               from `inv1 (s_invocationOp'(i \<mapsto> RemoveUser user)) (s_invocationRes'(i := None))
                    (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
               show ?case
-                apply (auto simp add: inv1_def)
-                apply (smt fun_upd_triv inv1.s_transactionOrigin'___eq) \<comment> \<open>TODO this should not be necessary\<close>
-                by (smt fun_upd_triv inv1.s_transactionOrigin'___eq)
-
+                by (auto simp add: inv1_def)
 
               
             next
@@ -764,8 +754,7 @@ proof M_show_programCorrect
             proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3)
               case (inv1)
               then show ?case
-                apply (auto simp add: inv1_def)
-                by (smt fun_upd_triv)
+                by (auto simp add: inv1_def)
             next
               case (inv2)
               then show ?case 
@@ -838,9 +827,7 @@ proof M_show_programCorrect
           next
             case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
             then show ?case 
-              apply (auto simp add: inv_def inv1_def inv2_def inv3_def i_callOriginI_h_update_to3 map_update_all_get updateHb_cases in_sequence_cons split: if_splits, meson)
-              apply (metis (no_types, hide_lams) fun_upd_triv)
-              by meson
+              by (auto simp add: inv_def inv1_def inv2_def inv3_def i_callOriginI_h_update_to3 map_update_all_get updateHb_cases in_sequence_cons split: if_splits, meson)
 
           next
             case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)

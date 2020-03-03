@@ -80,7 +80,7 @@ definition proof_state_rel :: "
        \<and> calls CS = calls PS
        \<and> happensBefore CS = updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)
        \<and> callOrigin CS = map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))
-       \<and> transactionOrigin CS = (transactionOrigin PS)
+       \<and> transactionOrigin CS = (case ps_tx PS of Some tx \<Rightarrow>  transactionOrigin PS(tx \<mapsto> ps_i PS) | None \<Rightarrow> transactionOrigin PS)
        \<and> knownIds CS = (knownIds PS)
        \<and> invocationOp CS = (invocationOp PS)
        \<and> invocationRes CS = (invocationRes PS)
@@ -105,6 +105,7 @@ definition proof_state_rel :: "
        \<and> (invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) CS)
        \<and> (ps_generatedLocal PS \<subseteq> ps_localKnown PS)
        \<and> prog CS = ps_prog PS
+       \<and> (\<forall>t. ps_tx PS \<triangleq> t \<longrightarrow> transactionOrigin PS t = None)
 "
 
 \<comment> \<open>There might be a more elegant solution for this. Deatomize\<close>
@@ -136,7 +137,8 @@ lemmas proof_state_rel_uid_private =   proof_state_rel_def[THEN meta_eq_to_obj_e
 lemmas proof_state_rel_finiteStore =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
 lemmas proof_state_rel_icgi =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
 lemmas proof_state_rel_generatedLocalSub =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
-lemmas proof_state_rel_prog =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2]
+lemmas proof_state_rel_prog =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct1]
+lemmas proof_state_rel_transactionOriginNone =   proof_state_rel_def[THEN meta_eq_to_obj_eq, THEN iffD1, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2, THEN conjunct2]
 
 
 lemmas proof_state_rel_facts = 
@@ -168,7 +170,7 @@ lemmas proof_state_rel_facts =
   proof_state_rel_icgi
   proof_state_rel_generatedLocalSub
   proof_state_rel_prog
-
+  proof_state_rel_transactionOriginNone
 
 
 text "Define execution of a command."
@@ -199,7 +201,7 @@ lemma proof_state_wellFormed_to_state_wellFormed:
         calls = calls PS, 
         happensBefore = updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS), 
         callOrigin = map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS)),
-        transactionOrigin = transactionOrigin PS, 
+        transactionOrigin = (case ps_tx PS of Some tx \<Rightarrow>  transactionOrigin PS(tx \<mapsto> ps_i PS) | None \<Rightarrow> transactionOrigin PS), 
         knownIds = knownIds PS, 
         invocationOp = invocationOp PS,
         invocationRes = invocationRes PS, 
@@ -226,7 +228,7 @@ proof -
      \<lparr>calls = calls PS, 
         happensBefore = updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS), 
         callOrigin = map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS)),
-        transactionOrigin = transactionOrigin PS, 
+        transactionOrigin = (case ps_tx PS of Some tx \<Rightarrow>  transactionOrigin PS(tx \<mapsto> ps_i PS) | None \<Rightarrow> transactionOrigin PS), 
         knownIds = knownIds PS, 
         invocationOp = invocationOp PS,
         invocationRes = invocationRes PS, 
@@ -247,7 +249,7 @@ proof -
 
       show "callOrigin S = map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))"
         by (simp add: proof_state_rel_callOrigin rel)
-      show "transactionOrigin S = transactionOrigin PS"
+      show "transactionOrigin S = (case ps_tx PS of Some tx \<Rightarrow>  transactionOrigin PS(tx \<mapsto> ps_i PS) | None \<Rightarrow> transactionOrigin PS)"
         using proof_state_rel_txOrigin rel by blast
       show "knownIds S = knownIds PS"
         by (simp add: proof_state_rel_knownIds rel)
@@ -321,8 +323,8 @@ definition step_io :: "
           cmd' = n
         \<and> Inv
         \<and> ps_tx S = None
-        \<and> progInv (invariantContext.truncate (S'\<lparr>transactionOrigin := transactionOrigin'(t := None) \<rparr>))
-        \<and> transactionOrigin' t \<triangleq> (ps_i S) 
+        \<and> progInv (invariantContext.truncate (S'\<lparr>transactionOrigin := transactionOrigin'\<rparr>))
+        \<and> transactionOrigin' t = None 
         \<and> (\<forall>t'. t' \<noteq> t \<longrightarrow> (transactionOrigin S t' \<triangleq> ps_i S \<longleftrightarrow> transactionOrigin' t' \<triangleq> ps_i S))
         \<and> chooseSnapshot_h vis' (ps_vis S) (\<lambda>tx. Some Committed) callOrigin' happensBefore'
         \<and> consistentSnapshotH calls' happensBefore' callOrigin' (\<lambda>tx. Some Committed) vis'
@@ -345,6 +347,7 @@ definition step_io :: "
       \<and> (S' = S\<lparr>
         happensBefore := updateHb (happensBefore S) (ps_vis S) (ps_localCalls S),
         callOrigin := map_update_all (callOrigin S) (ps_localCalls S) (the (ps_tx S)),
+        transactionOrigin := transactionOrigin S(the (ps_tx S) \<mapsto> ps_i S),
         ps_tx := None,
         ps_localCalls := [],
         ps_vis := ps_vis S \<union> set (ps_localCalls S),
@@ -771,7 +774,7 @@ proof (rule ccontr)
              calls := calls Sn,
              happensBefore := happensBefore Sn,
              callOrigin := callOrigin Sn,
-             transactionOrigin := transactionOrigin Sn(t \<mapsto> i),
+             transactionOrigin := transactionOrigin Sn,
              knownIds := knownIds Sn,
              invocationOp := invocationOp Sn,
              invocationRes := invocationRes Sn,
@@ -942,18 +945,19 @@ proof (rule ccontr)
 
           show "invariant (prog S)
          (invariantContext.truncate
-           (PS'\<lparr>transactionOrigin := ((transactionOrigin Sn)(t \<mapsto> ps_i PS))(t := None)\<rparr>))"
+           (PS'\<lparr>transactionOrigin := (transactionOrigin Sn)\<rparr>))"
             unfolding invContext_simp
-            using A(7) A(9) by auto
+            using A.invariant A.prog_eq invContext_simp by auto
 
-          show "((transactionOrigin Sn)(t \<mapsto> ps_i PS)) t \<triangleq> ps_i PS"
-            by simp
+
+          show "transactionOrigin Sn t = None"
+            by (simp add: A.transactionOrigin_eq)
 
           show "PS' = PS\<lparr>
             calls := calls Sn,
             happensBefore := happensBefore Sn, 
             callOrigin := callOrigin Sn,
-            transactionOrigin := transactionOrigin Sn(t \<mapsto> ps_i PS), 
+            transactionOrigin := transactionOrigin Sn, 
             knownIds := knownIds Sn,
             invocationOp := invocationOp Sn,
             invocationRes := invocationRes Sn,
@@ -984,7 +988,7 @@ proof (rule ccontr)
           qed (simp add: PS'_def; fail)+
 
           show "transactionOrigin PS t = None"
-            using A.transactionStatus_eq  \<open>state_wellFormed S\<close> proof_state_rel_txOrigin rel wf_transaction_status_iff_origin by fastforce
+            using A(6) A.currentTransaction_eq \<open>state_wellFormed S\<close> proof_state_rel_currentTx proof_state_rel_txOrigin rel wf_transactionOrigin_and_status by fastforce
 
 
           have "currentTransaction S (ps_i PS) = None"
@@ -999,13 +1003,12 @@ proof (rule ccontr)
             by simp
 
           from proof_state_rel_facts[OF `proof_state_rel PS S`]
-          have " transactionOrigin S = transactionOrigin PS" by simp
+          have " transactionOrigin S = (case ps_tx PS of None \<Rightarrow> transactionOrigin PS | Some tx \<Rightarrow> transactionOrigin PS(tx \<mapsto> ps_i PS))" by simp
 
-
-          show "\<forall>t'. t' \<noteq> t \<longrightarrow> transactionOrigin PS t' \<triangleq> ps_i PS = (transactionOrigin Sn(t \<mapsto> ps_i PS)) t' \<triangleq> ps_i PS"
+          from this
+          show "\<forall>t'. t' \<noteq> t \<longrightarrow> transactionOrigin PS t' \<triangleq> ps_i PS = transactionOrigin Sn t' \<triangleq> ps_i PS"
             using ` \<forall>t. transactionOrigin S t \<triangleq> i' = transactionOrigin Sn t \<triangleq> i'`
-              \<open>transactionOrigin S = transactionOrigin PS\<close>
-            by (auto simp add: PS'_def i_def)
+            by (simp add: \<open>ps_tx PS = None\<close>)
 
           from `chooseSnapshot vis' vis Sn`
           show "chooseSnapshot_h vis' (ps_vis PS) (\<lambda>tx. Some Committed) (callOrigin Sn) (happensBefore Sn)"
@@ -1068,6 +1071,7 @@ proof (rule ccontr)
       define PS' where "PS' \<equiv> PS\<lparr>
         happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),
         callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS)),
+        transactionOrigin := transactionOrigin PS(t \<mapsto> ps_i PS),
         ps_tx := None,
         ps_localCalls := [],
         ps_vis := ps_vis PS \<union> set (ps_localCalls PS),
@@ -1112,7 +1116,8 @@ proof (rule ccontr)
 
           show "\<forall>c. i_callOriginI PS' c \<triangleq> ps_i PS' \<longrightarrow> c \<in> ps_vis PS'"
             apply (auto simp add: PS'_def)
-            by (metis i_callOriginI_h_update_to4 proof_state_rel_see_my_updates rel)
+            by (smt \<open>ps_tx PS \<triangleq> t\<close> i_callOriginI_h_update_to2 i_callOriginI_h_update_to4 mem_Collect_eq option.simps(5) proof_state_rel_callOrigin proof_state_rel_localCalls proof_state_rel_see_my_updates rel)
+
 
           show "\<forall>v\<in>ps_generatedLocalPrivate PS'.  uid_is_private (ps_i PS') S' v"
 
@@ -1142,7 +1147,10 @@ proof (rule ccontr)
               using `action = AEndAtomic` by simp
           qed
 
-
+          from proof_state_rel_txOrigin[OF rel]
+          show "transactionOrigin S' =
+              (case ps_tx PS' of None \<Rightarrow> transactionOrigin PS' | Some tx \<Rightarrow> transactionOrigin PS'(tx \<mapsto> ps_i PS'))"
+            by (auto simp add: PS'_def A.S'_def S''_def)
 
         qed ((insert proof_state_rel_facts[OF rel], (auto simp add: sorted_by_empty i_def S''_def PS'_def `S' = S''` `i = i'` `i' = ps_i PS`  split: option.splits)[1]); fail)+
 
@@ -1165,7 +1173,10 @@ proof (rule ccontr)
 
         have context_Same: "invariantContext.truncate PS' = invContext S''"
           apply (auto simp add: invContext_same_allCommitted'[OF `state_wellFormed S''` `\<And>t. transactionStatus S'' t \<noteq> Some Uncommitted`])
-          by (auto simp add: PS'_def S''_def invariantContext.defs proof_state_rel_facts[OF rel])
+          using A.currentTransaction_eq \<open>i' = ps_i PS\<close> proof_state_rel_currentTx rel
+          by (auto simp add: PS'_def S''_def invariantContext.defs proof_state_rel_facts[OF rel]  split: option.splits)
+
+
 
 
         have prog_same: "prog S'' = prog S"
@@ -1175,10 +1186,27 @@ proof (rule ccontr)
           by (simp add: context_Same `Inv = valid` `valid = invariant_all S''` prog_same)
 
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' n Inv"
-          using show_proof_state_wellFormed[OF `proof_state_rel PS' S'`]
-          by (auto simp add: step_io_def WaitEndAtomic PS'_def inv A(11))
+        have tx: "ps_tx PS \<triangleq> t"
+          using A.currentTransaction_eq \<open>i' = ps_i PS\<close> proof_state_rel_currentTx rel by fastforce 
 
+
+        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' n Inv"
+        proof (auto simp add: step_io_def WaitEndAtomic)
+          show "Inv \<Longrightarrow> proof_state_wellFormed PS'"
+            using show_proof_state_wellFormed[OF `proof_state_rel PS' S'`].
+          show "Inv \<Longrightarrow> invariant (prog S) (invariantContext.truncate PS')"
+            using inv by simp
+          show "invariant (prog S) (invariantContext.truncate PS') \<Longrightarrow> Inv"
+            using inv by simp
+          show "PS' =
+            ps_tx_update Map.empty
+             (PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),
+                   callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS)),
+                   transactionOrigin := transactionOrigin PS(the (ps_tx PS) \<mapsto> ps_i PS)\<rparr>)
+            \<lparr>ps_localCalls := [], ps_vis := ps_vis PS \<union> set (ps_localCalls PS),
+               ps_firstTx := ps_firstTx PS \<and> ps_localCalls PS = []\<rparr>"
+            by (auto simp add: proof_state_ext PS'_def tx)
+        qed
       qed
     qed
 
@@ -1578,6 +1606,11 @@ proof (rule ccontr)
             show " \<forall>v\<in>ps_generatedLocalPrivate PS'.
             uid_is_private (ps_i PS') S' v"
               using A(10) A(11) action_outputs.simps(5) i_def proof_state_rel_def rel uip by (auto simp add: PS'_def, blast)
+
+            show "transactionOrigin S' =
+               (case ps_tx PS' of None \<Rightarrow> transactionOrigin PS' | Some tx \<Rightarrow> transactionOrigin PS'(tx \<mapsto> ps_i PS'))"
+              apply (auto simp add: PS'_def S'_def ps_tx split: option.splits)
+              by (metis A.i_def i_def option.case_eq_if option.distinct(1) option.sel proof_state_rel_def ps_tx rel)
 
 
           qed ((insert proof_state_rel_facts[OF rel], (auto simp add: PS'_def S'_def sorted_by_empty)[1]); fail)+
@@ -2312,8 +2345,9 @@ next
               by (metis Suc.prems(1) local.wf map_update_all_None proof_state_rel_facts(2) proof_state_rel_facts(4) wellFormed_callOrigin_dom3)
             subgoal for x
               apply (case_tac "transactionStatus S x", auto)
-              using Suc.prems(1) local.wf proof_state_rel_facts(5) wf_transaction_status_iff_origin apply fastforce
-              by (metis (no_types, lifting) Suc.prems(1) Suc.prems(3) c4 option.discI proof_state_rel_facts(13) proof_state_rel_facts(14) transactionStatus.exhaust)
+              by (simp add: \<open>ps_tx PS = None\<close>)
+            subgoal
+              by (smt Suc.prems(1) \<open>ps_tx PS = None\<close> domIff option.distinct(1) option.exhaust_sel option.simps(4) proof_state_rel_def transactionStatus.exhaust wf_transaction_status_iff_origin_dom)
 
             using \<open>Some res \<triangleq> r\<close> by blast+
 
@@ -3974,7 +4008,7 @@ transactionConsistent_atomic s_callOrigin' vis';
 PS' = (PS\<lparr>calls := s_calls',
           happensBefore := s_happensBefore',
           callOrigin := s_callOrigin',
-          transactionOrigin := s_transactionOrigin'(tx \<mapsto> ps_i PS),
+          transactionOrigin := s_transactionOrigin',
           knownIds := s_knownIds',
           invocationOp := s_invocationOp'(ps_i PS := invocationOp PS (ps_i PS)),
           invocationRes := s_invocationRes'(ps_i PS := None),
@@ -4045,7 +4079,8 @@ proof (rule execution_s_check_proof_rule)
           transactionOrigin := transactionOrigin', knownIds := knownIds', invocationOp := invocationOp',
           invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis'\<rparr> 
           = PS\<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin',
-              transactionOrigin := transactionOrigin'(t := None)(t \<mapsto> ps_i PS), knownIds := knownIds',
+              transactionOrigin := transactionOrigin'(t := None),
+              knownIds := knownIds',
               invocationOp := invocationOp'(ps_i PS := invocationOp PS (ps_i PS)),
               invocationRes := invocationRes'(ps_i PS := None), ps_vis := vis', ps_localCalls := [], ps_tx := Some t\<rparr>"
       proof (auto simp add: proof_state_ext)
@@ -4056,7 +4091,7 @@ proof (rule execution_s_check_proof_rule)
             using \<open>ps_tx PS = None\<close> by auto
         qed
 
-        show "transactionOrigin' = transactionOrigin'(t \<mapsto> ps_i PS)"
+        show " transactionOrigin' = transactionOrigin'(t := None)"
           using Step.transactionOrigin'_eq by auto
 
        
@@ -4087,7 +4122,8 @@ proof (rule execution_s_check_proof_rule)
           and wf: "state_wellFormed
                 \<lparr>calls = calls PS, happensBefore = updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),
                    callOrigin = map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS)),
-                   transactionOrigin = transactionOrigin PS, knownIds = knownIds PS, invocationOp = invocationOp PS,
+                   transactionOrigin = (case ps_tx PS of Some t \<Rightarrow> transactionOrigin PS(t \<mapsto> ps_i PS) | None \<Rightarrow> transactionOrigin PS), 
+                   knownIds = knownIds PS, invocationOp = invocationOp PS,
                    invocationRes = invocationRes PS, prog = s_prog, transactionStatus = s_transactionStatus,
                    generatedIds = s_generatedIds, localState = s_localState, currentProc = s_currentProc,
                    visibleCalls = s_visibleCalls, currentTransaction = s_currentTransaction\<rparr>"
@@ -4105,7 +4141,7 @@ proof (rule execution_s_check_proof_rule)
                       calls = calls', 
                       happensBefore = updateHb happensBefore' vis' (ps_localCalls PS),             
                       callOrigin = map_update_all callOrigin' (ps_localCalls PS) t, 
-                      transactionOrigin = transactionOrigin',             
+                      transactionOrigin = transactionOrigin'(t \<mapsto> ps_i PS),             
                       knownIds = knownIds', 
                       invocationOp = invocationOp', 
                       invocationRes = invocationRes', 
@@ -4151,6 +4187,10 @@ proof (rule execution_s_check_proof_rule)
         thus "invocationRes' = invocationRes'(ps_i PS := None)"
           by auto
 
+        show "transactionOrigin' = transactionOrigin'(t := None)"
+          using Step.transactionOrigin'_eq by auto
+
+
       qed
 
       show "\<And>c. callOrigin' c \<noteq> Some t"
@@ -4190,6 +4230,7 @@ proof (rule execution_s_check_proof_rule)
 
         from state_monotonicGrowth_transactionOrigin_i[OF growth] `transactionOrigin PS tx \<triangleq> ps_i PS`
         have "transactionOrigin CS' tx \<triangleq> ps_i PS"
+          using Step.ps_tx_eq
           by (auto simp add: `tx \<noteq> t` proof_state_rel_facts[OF CS_rel] dest: meta_spec[where x=tx] split: if_splits)
 
 
@@ -4338,18 +4379,19 @@ distinct (ps_localCalls PS);
 \<And>c c'. c\<in>set (ps_localCalls PS) \<Longrightarrow> (c,c') \<notin> happensBefore PS;
 \<And>c c'. c\<in>set (ps_localCalls PS) \<Longrightarrow> (c',c) \<notin> happensBefore PS;
 invocation_happensBeforeH
-    (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS)) 
+    (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS(tx \<mapsto> ps_i PS))) 
     (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
 = 
 (if ps_firstTx PS then
-invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None))) (happensBefore PS)
- \<union> {i' | i' c'. c' \<in> ps_vis PS \<and> i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None)) c' \<triangleq> i' 
-   \<and> (\<forall>c''. i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None)) c'' \<triangleq> i' \<longrightarrow> c'' \<in> ps_vis PS ) } \<times> {ps_i PS}
+invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
+ \<union> {i' | i' c'. c' \<in> ps_vis PS \<and> i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c' \<triangleq> i' 
+   \<and> (\<forall>c''. i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c'' \<triangleq> i' \<longrightarrow> c'' \<in> ps_vis PS ) } \<times> {ps_i PS}
 else
-invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None))) (happensBefore PS)
-- {ps_i PS} \<times> {i'. (ps_i PS,i') \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None))) (happensBefore PS) });
+invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
+- {ps_i PS} \<times> {i'. (ps_i PS,i') \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS) });
 PS' = PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS), 
         callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) tx,
+        transactionOrigin := transactionOrigin PS(tx \<mapsto> ps_i PS),
         ps_vis := ps_vis PS \<union> set (ps_localCalls PS),
         ps_localCalls := [],
         ps_firstTx := False,
@@ -4372,10 +4414,23 @@ proof (rule execution_s_check_proof_rule)
     for  PS' cmd' ok
   proof
 
+
     from step_io
     have cmd'_def: "cmd' = cont ()"
-      and PS'_def: "PS' =      ps_tx_update Map.empty       (PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),             callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))\<rparr>)      \<lparr>ps_localCalls := [], ps_vis := ps_vis PS \<union> set (ps_localCalls PS),         ps_firstTx := ps_firstTx PS \<and> ps_localCalls PS = []\<rparr>"
-      and ok_def: "ok \<longleftrightarrow> Inv (invariantContext.truncate            (ps_tx_update Map.empty              (PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),                    callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS))\<rparr>)             \<lparr>ps_localCalls := [], ps_vis := ps_vis PS \<union> set (ps_localCalls PS),                ps_firstTx := ps_firstTx PS \<and> ps_localCalls PS = []\<rparr>))"
+      and PS'_def: "PS' =
+     ps_tx_update Map.empty
+      (PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),
+            callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS)),
+            transactionOrigin := transactionOrigin PS(the (ps_tx PS) \<mapsto> ps_i PS)\<rparr>)
+     \<lparr>ps_localCalls := [], ps_vis := ps_vis PS \<union> set (ps_localCalls PS),
+        ps_firstTx := ps_firstTx PS \<and> ps_localCalls PS = []\<rparr>"
+      and ok_def: "ok \<longleftrightarrow> Inv (invariantContext.truncate
+              (ps_tx_update Map.empty
+                (PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),
+                      callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) (the (ps_tx PS)),
+                      transactionOrigin := transactionOrigin PS(the (ps_tx PS) \<mapsto> ps_i PS)\<rparr>)
+               \<lparr>ps_localCalls := [], ps_vis := ps_vis PS \<union> set (ps_localCalls PS),
+                  ps_firstTx := ps_firstTx PS \<and> ps_localCalls PS = []\<rparr>))"
       by (auto simp add: step_io_def endAtomic_def split: io.splits if_splits)
 
 
@@ -4387,6 +4442,7 @@ proof (rule execution_s_check_proof_rule)
       show " PS' =
          (PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS),
               callOrigin := map_update_all (callOrigin PS) (ps_localCalls PS) tx, 
+              transactionOrigin := transactionOrigin PS(tx \<mapsto> ps_i PS),
               ps_vis := ps_vis PS \<union> set (ps_localCalls PS),
               ps_localCalls := [], 
               ps_firstTx := False, 
@@ -4414,42 +4470,42 @@ proof (rule execution_s_check_proof_rule)
         by (meson disjoint_iff_not_equal domIff proof_state_rel_callOrigin_localCalls_disjoint rel)
 
       show "invocation_happensBeforeH
-              (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS)) 
+              (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS(tx \<mapsto> ps_i PS))) 
               (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
           = 
           (if ps_firstTx PS then
-          invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None))) (happensBefore PS)
-           \<union> {i' | i' c'. c' \<in> ps_vis PS \<and> i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None)) c' \<triangleq> i' 
-             \<and> (\<forall>c''. i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None)) c'' \<triangleq> i' \<longrightarrow> c'' \<in> ps_vis PS ) } \<times> {ps_i PS}
+          invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
+           \<union> {i' | i' c'. c' \<in> ps_vis PS \<and> i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c' \<triangleq> i' 
+             \<and> (\<forall>c''. i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c'' \<triangleq> i' \<longrightarrow> c'' \<in> ps_vis PS ) } \<times> {ps_i PS}
           else
-          invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None))) (happensBefore PS)
-          - {ps_i PS} \<times> {i'. (ps_i PS,i') \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None))) (happensBefore PS) })"
+          invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
+          - {ps_i PS} \<times> {i'. (ps_i PS,i') \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS) })"
       proof (rule if_cases)
         assume "ps_firstTx PS"
         show "invocation_happensBeforeH
-          (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS)) 
+          (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS(tx \<mapsto> ps_i PS))) 
           (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
           = 
           (
-          invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None))) (happensBefore PS)
-           \<union> {i' | i' c'. c' \<in> ps_vis PS \<and> i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None)) c' \<triangleq> i' 
-             \<and> (\<forall>c''. i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None)) c'' \<triangleq> i' \<longrightarrow> c'' \<in> ps_vis PS ) } \<times> {ps_i PS}
+          invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS)) (happensBefore PS)
+           \<union> {i' | i' c'. c' \<in> ps_vis PS \<and> i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c' \<triangleq> i' 
+             \<and> (\<forall>c''. i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c'' \<triangleq> i' \<longrightarrow> c'' \<in> ps_vis PS ) } \<times> {ps_i PS}
           )"
-        proof (fuzzy_rule(noabs) invocation_happensBeforeH_one_transaction_simp2[where to="(transactionOrigin PS)(tx := None)"])
+        proof (fuzzy_rule(noabs) invocation_happensBeforeH_one_transaction_simp2[where to="transactionOrigin PS"])
           show "ps_localCalls PS \<noteq> []"
             using tx_nonempty by blast
           show "distinct (ps_localCalls PS)"
             by (simp add: \<open>distinct (ps_localCalls PS)\<close>)
           show "\<forall>c\<in>set (ps_localCalls PS). callOrigin PS c = None"
             using \<open>\<And>c. c \<in> set (ps_localCalls PS) \<Longrightarrow> callOrigin PS c = None\<close> by blast
-          show "((transactionOrigin PS)(tx := None)) tx = None"
-            by simp
-          show "\<And>c t. callOrigin PS c \<triangleq> t \<Longrightarrow> ((transactionOrigin PS)(tx := None)) t \<noteq> Some (ps_i PS)"
+          show "(transactionOrigin PS) tx = None"
+            using in_tx proof_state_rel_transactionOriginNone rel by blast
+          show "\<And>c t. callOrigin PS c \<triangleq> t \<Longrightarrow> (transactionOrigin PS) t \<noteq> Some (ps_i PS)"
             using proof_state_rel_firstTx[OF rel] no_callOrigin proof_state_rel_callOrigin[OF rel]
               proof_state_rel_noUncommitted[OF rel] proof_state_rel_txOrigin[OF rel]
               wf_transaction_status_iff_origin_dom[OF \<open>state_wellFormed CS\<close>]
-            apply (auto simp add: \<open>ps_firstTx PS\<close> )
-            by (smt domExists_simp domIff in_tx map_update_all_Some_other option.sel transactionStatus.exhaust)
+            apply (auto simp add: \<open>ps_firstTx PS\<close> in_tx)
+            by (metis (mono_tags, hide_lams) \<open>transactionOrigin PS tx = None\<close> domExists_simp insertCI map_update_all_get not_uncommitted_cases option.distinct(1))
 
           show "\<And>c. callOrigin PS c \<noteq> Some tx"
             using no_callOrigin in_tx map_update_all_Some_same proof_state_rel_callOrigin proof_state_rel_localCalls rel by fastforce
@@ -4457,27 +4513,34 @@ proof (rule execution_s_check_proof_rule)
             by (metis (no_types, lifting) \<open>\<And>c' c. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c', c) \<notin> happensBefore PS\<close> \<open>\<And>c' c. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c, c') \<notin> happensBefore PS\<close> \<open>state_wellFormed CS\<close> domExists_simp domIff map_update_all_None proof_state_rel_callOrigin proof_state_rel_hb rel updateHb_simp2 wellFormed_callOrigin_dom3 wellFormed_happensBefore_calls_l)
           show "\<And>c c'. (c, c') \<in> happensBefore PS \<Longrightarrow> \<exists>t. callOrigin PS c' \<triangleq> t"
             by (metis (no_types, lifting) \<open>\<And>c' c. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c', c) \<notin> happensBefore PS\<close> domExists_simp domIff map_update_all_None proof_state_rel_callOrigin proof_state_rel_hb proof_state_rel_wf rel updateHb_simp2 wellFormed_callOrigin_dom3 wellFormed_happensBefore_calls_r)
-          show "(transactionOrigin PS)(tx := None)(tx \<mapsto> ps_i PS) = transactionOrigin PS"
-            using \<open>state_wellFormed CS\<close> in_tx proof_state_rel_currentTx proof_state_rel_txOrigin rel state_wellFormed_current_transaction_origin by fastforce
 
         qed auto
       next 
         assume "\<not>ps_firstTx PS"
-        from this obtain old_c old_t 
-          where "callOrigin PS old_c \<triangleq> old_t"
-            and "transactionOrigin PS old_t \<triangleq> ps_i PS"
-            and "old_t \<noteq> tx"
-          by (smt \<open>state_wellFormed CS\<close> in_tx map_update_all_Some_other not_uncommitted_cases option.sel proof_state_rel_callOrigin proof_state_rel_currentTx proof_state_rel_firstTx proof_state_rel_txOrigin rel wellFormed_currentTransaction_unique_h(2))
+        with proof_state_rel_firstTx[OF rel]
+        obtain old_c old_t 
+          where "callOrigin CS old_c \<triangleq> old_t"
+            and "transactionOrigin CS old_t \<triangleq> ps_i PS"
+            and "transactionStatus CS old_t \<triangleq> Committed"
+          by auto
+        have "old_t \<noteq> tx"
+          using \<open>state_wellFormed CS\<close> \<open>transactionStatus CS old_t \<triangleq> Committed\<close> in_tx proof_state_rel_currentTx rel wellFormed_currentTransaction_unique_h(2) by fastforce
+     
+        have "callOrigin PS old_c \<triangleq> old_t"
+          using \<open>callOrigin CS old_c \<triangleq> old_t\<close> \<open>old_t \<noteq> tx\<close> in_tx map_update_all_Some_other proof_state_rel_callOrigin rel by fastforce
+        have "transactionOrigin PS old_t \<triangleq> ps_i PS"
+          using \<open>old_t \<noteq> tx\<close> \<open>transactionOrigin CS old_t \<triangleq> ps_i PS\<close> in_tx proof_state_rel_txOrigin rel by fastforce
+
 
         show "invocation_happensBeforeH
-             (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS))
+             (i_callOriginI_h (map_update_all (callOrigin PS) (ps_localCalls PS) tx) (transactionOrigin PS(tx \<mapsto> ps_i PS)))
              (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)) =
-            invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None)))
+            invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS))
              (happensBefore PS) -
             {ps_i PS} \<times>
             {i'.
              (ps_i PS, i')
-             \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None)))
+             \<in> invocation_happensBeforeH (i_callOriginI_h (callOrigin PS) (transactionOrigin PS))
                  (happensBefore PS)}"
         proof (fuzzy_rule invocation_happensBeforeH_more_transactions_simp2)
           show "ps_localCalls PS \<noteq> []"
@@ -4488,20 +4551,18 @@ proof (rule execution_s_check_proof_rule)
             by (metis (mono_tags, lifting) \<open>\<And>thesis. (\<And>CS. proof_state_rel PS CS \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> \<open>\<forall>c\<in>set (ps_localCalls PS). callOrigin PS c = None\<close> domI domIff in_tx map_update_all_Some_same mem_Collect_eq option.case_eq_if option.sel proof_state_rel_callOrigin proof_state_rel_localCalls)
           show "\<And>c c'. (c, c') \<in> happensBefore PS \<Longrightarrow> \<exists>t. callOrigin PS c \<triangleq> t"
             by (metis (no_types, lifting) \<open>\<And>c' c. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c', c) \<notin> happensBefore PS\<close> \<open>\<And>c' c. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c, c') \<notin> happensBefore PS\<close> domD domIff map_update_all_None proof_state_rel_callOrigin proof_state_rel_hb proof_state_rel_wf rel updateHb_simp2 wellFormed_callOrigin_dom3 wellFormed_happensBefore_calls_l)
-          show "((transactionOrigin PS)(tx := None)) old_t \<triangleq> ps_i PS"
+          show "(transactionOrigin PS) old_t \<triangleq> ps_i PS"
             using \<open>old_t \<noteq> tx\<close> \<open>transactionOrigin PS old_t \<triangleq> ps_i PS\<close> by auto
           show "callOrigin PS old_c \<triangleq> old_t"
             by (simp add: \<open>callOrigin PS old_c \<triangleq> old_t\<close>)
           show " Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}"
             using local.wf proof_state_wellFormed_disjoint_happensBefore_localCalls by blast
 
-          show "\<And>c. i_callOriginI_h (callOrigin PS) ((transactionOrigin PS)(tx := None)) c \<triangleq> ps_i PS \<Longrightarrow> c \<in> ps_vis PS"
+          show "\<And>c. i_callOriginI_h (callOrigin PS) (transactionOrigin PS) c \<triangleq> ps_i PS \<Longrightarrow> c \<in> ps_vis PS"
             using proof_state_rel_see_my_updates[OF rel] by (auto simp add: i_callOriginI_h_def split: option.splits if_splits)
 
           show "\<And>c c'. \<lbrakk>c' \<in> ps_vis PS; (c, c') \<in> happensBefore PS\<rbrakk> \<Longrightarrow> c \<in> ps_vis PS"
             by (smt Un_iff \<open>\<And>c' c. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c', c) \<notin> happensBefore PS\<close> \<open>\<And>c' c. c \<in> set (ps_localCalls PS) \<Longrightarrow> (c, c') \<notin> happensBefore PS\<close> \<open>state_wellFormed CS\<close> proof_state_rel_hb proof_state_rel_vis rel updateHb_simp2 wf_vis_downwards_closed2)
-          show "(transactionOrigin PS)(tx := None)(tx \<mapsto> ps_i PS) = transactionOrigin PS"
-            using \<open>state_wellFormed CS\<close> in_tx proof_state_rel_currentTx proof_state_rel_txOrigin rel state_wellFormed_current_transaction_origin by fastforce
 
         qed 
       qed
