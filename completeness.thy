@@ -55,7 +55,7 @@ next
       case (InvocStep initState impl S_invoc)
       
       have h1: "localState S_invoc i = None"
-        using InvocStep.invocationOp_def2 InvocStep.state_wellFormed wf_localState_to_invocationOp by blast
+        by (simp add: InvocStep.invocationOp_eq2 InvocStep.state_wellFormed wf_localState_needs_invocationOp)
 
       have "\<And>x. x \<in> uniqueIds p \<Longrightarrow> x \<in> knownIds S_invoc"
         using InvocStep.less_eq by blast
