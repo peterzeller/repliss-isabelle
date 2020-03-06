@@ -3220,16 +3220,7 @@ qed
 
 
 
-subsection "Loop Rule"
 
-text "Loops annotated with loop invariant for easier generation of verification conditions:"
-
-definition  loop_a :: "(('proc, 'any, 'operation) proof_state \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool) \<Rightarrow>   (bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
-"loop_a LoopInv body \<equiv> loop body"
-
-lemma annotate_loop:
-"loop bdy = loop_a LoopInv bdy"
-  unfolding loop_a_def by simp
 
 lemma WaitReturn_combined:
 "WaitReturn r = (cmd \<bind> cont)
@@ -3277,7 +3268,7 @@ lemma steps_io_bind_split1:
   assumes "steps_io Inv crdtSpec S cmdC S' res"
     and "cmdC = (cmd \<bind> cont)"
   shows "(\<exists>ri Si. steps_io Inv crdtSpec S cmd Si (Some ri) \<and> steps_io Inv crdtSpec Si (cont ri) S' res)
-          \<or> (\<exists>Si. steps_io Inv crdtSpec S cmd Si None)"
+          \<or> (steps_io Inv crdtSpec S cmd S' None \<and> res = None)"
   using assms proof (induct arbitrary: cmd)
   case (steps_io_final S res)
   from this obtain ri
@@ -3302,13 +3293,13 @@ next
   case (steps_io_step  S cmd S' cmd' S'' res)
   then show ?case 
     apply (auto simp add: step_io_bind_split)
-    by (smt step_io_bind_split steps_io.steps_io_step steps_io_final)
+    by (smt step_io_bind_split steps_io.steps_io_step steps_io_final)+
 qed
 
 lemma steps_io_bind_split:
   assumes "steps_io Inv crdtSpec S (cmd \<bind> cont) S' res"
   shows "(\<exists>ri Si. steps_io Inv crdtSpec S cmd Si (Some ri) \<and> steps_io Inv crdtSpec Si (cont ri) S' res)
-          \<or> (\<exists>Si. steps_io Inv crdtSpec S cmd Si None)"
+          \<or> (steps_io Inv crdtSpec S cmd S' None \<and> res = None)"
   using assms steps_io_bind_split1 by blast
 
 
@@ -3464,55 +3455,68 @@ proof
     by (simp add: return_def steps_io_final)
 qed
 
-
+\<comment> \<open>TODO utils\<close>
 lemma if_distrib_bind:
 "((if c then A else B) \<bind>io cont) = (if c then A \<bind>io cont else B \<bind>io cont)"
   by auto
 
-lemma loop_steps:
-  assumes "steps_io progInv qrySpec S (loop bdy) S' res"
-and "LoopInv S"
-and "\<And>S Sb br. \<lbrakk>LoopInv S; steps_io progInv qrySpec S bdy Sb br\<rbrakk> 
-   \<Longrightarrow> case br of None \<Rightarrow> False | Some True \<Rightarrow> P Sb | Some False \<Rightarrow> LoopInv Sb "
-shows "P S' \<and> res = Some ()"
+subsection "Loop Rule"
+
+lemma Loop_steps:
+  fixes bdy :: "'any \<Rightarrow> (('any,'any) loopResult, 'operation::{embeddable,valueType}, 'any::{small,valueType}) io"
+    and res :: "'a::valueType option"
+    and init :: 'any
+    and f :: "'any \<Rightarrow> 'a"
+  assumes steps: "steps_io progInv qrySpec S (Loop init (loop_body_to_V bdy) (\<lambda>r. return (f r))) S' res"
+    and inv_initial: "LoopInv init S"
+    and loop_iteration: "\<And>init S Sb br. \<lbrakk>LoopInv init S; steps_io progInv qrySpec S (bdy init) Sb br\<rbrakk> 
+   \<Longrightarrow> case br of None \<Rightarrow> False | Some (Break res) \<Rightarrow> P Sb (f res) | Some (Continue x) \<Rightarrow> LoopInv x Sb "
+  shows "\<exists>r. res = Some r \<and>  P S' r"
 proof -
 
-  define cmd where "cmd = (loop bdy)"
+  define cmd :: "('a, 'operation, 'any) impl_language_loops.io" 
+    where "cmd = Loop init (loop_body_to_V bdy) (\<lambda>r. return (f r))"
+
+  define nextIteration :: "('any,'any) loopResult \<Rightarrow> ('a, 'operation, 'any) impl_language_loops.io"  where
+      "nextIteration \<equiv> \<lambda>r. case r of Break x \<Rightarrow> return (f x) | Continue x \<Rightarrow> Loop x (loop_body_to_V bdy) (\<lambda>r. return (f r))"
 
   obtain bdyCont 
-    where "bdyCont = return False"
-       and cmd: "cmd = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)"
-    by (auto simp add: cmd_def)
+    where "bdyCont = return (Continue init)"
+       and cmd: "cmd = bdyCont \<bind> nextIteration"
+    by (auto simp add: cmd_def nextIteration_def)
 
   have p1: "\<And>Sb br. \<lbrakk>steps_io progInv qrySpec S bdyCont Sb br\<rbrakk> 
-   \<Longrightarrow> case br of None \<Rightarrow> False | Some True \<Rightarrow> P Sb | Some False \<Rightarrow> LoopInv Sb"
-    using \<open>bdyCont = impl_language_loops.return False\<close> assms(2) steps_io_return by force
+   \<Longrightarrow> case br of None \<Rightarrow> False | Some (Break res) \<Rightarrow> P Sb (f res) | Some (Continue acc) \<Rightarrow> LoopInv acc Sb"
+    using \<open>bdyCont = impl_language_loops.return (Continue init)\<close> inv_initial steps_io_return by fastforce
+
 
   have p2: "steps_io progInv qrySpec S cmd S' res"
-    using `steps_io progInv qrySpec S (loop bdy) S' res` cmd_def by simp
+    using cmd_def steps by blast
 
-  have "P S' \<and> res = Some ()"
+  have "\<exists>r. res = Some r \<and>  P S' r"
     if "steps_io progInv qrySpec S cmd S' res"
-      and "cmd = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)"
+      and "cmd = bdyCont \<bind> nextIteration"
       and "\<And>Sb br. \<lbrakk>steps_io progInv qrySpec S bdyCont Sb br\<rbrakk> 
-   \<Longrightarrow> case br of None \<Rightarrow> False | Some True \<Rightarrow> P Sb | Some False \<Rightarrow> LoopInv Sb"
+   \<Longrightarrow> case br of None \<Rightarrow> False | Some (Break r) \<Rightarrow> P Sb (f r) | Some (Continue x) \<Rightarrow> LoopInv x Sb"
     using that proof (induct arbitrary: bdyCont )
     case (steps_io_final S res)
-    from `WaitReturn res = bdyCont \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)`
-    have "bdyCont = return True"
-      by (smt WaitReturn_combined impl_language_loops.io.distinct(41) impl_language_loops.return_def loop_def)
+    from WaitReturn_combined[OF `WaitReturn res = bdyCont \<bind> nextIteration`]
+    obtain res' where "bdyCont = return (Break res')" and "res = f res'"
+      by (cases bdyCont, auto simp add: return_def nextIteration_def split: loopResult.splits)
 
-    hence "steps_io progInv qrySpec S bdyCont S (Some True)"
+    hence "steps_io progInv qrySpec S bdyCont S (Some (Break res'))"
       by (simp add: steps_io_return_iff)
 
     thus ?case
-      using  steps_io_final.prems(2) by force 
+      using \<open>res = f res'\<close> steps_io_final.prems(2) by fastforce
   next
     case (steps_io_error S cmd S' cmd')
     from `step_io progInv qrySpec S cmd S' cmd' False`
     have "\<exists>cmd'. step_io progInv qrySpec S bdyCont S' cmd' False"
-      unfolding `cmd = bdyCont \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)`
-      by (cases bdyCont, auto simp add: step_io_def return_def loop_def split: prod.splits if_splits)
+      unfolding `cmd = bdyCont \<bind> nextIteration`
+      by (cases bdyCont, auto simp add: step_io_def return_def while_def nextIteration_def split: prod.splits if_splits loopResult.splits)
+
+
     hence "steps_io progInv qrySpec S bdyCont S' None"
       using steps_io.steps_io_error by blast
     hence False
@@ -3521,7 +3525,6 @@ proof -
   next
     case (steps_io_step Sx cmd1 Sx' cmd' Sx'' res bdyCont )
 
-    thm steps_io_step.prems
 
     show ?case
     proof (cases "\<exists>r. bdyCont = return r")
@@ -3531,42 +3534,57 @@ proof -
         by blast
       show "?thesis"
       proof (cases bdyR)
-        case True \<comment> \<open>Loop done\<close>
-        hence "bdyCont = return True"
+        case (Break res) \<comment> \<open>Loop done\<close>
+        hence "bdyCont = return (Break res)"
           using `bdyCont = return bdyR` by simp
 
 
-        with `cmd1 = bdyCont \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)`
-        have "cmd1 = return ()"
-          by auto
+        with `cmd1 = bdyCont \<bind> nextIteration`
+        have "cmd1 = return (f res)"
+          using nextIteration_def by auto
 
         with `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-        have False \<comment> \<open>Actually this case is handled in steps-io-final as not step is done.\<close>
+        have False \<comment> \<open>Actually this case is handled in steps-io-final as no step is done.\<close>
           by (auto simp add: step_io_def return_def)
 
         thus ?thesis ..
       next
-        case False \<comment> \<open>Start loop again.\<close>
-        hence "bdyCont = return False"
+        case (Continue acc) \<comment> \<open>Start loop again.\<close>
+        hence "bdyCont = return (Continue acc)"
           using `bdyCont = return bdyR` by simp
 
-        with `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
-        have "cmd1 = loop bdy"
-          by auto
+        with `cmd1 = bdyCont \<bind> nextIteration`
+        have "cmd1 = Loop acc (loop_body_to_V bdy) (\<lambda>r. return (f r))"
+          using nextIteration_def by auto
 
         with `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-        have "cmd' = bdy \<bind> (\<lambda>r. if r then return () else loop bdy)"
+        have "cmd' = bdy acc \<bind> nextIteration"
           and "Sx' = Sx"
-          by (auto simp add: loop_def step_io_def intro!: arg_cong_bind)
+          by (auto simp add: while_def step_io_def nextIteration_def intro!: arg_cong_bind)
+
 
         show ?thesis
-          using `cmd' = bdy \<bind> (\<lambda>r. if r then return () else loop bdy)`
+          using `cmd' = bdy acc \<bind> nextIteration`
         proof (rule steps_io_step)  
 
-          show "case br of None \<Rightarrow> False | Some True \<Rightarrow> P Sb | Some False \<Rightarrow> LoopInv Sb"
-            if c0: "steps_io progInv qrySpec Sx' bdy Sb br"
+          show "case br of None \<Rightarrow> False | Some (Continue x) \<Rightarrow> LoopInv x Sb | Some (Break b) \<Rightarrow> P Sb (f b) "
+            if c0: "steps_io progInv qrySpec Sx' (bdy acc) Sb br"
             for  Sb br
-            by (metis \<open>Sx' = Sx\<close> \<open>bdyCont = impl_language_loops.return False\<close> assms(3)  impl_language_loops.return_def old.bool.simps(4) option.simps(5) steps_io_final steps_io_step.prems(2) that)
+          proof (rule loop_iteration)
+            show "steps_io progInv qrySpec Sx' (bdy acc) Sb br" using c0 .
+
+            have fstep: "steps_io progInv qrySpec Sx (WaitReturn (Continue acc)) Sx (Some (Continue acc))"
+              by (rule steps_io_final)
+
+            hence "steps_io progInv qrySpec Sx bdyCont Sx (Some (Continue acc))"
+              using `bdyCont = return (Continue acc)` by (simp add: return_def)
+
+            from steps_io_step.prems(2)[OF this, simplified]
+            have "LoopInv acc Sx" .
+
+            thus "LoopInv acc Sx'"
+              using \<open>Sx' = Sx\<close> by simp 
+          qed
         qed
       qed
     next
@@ -3574,105 +3592,55 @@ proof -
       hence "\<nexists>r. bdyCont = impl_language_loops.return r" .
 
       with `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-        and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
+        and `cmd1 = bdyCont \<bind> nextIteration`
       obtain bdyCont'
-        where "cmd' = bdyCont' \<bind> (\<lambda>r. if r then return () else loop bdy)"
+        where "cmd' = bdyCont' \<bind> nextIteration"
           and "step_io progInv qrySpec Sx bdyCont Sx' bdyCont' True"
       proof (atomize_elim)
 
-        show "\<exists>bdyCont'. cmd' = bdyCont' \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)
+        show "\<exists>bdyCont'. cmd' = bdyCont' \<bind> nextIteration
           \<and>  step_io progInv qrySpec Sx bdyCont Sx' bdyCont' True"
         proof (cases bdyCont)
-
-          case (WaitLocalStep x1)
-          then show ?thesis 
-            using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-              and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
-            by (auto simp add: step_io_def split: prod.splits)
-        next
-          case (WaitBeginAtomic x2)
-          then show ?thesis
-            using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-              and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
-            by (auto simp add: step_io_def intro!: exI split: prod.splits)
-
-        next
-          case (WaitEndAtomic x3)
-          then show ?thesis using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-              and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
-            by (auto simp add: step_io_def split: prod.splits)
-        next
-          case (WaitNewId x41 x42)
-          then show ?thesis using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-              and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
-            by (auto simp add: step_io_def split: prod.splits)
-        next
-          case (WaitDbOperation x51 x52)
-          then show ?thesis using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-              and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
-            by (auto simp add: step_io_def split: prod.splits)
-        next
-          case (WaitReturn x6)
-          with ` \<nexists>r. bdyCont = impl_language_loops.return r`
-          have False
-            by (auto simp add: return_def)
-          thus ?thesis ..
-        next
           case (Loop Linit Lbdy Lcont)
           with `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-              and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
-          have c0: "cmd1 = Loop Linit Lbdy (\<lambda>x. Lcont x \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy))"
-            and "bdyCont = Loop Linit Lbdy Lcont"
-            and cmd'1: "cmd' = loop_body_from_V Lbdy Linit \<bind> case_loopResult 
-                    (\<lambda>x. Loop x Lbdy (\<lambda>x. Lcont x \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy))) 
-                    (\<lambda>x. Lcont x \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy))"
+            and `cmd1 = bdyCont \<bind> nextIteration`
+          have c0: "cmd1 = Loop Linit Lbdy (\<lambda>x. Lcont x \<bind> nextIteration)"
+            and  "bdyCont = Loop Linit Lbdy Lcont"
+            and  "proof_state_wellFormed Sx"
+            and  cmd'1: "cmd' = loop_body_from_V Lbdy Linit \<bind> (\<lambda>r. 
+                      case r of Continue x \<Rightarrow> Loop x Lbdy (\<lambda>x. Lcont x \<bind> nextIteration)
+                              | Break x \<Rightarrow> Lcont x \<bind> nextIteration)"
             and  "Sx' = Sx"
             by (auto simp add: step_io_def)
-(*
-          have "bdyCont = Loop Linit Lbdy Lcont"
-            and cmd'1: "cmd' =
-               loop_body_from_V Lbdy Linit \<bind>io
-               (\<lambda>r. if r then Lcont undefined \<bind>io (\<lambda>r. if r then return () else loop bdy)
-                    else Loop Linit Lbdy (\<lambda>r'.  Lcont r' \<bind>io (\<lambda>r. if r then return () else loop bdy)))"
-            and "Sx' = Sx"
-            and s: "step_io progInv qrySpec Sx bdyCont action Sx' (loop_body_from_V Lbdy \<bind>io (\<lambda>r. if r then Lcont undefined else Loop Linit Lbdy Lcont)) True"
-            by (auto simp add: step_io_def)
 
-
-          have cmd'2:
-            "cmd' =
-               (loop_body_from_V Lbdy \<bind>
-                (\<lambda>r. if r then Lcont else Loop Lbdy Lcont)) \<bind> 
-                  (\<lambda>r. if r then impl_language_loops.return () else loop bdy)"
-            by (auto simp add: cmd'1  intro!: arg_cong_bind)
-*)
           show ?thesis
           proof (intro exI conjI)
-            show "cmd' =
-               (loop_body_from_V Lbdy Linit \<bind>io
-                (\<lambda>r. case r of Break x \<Rightarrow> Lcont x | Continue x \<Rightarrow> Loop x Lbdy Lcont)) \<bind>io 
-                  (\<lambda>r. if r then impl_language_loops.return () else loop bdy)" 
+            show "cmd' = (loop_body_from_V Lbdy Linit \<bind> (\<lambda>r. 
+                      case r of Continue x \<Rightarrow> Loop x Lbdy (\<lambda>x. Lcont x)
+                              | Break x \<Rightarrow> Lcont x))  \<bind> nextIteration"
               using cmd'1 by (auto simp add: intro!: arg_cong_bind  split: loopResult.splits)
 
 
             show "step_io progInv qrySpec Sx bdyCont Sx'
                  (loop_body_from_V Lbdy Linit \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x Lbdy Lcont | Break x \<Rightarrow> Lcont x)) True"
               using `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-              and `cmd1 = bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)`
+                and `cmd1 = Loop Linit Lbdy (\<lambda>x. Lcont x \<bind> nextIteration)`
               by (auto simp add: step_io_def Loop)
           qed
-        qed
+
+        qed (use `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
+                ` \<nexists>r. bdyCont = impl_language_loops.return r`
+                `cmd1 = bdyCont \<bind> nextIteration` 
+                in \<open>auto simp add: step_io_def nextIteration_def return_def split: prod.splits\<close>)
       qed
 
-
-      show ?thesis 
-        using `cmd' = bdyCont' \<bind> (\<lambda>r. if r then return () else loop bdy)`
+      show ?thesis
+        using \<open>cmd' = bdyCont' \<bind> nextIteration\<close> 
       proof (rule steps_io_step.hyps(3)) 
 
-        show "case br of None \<Rightarrow> False | Some True \<Rightarrow> P Sb | Some False \<Rightarrow> LoopInv Sb"
+        show "case br of None \<Rightarrow> False | Some (Continue x) \<Rightarrow> LoopInv x Sb | Some (Break b) \<Rightarrow> P Sb (f b)"
           if c0: "steps_io progInv qrySpec Sx' bdyCont' Sb br"
           for  Sb br
-
         proof (rule steps_io_step)
           show "steps_io progInv qrySpec Sx bdyCont Sb br"
           proof (rule steps_io.steps_io_step)
@@ -3680,11 +3648,6 @@ proof -
             show "steps_io progInv qrySpec Sx' bdyCont' Sb br"
               using `steps_io progInv qrySpec Sx' bdyCont' Sb br` .
 
-            from `step_io progInv qrySpec Sx cmd1 Sx' cmd'     True`
-            have s: "step_io progInv qrySpec Sx (bdyCont \<bind> (\<lambda>r. if r then return () else loop bdy)) 
-                                            Sx' (bdyCont' \<bind> (\<lambda>r. if r then return () else loop bdy)) True"
-              unfolding `cmd1 = bdyCont \<bind> (\<lambda>r. if r then impl_language_loops.return () else loop bdy)` 
-                `cmd' = bdyCont' \<bind> (\<lambda>r. if r then return () else loop bdy)` .
 
             show "step_io progInv qrySpec Sx bdyCont Sx' bdyCont' True"
               using `step_io progInv qrySpec Sx bdyCont Sx' bdyCont' True` .
@@ -3694,31 +3657,53 @@ proof -
     qed
   qed
 
-  thus "P S' \<and> res \<triangleq> ()"
+  thus "\<exists>r. res \<triangleq> r \<and> P S' r"
     using p1 cmd p2 by blast
 qed
 
+text "Loops annotated with loop invariant for easier generation of verification conditions:"
 
+definition  while_a :: "(('proc, 'any, 'operation) proof_state \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool) \<Rightarrow>   (bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
+"while_a LoopInv body \<equiv> while body"
+
+lemma annotate_loop:
+"while bdy = while_a LoopInv bdy"
+  unfolding while_a_def by simp
+
+lemma steps_io_bind:
+  assumes steps: "steps_io progInv qrySpec S cmd Sb br"
+    and cmd: "cmd = (cmd1 \<bind> (\<lambda>x. return (f x)))"
+  shows "\<exists>x. steps_io progInv qrySpec S cmd1 Sb x \<and> br = (case x of None \<Rightarrow> None | Some r \<Rightarrow> Some (f r))"
+  using steps_io_bind_split[OF steps[simplified cmd]] 
+  by (auto simp add: dest!: steps_io_return)
+
+lemma steps_io_bind':
+  assumes "steps_io progInv qrySpec S (cmd \<bind> (\<lambda>x. return (f x))) Sb br"
+  shows "\<exists>x. steps_io progInv qrySpec S cmd Sb x \<and> br = (case x of None \<Rightarrow> None | Some r \<Rightarrow> Some (f r))"
+  using assms steps_io_bind by blast
+
+
+(* TODO
 lemma execution_s_check_loop:
   assumes 
-inv_pre: "LoopInv PS PS"
+inv_pre: "LoopInv PS init PS"
 and cont: "
-\<And>PSl. \<lbrakk>
-  LoopInv PS PSl
-\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec  PSl body 
-    (\<lambda>PS' r. if r then execution_s_check Inv crdtSpec PS' (cont ()) P
-             else LoopInv PS PS' )"
-shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
+\<And>acc PSl. \<lbrakk>
+  LoopInv PS acc PSl
+\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec PSl (body acc)
+    (\<lambda>PS' r. case r of Break res \<Rightarrow> execution_s_check Inv crdtSpec PS' (rc res \<bind> cont) P
+                     | Continue acc' \<Rightarrow> LoopInv PS acc' PS' )"
+shows "execution_s_check Inv crdtSpec PS (Loop init (loop_body_to_V body) rc \<bind> cont) P"
   unfolding execution_s_check_def proof (intro allI impI)
   fix S' res
-  assume steps_io: "steps_io Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) S' res"
+  assume steps_io: "steps_io Inv crdtSpec PS (Loop init (loop_body_to_V body) rc \<bind> cont) S' res"
     and PS_wf: "proof_state_wellFormed PS"
 
   from steps_io_bind_split[OF steps_io]
   obtain Si
-    where cases: "(steps_io Inv crdtSpec PS (loop_a LoopInv body) Si (Some ())
+    where cases: "(steps_io Inv crdtSpec PS (while_a LoopInv body) Si (Some ())
                  \<and> steps_io Inv crdtSpec Si (cont ()) S' res) 
-            \<or> (steps_io Inv crdtSpec PS (loop_a LoopInv body) Si None)"
+            \<or> (steps_io Inv crdtSpec PS (while_a LoopInv body) Si None)"
     by auto
 
   text "loop maintains the invariant"
@@ -3737,10 +3722,10 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
 
   {
     fix r
-    assume steps_loop: "steps_io Inv crdtSpec PS (loop body) Si r"
+    assume steps_loop: "steps_io Inv crdtSpec PS (while body) Si r"
     from this
     have "Pl Si \<and> r \<triangleq> ()"
-    proof (rule loop_steps[where LoopInv="\<lambda>PSl. LoopInv PS PSl \<and> proof_state_wellFormed PSl"])
+    proof (rule while_steps[where LoopInv="\<lambda>PSl. LoopInv PS PSl \<and> proof_state_wellFormed PSl"])
       show "LoopInv PS PS \<and> proof_state_wellFormed PS"
         by (simp add: inv_pre PS_wf)
 
@@ -3811,26 +3796,196 @@ shows "execution_s_check Inv crdtSpec PS (loop_a LoopInv body \<bind> cont) P"
   show "case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r"
   proof (rule disjE; clarsimp?)
     \<comment> \<open>First the case where the loop finishes successfully\<close>
-    assume steps_loop: "steps_io Inv crdtSpec PS (loop_a LoopInv body) Si (Some ())"
+    assume steps_loop: "steps_io Inv crdtSpec PS (while_a LoopInv body) Si (Some ())"
       and steps_cont: "steps_io Inv crdtSpec Si (cont ()) S' res"
-    hence steps_loop': "steps_io Inv crdtSpec PS (loop body) Si (Some ())"
-      unfolding loop_a_def by simp
+    hence steps_loop': "steps_io Inv crdtSpec PS (while body) Si (Some ())"
+      unfolding while_a_def by simp
 
-    thm loop_steps
-    thm loop_steps[OF steps_loop']
 
     show "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x"
       using Pl_def loop_correct steps_cont steps_loop' by blast
   next
     \<comment> \<open>Next the case where the loop fails:\<close>
-    assume "steps_io Inv crdtSpec PS (loop_a LoopInv body) Si None"
+    assume "steps_io Inv crdtSpec PS (while_a LoopInv body) Si None"
 
     have False
-      by (metis \<open>steps_io Inv crdtSpec PS (loop_a LoopInv body) Si None\<close> loop_a_def loop_correct option.discI)
+      by (metis \<open>steps_io Inv crdtSpec PS (while_a LoopInv body) Si None\<close> while_a_def loop_correct option.discI)
 
     thus "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x" ..
   qed
 qed
+
+*)
+
+lemma while_steps:
+  assumes steps: "steps_io progInv qrySpec S (while bdy) S' res"
+and inv_initial: "LoopInv S"
+and inv_iteration: "\<And>S Sb br. \<lbrakk>LoopInv S; steps_io progInv qrySpec S bdy Sb br\<rbrakk> 
+   \<Longrightarrow> case br of None \<Rightarrow> False | Some True \<Rightarrow> P Sb | Some False \<Rightarrow> LoopInv Sb "
+shows "P S' \<and> res = Some ()"
+proof -
+
+  
+
+  have "\<exists>r. res \<triangleq> r \<and> P S'"
+    using steps[simplified while_def] inv_initial
+  proof (rule Loop_steps)
+
+    show "case br of None \<Rightarrow> False | Some (Continue x) \<Rightarrow> LoopInv Sb | Some (Break res) \<Rightarrow> P Sb"
+      if c0: "LoopInv S"
+        and c1: "steps_io progInv qrySpec S (bdy \<bind> (\<lambda>x. impl_language_loops.return ((if x then Break else Continue) ???))) Sb br"
+      for  S Sb and br :: "('any,'any) loopResult option"
+    proof -
+      obtain x 
+        where iter': "steps_io progInv qrySpec S bdy Sb x" 
+          and br_def: "br = (case x of None \<Rightarrow> None | Some True \<Rightarrow> Some (Break ???) | Some False \<Rightarrow> Some (Continue ???))"
+        by (atomize_elim, fuzzy_rule steps_io_bind'[OF c1], auto intro!: HOL.ext)
+
+      from inv_iteration[OF `LoopInv S` `steps_io progInv qrySpec S bdy Sb x`]
+
+      show "case br of None \<Rightarrow> False | Some (Continue x) \<Rightarrow> LoopInv Sb | Some (Break res) \<Rightarrow> P Sb "
+        using br_def by (auto split: option.splits bool.splits)
+    qed
+  qed
+  thus ?thesis
+    by simp
+qed
+
+
+
+lemma execution_s_check_loop:
+  assumes 
+inv_pre: "LoopInv PS PS"
+and cont: "
+\<And>PSl. \<lbrakk>
+  LoopInv PS PSl
+\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec  PSl body 
+    (\<lambda>PS' r. if r then execution_s_check Inv crdtSpec PS' (cont ()) P
+             else LoopInv PS PS' )"
+shows "execution_s_check Inv crdtSpec PS (while_a LoopInv body \<bind> cont) P"
+  unfolding execution_s_check_def proof (intro allI impI)
+  fix S' res
+  assume steps_io: "steps_io Inv crdtSpec PS (while_a LoopInv body \<bind> cont) S' res"
+    and PS_wf: "proof_state_wellFormed PS"
+
+  from steps_io_bind_split[OF steps_io]
+  obtain Si
+    where cases: "(steps_io Inv crdtSpec PS (while_a LoopInv body) Si (Some ())
+                 \<and> steps_io Inv crdtSpec Si (cont ()) S' res) 
+            \<or> (steps_io Inv crdtSpec PS (while_a LoopInv body) Si None)"
+    by auto
+
+  text "loop maintains the invariant"
+  have "case loopR of None \<Rightarrow> False 
+      | Some True \<Rightarrow> execution_s_check Inv crdtSpec PS' (cont ()) P 
+      | Some False \<Rightarrow> LoopInv PS PS'"
+    if "LoopInv PS PSl"
+      and "proof_state_wellFormed PS"
+      and "steps_io Inv crdtSpec PS body PS' loopR"
+    for PSl PS' loopR
+    by (smt PS_wf cont inv_pre option.case_eq_if that use_execution_s_check)
+
+  define Pl where "Pl \<equiv> (\<lambda>Si. \<forall>S' res.
+    steps_io Inv crdtSpec Si (cont ()) S' res \<longrightarrow>  
+      (case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r))"
+
+  {
+    fix r
+    assume steps_loop: "steps_io Inv crdtSpec PS (while body) Si r"
+    from this
+    have "Pl Si \<and> r \<triangleq> ()"
+    proof (rule while_steps[where LoopInv="\<lambda>PSl. LoopInv PS PSl \<and> proof_state_wellFormed PSl"])
+      show "LoopInv PS PS \<and> proof_state_wellFormed PS"
+        by (simp add: inv_pre PS_wf)
+
+
+      show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed Sb"
+        if "LoopInv PS S \<and> proof_state_wellFormed S"
+          and steps: "steps_io Inv crdtSpec S body Sb br"
+        for  S Sb br
+      proof -
+        from  that
+        have inv: "LoopInv PS S" and wf: "proof_state_wellFormed S" 
+          by auto
+
+        from cont[OF inv]
+        have check: "execution_s_check Inv crdtSpec S body
+           (\<lambda>PS' r. if r then execution_s_check Inv crdtSpec PS' (cont ()) P else LoopInv PS PS')".
+
+        from use_execution_s_check[OF check, OF steps, OF wf]
+        have c: "case br of None \<Rightarrow> False | Some r \<Rightarrow> if r then execution_s_check Inv crdtSpec Sb (cont ()) P else LoopInv PS Sb" .
+
+        show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed Sb"
+        proof (cases br)
+          case None
+          thus ?thesis
+            using c by auto
+        next
+          case (Some brv)
+          hence [simp]: "br \<triangleq> brv" by simp
+          show ?thesis
+          proof (cases brv)
+            case True
+            hence [simp]: "brv = True" by simp
+            from c
+            have "execution_s_check Inv crdtSpec Sb (cont ()) P" by auto
+
+            show ?thesis 
+            proof auto
+              show "Pl Sb" 
+                unfolding Pl_def proof auto
+
+
+                show "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x"
+                  if  "steps_io Inv crdtSpec Sb (cont ()) S' res"
+                  for  S' res
+                  using c local.wf steps steps_io_wf_maintained that use_execution_s_check by fastforce
+              qed
+            qed
+          next
+            case False
+            hence [simp]: "\<not>brv" .
+
+            show ?thesis 
+            proof auto
+              show "LoopInv PS Sb"
+                using c by auto
+              show "proof_state_wellFormed Sb"
+
+                using local.wf steps steps_io_wf_maintained by fastforce
+            qed
+          qed
+        qed
+      qed
+    qed
+  }
+  note loop_correct =  this
+
+  from cases
+  show "case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r"
+  proof (rule disjE; clarsimp?)
+    \<comment> \<open>First the case where the loop finishes successfully\<close>
+    assume steps_loop: "steps_io Inv crdtSpec PS (while_a LoopInv body) Si (Some ())"
+      and steps_cont: "steps_io Inv crdtSpec Si (cont ()) S' res"
+    hence steps_loop': "steps_io Inv crdtSpec PS (while body) Si (Some ())"
+      unfolding while_a_def by simp
+
+
+    show "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x"
+      using Pl_def loop_correct steps_cont steps_loop' by blast
+  next
+    \<comment> \<open>Next the case where the loop fails:\<close>
+    assume "steps_io Inv crdtSpec PS (while_a LoopInv body) Si None"
+
+    have False
+      by (metis \<open>steps_io Inv crdtSpec PS (while_a LoopInv body) Si None\<close> while_a_def loop_correct option.discI)
+
+    thus "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x" ..
+  qed
+qed
+
+
+
 
 subsection "References"
 
@@ -4627,7 +4782,7 @@ makeRef_def[language_construct_defs]
 read_def[language_construct_defs] 
 assign_def[language_construct_defs] 
 update_def[language_construct_defs]
-loop_a_def[language_construct_defs]
+while_a_def[language_construct_defs]
 \<comment> \<open>loop construct is not added here, since unfolding it might diverge.
     the loops added are just syntactic sugar for loop.\<close>
 

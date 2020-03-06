@@ -3,7 +3,6 @@ section "Example: Computing Maximum with a Loop"
 theory example_loop_max
   imports 
     program_verification_tactics
-    crdt_specs2
     unique_ids
     program_proof_rules_loops
     app_verification_helpers
@@ -70,7 +69,7 @@ definition max_impl :: "nat list \<Rightarrow> (val,operation,val) io" where
    do {
       listR \<leftarrow> makeRef p_list;
       resR \<leftarrow> makeRef 0;
-      loop_a (loop_inv listR resR p_list) (do {
+      while_a (loop_inv listR resR p_list) (do {
         list \<leftarrow> read listR;
         res \<leftarrow> read resR;
         if list = [] then 

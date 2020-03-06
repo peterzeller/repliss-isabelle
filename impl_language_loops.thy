@@ -2,8 +2,9 @@ section "Implementation Language with Loops"
 theory impl_language_loops
   imports Main 
     "HOL-Library.Monad_Syntax"
-  repliss_sem
-  ZFC_utils
+    repliss_sem
+    ZFC_utils
+    "fuzzyrule.fuzzy_goal_cases"
 begin
 
 text "We need to hide some ZFC constants so that the normal ones are still visible:"
@@ -37,7 +38,10 @@ instance proof
 qed
 end
 
-
+text \<open>The typeclass natConvert is the dual to the typeclass countable. 
+A natConvert type is at least as big as the natural numbers, so any natural number can be converted 
+to the type using fromNat.
+\<close>
 class natConvert =
   fixes fromNat :: "nat \<Rightarrow> 'a"
   assumes fromNat_inj: "inj fromNat"
@@ -55,7 +59,7 @@ instance
 end
 
 
-datatype 'any loopResult = Continue 'any | Break 'any
+datatype ('c,'b) loopResult = Continue 'c | Break 'b
 
 datatype ('a,'operation, 'any) io =
     WaitLocalStep "'any store \<Rightarrow> bool \<times> 'any store \<times> ('a,'operation, 'any) io"
@@ -64,7 +68,7 @@ datatype ('a,'operation, 'any) io =
   | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitDbOperation 'operation "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitReturn "'a" 
-  | Loop 'any "V" "'any \<Rightarrow> ('a,'operation, 'any) io" \<comment> \<open>body is an @{typ \<open>'any \<Rightarrow> ('any loopResult, 'operation, 'any) io\<close>} encoded a type V. 
+  | Loop 'any "V" "'any \<Rightarrow> ('a,'operation, 'any) io" \<comment> \<open>body is an @{typ \<open>'any \<Rightarrow> (('any,'any) loopResult, 'operation, 'any) io\<close>} encoded a type V. 
                                             Had to use dynamic typing here as Isabelle has no GADTs. \<close>
 
 
@@ -183,18 +187,22 @@ qed
 instance io :: (embeddable, embeddable, small) embeddable
   by (standard, force intro: io_to_V_inj)
 
-definition loopResult_to_V where
+definition loopResult_to_V :: "('a::embeddable, 'b::embeddable) loopResult \<Rightarrow> V" where
   "loopResult_to_V l = (case l of 
-    (Break x) \<Rightarrow> to_V (False, x)
-  | (Continue x) \<Rightarrow> to_V (True, x))"
+    (Break x) \<Rightarrow> to_V (False, x, undefined::'a)
+  | (Continue x) \<Rightarrow> to_V (True, undefined::'b, x))"
+
 
 lemma loopResult_to_V_inj: "inj loopResult_to_V"
-  by (standard, use to_V_use_inj in \<open>auto simp add: loopResult_to_V_def  split: loopResult.splits\<close>)
+  by standard (use to_V_use_inj in \<open>auto simp add: loopResult_to_V_def  split: loopResult.splits\<close>)
 
-instance loopResult :: (embeddable) embeddable
+
+
+instance loopResult :: (embeddable, embeddable) embeddable
   by (standard, force intro: loopResult_to_V_inj)
 
-instance loopResult :: (small) small
+
+instance loopResult :: (small, small) small
 proof (rule show_small_type_class, intro conjI exI)
 
   have "\<exists>(f::'a \<Rightarrow> V). inj f \<and>   small (range f)"
@@ -203,22 +211,22 @@ proof (rule show_small_type_class, intro conjI exI)
   show "inj loopResult_to_V"
     by (simp add: loopResult_to_V_inj)
 
-  have "small (range (to_V :: (bool\<times>'a)\<Rightarrow>V))"
+  have "small (range (to_V :: (bool\<times>'b\<times>'a)\<Rightarrow>V))"
     using to_V_small by blast
 
 
-  thus "small (range (loopResult_to_V::'a loopResult\<Rightarrow>V))"
+  thus "small (range (loopResult_to_V::('a,'b) loopResult\<Rightarrow>V))"
   proof (rule smaller_than_small)
 
-    show "range (loopResult_to_V::'a loopResult\<Rightarrow>V) \<subseteq>range (to_V :: (bool\<times>'a)\<Rightarrow>V)"
+    show "range (loopResult_to_V::('a,'b)  loopResult\<Rightarrow>V) \<subseteq>range (to_V :: (bool\<times>'b\<times>'a)\<Rightarrow>V)"
       by (auto simp add: loopResult_to_V_def split: loopResult.splits)
   qed
 qed
 
-definition loop_body_from_V :: "V \<Rightarrow> 'any \<Rightarrow> ('any loopResult, 'operation::embeddable, 'any::small) io" where
+definition loop_body_from_V :: "V \<Rightarrow> 'any \<Rightarrow> (('any,'any) loopResult, 'operation::embeddable, 'any::small) io" where
 "loop_body_from_V \<equiv> from_V"
 
-definition loop_body_to_V :: "('any \<Rightarrow> ('any loopResult, 'operation::embeddable, 'any::small) io) \<Rightarrow> V" where
+definition loop_body_to_V :: "('any \<Rightarrow> (('any,'any) loopResult, 'operation::embeddable, 'any::small) io) \<Rightarrow> V" where
 "loop_body_to_V \<equiv> to_V"
 
 lemma loop_body_from_V_rev[simp]: "loop_body_from_V (loop_body_to_V x) = x"
@@ -491,11 +499,36 @@ lemma atomic_simp2[simp]:
 
 subsection "Syntactic sugar for loops"
 
-definition loop :: "(bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
-"loop body \<equiv> Loop 
+definition loop :: "'a::countable \<Rightarrow> ('a \<Rightarrow> (('a,'b::countable) loopResult, 'operation::small, 'any::{small,natConvert} ) io) \<Rightarrow> ('b, 'operation, 'any) io" where
+"loop init body \<equiv> Loop 
+      (intoAny init)
+      (loop_body_to_V (\<lambda>acc. 
+          body (fromAny acc) \<bind>io (\<lambda>res. 
+            case res of Continue x \<Rightarrow> return (Continue (intoAny x)) 
+                      | Break x \<Rightarrow> return (Break (intoAny x))))) 
+      (\<lambda>x. return (fromAny x))"
+
+
+definition while :: "(bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
+"while body \<equiv> Loop 
       undefined 
       (loop_body_to_V (\<lambda>_. body \<bind>io (\<lambda>x. return ((if x then Break else Continue) undefined)))) 
       (\<lambda>_. return ())"
+
+text \<open>For for-loops we assume that the type contains lists of elements of the same type.\<close>
+
+class iterableVal =
+  fixes iterable_to_list :: "'a \<Rightarrow> 'a list"
+
+
+definition "for"  :: "'e::countable list \<Rightarrow> ('e \<Rightarrow> ('a::countable, 'operation::small, 'any::{small,natConvert}) io) \<Rightarrow> ('a list, 'operation, 'any) io" where
+"for elements body \<equiv> 
+    loop (elements,[]) (\<lambda>(elems, acc).
+        case elems of
+        [] \<Rightarrow> return (Break (rev acc))
+        | (x#xs) \<Rightarrow> body x \<bind>io (\<lambda>r. return (Continue (xs, r#acc)))   
+    )"
+  
 
 
 end
