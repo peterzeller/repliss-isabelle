@@ -506,23 +506,18 @@ definition loop :: "'a::countable \<Rightarrow> ('a \<Rightarrow> (('a,'b::count
           body (fromAny acc) \<bind>io (\<lambda>res. 
             case res of Continue x \<Rightarrow> return (Continue (intoAny x)) 
                       | Break x \<Rightarrow> return (Break (intoAny x))))) 
-      (\<lambda>x. return (fromAny x))"
+      (return \<circ> fromAny)"
 
 
 definition while :: "(bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
 "while body \<equiv> Loop 
       undefined 
       (loop_body_to_V (\<lambda>_. body \<bind>io (\<lambda>x. return ((if x then Break else Continue) undefined)))) 
-      (\<lambda>_. return ())"
-
-text \<open>For for-loops we assume that the type contains lists of elements of the same type.\<close>
-
-class iterableVal =
-  fixes iterable_to_list :: "'a \<Rightarrow> 'a list"
+      (return \<circ> (\<lambda>_. ()))"
 
 
-definition "for"  :: "'e::countable list \<Rightarrow> ('e \<Rightarrow> ('a::countable, 'operation::small, 'any::{small,natConvert}) io) \<Rightarrow> ('a list, 'operation, 'any) io" where
-"for elements body \<equiv> 
+definition "forEach"  :: "'e::countable list \<Rightarrow> ('e \<Rightarrow> ('a::countable, 'operation::small, 'any::{small,natConvert}) io) \<Rightarrow> ('a list, 'operation, 'any) io" where
+"forEach elements body \<equiv> 
     loop (elements,[]) (\<lambda>(elems, acc).
         case elems of
         [] \<Rightarrow> return (Break (rev acc))

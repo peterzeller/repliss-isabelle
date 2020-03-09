@@ -3668,14 +3668,7 @@ proof -
     using p1 cmd p2 by blast
 qed
 
-text "Loops annotated with loop invariant for easier generation of verification conditions:"
 
-definition  while_a :: "(('proc, 'any, 'operation) proof_state \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool) \<Rightarrow>   (bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
-"while_a LoopInv body \<equiv> while body"
-
-lemma annotate_loop:
-"while bdy = while_a LoopInv bdy"
-  unfolding while_a_def by simp
 
 lemma steps_io_bind:
   assumes steps: "steps_io progInv qrySpec S cmd Sb br"
@@ -3690,7 +3683,7 @@ lemma steps_io_bind':
   using assms steps_io_bind by blast
 
 
-lemma execution_s_check_loop:
+lemma execution_s_check_Loop:
   fixes init :: "'any::valueType"
     and LoopInv :: "('b::valueType, 'any, 'operation::valueType) proof_state \<Rightarrow> 'any \<Rightarrow> ('b, 'any, 'operation) proof_state \<Rightarrow> bool"
     and f :: "'any \<Rightarrow> 'a"
@@ -3773,44 +3766,96 @@ lemma execution_s_check_loop:
   qed
 qed
 
+text "Loops annotated with loop invariant for easier generation of verification conditions:"
 
-lemma while_steps:
-  assumes steps: "steps_io progInv qrySpec S (while bdy) S' res"
-and inv_initial: "LoopInv S"
-and inv_iteration: "\<And>S Sb br. \<lbrakk>LoopInv S; steps_io progInv qrySpec S bdy Sb br\<rbrakk> 
-   \<Longrightarrow> case br of None \<Rightarrow> False | Some True \<Rightarrow> P Sb | Some False \<Rightarrow> LoopInv Sb "
-shows "P S' \<and> res = Some ()"
-proof -
+definition loop_a :: "
+    'a::countable 
+  \<Rightarrow> (('proc, 'any, 'operation) proof_state \<Rightarrow> 'a  \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool)
+  \<Rightarrow> ('a \<Rightarrow> (('a,'b::countable) loopResult, 'operation::small, 'any::{small,natConvert} ) io) 
+  \<Rightarrow> ('b, 'operation, 'any) io" where
+"loop_a init LoopInv body \<equiv> loop init body"
 
-  
+lemma annotate_loop:
+"loop init body = loop_a init LoopInv body"
+  unfolding loop_a_def by simp
 
-  have "\<exists>r. res \<triangleq> r \<and> P S'"
-    using steps[simplified while_def] inv_initial
-  proof (rule Loop_steps)
 
-    show "case br of None \<Rightarrow> False | Some (Continue x) \<Rightarrow> LoopInv Sb | Some (Break res) \<Rightarrow> P Sb"
-      if c0: "LoopInv S"
-        and c1: "steps_io progInv qrySpec S (bdy \<bind> (\<lambda>x. impl_language_loops.return ((if x then Break else Continue) ???))) Sb br"
-      for  S Sb and br :: "('any,'any) loopResult option"
-    proof -
-      obtain x 
-        where iter': "steps_io progInv qrySpec S bdy Sb x" 
-          and br_def: "br = (case x of None \<Rightarrow> None | Some True \<Rightarrow> Some (Break ???) | Some False \<Rightarrow> Some (Continue ???))"
-        by (atomize_elim, fuzzy_rule steps_io_bind'[OF c1], auto intro!: HOL.ext)
+definition  while_a :: "(('proc, 'any, 'operation) proof_state \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool) \<Rightarrow>   (bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
+"while_a LoopInv body \<equiv> while body"
 
-      from inv_iteration[OF `LoopInv S` `steps_io progInv qrySpec S bdy Sb x`]
+lemma annotate_while_loop:
+"while bdy = while_a LoopInv bdy"
+  unfolding while_a_def by simp
 
-      show "case br of None \<Rightarrow> False | Some (Continue x) \<Rightarrow> LoopInv Sb | Some (Break res) \<Rightarrow> P Sb "
-        using br_def by (auto split: option.splits bool.splits)
-    qed
-  qed
-  thus ?thesis
-    by simp
-qed
+definition  forEach_a :: "
+    'e::countable list 
+  \<Rightarrow> (('proc, 'any, 'operation) proof_state \<Rightarrow> 'e list \<Rightarrow> 'a list \<Rightarrow> 'e list  \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool) 
+  \<Rightarrow> ('e \<Rightarrow> ('a::countable, 'operation::small, 'any::{small,natConvert}) io) 
+  \<Rightarrow> ('a list, 'operation, 'any) io" where
+"forEach_a coll LoopInv body \<equiv> forEach coll body"
 
+lemma annotate_forEach_loop:
+"forEach elems bdy = forEach_a elems LoopInv bdy"
+  unfolding forEach_a_def by simp
 
 
 lemma execution_s_check_loop:
+  fixes PS :: "('proc::valueType, 'any::{small,valueType,natConvert}, 'operation::valueType) proof_state" 
+    and init :: "'acc::countable"
+    and body ::  "'acc  \<Rightarrow> (('acc, 'a::countable) loopResult, 'operation,  'any) io"
+  assumes 
+inv_pre: "LoopInv PS init PS"
+and cont: "
+\<And>acc PSl. \<lbrakk>
+  LoopInv PS acc PSl
+\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec PSl (body acc) 
+    (\<lambda>PS' r. case r of Break x \<Rightarrow> execution_s_check Inv crdtSpec PS' (cont x) P
+                     | Continue x \<Rightarrow> LoopInv PS x PS' )"
+shows "execution_s_check Inv crdtSpec PS (loop_a init LoopInv body \<bind> cont) P"
+  unfolding loop_a_def loop_def
+  using inv_pre
+proof (fuzzy_rule execution_s_check_Loop[where LoopInv="\<lambda>PS a PS'. LoopInv PS (fromAny a) PS'"])
+  show "init = fromAny (intoAny init)"
+    by simp
+
+  show "execution_s_check Inv crdtSpec PSl (body (fromAny acc) \<bind> (\<lambda>res. case res of Continue x \<Rightarrow> impl_language_loops.return (Continue (intoAny x)) | Break x \<Rightarrow> impl_language_loops.return (Break (intoAny x)))) (\<lambda>PS' r. case r of Continue acc' \<Rightarrow> LoopInv PS (fromAny acc') PS' | Break res \<Rightarrow> execution_s_check Inv crdtSpec PS' (cont (fromAny res)) P)"
+    if loopInv: "LoopInv PS (fromAny acc) PSl"
+    for acc :: 'any  and PSl
+    unfolding execution_s_check_def
+  proof (intro allI conjI impI)
+
+    show "case res of None \<Rightarrow> False 
+                    | Some (Continue acc') \<Rightarrow> LoopInv PS (fromAny acc') S' 
+                    | Some (Break res) \<Rightarrow> \<forall>S'a resa. steps_io Inv crdtSpec S' (cont (fromAny res)) S'a resa \<longrightarrow> proof_state_wellFormed S' \<longrightarrow> (case resa of None \<Rightarrow> False | Some x \<Rightarrow> P S'a x)"
+      if steps: "steps_io Inv crdtSpec PSl (body (fromAny acc) \<bind> case_loopResult (\<lambda>x. impl_language_loops.return (Continue (intoAny x))) (\<lambda>x. impl_language_loops.return (Break (intoAny x)))) S' res"
+        and wf: "proof_state_wellFormed PSl"
+      for  S' and res ::"('c,'d) loopResult option"
+    proof -
+      from steps_io_bind_split'[OF steps]
+      obtain ri Si
+        where "steps_io Inv crdtSpec PSl (body (fromAny acc)) Si ri"
+          and ri_cases: "case ri of 
+              None \<Rightarrow> res = None
+            | Some r \<Rightarrow>
+              steps_io Inv crdtSpec Si
+               (case r of Continue x \<Rightarrow> return (Continue (intoAny x))
+                        | Break x \<Rightarrow> return (Break (intoAny x)))
+               S' res"
+        by (auto simp add: option.case_eq_if split: if_splits dest!: steps_io_return)
+
+      from use_execution_s_check[OF cont[OF loopInv] `steps_io Inv crdtSpec PSl (body (fromAny acc)) Si ri` wf ]
+      have "case ri of None \<Rightarrow> False 
+        | Some (Continue x) \<Rightarrow> LoopInv PS x Si
+        | Some (Break x) \<Rightarrow> execution_s_check Inv crdtSpec Si (cont x) P" .
+      thus ?thesis
+        using ri_cases
+        by (auto simp add:  split: option.splits loopResult.splits dest!: steps_io_return use_execution_s_check)
+    qed
+  qed
+qed
+
+
+lemma execution_s_check_while:
   assumes 
 inv_pre: "LoopInv PS PS"
 and cont: "
@@ -3820,127 +3865,138 @@ and cont: "
     (\<lambda>PS' r. if r then execution_s_check Inv crdtSpec PS' (cont ()) P
              else LoopInv PS PS' )"
 shows "execution_s_check Inv crdtSpec PS (while_a LoopInv body \<bind> cont) P"
-  unfolding execution_s_check_def proof (intro allI impI)
-  fix S' res
-  assume steps_io: "steps_io Inv crdtSpec PS (while_a LoopInv body \<bind> cont) S' res"
-    and PS_wf: "proof_state_wellFormed PS"
+  unfolding while_a_def while_def
+  using inv_pre
+proof (fuzzy_rule execution_s_check_Loop[where LoopInv="\<lambda>PS a PS'. LoopInv PS PS'"])
 
-  from steps_io_bind_split[OF steps_io]
-  obtain Si
-    where cases: "(steps_io Inv crdtSpec PS (while_a LoopInv body) Si (Some ())
-                 \<and> steps_io Inv crdtSpec Si (cont ()) S' res) 
-            \<or> (steps_io Inv crdtSpec PS (while_a LoopInv body) Si None)"
-    by auto
+  show "execution_s_check Inv crdtSpec PSl (body \<bind> (\<lambda>x. impl_language_loops.return ((if x then Break else Continue) ???))) (\<lambda>PS' r. case r of Continue acc' \<Rightarrow> LoopInv PS PS' | Break res \<Rightarrow> execution_s_check Inv crdtSpec PS' (cont ()) P)"
+    if loopInv: "LoopInv PS PSl"
+    for  acc::unit and PSl
+    unfolding execution_s_check_def
+  proof (intro allI conjI impI)
 
-  text "loop maintains the invariant"
-  have "case loopR of None \<Rightarrow> False 
-      | Some True \<Rightarrow> execution_s_check Inv crdtSpec PS' (cont ()) P 
-      | Some False \<Rightarrow> LoopInv PS PS'"
-    if "LoopInv PS PSl"
-      and "proof_state_wellFormed PS"
-      and "steps_io Inv crdtSpec PS body PS' loopR"
-    for PSl PS' loopR
-    by (smt PS_wf cont inv_pre option.case_eq_if that use_execution_s_check)
-
-  define Pl where "Pl \<equiv> (\<lambda>Si. \<forall>S' res.
-    steps_io Inv crdtSpec Si (cont ()) S' res \<longrightarrow>  
-      (case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r))"
-
-  {
-    fix r
-    assume steps_loop: "steps_io Inv crdtSpec PS (while body) Si r"
-    from this
-    have "Pl Si \<and> r \<triangleq> ()"
-    proof (rule while_steps[where LoopInv="\<lambda>PSl. LoopInv PS PSl \<and> proof_state_wellFormed PSl"])
-      show "LoopInv PS PS \<and> proof_state_wellFormed PS"
-        by (simp add: inv_pre PS_wf)
+    show "case res of None \<Rightarrow> False | Some (Continue acc') \<Rightarrow> LoopInv PS S' | Some (Break res) \<Rightarrow> \<forall>S'a res. steps_io Inv crdtSpec S' (cont ()) S'a res \<longrightarrow> proof_state_wellFormed S' \<longrightarrow> (case res of None \<Rightarrow> False | Some x \<Rightarrow> P S'a x)"
+      if steps: "steps_io Inv crdtSpec PSl (body \<bind> (\<lambda>x. impl_language_loops.return ((if x then Break else Continue) ???))) S' res"
+        and wf: "proof_state_wellFormed PSl"
+      for  S' and res::"('any,'any)loopResult option"
+    proof -
+      from steps_io_bind_split'[OF steps]
+      obtain ri Si
+        where "steps_io Inv crdtSpec PSl body Si ri"
+          and ri_cases: "case ri of None \<Rightarrow> res = None
+                    | Some r \<Rightarrow> Si = S' \<and> res \<triangleq> ((if r then Break else Continue) ???)"
+        by (auto simp add: option.case_eq_if split: if_splits dest!: steps_io_return)
 
 
-      show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed Sb"
-        if "LoopInv PS S \<and> proof_state_wellFormed S"
-          and steps: "steps_io Inv crdtSpec S body Sb br"
-        for  S Sb br
-      proof -
-        from  that
-        have inv: "LoopInv PS S" and wf: "proof_state_wellFormed S" 
-          by auto
 
-        from cont[OF inv]
-        have check: "execution_s_check Inv crdtSpec S body
-           (\<lambda>PS' r. if r then execution_s_check Inv crdtSpec PS' (cont ()) P else LoopInv PS PS')".
-
-        from use_execution_s_check[OF check, OF steps, OF wf]
-        have c: "case br of None \<Rightarrow> False | Some r \<Rightarrow> if r then execution_s_check Inv crdtSpec Sb (cont ()) P else LoopInv PS Sb" .
-
-        show "case br of None \<Rightarrow> False | Some True \<Rightarrow> Pl Sb | Some False \<Rightarrow> LoopInv PS Sb \<and> proof_state_wellFormed Sb"
-        proof (cases br)
-          case None
-          thus ?thesis
-            using c by auto
-        next
-          case (Some brv)
-          hence [simp]: "br \<triangleq> brv" by simp
-          show ?thesis
-          proof (cases brv)
-            case True
-            hence [simp]: "brv = True" by simp
-            from c
-            have "execution_s_check Inv crdtSpec Sb (cont ()) P" by auto
-
-            show ?thesis 
-            proof auto
-              show "Pl Sb" 
-                unfolding Pl_def proof auto
-
-
-                show "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x"
-                  if  "steps_io Inv crdtSpec Sb (cont ()) S' res"
-                  for  S' res
-                  using c local.wf steps steps_io_wf_maintained that use_execution_s_check by fastforce
-              qed
-            qed
-          next
-            case False
-            hence [simp]: "\<not>brv" .
-
-            show ?thesis 
-            proof auto
-              show "LoopInv PS Sb"
-                using c by auto
-              show "proof_state_wellFormed Sb"
-
-                using local.wf steps steps_io_wf_maintained by fastforce
-            qed
-          qed
-        qed
-      qed
+      from use_execution_s_check[OF cont[OF loopInv] `steps_io Inv crdtSpec PSl body Si ri` wf]
+      have "case ri of None \<Rightarrow> False | Some r \<Rightarrow> if r then execution_s_check Inv crdtSpec Si (cont ()) P else LoopInv PS Si" .
+      thus ?thesis
+        using ri_cases
+        by (auto simp add: steps_io_return split: option.splits if_splits dest!: use_execution_s_check)
     qed
-  }
-  note loop_correct =  this
-
-  from cases
-  show "case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r"
-  proof (rule disjE; clarsimp?)
-    \<comment> \<open>First the case where the loop finishes successfully\<close>
-    assume steps_loop: "steps_io Inv crdtSpec PS (while_a LoopInv body) Si (Some ())"
-      and steps_cont: "steps_io Inv crdtSpec Si (cont ()) S' res"
-    hence steps_loop': "steps_io Inv crdtSpec PS (while body) Si (Some ())"
-      unfolding while_a_def by simp
-
-
-    show "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x"
-      using Pl_def loop_correct steps_cont steps_loop' by blast
-  next
-    \<comment> \<open>Next the case where the loop fails:\<close>
-    assume "steps_io Inv crdtSpec PS (while_a LoopInv body) Si None"
-
-    have False
-      by (metis \<open>steps_io Inv crdtSpec PS (while_a LoopInv body) Si None\<close> while_a_def loop_correct option.discI)
-
-    thus "case res of None \<Rightarrow> False | Some x \<Rightarrow> P S' x" ..
   qed
 qed
 
+lemma show_execution_s_check_return:
+  assumes "P PS r"
+  shows "execution_s_check Inv crdtSpec PS (return r) P"
+  using assms execution_s_check_def steps_io_return by fastforce
+
+
+lemma execution_s_check_return:
+  assumes finalCheck: "proof_state_wellFormed PS \<Longrightarrow> P PS r"
+  shows "execution_s_check Inv crdtSpec PS (return r) P"
+  using finalCheck
+unfolding execution_s_check_def steps_io_return_iff by auto
+
+
+lemma execution_s_check_forEach:
+ (* fixes PS :: "('proc::valueType, 'any::{small,valueType,natConvert}, 'operation::valueType) proof_state" 
+    and init :: "'acc::countable"
+    and body ::  "'acc  \<Rightarrow> (('acc, 'a::countable) loopResult, 'operation,  'any) io"*)
+  assumes 
+inv_pre: "LoopInv PS [] [] elems PS"
+and iter: "
+\<And>done results t todo PSl. \<lbrakk>
+  LoopInv PS done results (t#todo) PSl;
+  length done = length results;
+  elems = done@t#todo
+\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec PSl (body t) (\<lambda>PS' r. LoopInv PS (done@[t]) (results@[r]) todo PS')"
+and cont:
+"\<And>results PSl. \<lbrakk>
+  LoopInv PS elems results [] PSl;
+  length elems = length results
+\<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec PSl (cont results) P"
+shows "execution_s_check Inv crdtSpec PS (forEach_a elems LoopInv body \<bind> cont) P"
+proof -
+
+  define LI where "LI \<equiv> \<lambda>S0 acc S. 
+  let n = length (snd acc);
+      done = take n elems;
+      todo = drop n elems
+  in LoopInv S0 done (rev (snd acc)) todo S
+   \<and> fst acc = todo 
+   \<and> length (fst acc) + length (snd acc) = length elems"
+
+  show ?thesis
+  unfolding forEach_a_def forEach_def annotate_loop[where LoopInv=LI]
+  proof (fuzzy_rule execution_s_check_loop)
+
+    show "LI PS (elems, []) PS"
+      using inv_pre by (auto simp add:  LI_def Let_def)
+
+
+    show "execution_s_check Inv crdtSpec PSl 
+            (case acc of ([], acc) \<Rightarrow> return (Break (rev acc)) 
+               | (x # xs, acc) \<Rightarrow> body x \<bind> (\<lambda>r. return (Continue (xs, r # acc)))) (\<lambda>PS' r. case r of Continue x \<Rightarrow> LI PS x PS' | Break x \<Rightarrow> execution_s_check Inv crdtSpec PS' (cont x) P)"
+      if LI: "LI PS acc PSl"
+      for  acc PSl
+    proof (cases "fst acc = []")
+      case True
+
+      with LI
+      have "LoopInv PS elems (rev (snd acc)) [] PSl"
+        and "length (snd acc) = length elems"
+        by (auto simp add: LI_def Let_def)
+
+      show ?thesis
+        using True
+        apply (auto simp add:  split: prod.splits intro!: show_execution_s_check_return)
+        using \<open>LoopInv PS elems (rev (snd acc)) [] PSl\<close> \<open>length (snd acc) = length elems\<close> cont by auto
+    next
+      case False
+      obtain todo resultsR where acc_def: "acc = (todo, resultsR)" by force
+
+      obtain t todoRest where todo_def: "todo = t#todoRest"
+        using False acc_def list.exhaust by auto 
+
+
+      define "done" where "done \<equiv> take (length resultsR) elems"
+
+      from LI 
+      have LI1: "LoopInv PS (take (length resultsR) elems) (rev resultsR) (drop (length resultsR) elems) PSl"
+        and LI2: "length elems - length resultsR + length resultsR = length elems"
+        and LI3: "todo = drop (length resultsR) elems"
+        by (auto simp add: LI_def Let_def acc_def)
+
+      from LI1
+      have LoopInv: "LoopInv PS done (rev resultsR) (t # todoRest) PSl"
+        using LI3 done_def todo_def by auto
+
+      have length_done: "length done = length (rev resultsR)"
+        using LI2 done_def by auto
+
+      have elems: "elems = done @ t # todoRest"
+        using todo_def LI3 done_def split_take by blast
+
+      from iter[OF LoopInv length_done elems]
+      show ?thesis
+        \<comment> \<open>Could simplify this with execution-s-check bind simplification lemma\<close>
+        by (auto simp add: acc_def todo_def execution_s_check_def LI_def Let_def elems length_done split: option.splits dest!: steps_io_bind', blast)
+    qed
+  qed
+qed
 
 
 
@@ -4694,12 +4750,6 @@ qed
 
 
 
-lemma execution_s_check_return:
-  assumes finalCheck: "proof_state_wellFormed PS \<Longrightarrow> P PS r"
-  shows "execution_s_check Inv crdtSpec PS (return r) P"
-  using finalCheck
-unfolding execution_s_check_def steps_io_return_iff by auto
-
 subsection "Verification Condition Generation Tactics"
 
 lemmas execution_s_check_endAtomic' = execution_s_check_endAtomic[rotated 2, OF context_conjI]
@@ -4709,6 +4759,8 @@ lemmas repliss_proof_rules =
   execution_s_check_read
   execution_s_check_assign
   execution_s_check_loop
+  execution_s_check_while
+  execution_s_check_forEach
   execution_s_check_return
   execution_s_check_newId
   execution_s_check_beginAtomic
