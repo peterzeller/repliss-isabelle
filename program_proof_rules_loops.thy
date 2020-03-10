@@ -533,7 +533,7 @@ lemma conjI_marked:
 
 method conj_one_by_one uses pre = (
     match pre in 
-      p: "?P \<and> ?Q" \<Rightarrow> \<open>
+    p: "?P \<and> ?Q" \<Rightarrow> \<open>
         (unfold marker_L_def marker_R_def)?, 
         rule conjI_marked;( 
             (match conclusion in "marker_L _" \<Rightarrow> \<open>(conj_one_by_one pre: p[THEN conjunct1])?\<close>)
@@ -733,7 +733,7 @@ proof (rule ccontr)
         qed ((insert proof_state_rel_facts[OF rel], (auto simp add: i_def S'_def PS'_def  split: option.splits)[1]); fail)+
 
 
-        
+
         thus "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd' Inv"
           by (auto simp add: step_io_def c0 c2 action_def Inv PS'_def show_proof_state_wellFormed)
 
@@ -747,7 +747,7 @@ proof (rule ccontr)
     show False
     proof (cmd_step_cases step: step insert: cmd_prefix simps: WaitBeginAtomic)
       case (A i' ls f ls' t Sn Sf vis vis' )
-      
+
 
       have Sf_def: "Sf = Sn
       \<lparr>transactionStatus := transactionStatus Sn(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin Sn(t \<mapsto> i'),
@@ -1673,7 +1673,7 @@ proof (rule ccontr)
         have [simp]: "ps_i PS = i'"
           using A(6) i_def by auto
 
-        
+
 
 
         have toImpl_ls: "toImpl ls = LocalStep ok ls'"
@@ -1691,7 +1691,7 @@ proof (rule ccontr)
           using \<open>the (localState S (ps_i PS)) = (ps_store PS, ps_localKnown PS, cmd \<bind> cmdCont)\<close> `f ls = LocalStep ok ls'` `currentProc S i' \<triangleq> f` toImpl `localState S i' \<triangleq> ls`
             `currentCommand S i = cmd \<bind> cmdCont` Loop
           by (auto simp add: S'_def )
-         
+
 
 
         have ls_S': "localState S' (ps_i PS) \<triangleq> (ps_store PS, ps_localKnown PS, 
@@ -1700,7 +1700,7 @@ proof (rule ccontr)
           have "(\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n \<bind> cmdCont | Break x \<Rightarrow> n x \<bind> cmdCont)
               = (\<lambda>a. (case a of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x) \<bind> cmdCont)"
             by (auto split: loopResult.splits)
-          
+
           with ls_S'1
           show ?g
             by auto
@@ -1737,7 +1737,7 @@ proof (rule ccontr)
         show "currentCommand S' i = (loop_body_from_V body init \<bind>io (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) \<bind>io cmdCont"
           using i_def ls_S' by auto
 
-              
+
         show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS
          (loop_body_from_V body init \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) Inv"
           using `proof_state_rel PS S`
@@ -1755,7 +1755,7 @@ lemma step_io_same_i:
 
 
 definition proof_state_wellFormed' :: "('proc::valueType, 'any::valueType, 'operation::valueType) proof_state \<Rightarrow> bool" where 
-"proof_state_wellFormed' S \<equiv> 
+  "proof_state_wellFormed' S \<equiv> 
     finite (dom (ps_store S))
    \<and> (ps_tx S = None \<longrightarrow> ps_localCalls S = [])
    \<and> Field (happensBefore S) \<subseteq> dom (calls S) - set (ps_localCalls S)
@@ -1912,8 +1912,8 @@ lemma proof_state_wellFormed_localCalls_subset_calls':
 
 lemma proof_state_wellFormed_implies:
   assumes wf:
- "proof_state_wellFormed PS"
-shows "proof_state_wellFormed' PS"
+    "proof_state_wellFormed PS"
+  shows "proof_state_wellFormed' PS"
   unfolding proof_state_wellFormed'_def
 proof (intro conjI)
   from wf obtain S where rel: "proof_state_rel PS S"
@@ -1941,11 +1941,11 @@ proof (intro conjI)
 
   show "finite (dom (ps_store PS))"
     using local.wf proof_state_rel_facts(25) proof_state_wellFormed_def by blast
- show "ps_tx PS = None \<longrightarrow> ps_localCalls PS = []"
+  show "ps_tx PS = None \<longrightarrow> ps_localCalls PS = []"
     using \<open>proof_state_rel PS S\<close> proof_state_rel_facts(15) by fastforce
   show "Field (happensBefore PS) \<subseteq> dom (calls PS) - set (ps_localCalls PS)"
     using tx_cases \<open>Field (happensBefore PS) \<subseteq> dom (calls PS)\<close>
-    \<open>Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}\<close>
+      \<open>Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}\<close>
     by (auto simp add: split: option.splits)
   show "ps_vis PS \<subseteq> dom (calls PS)"
     using \<open>state_wellFormed S\<close> proof_state_rel_facts(12) proof_state_rel_facts(2) rel wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
@@ -1978,7 +1978,7 @@ proof (conj_one_by_one pre: wf[simplified proof_state_wellFormed'_def])
     then show ?thesis using step  
     proof (auto simp add: step_io_def split: io.splits, fuzzy_goal_cases G)
       case (G x t vis' calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes')
-     
+
       from G.consistentSnapshotH
       have "vis' \<subseteq> dom calls'"
         by (simp add: consistentSnapshotH_def)
@@ -2028,7 +2028,7 @@ proof (conj_one_by_one pre: wf[simplified proof_state_wellFormed'_def])
         using \<open>Field happensBefore' \<subseteq> dom calls'\<close> by blast
     next
       case (B x t vis' calls' happensBefore' callOrigin' transactionOrigin' knownIds' invocationOp' invocationRes')
-      
+
       from `x \<in> Field happensBefore'`
       show "False"
         using B.member2 B.ps_tx_eq local.wf proof_state_wellFormed'_localCalls by force
@@ -2053,7 +2053,7 @@ proof (conj_one_by_one pre: wf[simplified proof_state_wellFormed'_def])
   next
   qed (use step pre in \<open>auto simp add: step_io_def split: io.splits\<close>)
 
-    
+
   show "set (ps_localCalls S') \<subseteq> dom (calls S')"
     if  pre: "set (ps_localCalls S) \<subseteq> dom (calls S)"
   proof (cases cmd)
@@ -2132,11 +2132,11 @@ definition invariant_return :: "
 \<Rightarrow> ('proc, 'any, 'operation) proof_state 
 \<Rightarrow> 'any option
 \<Rightarrow> bool" where
-"invariant_return progInv PS resO \<equiv>
+  "invariant_return progInv PS resO \<equiv>
   \<exists>res. resO \<triangleq> res 
       \<and> uniqueIds res \<subseteq> ps_localKnown PS
       \<and> progInv (invariantContext.truncate (PS\<lparr> invocationRes := invocationRes PS(ps_i PS \<mapsto> res), knownIds := knownIds PS \<union> uniqueIds res  \<rparr>))"
-\<comment> \<open>TODO maybe add: there is no current transaction. \<close>
+  \<comment> \<open>TODO maybe add: there is no current transaction. \<close>
 
 lemma steps_nonempty_first:
   assumes "S ~~ (i, tr) \<leadsto>\<^sub>S* S'"
@@ -2376,7 +2376,7 @@ next
       show "program_wellFormed (prog S)"
         using `program_wellFormed (prog S)` .
 
-      
+
       show "uniqueIds Op \<subseteq> ps_localKnown PS"
         if c0: "action = ADbOp c Op res"
         for  c Op res
@@ -2421,7 +2421,7 @@ next
         by simp
 
       from Suc.hyps(1)[OF `k = length tr'` `proof_state_rel PS' S1` `S1 ~~ (i, tr') \<leadsto>\<^sub>S* S'` 
-            `i = ps_i PS'` `\<not> traceCorrect_s tr'` `program_wellFormed (prog S1)` `cmd' = currentCommand S1 i`]
+          `i = ps_i PS'` `\<not> traceCorrect_s tr'` `program_wellFormed (prog S1)` `cmd' = currentCommand S1 i`]
       obtain PS'' and res
         where steps_tr': "steps_io (invariant (prog S1)) (querySpec (prog S1)) PS' cmd'  PS'' res"
           and incorrect_cases: "res = None \<or> \<not> invariant_return (invariant (prog S1)) PS'' res"
@@ -2491,7 +2491,7 @@ text "Correctness of execution when executing only a prefix of the trace:"
 
 
 definition "execution_s_correct_p" where
-"execution_s_correct_p S i ls1 P \<equiv> 
+  "execution_s_correct_p S i ls1 P \<equiv> 
     \<forall>trace S' store lk ls2 store' lk' ls1'. 
           (S ~~ (i, trace) \<leadsto>\<^sub>S* S') 
       \<longrightarrow> (localState S i \<triangleq> (store, lk, bind ls1 ls2))
@@ -2548,7 +2548,7 @@ proof (auto simp add:  execution_s_correct_def)
 
 
 
-    \<comment> \<open>TODO: move into Lemma\<close>
+\<comment> \<open>TODO: move into Lemma\<close>
     from ` S ~~ (i, tr) \<leadsto>\<^sub>S* S'` `localState S' i \<noteq> None`
     have "currentProc S' i \<triangleq> toImpl"
     proof (induct rule: step_s_induct)
@@ -2625,24 +2625,24 @@ proof (auto simp add:  execution_s_correct_def)
 
         have allTxnsCommitted: "committedTransactions S' = dom (transactionOrigin S')"
           apply (auto simp add: )
-          apply (metis \<open>state_wellFormed S'\<close> option.distinct(1) option.exhaust wf_transactionOrigin_and_status)
+           apply (metis \<open>state_wellFormed S'\<close> option.distinct(1) option.exhaust wf_transactionOrigin_and_status)
           by (metis \<open>state_wellFormed S'\<close> no_uncommitted not_uncommitted_cases option.exhaust state_wellFormed_transactionStatus_transactionOrigin)
 
 
         have allCommitted: "committedCalls S' = dom (calls S')"
           apply (auto simp add: committedCallsH_def isCommittedH_def)
-          apply (metis \<open>state_wellFormed S'\<close> no_uncommitted option.exhaust wellFormed_currentTransactionUncommitted wf_callOrigin_and_calls)
+           apply (metis \<open>state_wellFormed S'\<close> no_uncommitted option.exhaust wellFormed_currentTransactionUncommitted wf_callOrigin_and_calls)
           by (metis (no_types, hide_lams) \<open>state_wellFormed S'\<close> exists_optionI no_uncommitted not_uncommitted_cases option.distinct(1) wf_callOrigin_and_calls wf_no_transactionStatus_origin_for_nothing)
 
 
         have invContextSame:
-             "(invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S')
+          "(invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S')
                 (knownIds S' \<union> uniqueIds res) (invocationOp S') (invocationRes S'(i \<mapsto> res)))
             = (invariantContext.truncate (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), 
                                              knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
           apply (auto simp add: invContextH_def invariantContext.defs allCommitted allTxnsCommitted restrict_relation_def)
-          apply (simp add: \<open>state_wellFormed S'\<close> domD happensBefore_in_calls_left)
-          apply (simp add: \<open>state_wellFormed S'\<close> domD happensBefore_in_calls_right)
+            apply (simp add: \<open>state_wellFormed S'\<close> domD happensBefore_in_calls_left)
+           apply (simp add: \<open>state_wellFormed S'\<close> domD happensBefore_in_calls_right)
           apply (metis \<open>state_wellFormed S'\<close> restrict_map_noop2 wellFormed_callOrigin_dom)
           done
 
@@ -2661,7 +2661,7 @@ proof (auto simp add:  execution_s_correct_def)
       next
         case (Some S''_ls)
 
-        
+
 
         from ec_p 
         have "traceCorrect_s (tr @ [a]) \<and> (\<forall>res. snd (snd S''_ls) = impl_language_loops.io.WaitReturn res \<longrightarrow> P S'' res)"
@@ -2670,11 +2670,11 @@ proof (auto simp add:  execution_s_correct_def)
           show "localState S'' i \<triangleq> (fst S''_ls, fst (snd S''_ls), snd (snd S''_ls) \<bind> impl_language_loops.return)"
             by (simp add: Some)
         qed
-          
+
         thus False
           by (metis \<open>a = (x, False)\<close> append_is_Nil_conv last_in_set last_snoc list.simps(3) traceCorrect_s_def)
 
-        
+
       qed
     qed
   qed
@@ -2684,7 +2684,7 @@ qed
 lemma steps_io_same_i:
   assumes "steps_io progInv qrySpec S cmd S' res"
   shows "ps_i S' = ps_i S"
-using assms proof (induct rule: steps_io.induct)
+  using assms proof (induct rule: steps_io.induct)
   case (steps_io_final S  res)
   then show ?case
     by simp
@@ -2700,7 +2700,7 @@ qed
 
 
 definition 
-"execution_s_check progInv qrySpec S cmd P \<equiv>
+  "execution_s_check progInv qrySpec S cmd P \<equiv>
   \<forall>S' res. steps_io progInv qrySpec S cmd  S' res
     \<longrightarrow> proof_state_wellFormed S
     \<longrightarrow> (case res of Some r \<Rightarrow> P S' r | None \<Rightarrow> False)
@@ -2709,7 +2709,7 @@ definition
 lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format]
 
 definition
-"finalCheck Inv i S res \<equiv>
+  "finalCheck Inv i S res \<equiv>
 Inv (invariantContext.truncate (S\<lparr>invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>))
 \<and> uniqueIds res \<subseteq> ps_localKnown S"
 
@@ -2789,7 +2789,7 @@ proof (auto simp add:  execution_s_correct_def)
 
     show " invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S"
       using PS_def no_guess by force
-          
+
 
   qed (insert assms, simp; fail)+
 
@@ -2833,7 +2833,7 @@ proof (auto simp add:  execution_s_correct_def)
         and c1: "res \<triangleq> r"
         and c3: "P PS' r"
       by (auto split: option.splits)
-      
+
     from `\<not> invariant_return (invariant (prog S)) PS' (Some r)`
     have notInv1: "(\<not> invariant (prog S) (invariantContext.truncate (PS'\<lparr>invocationRes := invocationRes PS'(ps_i PS' \<mapsto> r), knownIds := knownIds PS' \<union> uniqueIds r\<rparr>)))
              \<or> \<not>(uniqueIds r \<subseteq> ps_localKnown PS')"
@@ -2903,68 +2903,68 @@ invariant progr \<lparr>
   using a1 
 proof (rule execution_s_check_sound[where P=P])
 
-    from `S \<in> initialStates' progr i`
-    obtain Sa proc a b impl
-      where S_def: "S = Sa \<lparr>localState := localState Sa(i \<mapsto> (a, b)), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> proc)\<rparr>"
-        and progr_def: "progr = prog Sa"
-        and proc: "procedure (prog Sa) proc = ((a, b), impl)"
-        and uniqueIds: "uniqueIds proc \<subseteq> knownIds Sa"
-        and invAll: "invariant_all' Sa"
-        and wf: "state_wellFormed Sa"
-        and opNone: "invocationOp Sa i = None"
-        and noUncommitted: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommitted"
-        and noTxns: "\<forall>tx. transactionOrigin Sa tx \<noteq> Some i"
-      by (auto simp add: initialStates'_def)  
+  from `S \<in> initialStates' progr i`
+  obtain Sa proc a b impl
+    where S_def: "S = Sa \<lparr>localState := localState Sa(i \<mapsto> (a, b)), currentProc := currentProc Sa(i \<mapsto> impl), visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> proc)\<rparr>"
+      and progr_def: "progr = prog Sa"
+      and proc: "procedure (prog Sa) proc = ((a, b), impl)"
+      and uniqueIds: "uniqueIds proc \<subseteq> knownIds Sa"
+      and invAll: "invariant_all' Sa"
+      and wf: "state_wellFormed Sa"
+      and opNone: "invocationOp Sa i = None"
+      and noUncommitted: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommitted"
+      and noTxns: "\<forall>tx. transactionOrigin Sa tx \<noteq> Some i"
+    by (auto simp add: initialStates'_def)  
 
-    have "op = proc"
-      using a4 by (auto simp add: S_def)
+  have "op = proc"
+    using a4 by (auto simp add: S_def)
 
-    show "visibleCalls S i \<triangleq> {}"
-      by (simp add: S_def)
+  show "visibleCalls S i \<triangleq> {}"
+    by (simp add: S_def)
 
-    show "prog S = progr"
-      using progr_def  by (simp add: S_def)
+  show "prog S = progr"
+    using progr_def  by (simp add: S_def)
 
-    show " currentProc S i \<triangleq> impl_language_loops.toImpl"
-      by (simp add: a3)
+  show " currentProc S i \<triangleq> impl_language_loops.toImpl"
+    by (simp add: a3)
 
-    show "{} = {x. generatedIds S x \<triangleq> i}"
-      by (auto simp add: S_def local.wf opNone wf_generated_ids_invocation_exists)
+  show "{} = {x. generatedIds S x \<triangleq> i}"
+    by (auto simp add: S_def local.wf opNone wf_generated_ids_invocation_exists)
 
-    show "{} \<subseteq> {}"
-      by simp
+  show "{} \<subseteq> {}"
+    by simp
 
-    show "state_wellFormed S"
-      using a2 initialStates'_same initialStates_wellFormed by fastforce
+  show "state_wellFormed S"
+    using a2 initialStates'_same initialStates_wellFormed by fastforce
 
-    show "currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted" for tx'
-      using a2 initialState_noTxns1 initialStates'_same by fastforce
+  show "currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted" for tx'
+    using a2 initialState_noTxns1 initialStates'_same by fastforce
 
-    show "currentTransaction S i = None"
-      using a2 initialState_noTxns2 initialStates'_same by fastforce
+  show "currentTransaction S i = None"
+    using a2 initialState_noTxns2 initialStates'_same by fastforce
 
 
-    have pcgi: "invocations_cannot_guess_ids progr"
-      using \<open>prog S = progr\<close> prog_wf program_wellFormed_def by blast
+  have pcgi: "invocations_cannot_guess_ids progr"
+    using \<open>prog S = progr\<close> prog_wf program_wellFormed_def by blast
 
-    then 
-    show "invocation_cannot_guess_ids (uniqueIds op) i S"
-      using `program_wellFormed (prog S)`
-        and `S \<in> initialStates' progr i`
-      using invocation_cannot_guess_ids_initialStates a4
-      by fastforce
+  then 
+  show "invocation_cannot_guess_ids (uniqueIds op) i S"
+    using `program_wellFormed (prog S)`
+      and `S \<in> initialStates' progr i`
+    using invocation_cannot_guess_ids_initialStates a4
+    by fastforce
 
-    show "\<And>S' res.
+  show "\<And>S' res.
        P S' res \<Longrightarrow>
        invariant (prog S)
         (invariantContext.truncate
           (S'\<lparr>invocationRes := invocationRes S'(i \<mapsto> res), knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
-      using P by blast
+    using P by blast
 
-    show "program_wellFormed (prog S)"
-      by (simp add: prog_wf)
+  show "program_wellFormed (prog S)"
+    by (simp add: prog_wf)
 
-    show "execution_s_check (invariant progr) (querySpec progr)
+  show "execution_s_check (invariant progr) (querySpec progr)
      \<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S,
         transactionOrigin = transactionOrigin S, knownIds = knownIds S, invocationOp = invocationOp S,
         invocationRes = invocationRes S, ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {},
@@ -2975,41 +2975,41 @@ proof (rule execution_s_check_sound[where P=P])
         ps_store = Map.empty,
         ps_prog = progr\<rparr>
      ls P"
-    proof (fuzzy_rule c)
-      show "\<And>tx. transactionOrigin S tx \<noteq> Some i"
-        by (auto simp add: S_def noTxns)
+  proof (fuzzy_rule c)
+    show "\<And>tx. transactionOrigin S tx \<noteq> Some i"
+      by (auto simp add: S_def noTxns)
 
-      show "True = (\<forall>c tx. transactionOrigin S tx \<triangleq> i \<longrightarrow> callOrigin S c \<triangleq> tx \<longrightarrow> transactionStatus S tx \<noteq> Some Committed)"
-        by (auto simp add: S_def noTxns)
+    show "True = (\<forall>c tx. transactionOrigin S tx \<triangleq> i \<longrightarrow> callOrigin S c \<triangleq> tx \<longrightarrow> transactionStatus S tx \<noteq> Some Committed)"
+      by (auto simp add: S_def noTxns)
 
-      show "None = currentTransaction S i"
-        by (auto simp add: S_def local.wf opNone wellFormed_invoc_notStarted(1))
-
-
-      show " op = the (invocationOp S i)"
-        by (auto simp add: S_def  \<open>op = proc\<close>)
-
-      show "(invocationRes S)(i := None) = invocationRes S"
-        by (auto simp add: S_def fun_upd_idem local.wf opNone state_wellFormed_invocation_before_result)
+    show "None = currentTransaction S i"
+      by (auto simp add: S_def local.wf opNone wellFormed_invoc_notStarted(1))
 
 
-      show "(invocationOp S)(i \<mapsto> op) = invocationOp S"
-        by (auto simp add: S_def \<open>op = proc\<close>)
+    show " op = the (invocationOp S i)"
+      by (auto simp add: S_def  \<open>op = proc\<close>)
 
-      show "invariant progr
+    show "(invocationRes S)(i := None) = invocationRes S"
+      by (auto simp add: S_def fun_upd_idem local.wf opNone state_wellFormed_invocation_before_result)
+
+
+    show "(invocationOp S)(i \<mapsto> op) = invocationOp S"
+      by (auto simp add: S_def \<open>op = proc\<close>)
+
+    show "invariant progr
        \<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S,
           transactionOrigin = transactionOrigin S, knownIds = knownIds S, invocationOp = invocationOp S(i \<mapsto> op),
           invocationRes = (invocationRes S)(i := None)\<rparr>"
-        using inv \<open>(invocationRes S)(i := None) = invocationRes S\<close> \<open>invocationOp S(i \<mapsto> op) = invocationOp S\<close> by (auto simp add: invariantContext.defs) 
+      using inv \<open>(invocationRes S)(i := None) = invocationRes S\<close> \<open>invocationOp S(i \<mapsto> op) = invocationOp S\<close> by (auto simp add: invariantContext.defs) 
 
 
-    qed
+  qed
 
-    show "\<And>S' res. P S' res \<Longrightarrow> uniqueIds res \<subseteq> ps_localKnown S'"
-      using P_ids .
+  show "\<And>S' res. P S' res \<Longrightarrow> uniqueIds res \<subseteq> ps_localKnown S'"
+    using P_ids .
 
 
-    show "\<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S, transactionOrigin = transactionOrigin S,
+  show "\<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S, transactionOrigin = transactionOrigin S,
        knownIds = knownIds S, invocationOp = invocationOp S, invocationRes = invocationRes S, ps_i = i, ps_generatedLocal = {},
        ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (the (invocationOp S i)), ps_vis = {}, ps_localCalls = [],
        ps_tx = currentTransaction S i,
@@ -3019,7 +3019,7 @@ proof (rule execution_s_check_sound[where P=P])
        knownIds = knownIds S, invocationOp = invocationOp S, invocationRes = invocationRes S, ps_i = i, ps_generatedLocal = {},
        ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds op, ps_vis = {}, ps_localCalls = [],
        ps_tx = currentTransaction S i, ps_firstTx = \<forall>c tx. transactionOrigin S tx \<triangleq> i \<longrightarrow> callOrigin S c \<triangleq> tx \<longrightarrow> transactionStatus S tx \<noteq> Some Committed, ps_store = Map.empty, ps_prog = prog S\<rparr>"
-      by (auto simp add: a4 \<open>prog S = progr\<close>)
+    by (auto simp add: a4 \<open>prog S = progr\<close>)
 
 
 qed (simp add: a4; fail )+
@@ -3122,7 +3122,7 @@ lemma sorted_by_updateHb:
     and "distinct cs"
   shows "sorted_by (updateHb hb vis cs) cs"
   using assms proof (induct cs arbitrary: hb vis)
-case Nil
+  case Nil
   then show ?case 
     by (simp add: sorted_by_empty)
 
@@ -3154,8 +3154,8 @@ qed
 lemma no_ainvoc:
   assumes "\<forall>p t. (AInvoc p, t) \<notin> set trace"
     and "trace = (action, Inv) # trace'"
-and "\<lbrakk>\<forall>p t. (AInvoc p, t) \<notin> set trace; \<And>proc. action \<noteq> AInvoc proc\<rbrakk> \<Longrightarrow> P"
-shows "P"
+    and "\<lbrakk>\<forall>p t. (AInvoc p, t) \<notin> set trace; \<And>proc. action \<noteq> AInvoc proc\<rbrakk> \<Longrightarrow> P"
+  shows "P"
   using assms by auto
 
 method show_proof_rule = 
@@ -3170,7 +3170,7 @@ inductive_cases step_s_NewId: "S ~~ (i, ANewId uidv, Inv) \<leadsto>\<^sub>S S'"
 
 lemma execution_s_check_proof_rule:
   assumes noReturn: "\<And>r. cmd \<noteq> WaitReturn r"
-and cont: "
+    and cont: "
 \<And>PS' cmd' ok. \<lbrakk>
   step_io Inv crdtSpec PS cmd PS' cmd' ok;
   proof_state_wellFormed PS
@@ -3226,7 +3226,7 @@ qed
 
 
 lemma WaitReturn_combined:
-"WaitReturn r = (cmd \<bind> cont)
+  "WaitReturn r = (cmd \<bind> cont)
 \<Longrightarrow> (\<exists>ri. cmd = WaitReturn ri \<and> cont ri = WaitReturn r)"
   by (cases cmd) auto
 
@@ -3242,7 +3242,7 @@ lemma step_io_bind_split:
         \<or> (\<exists>r. cmd = WaitReturn r \<and> step_io progInv qrySpec S (cont r) S' cmdCont' Inv)"
 proof (cases cmd)
   case (WaitLocalStep x1)
-then show ?thesis using assms  by (auto simp add: step_io_def split: prod.splits) 
+  then show ?thesis using assms  by (auto simp add: step_io_def split: prod.splits) 
 next
   case (WaitBeginAtomic x2)
   then show ?thesis using assms  
@@ -3264,7 +3264,7 @@ next
   then show ?thesis using assms  
     by (auto simp add: step_io_def intro!: arg_cong_bind split: prod.splits loopResult.splits) 
 qed
-  
+
 
 
 lemma steps_io_bind_split1:
@@ -3372,9 +3372,9 @@ qed
 
 lemma execution_s_check_split:
   assumes ec: "execution_s_check Inv crdtSpec S (cmd \<bind> cont) P"
-and steps: "steps_io Inv crdtSpec S cmd S' (Some res)"
-and wf: "proof_state_wellFormed S"
-shows "execution_s_check Inv crdtSpec S' (cont res) P"
+    and steps: "steps_io Inv crdtSpec S cmd S' (Some res)"
+    and wf: "proof_state_wellFormed S"
+  shows "execution_s_check Inv crdtSpec S' (cont res) P"
   unfolding execution_s_check_def proof (intro allI impI)
 
   fix S'a res'
@@ -3388,7 +3388,7 @@ shows "execution_s_check Inv crdtSpec S' (cont res) P"
       and "proof_state_wellFormed S"
     for S' res
     using execution_s_check_def that by blast
-    
+
 
 
   show "case res' of None \<Rightarrow> False | Some r \<Rightarrow> P S'a r"
@@ -3448,7 +3448,7 @@ qed
 *)
 lemma steps_io_return:
   assumes "steps_io progInv qrySpec S (return r) S' res"
-shows "S = S' \<and> res \<triangleq> r"
+  shows "S = S' \<and> res \<triangleq> r"
   using assms by cases (auto simp add: return_def step_io_def)
 
 
@@ -3464,7 +3464,7 @@ qed
 
 \<comment> \<open>TODO utils\<close>
 lemma if_distrib_bind:
-"((if c then A else B) \<bind>io cont) = (if c then A \<bind>io cont else B \<bind>io cont)"
+  "((if c then A else B) \<bind>io cont) = (if c then A \<bind>io cont else B \<bind>io cont)"
   by auto
 
 
@@ -3533,7 +3533,7 @@ lemma execution_s_check_return:
   assumes finalCheck: "proof_state_wellFormed PS \<Longrightarrow> P PS r"
   shows "execution_s_check Inv crdtSpec PS (return r) P"
   using finalCheck
-unfolding execution_s_check_def steps_io_return_iff by auto
+  unfolding execution_s_check_def steps_io_return_iff by auto
 
 
 lemma execution_s_check_return_iff:
@@ -3568,11 +3568,11 @@ proof -
     where "cmd = Loop init (loop_body_to_V bdy) (return \<circ> f)"
 
   define nextIteration :: "('any,'any) loopResult \<Rightarrow> ('a, 'operation, 'any) impl_language_loops.io"  where
-      "nextIteration \<equiv> \<lambda>r. case r of Break x \<Rightarrow> return (f x) | Continue x \<Rightarrow> Loop x (loop_body_to_V bdy) (return \<circ> f)"
+    "nextIteration \<equiv> \<lambda>r. case r of Break x \<Rightarrow> return (f x) | Continue x \<Rightarrow> Loop x (loop_body_to_V bdy) (return \<circ> f)"
 
   obtain bdyCont 
     where "bdyCont = return (Continue init)"
-       and cmd: "cmd = bdyCont \<bind> nextIteration"
+      and cmd: "cmd = bdyCont \<bind> nextIteration"
     by (auto simp add: cmd_def nextIteration_def)
 
   have p1: "\<And>Sb br. \<lbrakk>steps_io progInv qrySpec S bdyCont Sb br\<rbrakk> 
@@ -3721,9 +3721,9 @@ proof -
           qed
 
         qed (use `step_io progInv qrySpec Sx cmd1 Sx' cmd' True`
-                ` \<nexists>r. bdyCont = impl_language_loops.return r`
-                `cmd1 = bdyCont \<bind> nextIteration` 
-                in \<open>auto simp add: step_io_def nextIteration_def return_def split: prod.splits\<close>)
+            ` \<nexists>r. bdyCont = impl_language_loops.return r`
+            `cmd1 = bdyCont \<bind> nextIteration` 
+            in \<open>auto simp add: step_io_def nextIteration_def return_def split: prod.splits\<close>)
       qed
 
       show ?thesis
@@ -3835,18 +3835,18 @@ definition loop_a :: "
   \<Rightarrow> (('proc, 'any, 'operation) proof_state \<Rightarrow> 'a  \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool)
   \<Rightarrow> ('a \<Rightarrow> (('a,'b::countable) loopResult, 'operation::small, 'any::{small,natConvert} ) io) 
   \<Rightarrow> ('b, 'operation, 'any) io" where
-"loop_a init LoopInv body \<equiv> loop init body"
+  "loop_a init LoopInv body \<equiv> loop init body"
 
 lemma annotate_loop:
-"loop init body = loop_a init LoopInv body"
+  "loop init body = loop_a init LoopInv body"
   unfolding loop_a_def by simp
 
 
 definition  while_a :: "(('proc, 'any, 'operation) proof_state \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool) \<Rightarrow>   (bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
-"while_a LoopInv body \<equiv> while body"
+  "while_a LoopInv body \<equiv> while body"
 
 lemma annotate_while_loop:
-"while bdy = while_a LoopInv bdy"
+  "while bdy = while_a LoopInv bdy"
   unfolding while_a_def by simp
 
 definition  forEach_a :: "
@@ -3854,14 +3854,14 @@ definition  forEach_a :: "
   \<Rightarrow> (('proc, 'any, 'operation) proof_state \<Rightarrow> 'e list \<Rightarrow> 'a list \<Rightarrow> 'e list  \<Rightarrow> ('proc, 'any, 'operation) proof_state \<Rightarrow> bool) 
   \<Rightarrow> ('e \<Rightarrow> ('a::countable, 'operation::small, 'any::{small,natConvert}) io) 
   \<Rightarrow> ('a list, 'operation, 'any) io" where
-"forEach_a coll LoopInv body \<equiv> forEach coll body"
+  "forEach_a coll LoopInv body \<equiv> forEach coll body"
 
 lemma annotate_forEach_loop:
-"forEach elems bdy = forEach_a elems LoopInv bdy"
+  "forEach elems bdy = forEach_a elems LoopInv bdy"
   unfolding forEach_a_def by simp
 
 lemma loopResult_nested_case_simp:
-"(case (case r of Break x \<Rightarrow> Break (f x) | Continue x \<Rightarrow> Continue (g x)) of Break x \<Rightarrow> f' x | Continue x \<Rightarrow> g' x) = 
+  "(case (case r of Break x \<Rightarrow> Break (f x) | Continue x \<Rightarrow> Continue (g x)) of Break x \<Rightarrow> f' x | Continue x \<Rightarrow> g' x) = 
 (case r of Break x \<Rightarrow> f' (f x) | Continue x \<Rightarrow> g' (g x))"
   by (auto split: loopResult.splits)
 
@@ -3869,15 +3869,14 @@ lemma execution_s_check_loop:
   fixes PS :: "('proc::valueType, 'any::{small,valueType,natConvert}, 'operation::valueType) proof_state" 
     and init :: "'acc::countable"
     and body ::  "'acc  \<Rightarrow> (('acc, 'a::countable) loopResult, 'operation,  'any) io"
-  assumes 
-inv_pre: "LoopInv PS init PS"
-and cont: "
+  assumes inv_pre: "LoopInv PS init PS"
+    and cont: "
 \<And>acc PSl. \<lbrakk>
   LoopInv PS acc PSl
 \<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec PSl (body acc) 
     (\<lambda>PS' r. case r of Break x \<Rightarrow> P PS' x
                      | Continue x \<Rightarrow> LoopInv PS x PS' )"
-shows "execution_s_check Inv crdtSpec PS (loop_a init LoopInv body) P"
+  shows "execution_s_check Inv crdtSpec PS (loop_a init LoopInv body) P"
   unfolding loop_a_def loop_def
   using inv_pre
 proof (fuzzy_rule execution_s_check_Loop[where LoopInv="\<lambda>PS a PS'. LoopInv PS (fromAny a) PS'"])
@@ -3907,15 +3906,14 @@ qed
 
 
 lemma execution_s_check_while:
-  assumes 
-inv_pre: "LoopInv PS PS"
-and cont: "
+  assumes inv_pre: "LoopInv PS PS"
+    and cont: "
 \<And>PSl. \<lbrakk>
   LoopInv PS PSl
 \<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec  PSl body 
     (\<lambda>PS' r. if r then P PS' ()
              else LoopInv PS PS' )"
-shows "execution_s_check Inv crdtSpec PS (while_a LoopInv body) P"
+  shows "execution_s_check Inv crdtSpec PS (while_a LoopInv body) P"
   unfolding while_a_def while_def
   using inv_pre
 proof (fuzzy_rule execution_s_check_Loop[where LoopInv="\<lambda>PS a PS'. LoopInv PS PS'"])
@@ -3936,23 +3934,19 @@ qed
 
 
 lemma execution_s_check_forEach:
- (* fixes PS :: "('proc::valueType, 'any::{small,valueType,natConvert}, 'operation::valueType) proof_state" 
-    and init :: "'acc::countable"
-    and body ::  "'acc  \<Rightarrow> (('acc, 'a::countable) loopResult, 'operation,  'any) io"*)
-  assumes 
-inv_pre: "LoopInv PS [] [] elems PS"
-and iter: "
+  assumes inv_pre: "LoopInv PS [] [] elems PS"
+    and iter: "
 \<And>done results t todo PSl. \<lbrakk>
   LoopInv PS done results (t#todo) PSl;
   length done = length results;
   elems = done@t#todo
 \<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec PSl (body t) (\<lambda>PS' r. LoopInv PS (done@[t]) (results@[r]) todo PS')"
-and cont:
-"\<And>results PSl. \<lbrakk>
+    and cont:
+    "\<And>results PSl. \<lbrakk>
   LoopInv PS elems results [] PSl;
   length elems = length results
 \<rbrakk> \<Longrightarrow> P PSl results"
-shows "execution_s_check Inv crdtSpec PS (forEach_a elems LoopInv body) P"
+  shows "execution_s_check Inv crdtSpec PS (forEach_a elems LoopInv body) P"
 proof -
 
   define LI where "LI \<equiv> \<lambda>S0 acc S. 
@@ -3964,7 +3958,7 @@ proof -
    \<and> length (fst acc) + length (snd acc) = length elems"
 
   show ?thesis
-  unfolding forEach_a_def forEach_def annotate_loop[where LoopInv=LI]
+    unfolding forEach_a_def forEach_def annotate_loop[where LoopInv=LI]
   proof (fuzzy_rule execution_s_check_loop)
 
     show "LI PS (elems, []) PS"
@@ -4211,13 +4205,13 @@ proof (rule execution_s_check_proof_rule)
 
     from Step.ps_growing
     obtain CS CS'
-     where CS_rel: "proof_state_rel PS CS"
-     and CS'_rel: "proof_state_rel
+      where CS_rel: "proof_state_rel PS CS"
+        and CS'_rel: "proof_state_rel
       (PS\<lparr>calls := calls', happensBefore := happensBefore', callOrigin := callOrigin',
             transactionOrigin := transactionOrigin', knownIds := knownIds', invocationOp := invocationOp',
             invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis'\<rparr>)
       CS'" 
-     and growth: "state_monotonicGrowth (ps_i PS) CS
+        and growth: "state_monotonicGrowth (ps_i PS) CS
       (CS'\<lparr>transactionStatus := (transactionStatus CS')(t := None),
              transactionOrigin := (transactionOrigin CS')(t := None),
              currentTransaction := (currentTransaction CS')(ps_i PS := None),
@@ -4264,7 +4258,7 @@ proof (rule execution_s_check_proof_rule)
         show " transactionOrigin' = transactionOrigin'(t := None)"
           using Step.transactionOrigin'_eq by auto
 
-       
+
 
 
         have "invocationOp' (ps_i PS) = invocationOp PS (ps_i PS)"
@@ -4388,7 +4382,7 @@ proof (rule execution_s_check_proof_rule)
            invocationRes := invocationRes', ps_tx := Some t, ps_vis := vis'\<rparr>)
      t"
         by (rule Step.ps_growing)
-    
+
 
       show "\<And>c tx. \<lbrakk>ps_firstTx PS; callOrigin' c \<triangleq> tx\<rbrakk> \<Longrightarrow> (transactionOrigin'(t := None)) tx \<noteq> Some (ps_i PS)"
       proof (auto simp add: Step.All_implies_transactionOrigin_eq_eq[rule_format,symmetric])
@@ -4414,7 +4408,7 @@ proof (rule execution_s_check_proof_rule)
 
         have "transactionStatus CS' tx = Some Uncommitted"
           by (metis (mono_tags, lifting) CS'_rel Step.PS'___def \<open>callOrigin CS' c \<triangleq> tx\<close> \<open>transactionOrigin CS' tx \<triangleq> ps_i PS\<close> \<open>transactionStatus CS' tx \<noteq> Some Committed\<close> proof_state_rel_facts(1) proof_state_rel_facts(12) state_wellFormed_ls_visibleCalls_callOrigin steo_io step_io_same_i wellFormed_currentTransaction_unique_h(2) wellFormed_state_transaction_consistent(1))
-        
+
         moreover have "transactionStatus CS' tx \<noteq> Some Uncommitted"
           using proof_state_rel_facts(14)[OF CS'_rel] \<open>tx \<noteq> t\<close> by auto
 
@@ -4435,7 +4429,7 @@ proof (rule execution_s_check_proof_rule)
         thm CS'_rel
         from proof_state_rel_facts(24)[OF CS_rel, simplified]
         have "uid_is_private (ps_i PS) CS v" using v by simp
-        
+
         from proof_state_rel_facts(24)[OF CS'_rel, simplified]
         have "uid_is_private (ps_i PS) CS' v" using v by simp
         hence a0: "new_unique_not_in_invocationOp invocationOp' v"
@@ -4446,7 +4440,7 @@ proof (rule execution_s_check_proof_rule)
           and a5: "generatedIds CS' v \<triangleq> ps_i PS"
           and a6: "new_unique_not_in_other_invocations (ps_i PS) CS' v"
           by (auto simp add: uid_is_private_def proof_state_rel_facts[OF CS'_rel])
-           
+
         show "uid_is_private' (ps_i PS) calls' invocationOp' invocationRes' knownIds' v"
           by (simp add: a0 a1 a2 a3 a4 uid_is_private'_def)
       qed
@@ -4460,7 +4454,7 @@ qed
 lemma execution_s_check_call:
   assumes in_tx: "ps_tx PS \<triangleq> tx"
     and unique_wf: "uniqueIds Op \<subseteq> ps_localKnown PS"
-and cont: "\<And>c res. \<lbrakk>
+    and cont: "\<And>c res. \<lbrakk>
 crdtSpec Op \<lparr>
       calls = calls PS |` (ps_vis PS \<union> set (ps_localCalls PS)), 
       happensBefore=updateHb (happensBefore PS |r ps_vis PS) (ps_vis PS) (ps_localCalls PS)\<rparr> res
@@ -4488,11 +4482,11 @@ proof (rule execution_s_check_proof_rule)
     from step_io  
     obtain c y res
       where c0: "ok"
-      and c1: "calls PS c = None"
-      and c2: "ps_tx PS \<triangleq> y"
-      and c3: "crdtSpec Op (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)) (Some (ps_vis PS \<union> set (ps_localCalls PS)))) res"
-      and c4: "cmd' = return res"
-      and PS'_def: "PS' = PS \<lparr>ps_localKnown := ps_localKnown PS \<union> uniqueIds res, ps_generatedLocalPrivate := ps_generatedLocalPrivate PS - uniqueIds Op, calls := calls PS(c \<mapsto> Call Op res), ps_localCalls := ps_localCalls PS @ [c]\<rparr>"
+        and c1: "calls PS c = None"
+        and c2: "ps_tx PS \<triangleq> y"
+        and c3: "crdtSpec Op (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)) (Some (ps_vis PS \<union> set (ps_localCalls PS)))) res"
+        and c4: "cmd' = return res"
+        and PS'_def: "PS' = PS \<lparr>ps_localKnown := ps_localKnown PS \<union> uniqueIds res, ps_generatedLocalPrivate := ps_generatedLocalPrivate PS - uniqueIds Op, calls := calls PS(c \<mapsto> Call Op res), ps_localCalls := ps_localCalls PS @ [c]\<rparr>"
       by (auto simp add: step_io_def call_def unique_wf return_def split: if_splits)
 
     show "ok" using `ok` .
@@ -4505,7 +4499,7 @@ proof (rule execution_s_check_proof_rule)
       proof (fuzzy_rule cont[where c=c])
 
 
-        
+
         show "crdtSpec Op
          \<lparr>calls = calls PS |` (ps_vis PS \<union> set (ps_localCalls PS)),
             happensBefore = updateHb (happensBefore PS |r ps_vis PS) (ps_vis PS) (ps_localCalls PS)\<rparr>
@@ -4543,7 +4537,7 @@ qed
 lemma execution_s_check_endAtomic:
   assumes in_tx: "ps_tx PS \<triangleq> tx"
     and tx_nonempty: "(ps_localCalls PS) \<noteq> []"
-and cont: "\<And>PS'. \<lbrakk>
+    and cont: "\<And>PS'. \<lbrakk>
 distinct (ps_localCalls PS);
 \<And>c. c\<in>set (ps_localCalls PS) \<Longrightarrow> callOrigin PS c = None;
 \<And>c. c\<in>set (ps_localCalls PS) \<Longrightarrow> c \<notin> ps_vis PS;
@@ -4696,7 +4690,7 @@ proof (rule execution_s_check_proof_rule)
           by auto
         have "old_t \<noteq> tx"
           using \<open>state_wellFormed CS\<close> \<open>transactionStatus CS old_t \<triangleq> Committed\<close> in_tx proof_state_rel_currentTx rel wellFormed_currentTransaction_unique_h(2) by fastforce
-     
+
         have "callOrigin PS old_c \<triangleq> old_t"
           using \<open>callOrigin CS old_c \<triangleq> old_t\<close> \<open>old_t \<noteq> tx\<close> in_tx map_update_all_Some_other proof_state_rel_callOrigin rel by fastforce
         have "transactionOrigin PS old_t \<triangleq> ps_i PS"
@@ -4746,7 +4740,7 @@ proof (rule execution_s_check_proof_rule)
     show ok unfolding ok_def 
       by (fuzzy_rule cont2[THEN conjunct1], auto simp add: proof_state_ext PS'_def)
 
-    
+
 
   qed
 qed
@@ -4786,18 +4780,18 @@ method repliss_vcg_l uses impl asmUnfold =
 
 
 declare newId_def[language_construct_defs] 
-atomic_def[language_construct_defs]  
-beginAtomic_def [language_construct_defs] 
-call_def [language_construct_defs] 
-skip_def [language_construct_defs] 
-endAtomic_def [language_construct_defs] 
-return_def[language_construct_defs] 
-makeRef_def[language_construct_defs] 
-read_def[language_construct_defs] 
-assign_def[language_construct_defs] 
-update_def[language_construct_defs]
-while_a_def[language_construct_defs]
-\<comment> \<open>loop construct is not added here, since unfolding it might diverge.
+  atomic_def[language_construct_defs]  
+  beginAtomic_def [language_construct_defs] 
+  call_def [language_construct_defs] 
+  skip_def [language_construct_defs] 
+  endAtomic_def [language_construct_defs] 
+  return_def[language_construct_defs] 
+  makeRef_def[language_construct_defs] 
+  read_def[language_construct_defs] 
+  assign_def[language_construct_defs] 
+  update_def[language_construct_defs]
+  while_a_def[language_construct_defs]
+  \<comment> \<open>loop construct is not added here, since unfolding it might diverge.
     the loops added are just syntactic sugar for loop.\<close>
 
 
