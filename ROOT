@@ -25,6 +25,7 @@ session "repliss" = "HOL" +
     example_userbase
     example_chat
     example_loop_max
+    example_loop_max2
   document_files
     "root.tex"
     "mathpartir.sty"

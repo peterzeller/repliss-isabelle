@@ -1,4 +1,4 @@
-section "Example: Computing Maximum with a Loop"
+section "Example: Computing Maximum with a while-Loop"
 
 theory example_loop_max
   imports 
