@@ -251,60 +251,66 @@ proof M_show_programCorrect
           next
             case (loop_body Done results t todo PSl re y)
             show ?case
-              apply (fuzzy_rule repliss_proof_rules)
+            proof (auto simp add: loop_inv_def Def_def)
+              show "s_read (ps_store PSl(0 \<mapsto> intoAny (max t (s_read (ps_store PSl) (Ref 0))))) (Ref 0) = Max (insert t (set Done))"
+                using `re ::= s_read (ps_store PSl) (Ref 0)`
+                  and `if Done = [] then re = 0 else re = Max (set Done)`
+                by (auto simp add: s_read_def Def_def split: if_splits)
 
-            have [simp]: "fromAny li_v = li"
-              using loop_body by (auto simp add: Def_def s_read_def)
-
-            have [simp]: "fromAny re_v = re"
-              using loop_body by (auto simp add: Def_def s_read_def)
-
-            have "li \<noteq> []"
-              using loop_body Def_def by metis
-
-
-            show ?case
-              unfolding loop_inv_def
-              apply (rule exI[where x="tl li"])
-              apply (rule exI[where x="max (hd li) re"])
-              apply (rule exI[where x="li_done @ [hd li]"])
-            proof (auto simp add: Def_def loop_body s_read_def intro!: show_only_store_changed[OF loop_body(7)])
-              show "list = li_done @ hd li # tl li"
-                using Def_def \<open>li \<noteq> []\<close> `list ::= li_done @ li` by fastforce
-
-              from `if li_done = [] then re = 0 else re = Max (set li_done)`
-              show "max (hd li) re = Max (insert (hd li) (set li_done))"
-                by (auto split: if_splits)
+              from loop_body.only_store_changed
+              show "only_store_changed
+                 \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin,
+                    transactionOrigin = s_transactionOrigin, knownIds = s_knownIds,
+                    invocationOp = s_invocationOp(i \<mapsto> PMax (Done @ t # todo)), invocationRes = s_invocationRes(i := None),
+                    ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = {}, ps_vis = {},
+                    ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = [0 \<mapsto> intoAny 0], ps_prog = progr\<rparr>
+                 (PSl\<lparr>ps_store := ps_store PSl(0 \<mapsto> intoAny (max t (s_read (ps_store PSl) (Ref 0))))\<rparr>)"
+                by (auto simp add: only_store_changed_def proof_state_ext)
             qed
-
           next
-            case (final PS li_v li re_v re li_done)
-            show ?case
-            proof (auto simp add: inv_def inv1_def invariantContext.defs)
+            case (final results PSl re y)
 
-              show "s_read (ps_store PS) (Ref (Suc 0)) = Max (set list)"
-                if c0: "invocationOp PS i \<triangleq> PMax list"
-                  and c1: "list \<noteq> []"
-                for  list
-                using final that by (auto simp add: inv_def inv1_def invariantContext.defs Def_def only_store_changed_def split: if_splits)
-                               
+            from final.only_store_changed
+            have "invocationOp PSl i \<triangleq> PMax list"
+              by (auto simp add: only_store_changed_def)
+
+
+            show "example_loop_max2.inv
+            (invariantContext.truncate
+              (PSl\<lparr>invocationRes := invocationRes PSl(i \<mapsto> val.Nat (s_read (ps_store PSl) (Ref 0)))\<rparr>))"
+              unfolding inv_def inv1_def
+            proof (auto simp add: invariantContext.defs `invocationOp PSl i \<triangleq> PMax list`)
+
+              show "s_read (ps_store PSl) (Ref 0) = Max (set list)"
+                if c0: "list \<noteq> []"
+                using `re ::= s_read (ps_store PSl) (Ref 0)`
+                  `if list = [] then re = 0 else re = Max (set list)`
+                  that
+                by (auto simp add: Def_def)
+
+              from inv
+              have "inv1 (s_invocationOp(i \<mapsto> PMax list)) (s_invocationRes(i := None))"
+                by (auto simp add: inv_def)
+
+              with final.only_store_changed
+              have "inv1 (invocationOp PSl) (invocationRes PSl)"
+                using only_store_changed_def by force
+
 
               show "r = val.Nat (Max (set list))"
                 if c0: "ia \<noteq> i"
-                  and c1: "invocationOp PS ia \<triangleq> PMax list"
+                  and c1: "invocationOp PSl ia \<triangleq> PMax list"
                   and c2: "list \<noteq> []"
-                  and c3: "invocationRes PS ia \<triangleq> r"
+                  and c3: "invocationRes PSl ia \<triangleq> r"
                 for  ia list r
-                using inv that final(7)
-                by (auto simp add: inv_def inv1_def final(7) only_store_changed_def, force)
+                by (meson \<open>inv1 (invocationOp PSl) (invocationRes PSl)\<close> c1 c2 c3 inv1_def)
             qed
           qed
-        qed (auto simp add: finalCheck_def)
+        qed (auto)
       qed
     qed
   qed
 qed
-
 
 
 end

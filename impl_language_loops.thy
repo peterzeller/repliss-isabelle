@@ -503,9 +503,9 @@ definition loop :: "'a::countable \<Rightarrow> ('a \<Rightarrow> (('a,'b::count
 "loop init body \<equiv> Loop 
       (intoAny init)
       (loop_body_to_V (\<lambda>acc. 
-          body (fromAny acc) \<bind>io (\<lambda>res. 
-            case res of Continue x \<Rightarrow> return (Continue (intoAny x)) 
-                      | Break x \<Rightarrow> return (Break (intoAny x))))) 
+          body (fromAny acc) \<bind>io (\<lambda>res. return (
+            case res of Continue x \<Rightarrow> (Continue (intoAny x)) 
+                      | Break x \<Rightarrow> (Break (intoAny x)))))) 
       (return \<circ> fromAny)"
 
 
