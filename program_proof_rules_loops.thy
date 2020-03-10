@@ -3172,20 +3172,20 @@ lemma execution_s_check_proof_rule:
   assumes noReturn: "\<And>r. cmd \<noteq> WaitReturn r"
 and cont: "
 \<And>PS' cmd' ok. \<lbrakk>
-  step_io Inv crdtSpec PS (cmd \<bind> cont) PS' cmd' ok;
+  step_io Inv crdtSpec PS cmd PS' cmd' ok;
   proof_state_wellFormed PS
 \<rbrakk> \<Longrightarrow> 
   ok
-  \<and> (\<exists>res. cmd' = cont res
-  \<and> execution_s_check Inv crdtSpec PS' (cont res) P)"
-  shows "execution_s_check Inv crdtSpec PS  (cmd \<bind> cont) P"
+  \<and> (\<exists>res. cmd' = return res
+    \<and> P PS' res)"
+  shows "execution_s_check Inv crdtSpec PS  (cmd) P"
 proof (auto simp add: execution_s_check_def)
   fix S' res
-  assume steps_io: "steps_io Inv crdtSpec PS (cmd \<bind> cont) S' res"
+  assume steps_io: "steps_io Inv crdtSpec PS cmd S' res"
     and PS_wf: "proof_state_wellFormed PS"
 
   from noReturn
-  have noReturn: "cmd \<bind> cont \<noteq> impl_language_loops.io.WaitReturn r" for r
+  have noReturn: "cmd \<noteq> impl_language_loops.io.WaitReturn r" for r
     by (cases cmd, auto)
 
 
@@ -3204,17 +3204,20 @@ proof (auto simp add: execution_s_check_def)
     case (steps_io_step S cmd S' cmd' S'' res)
 
     from steps_io_step(5)[OF steps_io_step(1) `proof_state_wellFormed S`]
-    obtain r where "cmd' = cont r" and "execution_s_check Inv crdtSpec S' (cont r) P"
+    obtain r where "cmd' = return r" and "P S' r"
       by auto
 
     from `proof_state_wellFormed S`
     have "proof_state_wellFormed S'"
       using step_io_wf_maintained steps_io_step.hyps(1) by blast
 
+    have "S'' = S' \<and> res \<triangleq> r"
+      by (rule steps_io.cases[OF `steps_io Inv crdtSpec S' cmd' S'' res`],
+          auto simp add: `cmd' = return r` return_def step_io_def)
 
-
+    with `P S' r`
     show ?case
-      using `cmd' = cont r` `execution_s_check Inv crdtSpec S' (cont r) P` \<open>proof_state_wellFormed S'\<close> execution_s_check_def steps_io_step.hyps(2) by blast
+      by auto
   qed
 qed
 
@@ -3687,34 +3690,28 @@ lemma execution_s_check_Loop:
   fixes init :: "'any::valueType"
     and LoopInv :: "('b::valueType, 'any, 'operation::valueType) proof_state \<Rightarrow> 'any \<Rightarrow> ('b, 'any, 'operation) proof_state \<Rightarrow> bool"
     and f :: "'any \<Rightarrow> 'a"
-    and cont :: "'a \<Rightarrow> ('c, 'operation, 'any) impl_language_loops.io"
   assumes 
     inv_pre: "LoopInv PS init PS"
     and cont: "
 \<And>acc PSl. \<lbrakk>
   LoopInv PS acc PSl
 \<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec PSl (body acc)
-    (\<lambda>PS' r. case r of Break res \<Rightarrow> execution_s_check Inv crdtSpec PS' (cont (f res)) P
+    (\<lambda>PS' r. case r of Break res \<Rightarrow> P PS' (f res)
                      | Continue acc' \<Rightarrow> LoopInv PS acc' PS' )"
-  shows "execution_s_check Inv crdtSpec PS (Loop init (loop_body_to_V body) (return \<circ> f) \<bind>io cont) P"
+  shows "execution_s_check Inv crdtSpec PS (Loop init (loop_body_to_V body) (return \<circ> f)) P"
   unfolding execution_s_check_def proof (intro allI impI)
-  fix S' :: "('b, 'any, 'operation) proof_state" and res :: "'c option"
-  assume steps_io: "steps_io Inv crdtSpec PS (Loop init (loop_body_to_V body) (return \<circ> f) \<bind> cont) S' res"
+  fix S' :: "('b, 'any, 'operation) proof_state" and res :: "'a option"
+  assume steps_io: "steps_io Inv crdtSpec PS (Loop init (loop_body_to_V body) (return \<circ> f)) S' res"
     and PS_wf: "proof_state_wellFormed PS"
 
 
 
 
-  from steps_io_bind_split'[OF steps_io]
-  obtain Si ri
-    where loop_steps: "steps_io Inv crdtSpec PS (Loop init (loop_body_to_V body) (impl_language_loops.return \<circ> f)) Si ri"
-      and ri_cases: "case ri of None \<Rightarrow> res = None | Some r \<Rightarrow> steps_io Inv crdtSpec Si (cont r) S' res"
-    by auto
 
 
 
-  have "\<exists>r::'a. ri \<triangleq> r \<and> execution_s_check Inv crdtSpec Si (cont r) P"
-    using loop_steps 
+  have "\<exists>r::'a. res \<triangleq> r \<and> P S' r"
+    using steps_io 
   proof (rule Loop_steps[where LoopInv="\<lambda>a s. LoopInv PS a s \<and> proof_state_wellFormed s"]; use nothing in \<open> (intro conjI)?; (elim conjE)?\<close>)
 
     show "LoopInv PS init PS"
@@ -3725,7 +3722,7 @@ lemma execution_s_check_Loop:
 
     show "case br of None \<Rightarrow> False 
             | Some (Continue x) \<Rightarrow> LoopInv PS x Sb \<and> proof_state_wellFormed Sb 
-            | Some (Break res) \<Rightarrow> execution_s_check Inv crdtSpec Sb (cont (f res)) P"
+            | Some (Break res) \<Rightarrow> P Sb (f res)"
       if c0: "steps_io Inv crdtSpec S (body init) Sb br"
         and c1: "LoopInv PS init S"
         and c2: "proof_state_wellFormed S"
@@ -3734,7 +3731,7 @@ lemma execution_s_check_Loop:
 
       from use_execution_s_check[OF cont[OF c1] c0 c2]
       have "case br of None \<Rightarrow> False | Some (Continue acc') \<Rightarrow> LoopInv PS acc' Sb
-          | Some (Break res) \<Rightarrow> execution_s_check Inv crdtSpec Sb (cont (f res)) P".
+          | Some (Break res) \<Rightarrow> P Sb (f res)" .
 
       thus ?thesis
         using c0 c2  
@@ -3746,24 +3743,7 @@ lemma execution_s_check_Loop:
 
 
   thus "case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r"
-    using ri_cases proof (auto simp add: split: option.splits)
-
-    show "\<exists>y. res \<triangleq> y"
-      if c0: "ri \<triangleq> x2"
-        and c1: "execution_s_check Inv crdtSpec Si (cont x2) P"
-        and c2: "steps_io Inv crdtSpec Si (cont x2) S' res"
-      for  x2
-      by (metis PS_wf c0 c1 c2 case_optionE loop_steps steps_io_wf_maintained_Some use_execution_s_check)
-
-
-    show "P S' x2a"
-      if c0: "ri \<triangleq> x2"
-        and c1: "execution_s_check Inv crdtSpec Si (cont x2) P"
-        and c2: "steps_io Inv crdtSpec Si (cont x2) S' (Some x2a)"
-        and c3: "res \<triangleq> x2a"
-      for  x2 x2a
-      using PS_wf \<open>\<exists>r. ri \<triangleq> r \<and> execution_s_check Inv crdtSpec Si (cont r) P\<close> c1 c2 loop_steps steps_io_wf_maintained_Some use_execution_s_check by fastforce
-  qed
+    by auto
 qed
 
 text "Loops annotated with loop invariant for easier generation of verification conditions:"
@@ -4748,6 +4728,49 @@ proof (rule execution_s_check_proof_rule)
   qed
 qed
 
+subsection "Check With Bind"
+
+lemma execution_s_check_bind:
+  assumes "execution_s_check progInv qrySpec S cmd (\<lambda>S' r. 
+    execution_s_check progInv qrySpec S' (cont r) P)"
+  shows "execution_s_check progInv qrySpec S (cmd \<bind> cont) P"
+proof (auto simp add: execution_s_check_def)
+  fix S' res
+  assume steps: "steps_io progInv qrySpec S (cmd \<bind> cont) S' res"
+    and wf: "proof_state_wellFormed S"
+
+  from steps_io_bind_split'[OF steps]
+  obtain ri Si
+    where steps_cmd: "steps_io progInv qrySpec S cmd Si ri"
+      and ri_cases: "case ri of None \<Rightarrow> res = None | Some r \<Rightarrow> steps_io progInv qrySpec Si (cont r) S' res"
+    by blast
+
+  from use_execution_s_check[OF assms steps_cmd wf]
+  have ri_cases2: "case ri of None \<Rightarrow> False | Some r \<Rightarrow> execution_s_check progInv qrySpec Si (cont r) P" .
+
+  show "case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r"
+  proof (cases ri)
+    case None
+    then show ?thesis
+      using ri_cases2 by auto
+  next
+    case (Some r)
+    from Some and ri_cases
+    have steps_cont: "steps_io progInv qrySpec Si (cont r) S' res" by auto
+
+    from Some and ri_cases2
+    have check_cont: "execution_s_check progInv qrySpec Si (cont r) P" by auto
+
+    have wf2: "proof_state_wellFormed Si"
+      using Some local.wf steps_cmd steps_io_wf_maintained by fastforce
+
+
+    from use_execution_s_check[OF check_cont steps_cont wf2]
+    show ?thesis
+      by auto
+  qed
+qed
+
 
 
 subsection "Verification Condition Generation Tactics"
@@ -4767,6 +4790,7 @@ lemmas repliss_proof_rules =
   execution_s_check_call
   execution_s_check_endAtomic'
   show_finalCheck
+  execution_s_check_bind
 
 method repliss_vcg_step1 uses asmUnfold = 
   (rule repliss_proof_rules; ((subst(asm) asmUnfold)+)?; (intro impI conjI)?; clarsimp?; (intro impI conjI)?; (rule refl)?)
