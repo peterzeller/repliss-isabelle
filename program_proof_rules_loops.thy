@@ -4768,13 +4768,22 @@ lemmas repliss_proof_rules =
   execution_s_check_bind
 
 method repliss_vcg_step1 uses asmUnfold = 
-  (rule repliss_proof_rules; ((subst(asm) asmUnfold)+)?; (intro impI conjI)?; clarsimp?; (intro impI conjI)?; (rule refl)?)
+  (rule repliss_proof_rules; 
+    ((subst(asm) asmUnfold)+)?; 
+     (intro impI conjI)?; 
+     clarsimp?; 
+     (intro impI conjI)?; 
+     (rule refl)?)
 
 method repliss_vcg_step uses asmUnfold = 
-  (repliss_vcg_step1 asmUnfold: asmUnfold; (repliss_vcg_step asmUnfold: asmUnfold)?)
+  (repliss_vcg_step1 asmUnfold: asmUnfold; 
+    (repliss_vcg_step asmUnfold: asmUnfold)?)
 
 method repliss_vcg_l uses impl asmUnfold = 
-  ((simp add: impl)?, (unfold atomic_def skip_def)?, simp? , repliss_vcg_step asmUnfold: asmUnfold)
+  ((simp add: impl)?, 
+    (unfold atomic_def skip_def)?, 
+    simp?, 
+    repliss_vcg_step asmUnfold: asmUnfold)
 
 
 
