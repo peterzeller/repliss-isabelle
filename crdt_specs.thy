@@ -91,6 +91,36 @@ lemma use_crdt_spec_wf:
   using assms  by (auto simp add: crdt_spec_wf_def)
 
 
+subsection "Counter"
+
+datatype counterOp =
+    Increment int
+    | GetCount
+
+instance counterOp :: countable
+  by countable_datatype
+instantiation counterOp :: crdt_op begin
+definition "is_update_counterOp op \<equiv> op \<noteq> GetCount"
+definition "uniqueIds_counterOp (op::counterOp) \<equiv> {}::uniqueId set"
+definition "default_counterOp \<equiv> GetCount"
+instance by standard (auto simp add: uniqueIds_counterOp_def)
+end
+
+
+definition set_sum where
+"set_sum S f \<equiv> Finite_Set.fold (\<lambda>x acc. acc + f x) 0 S"
+
+definition map_sum where
+"map_sum m f \<equiv> set_sum {(x,y). m x \<triangleq> y}  f"
+
+definition counter_spec :: "(counterOp, int) crdtSpec" where
+"counter_spec oper ctxt res \<equiv> 
+  case oper of
+    Increment i \<Rightarrow> res = 0
+  | GetCount \<Rightarrow> res = map_sum (calls ctxt) (\<lambda>x. case x of (_, Call (Increment i) _) \<Rightarrow> i | _ \<Rightarrow> 0)"
+
+
+
 subsection "Register"
 
 datatype 'a registerOp =
