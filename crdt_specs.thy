@@ -107,17 +107,16 @@ instance by standard (auto simp add: uniqueIds_counterOp_def)
 end
 
 
-definition set_sum where
-"set_sum S f \<equiv> Finite_Set.fold (\<lambda>x acc. acc + f x) 0 S"
 
-definition map_sum where
-"map_sum m f \<equiv> set_sum {(x,y). m x \<triangleq> y}  f"
+definition 
+"increments op \<equiv> case op of Increment i \<Rightarrow> i | _ \<Rightarrow> 0"
+
 
 definition counter_spec :: "(counterOp, int) crdtSpec" where
 "counter_spec oper ctxt res \<equiv> 
   case oper of
     Increment i \<Rightarrow> res = 0
-  | GetCount \<Rightarrow> res = map_sum (calls ctxt) (\<lambda>x. case x of (_, Call (Increment i) _) \<Rightarrow> i | _ \<Rightarrow> 0)"
+  | GetCount \<Rightarrow> res = (\<Sum>(_,c)\<leftarrow>\<^sub>m calls ctxt. increments (call_operation c))"
 
 
 
@@ -346,6 +345,46 @@ lemma set_rw_spec_restrict_hb[simp]:
   apply (auto simp add: set_rw_spec_def restrict_hb_def restrict_relation_def split: setOp.splits)
   apply (metis (no_types, lifting)  domI  )+
   done
+
+subsection "Flags"
+
+datatype flagOp = Enable | Disable | ReadFlag
+
+instance flagOp :: countable
+  by countable_datatype
+instantiation flagOp :: crdt_op begin
+definition "is_update_flagOp op \<equiv> op \<noteq> ReadFlag"
+definition "uniqueIds_flagOp (op::flagOp) \<equiv> {}::uniqueId set"
+definition "default_flagOp \<equiv> ReadFlag"
+instance by standard (auto simp add: uniqueIds_flagOp_def)
+end
+
+
+
+definition 
+"latestOps ctxt \<equiv> 
+  {call_operation c | cId c. 
+            calls ctxt cId \<triangleq> c 
+          \<and> is_update (call_operation c)
+          \<and> (\<nexists>cId' c'. calls ctxt cId' \<triangleq> c'
+                      \<and> is_update (call_operation c)
+                      \<and> (cId, cId')\<in>happensBefore ctxt)}"
+
+definition flag_dw_spec :: "(flagOp, bool) crdtSpec" where
+"flag_dw_spec oper ctxt res \<equiv> 
+  case oper of
+   ReadFlag \<Rightarrow> res = (Enable \<in> latestOps ctxt \<and> Disable \<notin> latestOps ctxt)
+  | _ \<Rightarrow> res = False"
+
+
+
+definition flag_ew_spec :: "(flagOp, bool) crdtSpec" where
+"flag_ew_spec oper ctxt res \<equiv> 
+  case oper of
+   ReadFlag \<Rightarrow> res = (Enable \<in> latestOps ctxt)
+  | _ \<Rightarrow> res = False"
+
+
 
 
 subsection "Maps"

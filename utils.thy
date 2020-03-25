@@ -1276,6 +1276,43 @@ lemma cases_5[case_names case1 case2 case3 case4 case5]:
 
 lemma iffToImp: "P \<longleftrightarrow> Q \<Longrightarrow> Q \<longrightarrow> P"
   by sat
+
+
+subsection \<open>Sums over Maps\<close>
+
+
+
+definition sum_map :: "('a \<rightharpoonup> 'b) \<Rightarrow> ('a\<times>'b \<Rightarrow> 'c::comm_monoid_add) \<Rightarrow> 'c" where
+"sum_map m f \<equiv> sum (\<lambda>x. f (x, the (m x))) (dom m)"
+
+
+syntax
+  "_sum_map" :: "pttrn => 'a set => 'b => 'b"    ("(3\<Sum>_\<leftarrow>\<^sub>m_. _)" [0, 51, 10] 10)
+translations \<comment> \<open>Beware of argument permutation!\<close>
+  "\<Sum>x\<leftarrow>\<^sub>mS. b" == "CONST sum_map S (\<lambda>x. b)"
+
+
+
+lemma sum_map_empty:
+"(\<Sum>x\<leftarrow>\<^sub>mMap.empty. f x) = 0"
+  by (auto simp add: sum_map_def)
+
+lemma sum_map_insert:
+  assumes "finite (dom m)"
+and "x \<notin> dom m"
+shows "(\<Sum>x\<leftarrow>\<^sub>m(m(x\<mapsto>y)). f x) = f (x,y) + (\<Sum>x\<leftarrow>\<^sub>mm. f x)"
+  using assms by (auto simp add: sum_map_def, smt `x \<notin> dom m` sum.cong)
+
+lemma sum_map_insert':
+  assumes "finite (dom m)"
+shows "(\<Sum>x\<leftarrow>\<^sub>m(m(x\<mapsto>y)). f x) = f (x,y) + (\<Sum>x\<leftarrow>\<^sub>m(m(x := None)). f x)"
+  using assms by (auto simp add: sum_map_def)
+   (smt DiffD2 option.sel singletonI sum.cong sum.insert_remove)
+
+
+
+
+
 end
 
 
