@@ -111,12 +111,16 @@ end
 definition 
 "increments op \<equiv> case op of Increment i \<Rightarrow> i | _ \<Rightarrow> 0"
 
+class from_int =
+  fixes from_int :: "int \<Rightarrow> 'a"
 
-definition counter_spec :: "(counterOp, int) crdtSpec" where
+
+
+definition counter_spec :: "(counterOp, 'a::{default,from_int}) crdtSpec" where
 "counter_spec oper ctxt res \<equiv> 
   case oper of
-    Increment i \<Rightarrow> res = 0
-  | GetCount \<Rightarrow> res = (\<Sum>(_,c)\<leftarrow>\<^sub>m calls ctxt. increments (call_operation c))"
+    Increment i \<Rightarrow> res = default
+  | GetCount \<Rightarrow> res = from_int (\<Sum>(_,c)\<leftarrow>\<^sub>m calls ctxt. increments (call_operation c))"
 
 
 
@@ -239,21 +243,23 @@ lemma lwwregister_spec_wf: "crdt_spec_wf (lww_register_spec i)"
 
 subsection "Multi-Value Register"
 
+class is_set =
+  fixes is_set :: "'a \<Rightarrow> 'a set \<Rightarrow> bool"
 
-definition mv_register_spec :: "('a::default \<Rightarrow> 'a set \<Rightarrow> bool) \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
-"mv_register_spec is_set oper ctxt res \<equiv> 
+definition mv_register_spec :: "('a registerOp, 'a::{default,is_set}) crdtSpec" where
+"mv_register_spec oper ctxt res \<equiv> 
   case oper of
     Assign x \<Rightarrow> res = default
   | Read \<Rightarrow> is_set res (latestValues ctxt)"
 
 
 lemma mv_register_spec_restrict_hb[simp]: 
-"mv_register_spec is op (restrict_hb c) r
-= mv_register_spec is op c r"
+"mv_register_spec op (restrict_hb c) r
+= mv_register_spec op c r"
   by (auto simp add: mv_register_spec_def split: registerOp.splits)
 
 
-lemma mv_register_spec_wf: "crdt_spec_wf (mv_register_spec f)"
+lemma mv_register_spec_wf: "crdt_spec_wf mv_register_spec"
   by (simp add: crdt_spec_wf_def)
 
 subsection "Sets"
