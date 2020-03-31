@@ -1326,13 +1326,14 @@ next
     using exec by (auto simp add: aIsInTransaction differentSessions[symmetric] elim!: step_elims split: option.splits)
   have case1: "getContext B sb = getContext A sb" if "visibleCalls A sb = None"
     by (auto simp add: that getContextH_def split: option.splits,
-        insert aIsInTransaction differentSessions exec that unchangedInTransaction(4), fastforce+)
+        insert aIsInTransaction differentSessions exec that unchangedInTransaction(4),
+     (smt option.distinct(1) unchangedInTransaction(4))+)
 
   have case2: "getContext B sb = getContext A sb" if visi_def[simp]: "visibleCalls A sb \<triangleq> visi" for visi
   proof -
     from visi_def
     have [simp]: "visibleCalls B sb \<triangleq> visi"
-      using aIsInTransaction differentSessions exec unchangedInTransaction(4) by fastforce
+      using aIsInTransaction differentSessions exec unchangedInTransaction(4) by smt
 
     then have "visi \<subseteq> dom (calls A)"  
       using visibleCalls_inv  using visi_def by blast 

@@ -111,9 +111,9 @@ end
 definition 
 "increments op \<equiv> case op of Increment i \<Rightarrow> i | _ \<Rightarrow> 0"
 
-class from_int =
+class from_int = valueType +
   fixes from_int :: "int \<Rightarrow> 'a"
-
+  assumes from_int_no_uniqueIds: "uniqueIds (from_int x) = {}"
 
 
 definition counter_spec :: "(counterOp, 'a::{default,from_int}) crdtSpec" where
@@ -293,8 +293,19 @@ lemma [simp]: "is_update (Add v) = True"
 instance by (standard, auto simp add: uniqueIds_setOp_def)
 end
 
-definition set_aw_spec :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v setOp, 'r) crdtSpec" where
-"set_aw_spec from_bool op ctxt res \<equiv> 
+class from_bool = valueType +
+  fixes from_bool :: "bool \<Rightarrow> 'a"
+  assumes from_bool_no_uniqueIds: "uniqueIds (from_bool x) = {}"
+
+instantiation bool :: from_bool begin
+  definition from_bool_bool :: "bool\<Rightarrow>bool" where [simp]: "from_bool_bool = id"
+instance
+  by standard auto
+end
+
+
+definition set_aw_spec :: "('v setOp, 'r::{default,from_bool}) crdtSpec" where
+"set_aw_spec op ctxt res \<equiv> 
   case op of
     Add _ => res = default
   | Remove _ \<Rightarrow> res = default
@@ -303,8 +314,8 @@ definition set_aw_spec :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v se
 
 
 
-definition set_rw_spec :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v setOp, 'r) crdtSpec" where
-"set_rw_spec from_bool op ctxt res \<equiv> 
+definition set_rw_spec :: "('v setOp, 'r::{default,from_bool}) crdtSpec" where
+"set_rw_spec op ctxt res \<equiv> 
   case op of
     Add _ => res = default
   | Remove _ \<Rightarrow> res = default
@@ -317,8 +328,8 @@ definition set_rw_spec :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v se
 text "Alternative definition: 
 The following definition is closer to the @{term set_aw_spec} in the structure of the formula.
 However, the semantic is strange in the sense that an add-operation does not overwrite the removes that came before it." 
-definition set_rw_spec2 :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v setOp, 'r) crdtSpec" where
-"set_rw_spec2 from_bool op ctxt res \<equiv> 
+definition set_rw_spec2 :: "('v setOp, 'r::{default,from_bool}) crdtSpec" where
+"set_rw_spec2 op ctxt res \<equiv> 
   case op of
     Add _ => res = default
   | Remove _ \<Rightarrow> res = default
@@ -328,26 +339,27 @@ definition set_rw_spec2 :: "(bool \<Rightarrow> 'r::default) \<Rightarrow> ('v s
 
 lemma set_aw_spec_cannot_guess_ids[simp,intro]:
   assumes "\<And>x. uniqueIds (from_bool x) = {}"
-  shows "queries_cannot_guess_ids (set_aw_spec from_bool)"
-  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_aw_spec_def assms split: setOp.splits)
+  shows "queries_cannot_guess_ids set_aw_spec"
+  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_aw_spec_def assms from_bool_no_uniqueIds split: setOp.splits)
+
 
 
 lemma set_rw_spec_cannot_guess_ids[simp,intro]:
   assumes "\<And>x. uniqueIds (from_bool x) = {}"
-  shows "queries_cannot_guess_ids (set_rw_spec from_bool)"
-  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_rw_spec_def assms split: setOp.splits)
+  shows "queries_cannot_guess_ids set_rw_spec"
+  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_rw_spec_def assms from_bool_no_uniqueIds split: setOp.splits)
 
 
 lemma set_aw_spec_restrict_hb[simp]:
-"set_aw_spec b op (restrict_hb c) r 
-\<longleftrightarrow> set_aw_spec b op c r"
+"set_aw_spec op (restrict_hb c) r 
+\<longleftrightarrow> set_aw_spec op c r"
   apply (auto simp add: set_aw_spec_def restrict_hb_def restrict_relation_def split: setOp.splits)
   apply (metis (no_types, lifting)  domI  )+
   done
 
 lemma set_rw_spec_restrict_hb[simp]:
-"set_rw_spec b op (restrict_hb c) r 
-\<longleftrightarrow> set_rw_spec b op c r"
+"set_rw_spec op (restrict_hb c) r 
+\<longleftrightarrow> set_rw_spec op c r"
   apply (auto simp add: set_rw_spec_def restrict_hb_def restrict_relation_def split: setOp.splits)
   apply (metis (no_types, lifting)  domI  )+
   done
@@ -359,7 +371,7 @@ datatype flagOp = Enable | Disable | ReadFlag
 instance flagOp :: countable
   by countable_datatype
 instantiation flagOp :: crdt_op begin
-definition "is_update_flagOp op \<equiv> op \<noteq> ReadFlag"
+definition [simp]: "is_update_flagOp op \<equiv> op \<noteq> ReadFlag"
 definition "uniqueIds_flagOp (op::flagOp) \<equiv> {}::uniqueId set"
 definition "default_flagOp \<equiv> ReadFlag"
 instance by standard (auto simp add: uniqueIds_flagOp_def)
@@ -373,24 +385,136 @@ definition
             calls ctxt cId \<triangleq> c 
           \<and> is_update (call_operation c)
           \<and> (\<nexists>cId' c'. calls ctxt cId' \<triangleq> c'
-                      \<and> is_update (call_operation c)
+                      \<and> is_update (call_operation c')
                       \<and> (cId, cId')\<in>happensBefore ctxt)}"
 
-definition flag_dw_spec :: "(flagOp, bool) crdtSpec" where
+definition flag_dw_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
 "flag_dw_spec oper ctxt res \<equiv> 
   case oper of
-   ReadFlag \<Rightarrow> res = (Enable \<in> latestOps ctxt \<and> Disable \<notin> latestOps ctxt)
-  | _ \<Rightarrow> res = False"
+   ReadFlag \<Rightarrow> res = from_bool (Enable \<in> latestOps ctxt \<and> Disable \<notin> latestOps ctxt)
+  | _ \<Rightarrow> res = default"
 
 
 
-definition flag_ew_spec :: "(flagOp, bool) crdtSpec" where
+definition flag_ew_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
 "flag_ew_spec oper ctxt res \<equiv> 
   case oper of
-   ReadFlag \<Rightarrow> res = (Enable \<in> latestOps ctxt)
-  | _ \<Rightarrow> res = False"
+   ReadFlag \<Rightarrow> res = from_bool (Enable \<in> latestOps ctxt)
+  | _ \<Rightarrow> res = default"
 
 
+text "Strong variants:"
+
+definition flag_sdw_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
+"flag_sdw_spec oper ctxt res \<equiv> 
+  case oper of
+   ReadFlag \<Rightarrow> res = from_bool (\<exists>e. calls ctxt e \<triangleq> Call Enable default
+                  \<and> (\<forall>d. calls ctxt d \<triangleq> Call Disable default \<longrightarrow> (d,e)\<in>happensBefore ctxt))
+  | _ \<Rightarrow> res = default"
+
+definition flag_sew_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
+"flag_sew_spec oper ctxt res \<equiv> 
+  case oper of
+   ReadFlag \<Rightarrow> res = from_bool ((\<exists>e. calls ctxt e \<triangleq> Call Enable default)
+                  \<and> (\<nexists>d. calls ctxt d \<triangleq> Call Disable default
+                    \<and> (\<forall>e. calls ctxt e \<triangleq> Call Enable default \<longrightarrow> (e,d)\<in>happensBefore ctxt)))
+  | _ \<Rightarrow> res = default"
+
+text "Next we validate the specification on some examples"
+
+
+context begin
+
+abbreviation "enable \<equiv> Call Enable default"
+abbreviation "disable \<equiv> Call Disable default"
+
+abbreviation "c1 \<equiv> CallId 1"
+abbreviation "c2 \<equiv> CallId 2"
+abbreviation "c3 \<equiv> CallId 3"
+abbreviation "c4 \<equiv> CallId 4"
+
+definition "example1 \<equiv> \<lparr>
+  calls = Map.empty,
+  happensBefore = {}
+\<rparr>"
+
+definition "example2 \<equiv> \<lparr>
+  calls = [
+    c1 \<mapsto> enable,
+    c2 \<mapsto> disable
+  ],
+  happensBefore = {}
+\<rparr>"
+
+definition "example3 \<equiv> \<lparr>
+  calls = [
+    c1 \<mapsto> disable,
+    c2 \<mapsto> disable,
+    c3 \<mapsto> enable,
+    c4 \<mapsto> enable
+  ],
+  happensBefore = {(c1,c3), (c2,c4)}
+\<rparr>"
+
+
+definition "example4 \<equiv> \<lparr>
+  calls = [
+    c1 \<mapsto> enable,
+    c2 \<mapsto> enable,
+    c3 \<mapsto> disable,
+    c4 \<mapsto> disable
+  ],
+  happensBefore = {(c1,c3), (c2,c4)}
+\<rparr>"
+
+
+
+lemma "flag_ew_spec ReadFlag example1 False"
+  by (auto simp add: flag_ew_spec_def latestOps_def example1_def)
+lemma "flag_sew_spec ReadFlag example1 False"
+  by (auto simp add: flag_sew_spec_def latestOps_def example1_def)
+lemma "flag_dw_spec ReadFlag example1 False"
+  by (auto simp add: flag_dw_spec_def latestOps_def example1_def)
+lemma "flag_sdw_spec ReadFlag example1 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example1_def)
+
+
+lemma "flag_ew_spec ReadFlag example2 True"
+  by (auto simp add: flag_ew_spec_def latestOps_def example2_def)
+lemma "flag_sew_spec ReadFlag example2 True"
+  by (auto simp add: flag_sew_spec_def latestOps_def example2_def)
+lemma "flag_dw_spec ReadFlag example2 False"
+  by (auto simp add: flag_dw_spec_def latestOps_def example2_def cong: conj_cong)
+lemma "flag_sdw_spec ReadFlag example2 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example2_def cong: conj_cong)
+
+
+lemma "flag_ew_spec ReadFlag example3 True"
+  apply (auto simp add: flag_ew_spec_def latestOps_def example3_def cong: conj_cong)
+  by (smt callId.inject)
+lemma "flag_sew_spec ReadFlag example3 True"
+  apply (auto simp add: flag_sew_spec_def latestOps_def example3_def cong: conj_cong)
+  by (smt callId.inject)
+lemma "flag_dw_spec ReadFlag example3 True"
+  apply (auto simp add: flag_dw_spec_def latestOps_def example3_def cong: conj_cong)
+  by (smt callId.inject)
+lemma "flag_sdw_spec ReadFlag example3 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example3_def cong: conj_cong)
+
+lemma "flag_ew_spec ReadFlag example4 False"
+  by (auto simp add: flag_ew_spec_def latestOps_def example4_def cong: conj_cong)
+lemma "flag_sew_spec ReadFlag example4 True"
+  by (auto simp add: flag_sew_spec_def latestOps_def example4_def cong: conj_cong)
+lemma "flag_dw_spec ReadFlag example4 False"
+  by (auto simp add: flag_dw_spec_def latestOps_def example4_def cong: conj_cong)
+lemma "flag_sdw_spec ReadFlag example4 False"
+  apply (auto simp add: flag_sdw_spec_def latestOps_def example4_def cong: conj_cong)
+  by (smt callId.inject)+
+
+
+
+
+end
 
 
 subsection "Maps"
@@ -442,8 +566,8 @@ definition
   (restrict_ctxt_op C_in (ctxt_restrict_calls Cs ctxt))"
 
 
-definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::default) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow> (bool \<Rightarrow> 'r) \<Rightarrow>   ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
-"map_spec deleted_calls from_bool nestedSpec oper ctxt res \<equiv>
+definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::{default,from_bool}) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow>  ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+"map_spec deleted_calls nestedSpec oper ctxt res \<equiv>
   case oper of
     DeleteKey k \<Rightarrow> res = default
   | KeyExists k \<Rightarrow> res = from_bool (\<exists>c op r. calls ctxt c \<triangleq> Call (NestedOp k op) r \<and> is_update op \<and>  c \<notin> deleted_calls ctxt k)
@@ -451,10 +575,10 @@ definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::default) operationContext
      nestedSpec op (sub_context (nested_op_on_key k) (- deleted_calls ctxt k) ctxt) res
 "
 
-definition map_uw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v::crdt_op,'r::default) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+definition map_uw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_uw_spec \<equiv> map_spec deleted_calls_uw"
 
-definition map_dw_spec :: "(bool \<Rightarrow> 'r) \<Rightarrow> ('v::crdt_op,'r::default) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+definition map_dw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_dw_spec \<equiv> map_spec deleted_calls_dw"
 
 
@@ -493,8 +617,8 @@ lemma restrict_simp1:
 lemma map_spec_restrict_hb[simp]:
   assumes a1: "dc (restrict_hb c) = dc c"
     and  wf: "crdt_spec_wf nested"
-  shows "map_spec dc fb nested op (restrict_hb c) r 
-\<longleftrightarrow> map_spec dc fb nested op c r"
+  shows "map_spec dc nested op (restrict_hb c) r 
+\<longleftrightarrow> map_spec dc nested op c r"
 proof (auto simp add: map_spec_def a1 sub_context_def  split: mapOp.splits)
 
   have h1: "restrict_hb (restrict_ctxt_op (nested_op_on_key x) (ctxt_restrict_calls (- dc c x) c))
@@ -538,26 +662,26 @@ lemma deleted_calls_dw_restrict_hb[simp]:
 lemma map_uw_spec_wf_restrict_hb[simp]:
   assumes wf: "crdt_spec_wf nested"
   shows
-"map_uw_spec from_bool nested op (restrict_hb c) r
-\<longleftrightarrow> map_uw_spec from_bool nested op c r"
+"map_uw_spec nested op (restrict_hb c) r
+\<longleftrightarrow> map_uw_spec nested op c r"
   by (simp add: map_uw_spec_def wf)
 
 lemma map_dw_spec_wf_restrict_hb[simp]:
   assumes wf: "crdt_spec_wf nested"
   shows
-"map_dw_spec from_bool nested op (restrict_hb c) r
-\<longleftrightarrow> map_dw_spec from_bool nested op c r"
+"map_dw_spec nested op (restrict_hb c) r
+\<longleftrightarrow> map_dw_spec nested op c r"
   by (simp add: map_dw_spec_def wf)
 
 
 lemma map_uw_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
-  shows "crdt_spec_wf (map_uw_spec from_bool nested)"
+  shows "crdt_spec_wf (map_uw_spec nested)"
   using crdt_spec_wf_def local.wf map_uw_spec_wf_restrict_hb by blast
 
 lemma map_dw_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
-  shows "crdt_spec_wf (map_dw_spec from_bool  nested)"
+  shows "crdt_spec_wf (map_dw_spec nested)"
   using crdt_spec_wf_def local.wf map_dw_spec_wf_restrict_hb by blast
 
 
@@ -583,8 +707,7 @@ lemmas use_queries_cannot_guess_ids = queries_cannot_guess_ids_def2[THEN iffD1, 
 
 lemma map_spec_queries_cannot_guess_ids[intro]:
   assumes nested: "queries_cannot_guess_ids n"
-    and bools_no_uids[simp]: "\<And>b. uniqueIds (from_bool b) = {}"
-  shows"queries_cannot_guess_ids (map_spec r from_bool n) "
+  shows"queries_cannot_guess_ids (map_spec r n) "
 proof (auto simp add: sub_context_def queries_cannot_guess_ids_def2 map_spec_def  split: mapOp.splits)
   fix ctxt res key op x
   assume a0: "n op (restrict_ctxt_op (nested_op_on_key key) (ctxt_restrict_calls (- r ctxt key) ctxt)) res"
@@ -611,19 +734,26 @@ and a3: "x \<notin> uniqueIds op"
     show "x \<in> uniqueIds (NestedOp key opr)"
       by (simp add: uniqueIds_mapOp_def)
   qed
+
+next
+  show "\<exists>cId opr. (\<exists>res. calls ctxt cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
+    if c0: "x \<in> uniqueIds (from_bool (\<exists>c op. (\<exists>r. calls ctxt c \<triangleq> Call (NestedOp x2 op) r) \<and> is_update op \<and> c \<notin> r ctxt x2))"
+      and c1: "x \<notin> uniqueIds x2"
+    for  ctxt x2 x
+    using c0 from_bool_no_uniqueIds by fastforce
+
+
 qed
 
 
 lemma map_uw_spec_queries_cannot_guess_ids[intro]:
   assumes nested: "queries_cannot_guess_ids n"
-    and bools_no_uids[simp]: "\<And>b. uniqueIds (from_bool b) = {}"
-  shows"queries_cannot_guess_ids (map_uw_spec from_bool n) "
+  shows"queries_cannot_guess_ids (map_uw_spec n) "
   by (simp add: map_spec_queries_cannot_guess_ids map_uw_spec_def nested)
 
 lemma map_dw_spec_queries_cannot_guess_ids[intro]:
   assumes nested: "queries_cannot_guess_ids n"
-    and bools_no_uids[simp]: "\<And>b. uniqueIds (from_bool b) = {}"
-  shows"queries_cannot_guess_ids (map_dw_spec from_bool n) "
+  shows"queries_cannot_guess_ids (map_dw_spec n) "
   by (simp add: map_spec_queries_cannot_guess_ids map_dw_spec_def nested)
 
 

@@ -15,9 +15,9 @@ We use a fine grained interleaving semantics.
 \<close>
 
 
-typedecl invocId
-typedecl txid
-typedecl callId
+datatype invocId = InvocId int
+datatype txid = TxId int
+datatype callId = CallId int
 
 text "A value type is a type that contains unique identifiers.
 Since higher kinded classes are not supported, we represent unique ids using natural numbers.
