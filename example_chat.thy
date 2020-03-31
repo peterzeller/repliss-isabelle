@@ -44,6 +44,12 @@ definition [simp]: "default_val \<equiv> Undef"
 instance by (standard, auto)
 end
 
+instantiation val :: from_bool begin
+definition [simp]: "from_bool_val \<equiv> Bool"
+
+instance by (standard, auto)
+end
+
 fun stringval where
   "stringval (String s) = s"
 | "stringval _ = ''''"
@@ -114,8 +120,8 @@ definition messageStruct :: "(messageDataOp, val) crdtSpec" where
 definition crdtSpec :: "(operation, val) crdtSpec" where
 "crdtSpec \<equiv> (\<lambda>oper.
   case oper of
-    Message op \<Rightarrow> struct_field (map_dw_spec Bool messageStruct op) (\<lambda>oper. case oper of Message op \<Rightarrow> Some op | _ \<Rightarrow> None) 
-  | Chat op \<Rightarrow> struct_field (set_rw_spec Bool op) (\<lambda>oper. case oper of Chat op \<Rightarrow> Some op | _ \<Rightarrow> None)
+    Message op \<Rightarrow> struct_field (map_dw_spec messageStruct op) (\<lambda>oper. case oper of Message op \<Rightarrow> Some op | _ \<Rightarrow> None) 
+  | Chat op \<Rightarrow> struct_field (set_rw_spec op) (\<lambda>oper. case oper of Chat op \<Rightarrow> Some op | _ \<Rightarrow> None)
 )"
 
 
@@ -129,8 +135,8 @@ definition messageStruct'  :: "('a, messageDataOp, val) ccrdtSpec"  where
 definition crdtSpec' :: "(operation, operation, val) ccrdtSpec" where
 "crdtSpec' \<equiv> (\<lambda>oper.
   case oper of
-    Message op \<Rightarrow> struct_field' Message (map_dw_spec' Bool messageStruct' op) 
-  | Chat op \<Rightarrow> struct_field'  Chat (set_rw_spec' Bool op) 
+    Message op \<Rightarrow> struct_field' Message (map_dw_spec' messageStruct' op) 
+  | Chat op \<Rightarrow> struct_field'  Chat (set_rw_spec' op) 
 )"
 
 lemma crdtSpec'_alt:
@@ -141,8 +147,8 @@ proof (cases oper)
   case (Chat n_op)
   then show ?thesis
   proof (simp add: crdtSpec_def crdtSpec'_def)
-    show "struct_field (set_rw_spec Bool n_op) (case_operation Some Map.empty) ctxt res 
-      =  struct_field' Chat (set_rw_spec' Bool n_op) (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id res"
+    show "struct_field (set_rw_spec n_op) (case_operation Some Map.empty) ctxt res 
+      =  struct_field' Chat (set_rw_spec' n_op) (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id res"
     proof (fuzzy_rule struct_field_eq)
       show "sub_context Some (dom (calls ctxt)) ctxt = ctxt"
         using hb_wf sub_context_id2 by blast
@@ -154,7 +160,7 @@ proof (cases oper)
       show "dom (calls ctxt) \<subseteq> dom (calls ctxt)"
         by simp
 
-      show "crdt_spec_rel (set_rw_spec Bool) (set_rw_spec' Bool)"
+      show "crdt_spec_rel set_rw_spec set_rw_spec'"
         by (rule set_rw_spec_rel)
     qed
   qed
@@ -162,8 +168,8 @@ next
   case (Message n_op)
   then show ?thesis
   proof (simp add: crdtSpec_def crdtSpec'_def)
-    show "struct_field (map_dw_spec Bool messageStruct n_op) (case_operation Map.empty Some) ctxt res =
-    struct_field' Message (map_dw_spec' Bool messageStruct' n_op) (dom (calls ctxt)) (extract_op (calls ctxt))
+    show "struct_field (map_dw_spec messageStruct n_op) (case_operation Map.empty Some) ctxt res =
+    struct_field' Message (map_dw_spec' messageStruct' n_op) (dom (calls ctxt)) (extract_op (calls ctxt))
      (happensBefore ctxt) id res"
     proof (fuzzy_rule struct_field_eq)
       show "sub_context Some (dom (calls ctxt)) ctxt = ctxt"
@@ -175,7 +181,7 @@ next
       show "dom (calls ctxt) \<subseteq> dom (calls ctxt)"
         by simp
 
-      show "crdt_spec_rel (map_dw_spec Bool messageStruct) (map_dw_spec' Bool messageStruct')"
+      show "crdt_spec_rel (map_dw_spec messageStruct) (map_dw_spec' messageStruct')"
       proof (rule map_dw_spec_rel)
         show "crdt_spec_rel messageStruct messageStruct'"
         proof (simp add: crdt_spec_rel_def; intro allI impI)
@@ -243,11 +249,11 @@ lemma crdtSpec'_wf:
   unfolding crdtSpec'_def
 proof (auto  split: operation.splits)
 
-  show "ccrdtSpec_wf (struct_field' Message (map_dw_spec' Bool messageStruct' x))"
+  show "ccrdtSpec_wf (struct_field' Message (map_dw_spec' messageStruct' x))"
     if c0: "oper = Message x"
     for  x
   proof (rule struct_field_wf)
-    show "ccrdtSpec_wf (map_dw_spec' Bool messageStruct' x)"
+    show "ccrdtSpec_wf (map_dw_spec' messageStruct' x)"
     proof (rule map_dw_spec_wf)
       show "ccrdtSpec_wf (messageStruct' oper)" for oper
         unfolding messageStruct'_def by (auto split: messageDataOp.splits)
@@ -487,13 +493,13 @@ proof (auto simp add: program_wellFormed_def)
   show "queries_cannot_guess_ids crdtSpec"
   proof (auto simp add:  crdtSpec_def queries_cannot_guess_ids_def split: operation.splits)
 
-    show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field (set_rw_spec Bool x1) (case_operation Some Map.empty))"
+    show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field (set_rw_spec x1) (case_operation Some Map.empty))"
       by (standard, auto split: operation.splits)
 
-    show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field (map_dw_spec Bool messageStruct x2) (case_operation Map.empty Some))"
+    show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field (map_dw_spec messageStruct x2) (case_operation Map.empty Some))"
     proof (standard, auto split: operation.splits)
 
-      show "queries_cannot_guess_ids (map_dw_spec Bool messageStruct)"
+      show "queries_cannot_guess_ids (map_dw_spec messageStruct)"
       proof (standard, auto simp add: messageStruct_def queries_cannot_guess_ids_def split: messageDataOp.splits)
 
         show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field (register_spec Undef x1) (case_messageDataOp Some Map.empty))"

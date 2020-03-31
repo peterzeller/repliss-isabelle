@@ -174,7 +174,8 @@ lemma state_monotonicGrowth_generatedIds:
 lemma state_monotonicGrowth_generatedIds_same1:
   assumes "state_monotonicGrowth i S' S"
   shows "generatedIds S' uid \<triangleq> i \<longleftrightarrow> generatedIds S uid \<triangleq> i"
-  using assms generatedIds_mono1_self state_monotonicGrowth_def by fastforce
+  using assms generatedIds_mono1_self state_monotonicGrowth_def
+  by (smt case_prodD)
   
 
 lemma state_monotonicGrowth_knownIds:

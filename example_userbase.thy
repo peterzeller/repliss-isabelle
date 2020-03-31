@@ -43,6 +43,11 @@ lemma uniqueIds_simp[simp]:
 instance by (standard, auto)
 end
 
+instantiation val :: from_bool begin
+definition [simp]: "from_bool_val \<equiv> Bool"
+
+instance by (standard, auto)
+end
 
 
 definition "isUserId x \<equiv> case x of UserId _ \<Rightarrow> True | _ \<Rightarrow> False"
@@ -231,7 +236,7 @@ definition userStruct :: "(userDataOp, val) crdtSpec" where
 )" 
 
 definition crdtSpec :: "(operation, val) crdtSpec" where
-  "crdtSpec \<equiv> map_dw_spec Bool userStruct"
+  "crdtSpec \<equiv> map_dw_spec userStruct"
 
 definition progr :: "(proc, localState, operation, val) prog" where
   "progr \<equiv> \<lparr>
@@ -276,7 +281,7 @@ proof (auto simp add: program_wellFormed_def)
         by (standard, auto split: userDataOp.splits)
     qed
 
-  qed (simp)
+  qed 
 qed
 
 

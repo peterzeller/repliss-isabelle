@@ -295,7 +295,7 @@ end
 
 class from_bool = valueType +
   fixes from_bool :: "bool \<Rightarrow> 'a"
-  assumes from_bool_no_uniqueIds: "uniqueIds (from_bool x) = {}"
+  assumes from_bool_no_uniqueIds[simp]: "uniqueIds (from_bool x) = {}"
 
 instantiation bool :: from_bool begin
   definition from_bool_bool :: "bool\<Rightarrow>bool" where [simp]: "from_bool_bool = id"
@@ -734,14 +734,6 @@ and a3: "x \<notin> uniqueIds op"
     show "x \<in> uniqueIds (NestedOp key opr)"
       by (simp add: uniqueIds_mapOp_def)
   qed
-
-next
-  show "\<exists>cId opr. (\<exists>res. calls ctxt cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
-    if c0: "x \<in> uniqueIds (from_bool (\<exists>c op. (\<exists>r. calls ctxt c \<triangleq> Call (NestedOp x2 op) r) \<and> is_update op \<and> c \<notin> r ctxt x2))"
-      and c1: "x \<notin> uniqueIds x2"
-    for  ctxt x2 x
-    using c0 from_bool_no_uniqueIds by fastforce
-
 
 qed
 
