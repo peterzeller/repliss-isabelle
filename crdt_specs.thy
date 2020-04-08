@@ -12,6 +12,12 @@ type_synonym ('op, 'res) crdtSpec = "'op \<Rightarrow> ('op, 'res) operationCont
 
 text "Some helper functions for defining the specs:"
 
+
+definition "Op ctxt c \<equiv> map_option call_operation (calls ctxt c)"
+
+definition "Res ctxt c \<equiv> map_option call_res (calls ctxt c)"
+
+
 definition map_map_values :: "('x \<Rightarrow> 'y) \<Rightarrow> ('k \<rightharpoonup> 'x) \<Rightarrow> ('k \<rightharpoonup> 'y)" where
 "map_map_values f m \<equiv> \<lambda>x. case m x of Some a \<Rightarrow> Some (f a) | None \<Rightarrow> None"
 
@@ -58,6 +64,22 @@ definition restrict_ctxt_op :: "('op1 \<rightharpoonup> 'op2) \<Rightarrow>   ('
 lemma calls_restrict_ctxt_op1:
 "calls (restrict_ctxt_op f ctxt) c = (case calls ctxt c of None \<Rightarrow> None | Some call \<Rightarrow> map_Call f call)"
   by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def map_Call_def intro!: ext split: option.splits call.splits)
+
+
+lemma Op_restrict_ctxt_op: 
+"Op (restrict_ctxt_op f ctxt) = (\<lambda>c. Op ctxt c \<bind> f)"
+  by (auto simp add: Op_def option_bind_def restrict_ctxt_op_def restrict_ctxt_def  fmap_map_values_def
+      intro!: ext split: option.splits call.splits)
+
+lemma happensBefore_restrict_ctxt_op:
+"(x,y) \<in> happensBefore (restrict_ctxt_op f ctxt)
+\<longleftrightarrow> (x,y)\<in>happensBefore ctxt 
+      \<and> (\<exists>op. (Op ctxt x \<bind> f) \<triangleq> op)
+      \<and> (\<exists>op. (Op ctxt y \<bind> f) \<triangleq> op)"
+  by (auto simp add: restrict_ctxt_op_def Op_def restrict_ctxt_def fmap_map_values_def
+      restrict_relation_def option_bind_def
+      split: option.splits call.splits)
+
 
 
 definition ctxt_restrict_calls :: "callId set \<Rightarrow> ('op, 'r) operationContext \<Rightarrow> ('op, 'r) operationContext"  where
@@ -150,20 +172,20 @@ end
 text "The latest values are all assigned values that have not been overridden by another call to assign."
 
 definition 
-"latestAssignments_h c_calls s_happensBefore \<equiv> 
-   \<lambda>c. case c_calls c of 
-    Some (Call (Assign v) r) \<Rightarrow> 
-        if \<exists>c' v' r'. c_calls c' \<triangleq> Call (Assign v') r' \<and> (c,c')\<in>s_happensBefore then None else Some v
+"latestAssignments_h c_ops s_happensBefore \<equiv> 
+   \<lambda>c. case c_ops c of 
+    Some (Assign v) \<Rightarrow> 
+        if \<exists>c' v'. c_ops c' \<triangleq> Assign v' \<and> (c,c')\<in>s_happensBefore then None else Some v
   | _ \<Rightarrow> None"
 
 definition latestAssignments :: "('a registerOp, 'r) operationContext \<Rightarrow> callId \<rightharpoonup> 'a"  where
-"latestAssignments ctxt \<equiv> latestAssignments_h (calls ctxt) (happensBefore ctxt)"
+"latestAssignments ctxt \<equiv> latestAssignments_h (Op ctxt) (happensBefore ctxt)"
 
 
 lemma ctxt_spec_wf_latestAssignments[simp]:
 "latestAssignments (restrict_hb c) = latestAssignments c"
   by (auto simp add: restrict_hb_def latestAssignments_h_def
-      restrict_relation_def latestAssignments_def
+      restrict_relation_def latestAssignments_def Op_def
       intro!: ext 
       split: option.splits if_splits registerOp.splits call.splits,
       blast+)
@@ -175,13 +197,13 @@ definition
 
 lemma latestValues_def2:
 "latestValues ctxt =
-  {v | c v r . calls ctxt c \<triangleq> Call (Assign v) r  
-        \<and> (\<nexists>c' v' r'. calls ctxt c' \<triangleq> Call (Assign v') r' \<and> (c,c')\<in>happensBefore ctxt)}" 
+  {v | c v. Op ctxt c \<triangleq> Assign v  
+        \<and> (\<nexists>c' v'. Op ctxt c' \<triangleq> Assign v' \<and> (c,c')\<in>happensBefore ctxt)}" 
 proof (auto simp add: latestValues_def latestAssignments_def latestAssignments_h_def image_def ran_def 
     split: option.splits call.splits if_splits, fuzzy_goal_cases G)
   case (G x a y)
   then show ?case
-    by (cases y; cases "call_operation y", auto split: if_splits)
+    by (auto simp add: Op_def split: option.splits registerOp.splits if_splits)
 qed
 
 
@@ -203,12 +225,15 @@ lemma latest_assignments_wf:
 = latestAssignments_h c_calls c_happensBefore"
   by (auto simp add: latestAssignments_h_def intro!: ext split: call.splits option.splits registerOp.splits, auto)
 
+
+
 lemma latest_assignments_wf2[simp]:
-  assumes "c_calls \<subseteq>\<^sub>m calls c"
+  assumes "c_calls \<subseteq>\<^sub>m Op c"
   shows "latestAssignments_h c_calls (happensBefore (restrict_hb c))
 = latestAssignments_h c_calls (happensBefore c)"
-  using assms  by (auto simp add: map_le_def latestAssignments_h_def restrict_hb_def restrict_relation_def intro!: ext split: call.splits option.splits registerOp.splits,
- (metis domI)+)
+  using assms  by (auto simp add: Op_def  map_option_case map_le_def latestAssignments_h_def restrict_hb_def restrict_relation_def intro!: ext split: call.splits option.splits registerOp.splits,
+      auto,
+      meson domExists_simp domIff)
 
 
 lemma register_spec_restrict_hb[simp]:
@@ -262,6 +287,169 @@ lemma mv_register_spec_restrict_hb[simp]:
 lemma mv_register_spec_wf: "crdt_spec_wf mv_register_spec"
   by (simp add: crdt_spec_wf_def)
 
+subsection "Flags"
+
+datatype flagOp = Enable | Disable | ReadFlag
+
+instance flagOp :: countable
+  by countable_datatype
+instantiation flagOp :: crdt_op begin
+definition [simp]: "is_update_flagOp op \<equiv> op \<noteq> ReadFlag"
+definition "uniqueIds_flagOp (op::flagOp) \<equiv> {}::uniqueId set"
+definition "default_flagOp \<equiv> ReadFlag"
+instance by standard (auto simp add: uniqueIds_flagOp_def)
+end
+
+class from_bool = valueType +
+  fixes from_bool :: "bool \<Rightarrow> 'a"
+  assumes from_bool_no_uniqueIds[simp]: "uniqueIds (from_bool x) = {}"
+    and from_bool_inj: "(from_bool x = from_bool y) \<longleftrightarrow> x = y"
+
+instantiation bool :: from_bool begin
+  definition from_bool_bool :: "bool\<Rightarrow>bool" where [simp]: "from_bool_bool = id"
+instance
+  by standard auto
+end
+
+
+
+definition 
+"latestOps ctxt \<equiv> 
+  {op | c op. 
+            Op ctxt c \<triangleq> op
+          \<and> is_update op
+          \<and> (\<nexists>c' op'. Op ctxt c' \<triangleq> op'
+                      \<and> is_update op'
+                      \<and> (c, c')\<in>happensBefore ctxt)}"
+
+definition flag_dw_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
+"flag_dw_spec oper ctxt res \<equiv> 
+  case oper of
+   ReadFlag \<Rightarrow> res = from_bool (Enable \<in> latestOps ctxt \<and> Disable \<notin> latestOps ctxt)
+  | _ \<Rightarrow> res = default"
+
+
+
+definition flag_ew_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
+"flag_ew_spec oper ctxt res \<equiv> 
+  case oper of
+   ReadFlag \<Rightarrow> res = from_bool (Enable \<in> latestOps ctxt)
+  | _ \<Rightarrow> res = default"
+
+
+text "Strong variants:"
+
+definition flag_sdw_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
+"flag_sdw_spec oper ctxt res \<equiv> 
+  case oper of
+   ReadFlag \<Rightarrow> res = from_bool (\<exists>e. Op ctxt e \<triangleq> Enable
+                  \<and> (\<forall>d. Op ctxt d \<triangleq> Disable \<longrightarrow> (d,e)\<in>happensBefore ctxt))
+  | _ \<Rightarrow> res = default"
+
+definition flag_sew_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
+"flag_sew_spec oper ctxt res \<equiv> 
+  case oper of
+   ReadFlag \<Rightarrow> res = from_bool ((\<exists>e. Op ctxt e \<triangleq> Enable)
+                  \<and> (\<nexists>d. Op ctxt d \<triangleq> Disable
+                    \<and> (\<forall>e. Op ctxt e \<triangleq> Enable \<longrightarrow> (e,d)\<in>happensBefore ctxt)))
+  | _ \<Rightarrow> res = default"
+
+text "Next we validate the specification on some examples"
+
+
+context begin
+
+abbreviation "enable \<equiv> Call Enable default"
+abbreviation "disable \<equiv> Call Disable default"
+
+abbreviation "c1 \<equiv> CallId 1"
+abbreviation "c2 \<equiv> CallId 2"
+abbreviation "c3 \<equiv> CallId 3"
+abbreviation "c4 \<equiv> CallId 4"
+
+definition "example1 \<equiv> \<lparr>
+  calls = Map.empty,
+  happensBefore = {}
+\<rparr>"
+
+definition "example2 \<equiv> \<lparr>
+  calls = [
+    c1 \<mapsto> enable,
+    c2 \<mapsto> disable
+  ],
+  happensBefore = {}
+\<rparr>"
+
+definition "example3 \<equiv> \<lparr>
+  calls = [
+    c1 \<mapsto> disable,
+    c2 \<mapsto> disable,
+    c3 \<mapsto> enable,
+    c4 \<mapsto> enable
+  ],
+  happensBefore = {(c1,c3), (c2,c4)}
+\<rparr>"
+
+
+definition "example4 \<equiv> \<lparr>
+  calls = [
+    c1 \<mapsto> enable,
+    c2 \<mapsto> enable,
+    c3 \<mapsto> disable,
+    c4 \<mapsto> disable
+  ],
+  happensBefore = {(c1,c3), (c2,c4)}
+\<rparr>"
+
+
+
+lemma "flag_ew_spec ReadFlag example1 False"
+  by (auto simp add: flag_ew_spec_def latestOps_def example1_def Op_def)
+lemma "flag_sew_spec ReadFlag example1 False"
+  by (auto simp add: flag_sew_spec_def latestOps_def example1_def Op_def)
+lemma "flag_dw_spec ReadFlag example1 False"
+  by (auto simp add: flag_dw_spec_def latestOps_def example1_def Op_def)
+lemma "flag_sdw_spec ReadFlag example1 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example1_def Op_def)
+
+
+lemma "flag_ew_spec ReadFlag example2 True"
+  by (auto simp add: flag_ew_spec_def latestOps_def example2_def Op_def)
+lemma "flag_sew_spec ReadFlag example2 True"
+  by (auto simp add: flag_sew_spec_def latestOps_def example2_def Op_def)
+lemma "flag_dw_spec ReadFlag example2 False"
+  by (auto simp add: flag_dw_spec_def latestOps_def example2_def Op_def cong: conj_cong)
+lemma "flag_sdw_spec ReadFlag example2 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example2_def Op_def cong: conj_cong)
+
+
+lemma "flag_ew_spec ReadFlag example3 True"
+  apply (auto simp add: flag_ew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+  by (smt callId.inject)
+lemma "flag_sew_spec ReadFlag example3 True"
+  apply (auto simp add: flag_sew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+  by (smt callId.inject)
+lemma "flag_dw_spec ReadFlag example3 True"
+  apply (auto simp add: flag_dw_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+  by (smt callId.inject)
+lemma "flag_sdw_spec ReadFlag example3 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+
+lemma "flag_ew_spec ReadFlag example4 False"
+  by (auto simp add: flag_ew_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+lemma "flag_sew_spec ReadFlag example4 True"
+  by (auto simp add: flag_sew_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+lemma "flag_dw_spec ReadFlag example4 False"
+  by (auto simp add: flag_dw_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+lemma "flag_sdw_spec ReadFlag example4 False"
+  apply (auto simp add: flag_sdw_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+  by (smt callId.inject)+
+
+
+
+
+end
+
 subsection "Sets"
 
 datatype 'v setOp =
@@ -293,15 +481,134 @@ lemma [simp]: "is_update (Add v) = True"
 instance by (standard, auto simp add: uniqueIds_setOp_def)
 end
 
-class from_bool = valueType +
-  fixes from_bool :: "bool \<Rightarrow> 'a"
-  assumes from_bool_no_uniqueIds[simp]: "uniqueIds (from_bool x) = {}"
 
-instantiation bool :: from_bool begin
-  definition from_bool_bool :: "bool\<Rightarrow>bool" where [simp]: "from_bool_bool = id"
-instance
-  by standard auto
-end
+definition set_to_flag where
+"set_to_flag v op \<equiv> case op of
+   Add x \<Rightarrow> if x = v then Some Enable else None
+ | Remove x \<Rightarrow> if x = v then Some Disable else None
+ | _ \<Rightarrow> None
+"
+
+definition set_spec :: "(flagOp, 'r::{default,from_bool}) crdtSpec \<Rightarrow> ('v setOp, 'r) crdtSpec" where
+"set_spec F op ctxt res \<equiv> 
+  case op of
+    Add _ => res = default
+  | Remove _ \<Rightarrow> res = default
+  | Contains v \<Rightarrow> F ReadFlag (restrict_ctxt_op (set_to_flag v) ctxt) res"
+
+
+definition "set_aw_spec \<equiv> set_spec flag_ew_spec"
+
+definition "set_rw_spec \<equiv> set_spec flag_dw_spec"
+
+
+lemma set_aw_spec_Add[simp]:
+"set_aw_spec (Add x) ctxt res \<longleftrightarrow> res = default"
+  by (auto simp add: set_aw_spec_def set_spec_def)
+
+lemma set_aw_spec_Remove[simp]:
+"set_aw_spec (Remove x) ctxt res \<longleftrightarrow> res = default"
+  by (auto simp add: set_aw_spec_def set_spec_def)
+
+lemma set_rw_spec_Add[simp]:
+"set_rw_spec (Add x) ctxt res \<longleftrightarrow> res = default"
+  by (auto simp add: set_rw_spec_def set_spec_def)
+
+lemma set_rw_spec_Remove[simp]:
+"set_rw_spec (Remove x) ctxt res \<longleftrightarrow> res = default"
+  by (auto simp add: set_rw_spec_def set_spec_def)
+
+
+
+lemma from_bool_eq_simp:
+  assumes "res = from_bool True \<or> res = from_bool False"
+  shows "(res = from_bool a \<longleftrightarrow> res = from_bool b) \<longleftrightarrow> a = b"
+  using assms
+  by (metis from_bool_inj) 
+
+lemma set_aw_spec_Contains:
+  assumes "set_aw_spec (Contains x) ctxt res"
+shows "res = from_bool (\<exists>a. Op ctxt a \<triangleq> Add x
+                           \<and> (\<nexists>r. Op ctxt r \<triangleq> Remove x
+                                \<and> (a,r)\<in>happensBefore ctxt))"
+  using assms proof (auto simp add: set_aw_spec_def set_spec_def flag_ew_spec_def from_bool_inj)
+  assume "Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)"
+    and "res = from_bool True"
+
+
+  from this
+  obtain a
+    where c1: "(Op ctxt a \<bind> set_to_flag x) \<triangleq> Enable"
+      and c2: "\<forall>c' op'.
+             (Op ctxt c' \<bind> set_to_flag x) \<triangleq> op' \<longrightarrow>
+             op' = ReadFlag \<or> (a, c') \<notin> happensBefore (restrict_ctxt_op (set_to_flag x) ctxt)"
+    by (auto simp add: latestOps_def Op_restrict_ctxt_op)
+
+  from c1 
+  have "Op ctxt a \<triangleq> Add x"
+    by (auto simp add: Op_def option_bind_def set_to_flag_def 
+        split: option.splits setOp.splits if_splits)
+
+  from this
+  obtain r where "calls ctxt a \<triangleq> Call (Add x) r"
+    by (auto simp add: Op_def option_bind_def set_to_flag_def 
+        split: option.splits setOp.splits if_splits,
+        metis call.collapse)
+
+
+  have "(\<nexists>r. Op ctxt r \<triangleq> Remove x \<and> (a,r)\<in>happensBefore ctxt)"
+  proof auto
+    fix r
+    assume "Op ctxt r \<triangleq> Remove x"
+      and "(a, r) \<in> happensBefore ctxt"
+
+    from `Op ctxt r \<triangleq> Remove x`
+    have "(Op ctxt r \<bind> set_to_flag x) \<triangleq> Disable"
+      by (auto simp add: option_bind_def set_to_flag_def)
+
+
+    from c2[rule_format, OF `(Op ctxt r \<bind> set_to_flag x) \<triangleq> Disable`]
+    have "(a, r) \<notin> happensBefore (restrict_ctxt_op (set_to_flag x) ctxt)"
+      by simp
+
+    hence "(a, r) \<notin> happensBefore ctxt"
+      by (auto simp add: happensBefore_restrict_ctxt_op c1 \<open>(Op ctxt r \<bind> set_to_flag x) \<triangleq> Disable\<close>)
+
+    with `(a, r) \<in> happensBefore ctxt`
+    show False by auto
+  qed
+
+  with `Op ctxt a \<triangleq> Add x`
+  show "\<exists>a. Op ctxt a \<triangleq> Add x \<and> (\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (a, r) \<notin> happensBefore ctxt)"
+    by auto
+
+next
+
+
+qed
+
+
+
+  hence ???
+    apply (auto simp add: latestOps_def restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_eq_some
+set_to_flag_def
+split: call.splits setOp.splits option.splits if_splits) 
+    find_theorems fmap_map_values
+
+  show "\<exists>a. calls ctxt a \<triangleq> Call (Add v) default \<and>
+            (\<forall>r. calls ctxt r \<triangleq> Call (Remove v) default \<longrightarrow> (a, r) \<notin> happensBefore ctxt)"
+
+
+
+  apply (subst from_bool_eq_simp)
+
+  apply (auto simp add: set_aw_spec_def set_spec_def flag_ew_spec_def restrict_ctxt_def
+      restrict_ctxt_op_def latestOps_def fmap_map_values_def option_bind_def 
+      set_to_flag_def from_bool_inj restrict_relation_def
+  split: option.splits call.splits if_splits
+  cong: conj_cong)
+
+
 
 
 definition set_aw_spec :: "('v setOp, 'r::{default,from_bool}) crdtSpec" where
@@ -364,157 +671,7 @@ lemma set_rw_spec_restrict_hb[simp]:
   apply (metis (no_types, lifting)  domI  )+
   done
 
-subsection "Flags"
 
-datatype flagOp = Enable | Disable | ReadFlag
-
-instance flagOp :: countable
-  by countable_datatype
-instantiation flagOp :: crdt_op begin
-definition [simp]: "is_update_flagOp op \<equiv> op \<noteq> ReadFlag"
-definition "uniqueIds_flagOp (op::flagOp) \<equiv> {}::uniqueId set"
-definition "default_flagOp \<equiv> ReadFlag"
-instance by standard (auto simp add: uniqueIds_flagOp_def)
-end
-
-
-
-definition 
-"latestOps ctxt \<equiv> 
-  {call_operation c | cId c. 
-            calls ctxt cId \<triangleq> c 
-          \<and> is_update (call_operation c)
-          \<and> (\<nexists>cId' c'. calls ctxt cId' \<triangleq> c'
-                      \<and> is_update (call_operation c')
-                      \<and> (cId, cId')\<in>happensBefore ctxt)}"
-
-definition flag_dw_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
-"flag_dw_spec oper ctxt res \<equiv> 
-  case oper of
-   ReadFlag \<Rightarrow> res = from_bool (Enable \<in> latestOps ctxt \<and> Disable \<notin> latestOps ctxt)
-  | _ \<Rightarrow> res = default"
-
-
-
-definition flag_ew_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
-"flag_ew_spec oper ctxt res \<equiv> 
-  case oper of
-   ReadFlag \<Rightarrow> res = from_bool (Enable \<in> latestOps ctxt)
-  | _ \<Rightarrow> res = default"
-
-
-text "Strong variants:"
-
-definition flag_sdw_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
-"flag_sdw_spec oper ctxt res \<equiv> 
-  case oper of
-   ReadFlag \<Rightarrow> res = from_bool (\<exists>e. calls ctxt e \<triangleq> Call Enable default
-                  \<and> (\<forall>d. calls ctxt d \<triangleq> Call Disable default \<longrightarrow> (d,e)\<in>happensBefore ctxt))
-  | _ \<Rightarrow> res = default"
-
-definition flag_sew_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
-"flag_sew_spec oper ctxt res \<equiv> 
-  case oper of
-   ReadFlag \<Rightarrow> res = from_bool ((\<exists>e. calls ctxt e \<triangleq> Call Enable default)
-                  \<and> (\<nexists>d. calls ctxt d \<triangleq> Call Disable default
-                    \<and> (\<forall>e. calls ctxt e \<triangleq> Call Enable default \<longrightarrow> (e,d)\<in>happensBefore ctxt)))
-  | _ \<Rightarrow> res = default"
-
-text "Next we validate the specification on some examples"
-
-
-context begin
-
-abbreviation "enable \<equiv> Call Enable default"
-abbreviation "disable \<equiv> Call Disable default"
-
-abbreviation "c1 \<equiv> CallId 1"
-abbreviation "c2 \<equiv> CallId 2"
-abbreviation "c3 \<equiv> CallId 3"
-abbreviation "c4 \<equiv> CallId 4"
-
-definition "example1 \<equiv> \<lparr>
-  calls = Map.empty,
-  happensBefore = {}
-\<rparr>"
-
-definition "example2 \<equiv> \<lparr>
-  calls = [
-    c1 \<mapsto> enable,
-    c2 \<mapsto> disable
-  ],
-  happensBefore = {}
-\<rparr>"
-
-definition "example3 \<equiv> \<lparr>
-  calls = [
-    c1 \<mapsto> disable,
-    c2 \<mapsto> disable,
-    c3 \<mapsto> enable,
-    c4 \<mapsto> enable
-  ],
-  happensBefore = {(c1,c3), (c2,c4)}
-\<rparr>"
-
-
-definition "example4 \<equiv> \<lparr>
-  calls = [
-    c1 \<mapsto> enable,
-    c2 \<mapsto> enable,
-    c3 \<mapsto> disable,
-    c4 \<mapsto> disable
-  ],
-  happensBefore = {(c1,c3), (c2,c4)}
-\<rparr>"
-
-
-
-lemma "flag_ew_spec ReadFlag example1 False"
-  by (auto simp add: flag_ew_spec_def latestOps_def example1_def)
-lemma "flag_sew_spec ReadFlag example1 False"
-  by (auto simp add: flag_sew_spec_def latestOps_def example1_def)
-lemma "flag_dw_spec ReadFlag example1 False"
-  by (auto simp add: flag_dw_spec_def latestOps_def example1_def)
-lemma "flag_sdw_spec ReadFlag example1 False"
-  by (auto simp add: flag_sdw_spec_def latestOps_def example1_def)
-
-
-lemma "flag_ew_spec ReadFlag example2 True"
-  by (auto simp add: flag_ew_spec_def latestOps_def example2_def)
-lemma "flag_sew_spec ReadFlag example2 True"
-  by (auto simp add: flag_sew_spec_def latestOps_def example2_def)
-lemma "flag_dw_spec ReadFlag example2 False"
-  by (auto simp add: flag_dw_spec_def latestOps_def example2_def cong: conj_cong)
-lemma "flag_sdw_spec ReadFlag example2 False"
-  by (auto simp add: flag_sdw_spec_def latestOps_def example2_def cong: conj_cong)
-
-
-lemma "flag_ew_spec ReadFlag example3 True"
-  apply (auto simp add: flag_ew_spec_def latestOps_def example3_def cong: conj_cong)
-  by (smt callId.inject)
-lemma "flag_sew_spec ReadFlag example3 True"
-  apply (auto simp add: flag_sew_spec_def latestOps_def example3_def cong: conj_cong)
-  by (smt callId.inject)
-lemma "flag_dw_spec ReadFlag example3 True"
-  apply (auto simp add: flag_dw_spec_def latestOps_def example3_def cong: conj_cong)
-  by (smt callId.inject)
-lemma "flag_sdw_spec ReadFlag example3 False"
-  by (auto simp add: flag_sdw_spec_def latestOps_def example3_def cong: conj_cong)
-
-lemma "flag_ew_spec ReadFlag example4 False"
-  by (auto simp add: flag_ew_spec_def latestOps_def example4_def cong: conj_cong)
-lemma "flag_sew_spec ReadFlag example4 True"
-  by (auto simp add: flag_sew_spec_def latestOps_def example4_def cong: conj_cong)
-lemma "flag_dw_spec ReadFlag example4 False"
-  by (auto simp add: flag_dw_spec_def latestOps_def example4_def cong: conj_cong)
-lemma "flag_sdw_spec ReadFlag example4 False"
-  apply (auto simp add: flag_sdw_spec_def latestOps_def example4_def cong: conj_cong)
-  by (smt callId.inject)+
-
-
-
-
-end
 
 
 subsection "Maps"
@@ -558,7 +715,8 @@ definition
 "deleted_calls_uw ctxt k \<equiv> {c\<in>dom (calls ctxt).  \<exists>c' r. calls ctxt c' \<triangleq> Call (DeleteKey k) r \<and> (c,c')\<in>happensBefore ctxt}"
 
 definition
-"deleted_calls_dw ctxt k \<equiv> {c\<in>dom (calls ctxt). \<exists>c' r. calls ctxt c' \<triangleq> Call (DeleteKey k) r \<and> (c',c)\<notin>happensBefore ctxt}"
+"deleted_calls_dw ctxt k \<equiv> {c\<in>dom (calls ctxt). \<exists>c' r. calls ctxt c' \<triangleq> Call (DeleteKey k) r 
+                              \<and> (c',c)\<notin>happensBefore ctxt}"
 
 
 definition 
