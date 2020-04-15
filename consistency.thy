@@ -634,7 +634,46 @@ lemma wf_transactionConsistent1:
 
 
 
+lemma happensBefore_not_refl:
+  assumes "state_wellFormed S"
+  shows "(c,c) \<notin> happensBefore S"
+  using assms  proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case
+    by (auto simp add: initialState_def)
+next
+  case (step S a S')
+  then show ?case 
+    by (auto simp add: step.simps, use wellFormed_visibleCallsSubsetCalls2 in blast)
+qed 
 
+lemma happensBefore_finite:
+  assumes "state_wellFormed S"
+  shows "finite (happensBefore S)"
+proof (rule finite_subset)
+  show "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S) "
+    by (simp add: assms wellFormed_visibleCallsSubsetCalls_h(1))
+
+  show "finite (dom (calls S) \<times> dom (calls S))"
+    by (simp add: assms wf_finite_calls)
+qed
+
+
+
+
+lemma happensBefore_wf:
+  assumes "state_wellFormed S"
+  shows "wf ((happensBefore S)\<inverse>)"
+proof (rule finite_acyclic_wf)
+  show "finite ((happensBefore S)\<inverse>)"
+    by (simp add: assms happensBefore_finite)
+
+  show "acyclic ((happensBefore S)\<inverse>)"
+  proof
+    show "acyclic (happensBefore S)"
+      by (simp add: assms happensBefore_acyclic)
+  qed
+qed
 
 end
 

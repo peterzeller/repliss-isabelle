@@ -450,6 +450,177 @@ lemma "flag_sdw_spec ReadFlag example4 False"
 
 end
 
+text "Now we prove alternative specifications for the flags:"
+
+
+lemma latestOps_alt:
+  assumes trans: "trans (happensBefore ctxt)"
+    and wf_rev: "wf ((happensBefore ctxt)\<inverse>)"
+  shows "x \<in> latestOps ctxt \<longleftrightarrow> is_update x \<and>
+  (\<exists>c. Op ctxt c \<triangleq> x \<and> (\<forall>c' x'. Op ctxt c' \<triangleq> x' \<longrightarrow> is_update x' \<longrightarrow> (c, c')\<in>happensBefore ctxt \<longrightarrow> x' = x))"
+proof safe
+  fix x
+  assume "x \<in> latestOps ctxt"
+  show "is_update x"
+    using \<open>x \<in> latestOps ctxt\<close> latestOps_def by blast
+
+  from `x \<in> latestOps ctxt`
+  obtain c
+    where a0: "Op ctxt c \<triangleq> x"
+      and a1: "is_update x"
+      and a2: "\<forall>c' op'. is_update op' \<longrightarrow> Op ctxt c' \<triangleq> op' \<longrightarrow> (c, c') \<notin> happensBefore ctxt"
+    by (auto simp add: latestOps_def) 
+
+  show "\<exists>c. Op ctxt c \<triangleq> x \<and> (\<forall>c' x'. Op ctxt c' \<triangleq> x' \<longrightarrow> is_update x' \<longrightarrow> (c, c') \<in> happensBefore ctxt \<longrightarrow> x' = x)"
+  proof (intro exI conjI allI impI)
+
+    show "Op ctxt c \<triangleq> x"
+      by (simp add: a0)
+
+
+    show "x' = x"
+      if c0: "Op ctxt c' \<triangleq> x'"
+        and c1: "(c, c') \<in> happensBefore ctxt"
+        and c2: "is_update x'"
+      for  c' x'
+      using a2 c0 c1 c2 by blast
+  qed
+next
+  fix c
+  assume a0: "is_update x"
+    and a1: "Op ctxt c \<triangleq> x"
+    and a2: "\<forall>c' x'. Op ctxt c' \<triangleq> x'  \<longrightarrow> is_update x' \<longrightarrow> (c, c') \<in> happensBefore ctxt \<longrightarrow> x' = x"
+
+  text "Obtain hb-maximal c:"
+
+  obtain cm
+    where "Op ctxt cm \<triangleq> x"
+      and "cm = c \<or> (c,cm)\<in>happensBefore ctxt"
+      and "\<forall>y. Op ctxt y \<triangleq> x \<longrightarrow> (cm, y) \<notin> happensBefore ctxt"
+    using exists_max_wf'[OF wf_rev, OF trans, where P="\<lambda>c. Op ctxt c \<triangleq> x", OF a1]
+    by auto
+
+
+  show "x \<in> latestOps ctxt"
+  proof (auto simp add: latestOps_def `Op ctxt cm \<triangleq> x` a0 intro!: exI[where x=cm])
+    fix c' op'
+    assume b0: "is_update op'"
+      and b1: "Op ctxt c' \<triangleq> op'"
+      and b2: "(cm, c') \<in> happensBefore ctxt"
+
+
+    have "(c, c') \<in> happensBefore ctxt"
+      by (metis \<open>cm = c \<or> (c, cm) \<in> happensBefore ctxt\<close> b2 local.trans transE)
+
+
+    from a2[rule_format, OF `Op ctxt c' \<triangleq> op'` `is_update op'` `(c, c') \<in> happensBefore ctxt`]
+    show "False"
+      using \<open>\<forall>y. Op ctxt y \<triangleq> x \<longrightarrow> (cm, y) \<notin> happensBefore ctxt\<close> b1 b2 by blast
+  qed
+qed
+
+
+lemma latestOps_Enable:
+  assumes trans: "trans (happensBefore ctxt)"
+    and wf_rev: "wf ((happensBefore ctxt)\<inverse>)"
+  shows "Enable \<in> latestOps ctxt \<longleftrightarrow>
+  (\<exists>c. Op ctxt c \<triangleq> Enable \<and> (\<forall>c'. Op ctxt c' \<triangleq> Disable \<longrightarrow> (c, c')\<notin>happensBefore ctxt))"
+  apply (auto simp add: latestOps_alt[OF trans wf_rev])
+  using flagOp.exhaust by blast
+
+
+lemma latestOps_Disable:
+  assumes trans: "trans (happensBefore ctxt)"
+    and wf_rev: "wf ((happensBefore ctxt)\<inverse>)"
+  shows "Disable \<in> latestOps ctxt \<longleftrightarrow>
+  (\<exists>c. Op ctxt c \<triangleq> Disable \<and> (\<forall>c'. Op ctxt c' \<triangleq> Enable \<longrightarrow> (c, c')\<notin>happensBefore ctxt))"
+  apply (auto simp add: latestOps_alt[OF trans wf_rev])
+  using flagOp.exhaust by blast
+
+
+lemma latestOps_Enable':
+  shows "Enable \<in> latestOps ctxt \<longleftrightarrow>
+  (\<exists>c. Op ctxt c \<triangleq> Enable \<and> (\<forall>c'. Op ctxt c' \<triangleq> Enable \<or> Op ctxt c' \<triangleq> Disable \<longrightarrow> (c, c')\<notin>happensBefore ctxt))"
+  apply (auto simp add: latestOps_def)
+  by (metis (mono_tags, lifting) flagOp.exhaust)
+
+lemma latestOps_Disable':
+  shows "Disable \<in> latestOps ctxt \<longleftrightarrow>
+  (\<exists>c. Op ctxt c \<triangleq> Disable \<and> (\<forall>c'. Op ctxt c' \<triangleq> Enable \<or> Op ctxt c' \<triangleq> Disable \<longrightarrow> (c, c')\<notin>happensBefore ctxt))"
+  apply (auto simp add: latestOps_def)
+  by (metis (mono_tags, lifting) flagOp.exhaust)
+
+
+lemma latestOps_Enable'':
+  assumes trans: "trans (happensBefore ctxt)"
+    and wf_rev: "wf ((happensBefore ctxt)\<inverse>)"
+    and "\<exists>e. Op ctxt e \<triangleq> Enable"
+    and "\<forall>d. Op ctxt d \<triangleq> Disable \<longrightarrow> (\<exists>e. Op ctxt e \<triangleq> Enable \<and> (d, e) \<in> happensBefore ctxt)"
+  shows "Enable \<in> latestOps ctxt"
+proof -
+
+  obtain e where e: "Op ctxt e \<triangleq> Enable \<or> Op ctxt e \<triangleq> Disable"
+    using assms(3) by blast
+
+
+  obtain em
+    where "Op ctxt em \<triangleq> Enable \<or> Op ctxt em \<triangleq> Disable"
+      and "\<forall>e'. (Op ctxt e' \<triangleq> Enable \<or> Op ctxt e' \<triangleq> Disable) \<longrightarrow> (em,e')\<notin>happensBefore ctxt"
+    using exists_max_wf'[OF wf_rev, OF trans, where P="\<lambda>e. Op ctxt e \<triangleq> Enable \<or> Op ctxt e \<triangleq> Disable", OF e]
+    by auto
+
+  show ?thesis
+    apply (auto simp add: latestOps_alt[OF trans wf_rev])
+    by (metis (full_types) \<open>\<And>thesis. (\<And>em. \<lbrakk>Op ctxt em \<triangleq> Enable \<or> Op ctxt em \<triangleq> Disable; \<forall>e'. Op ctxt e' \<triangleq> Enable \<or> Op ctxt e' \<triangleq> Disable \<longrightarrow> (em, e') \<notin> happensBefore ctxt\<rbrakk> \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> assms(4) flagOp.exhaust)
+qed
+
+lemma latestOps_Disable'':
+  assumes trans: "trans (happensBefore ctxt)"
+    and wf_rev: "wf ((happensBefore ctxt)\<inverse>)"
+    and "\<exists>e. Op ctxt e \<triangleq> Disable"
+    and "\<forall>d. Op ctxt d \<triangleq> Enable \<longrightarrow> (\<exists>e. Op ctxt e \<triangleq> Disable \<and> (d, e) \<in> happensBefore ctxt)"
+  shows "Disable \<in> latestOps ctxt"
+proof -
+
+  obtain e where e: "Op ctxt e \<triangleq> Enable \<or> Op ctxt e \<triangleq> Disable"
+    using assms(3) by blast
+
+
+  obtain em
+    where "Op ctxt em \<triangleq> Enable \<or> Op ctxt em \<triangleq> Disable"
+      and "\<forall>e'. (Op ctxt e' \<triangleq> Enable \<or> Op ctxt e' \<triangleq> Disable) \<longrightarrow> (em,e')\<notin>happensBefore ctxt"
+    using exists_max_wf'[OF wf_rev, OF trans, where P="\<lambda>e. Op ctxt e \<triangleq> Enable \<or> Op ctxt e \<triangleq> Disable", OF e]
+    by auto
+
+  show ?thesis
+    apply (auto simp add: latestOps_alt[OF trans wf_rev])
+    by (metis (full_types) \<open>\<And>thesis. (\<And>em. \<lbrakk>Op ctxt em \<triangleq> Enable \<or> Op ctxt em \<triangleq> Disable; \<forall>e'. Op ctxt e' \<triangleq> Enable \<or> Op ctxt e' \<triangleq> Disable \<longrightarrow> (em, e') \<notin> happensBefore ctxt\<rbrakk> \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> assms(4) flagOp.exhaust)
+qed
+
+
+lemma flag_dw_ReadFlag: 
+  assumes a1: "flag_dw_spec ReadFlag ctxt res"
+    and trans: "trans (happensBefore ctxt)"
+    and wf_rev: "wf ((happensBefore ctxt)\<inverse>)"
+shows "res = from_bool ((\<exists>e. Op ctxt e \<triangleq> Enable) 
+  \<and> (\<forall>d. Op ctxt d \<triangleq> Disable \<longrightarrow> (\<exists>e. Op ctxt e \<triangleq> Enable \<and> (d,e) \<in> happensBefore ctxt)))
+  "
+proof -
+  from a1
+  have res1: "res = from_bool (Enable \<in> latestOps ctxt \<and> Disable \<notin> latestOps ctxt)"
+    by (simp add: flag_dw_spec_def)
+
+
+  show ?thesis
+    unfolding res1
+    apply  (rule arg_cong[where f=from_bool])
+    by (meson latestOps_Disable latestOps_Enable' latestOps_Enable'' local.trans wf_rev)
+
+qed
+
+
+
+
 subsection "Sets"
 
 datatype 'v setOp =
@@ -526,8 +697,85 @@ lemma from_bool_eq_simp:
   using assms
   by (metis from_bool_inj) 
 
+lemma set_to_flag_Enable:
+"set_to_flag x y \<triangleq> Enable \<longleftrightarrow> y = Add x"
+  by (auto simp add: set_to_flag_def split: setOp.splits)
+
+lemma set_to_flag_Disable:
+  "set_to_flag x y \<triangleq> Disable \<longleftrightarrow> y = Remove x"
+  by (auto simp add: set_to_flag_def split: setOp.splits)
+
+lemma trans_restrict_ctxt_op:
+  assumes "trans (happensBefore ctxt)"
+  shows "trans (happensBefore (restrict_ctxt_op (set_to_flag x) ctxt))"
+  by (auto simp add: trans_def happensBefore_restrict_ctxt_op,
+      meson assms transE)
+
+
+lemma wf_restrict_ctxt_op:
+  assumes "wf ((happensBefore ctxt)\<inverse>)"
+  shows "wf ((happensBefore (restrict_ctxt_op (set_to_flag x) ctxt))\<inverse>)"
+  using assms proof (rule wf_subset)
+  show "(happensBefore (restrict_ctxt_op (set_to_flag x) ctxt))\<inverse> \<subseteq> (happensBefore ctxt)\<inverse>"
+    by (auto simp add: happensBefore_restrict_ctxt_op)
+qed
+
+
+lemma set_aw_spec_Contains:
+  assumes spec: "set_aw_spec (Contains x) ctxt res"
+    and wf_max: "wf ((happensBefore ctxt)\<inverse>)"
+    and tr: "trans (happensBefore ctxt)"
+  shows "res = from_bool (\<exists>a. Op ctxt a \<triangleq> Add x
+                           \<and> (\<nexists>r. Op ctxt r \<triangleq> Remove x
+                                \<and> (a,r)\<in>happensBefore ctxt))"
+  using spec proof (auto simp add: set_aw_spec_def set_spec_def flag_ew_spec_def from_bool_inj)
+  assume a0: "res = from_bool True"
+    and a1: "Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)"
+
+
+  have "\<exists>a. Op (restrict_ctxt_op (set_to_flag x) ctxt) a \<triangleq> Enable 
+    \<and> (\<forall>r. Op (restrict_ctxt_op (set_to_flag x) ctxt) r \<triangleq> Disable 
+          \<longrightarrow> (a, r) \<notin> happensBefore (restrict_ctxt_op (set_to_flag x) ctxt))"
+    using a1 latestOps_Enable' by blast
+
+
+  thus "\<exists>a. Op ctxt a \<triangleq> Add x \<and> (\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (a, r) \<notin> happensBefore ctxt)"
+    apply (auto simp add: Op_restrict_ctxt_op option_bind_def happensBefore_restrict_ctxt_op
+        set_to_flag_Enable set_to_flag_Disable split: option.splits)
+    apply (auto simp add: set_to_flag_def)
+    done
+
+next
+
+  fix a
+  assume a0: "res = from_bool (Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt))"
+    and a1: "Op ctxt a \<triangleq> Add x"
+    and a2: "\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (a, r) \<notin> happensBefore ctxt"
+
+
+  have a1': "Op (restrict_ctxt_op (set_to_flag x) ctxt) a \<triangleq> Enable"
+    by (simp add: Op_restrict_ctxt_op a1 set_to_flag_Enable)
+
+  have a2': "\<forall>r. Op (restrict_ctxt_op (set_to_flag x) ctxt) r \<triangleq> Disable 
+    \<longrightarrow> (a, r) \<notin> happensBefore (restrict_ctxt_op (set_to_flag x) ctxt)"
+    by (simp add: Op_restrict_ctxt_op a2 bind_eq_Some_conv happensBefore_restrict_ctxt_op set_to_flag_Disable)
+
+  have trans': "trans (happensBefore (restrict_ctxt_op (set_to_flag x) ctxt))"
+    by (simp add: tr trans_restrict_ctxt_op)
+
+  have wf': "wf ((happensBefore (restrict_ctxt_op (set_to_flag x) ctxt))\<inverse>)"
+    by (simp add: wf_max wf_restrict_ctxt_op)
+
+  show "Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)"
+    using a1' a2' latestOps_Enable trans' wf' by blast
+qed
+
+
+
 lemma set_aw_spec_Contains:
   assumes "set_aw_spec (Contains x) ctxt res"
+    and wf_max: "wf ((happensBefore ctxt)\<inverse>)"
+    and tr: "trans (happensBefore ctxt)"
 shows "res = from_bool (\<exists>a. Op ctxt a \<triangleq> Add x
                            \<and> (\<nexists>r. Op ctxt r \<triangleq> Remove x
                                 \<and> (a,r)\<in>happensBefore ctxt))"
@@ -583,30 +831,110 @@ shows "res = from_bool (\<exists>a. Op ctxt a \<triangleq> Add x
     by auto
 
 next
+  fix a
+  assume a0: "res = from_bool (Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt))"
+    and a1: "Op ctxt a \<triangleq> Add x"
+    and a2: "\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (a, r) \<notin> happensBefore ctxt"
+
+  obtain am
+    where am1: "Op ctxt am \<triangleq> Add x" 
+      and am2: "\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (am, r) \<notin> happensBefore ctxt"
+      and am_max: "(\<forall>y. Op ctxt y \<triangleq> Add x \<and> (\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (y, r) \<notin> happensBefore ctxt) \<longrightarrow> (am, y) \<notin> happensBefore ctxt)"
+  proof (atomize_elim,
+    subst conj_assoc[symmetric],
+    rule exists_max_wf)
+    show "wf ((happensBefore ctxt)\<inverse>)"
+      by (simp add: wf_max)
+
+    show "Op ctxt a \<triangleq> Add x \<and> (\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (a, r) \<notin> happensBefore ctxt)"
+      using a1 a2 by blast
+  qed
+
+  show "Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)"
+  proof (auto simp add: latestOps_def Op_restrict_ctxt_op intro!: exI[where x=am])
+
+    from `Op ctxt am \<triangleq> Add x`
+    show "(Op ctxt am \<bind> set_to_flag x) \<triangleq> Enable"
+      by (auto simp add: set_to_flag_def)
+
+    from a2
+    have a2': "\<And>r. (Op ctxt r \<bind> set_to_flag x) \<triangleq> Disable 
+        \<Longrightarrow> (a,r) \<notin> happensBefore ctxt"
+      by (auto simp add: set_to_flag_def option_bind_def split: option.splits setOp.splits if_splits)
 
 
+    have a2': "(am,r) \<notin> happensBefore ctxt"
+      if "(Op ctxt r \<bind> set_to_flag x) \<triangleq> Disable"
+      for r
+    proof (rule am2[rule_format])
+
+      from `(Op ctxt r \<bind> set_to_flag x) \<triangleq> Disable`
+      show "Op ctxt r \<triangleq> Remove x"
+        by (auto simp add: set_to_flag_def option_bind_def split: option.splits setOp.splits if_splits)
+    qed
+
+    fix c' op'
+    assume b0: "(Op ctxt c' \<bind> set_to_flag x) \<triangleq> op'"
+      and b1: "op' \<noteq> ReadFlag"
+      and b2: "(am, c') \<in> happensBefore (restrict_ctxt_op (set_to_flag x) ctxt)"
+
+
+    from b2
+    have "(am, c') \<in> happensBefore ctxt"
+      using happensBefore_restrict_ctxt_op by blast
+
+
+
+    show "False"
+    proof (cases op')
+      case Enable
+
+      have "Op ctxt c' \<triangleq> Add x"
+        using b0 Enable
+        by (auto simp add: set_to_flag_def option_bind_def split: option.splits setOp.splits if_splits)
+
+      show False
+      proof (cases "\<exists>r. Op ctxt r \<triangleq> Remove x \<and> (c', r) \<in> happensBefore ctxt")
+        case False
+
+        have "(am, c') \<notin> happensBefore ctxt"
+        proof (rule  am_max[rule_format], intro allI conjI impI)
+          show "Op ctxt c' \<triangleq> Add x"
+            by (simp add: \<open>Op ctxt c' \<triangleq> Add x\<close>)
+
+          show "(c', r) \<notin> happensBefore ctxt"
+            if c0: "Op ctxt r \<triangleq> Remove x"
+            for  r
+            using False that
+            by auto
+        qed
+        thus False
+          using \<open>(am, c') \<in> happensBefore ctxt\<close> by blast
+      next 
+        case True
+        from this obtain r
+          where "Op ctxt r \<triangleq> Remove x"
+            and "(c', r) \<in> happensBefore ctxt"
+          by auto
+
+        have "(am, r) \<in> happensBefore ctxt"
+          by (meson \<open>(am, c') \<in> happensBefore ctxt\<close> \<open>(c', r) \<in> happensBefore ctxt\<close> tr transE)
+
+
+        show False
+          using \<open>(am, r) \<in> happensBefore ctxt\<close> \<open>Op ctxt r \<triangleq> Remove x\<close> am2 by blast
+      qed
+    next
+      case Disable
+      then show ?thesis
+        using \<open>(am, c') \<in> happensBefore ctxt\<close> a2' b0 by blast
+    next
+      case ReadFlag
+      then show ?thesis
+        using b1 by auto 
+    qed
+  qed
 qed
-
-
-
-  hence ???
-    apply (auto simp add: latestOps_def restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_eq_some
-set_to_flag_def
-split: call.splits setOp.splits option.splits if_splits) 
-    find_theorems fmap_map_values
-
-  show "\<exists>a. calls ctxt a \<triangleq> Call (Add v) default \<and>
-            (\<forall>r. calls ctxt r \<triangleq> Call (Remove v) default \<longrightarrow> (a, r) \<notin> happensBefore ctxt)"
-
-
-
-  apply (subst from_bool_eq_simp)
-
-  apply (auto simp add: set_aw_spec_def set_spec_def flag_ew_spec_def restrict_ctxt_def
-      restrict_ctxt_op_def latestOps_def fmap_map_values_def option_bind_def 
-      set_to_flag_def from_bool_inj restrict_relation_def
-  split: option.splits call.splits if_splits
-  cong: conj_cong)
 
 
 

@@ -721,11 +721,55 @@ subsection "Minimums and Maximums"
 
 text "A finite set with an acyclic order has minimal elements."
 
+lemma exists_min_wf:
+  assumes wf: "wf r"
+    and "P x"
+  shows "\<exists>x. P x \<and> (\<forall>y. P y \<longrightarrow> (y,x)\<notin>r)"
+  by (metis assms mem_Collect_eq wf_eq_minimal)
+
+lemma exists_max_wf:
+  assumes wf: "wf (r\<inverse>)"
+    and "P x"
+  shows "\<exists>x. P x \<and> (\<forall>y. P y \<longrightarrow> (x,y)\<notin>r)"
+  by (metis assms converse.intros exists_min_wf)
+
+lemma exists_min_wf':
+  assumes wf: "wf r"
+    and "trans r"
+    and "P x"
+  shows "\<exists>x'. P x' \<and> (x = x' \<or> (x',x)\<in>r)  \<and> (\<forall>y. P y \<longrightarrow> (y,x')\<notin>r)"
+proof -
+
+  from exists_min_wf[OF wf, where P="\<lambda>x'. P x' \<and> (x = x' \<or> (x',x)\<in>r)"]
+  obtain x'
+    where "P x'"
+      and "x = x' \<or> (x', x) \<in> r"
+      and "\<forall>y. P y \<and> (x = y \<or> (y, x) \<in> r) \<longrightarrow> (y, x') \<notin> r"
+    using `P x` by blast
+
+  have "\<forall>y. P y \<longrightarrow> (y,x')\<notin>r"
+    by (metis \<open>\<forall>y. P y \<and> (x = y \<or> (y, x) \<in> r) \<longrightarrow> (y, x') \<notin> r\<close> \<open>x = x' \<or> (x', x) \<in> r\<close> `trans r` transD)
+
+  thus ?thesis
+    using \<open>P x'\<close> \<open>x = x' \<or> (x', x) \<in> r\<close> by blast
+qed
+
+
+lemma exists_max_wf':
+  assumes wf: "wf (r\<inverse>)"
+    and "trans r"
+    and "P x"
+  shows "\<exists>x'. P x' \<and> (x = x' \<or> (x,x')\<in>r)  \<and> (\<forall>y. P y \<longrightarrow> (x',y)\<notin>r)"
+  using assms exists_min_wf' by fastforce
+
+
+
+
 lemma exists_min:
   assumes fin: "finite S"
     and nonempty: "x\<in>S"
     and acyclic: "acyclic r"
-  shows "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. \<not>(y,x)\<in>r)"
+  shows "\<exists>x. x\<in>S \<and> (\<forall>y\<in>S. (y,x)\<notin>r)"
 proof -
   have "wf (Restr r S)"
   proof (rule finite_acyclic_wf)
