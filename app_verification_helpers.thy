@@ -176,4 +176,6 @@ proof (rule acyclic_union_disjoint)
 qed
 
 
+declare invariantContext.defs[simp]
+
 end

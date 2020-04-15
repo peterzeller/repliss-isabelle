@@ -66,8 +66,7 @@ definition max_impl :: "nat list \<Rightarrow> (val,operation,val) io" where
       resR \<leftarrow> makeRef 0;
       forEach_a p_list (loop_inv resR p_list) (\<lambda>x. do {
         res \<leftarrow> read resR;
-        resR :\<leftarrow> max x res;
-        return ()
+        resR :\<leftarrow> max x res
       });
       res \<leftarrow> read resR;
       return (Nat res)
@@ -241,9 +240,12 @@ proof M_show_programCorrect
                             transactionOrigin = s_transactionOrigin, knownIds = s_knownIds,
                             invocationOp = s_invocationOp(i \<mapsto> PMax list), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
-            apply (auto simp add: )
-            apply (repliss_vcg_l asmUnfold: loop_inv_def)
-          proof (fuzzy_goal_cases loop_inv_start loop_body final )
+              (*
+            Would also work with this one-liner:
+            by (repliss_vcg_l asmUnfold: loop_inv_def, use inv in \<open> auto simp add:  inv_def inv1_def loop_inv_def Def_def only_store_changed_def s_read_def split: if_splits\<close>)
+        *)
+          proof (repliss_vcg_l asmUnfold: loop_inv_def,
+              fuzzy_goal_cases loop_inv_start loop_body final)
             case loop_inv_start
             show ?case
               unfolding loop_inv_def
@@ -276,10 +278,13 @@ proof M_show_programCorrect
 
 
             show "example_loop_max2.inv
-            (invariantContext.truncate
-              (PSl\<lparr>invocationRes := invocationRes PSl(i \<mapsto> val.Nat (s_read (ps_store PSl) (Ref 0)))\<rparr>))"
+            \<lparr>calls = calls PSl, happensBefore = happensBefore PSl,
+               callOrigin = callOrigin PSl, transactionOrigin = transactionOrigin PSl,
+               knownIds = knownIds PSl, invocationOp = invocationOp PSl,
+               invocationRes = invocationRes PSl(i \<mapsto>
+                 val.Nat (s_read (ps_store PSl) (Ref 0)))\<rparr>"
               unfolding inv_def inv1_def
-            proof (auto simp add: invariantContext.defs `invocationOp PSl i \<triangleq> PMax list`)
+            proof (auto simp add:  `invocationOp PSl i \<triangleq> PMax list`)
 
               show "s_read (ps_store PSl) (Ref 0) = Max (set list)"
                 if c0: "list \<noteq> []"

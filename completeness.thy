@@ -4,6 +4,7 @@ theory completeness
 single_invocation_correctness
 begin
 
+text "The goal here is to prove the inverse of the soundness theorem @{thm show_correctness_via_single_session}."
 
 lemma false_step_invarariant_false:
   assumes "S ~~ (i, a, False) \<leadsto>\<^sub>S S'"
@@ -166,6 +167,10 @@ proof (rule ccontr)
   qed
 qed
 
+theorem complete_and_sound:
+  assumes inv_init: "invariant_all (initialState program)"
+  shows "programCorrect_s program \<longleftrightarrow> programCorrect program"
+  using show_correctness_via_single_session completeness inv_init by blast
 
 
 end
