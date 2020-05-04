@@ -772,7 +772,7 @@ qed
 
 
 
-lemma set_aw_spec_Contains:
+lemma set_aw_spec_Contains2:
   assumes "set_aw_spec (Contains x) ctxt res"
     and wf_max: "wf ((happensBefore ctxt)\<inverse>)"
     and tr: "trans (happensBefore ctxt)"
@@ -938,7 +938,7 @@ qed
 
 
 
-
+(*
 definition set_aw_spec :: "('v setOp, 'r::{default,from_bool}) crdtSpec" where
 "set_aw_spec op ctxt res \<equiv> 
   case op of
@@ -958,7 +958,7 @@ definition set_rw_spec :: "('v setOp, 'r::{default,from_bool}) crdtSpec" where
                            \<and> (\<forall>r r_res. calls ctxt r \<triangleq> Call (Remove v) r_res 
                                \<longrightarrow> (\<exists>a' a'_res. calls ctxt a' \<triangleq> Call (Add v) a'_res \<and> (r,a')\<in>happensBefore ctxt)))"
 
-
+*)
 
 text "Alternative definition: 
 The following definition is closer to the @{term set_aw_spec} in the structure of the formula.
@@ -971,33 +971,63 @@ definition set_rw_spec2 :: "('v setOp, 'r::{default,from_bool}) crdtSpec" where
   | Contains v \<Rightarrow> res = from_bool (\<exists>a. calls ctxt a \<triangleq> Call (Add v) default 
                            \<and> (\<nexists>r. calls ctxt r \<triangleq> Call (Remove v) default \<and> (r,a)\<notin>happensBefore ctxt))"
 
+lemma set_spec_cannot_guess_ids[simp,intro]:
+  assumes "\<And>x y res. f x y res \<Longrightarrow> uniqueIds res = {}" 
+  shows "queries_cannot_guess_ids (set_spec f)"
+  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_spec_def 
+       split: setOp.splits dest!: assms)
 
 lemma set_aw_spec_cannot_guess_ids[simp,intro]:
   assumes "\<And>x. uniqueIds (from_bool x) = {}"
   shows "queries_cannot_guess_ids set_aw_spec"
-  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_aw_spec_def assms from_bool_no_uniqueIds split: setOp.splits)
+  unfolding set_aw_spec_def
+  by (standard) (auto simp add: flag_ew_spec_def split: flagOp.splits)
 
 
 
 lemma set_rw_spec_cannot_guess_ids[simp,intro]:
   assumes "\<And>x. uniqueIds (from_bool x) = {}"
   shows "queries_cannot_guess_ids set_rw_spec"
-  by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def set_rw_spec_def assms from_bool_no_uniqueIds split: setOp.splits)
+  unfolding set_rw_spec_def
+  by (standard) (auto simp add: flag_dw_spec_def split: flagOp.splits)
 
+
+lemma flag_ew_spec_restrict_hb[simp]:
+"flag_ew_spec op (restrict_hb c) r
+\<longleftrightarrow> flag_ew_spec op c r"
+  by (auto simp add: flag_ew_spec_def latestOps_def restrict_relation_def restrict_hb_def Op_def 
+      intro!: arg_cong[where f=from_bool]
+      split: flagOp.splits)
+
+
+lemma latestOps_restrict_ctxt_op_restrict_hb:
+" latestOps (restrict_ctxt_op f (restrict_hb c))
+ =  latestOps (restrict_ctxt_op f c)"
+  apply (auto simp add: latestOps_def)
+  apply (auto simp add: restrict_ctxt_op_def Op_def restrict_ctxt_def fmap_map_values_def restrict_relation_def)
+  by (metis (mono_tags, lifting) bind_eq_None_conv domIff)
+
+
+lemma flag_ew_spec_restrict_hb2:
+"flag_ew_spec ReadFlag (restrict_ctxt_op f (restrict_hb c)) r
+\<longleftrightarrow> flag_ew_spec ReadFlag (restrict_ctxt_op f c) r"
+  by (auto simp add: flag_ew_spec_def latestOps_restrict_ctxt_op_restrict_hb intro!: arg_cong[where f=from_bool])
 
 lemma set_aw_spec_restrict_hb[simp]:
 "set_aw_spec op (restrict_hb c) r 
 \<longleftrightarrow> set_aw_spec op c r"
-  apply (auto simp add: set_aw_spec_def restrict_hb_def restrict_relation_def split: setOp.splits)
-  apply (metis (no_types, lifting)  domI  )+
-  done
+  by (auto simp add: set_aw_spec_def set_spec_def flag_ew_spec_restrict_hb2 split: setOp.splits)
+
+
+lemma flag_dw_spec_restrict_hb2:
+"flag_dw_spec ReadFlag (restrict_ctxt_op f (restrict_hb c)) r
+\<longleftrightarrow> flag_dw_spec ReadFlag (restrict_ctxt_op f c) r"
+  by (auto simp add: flag_dw_spec_def latestOps_restrict_ctxt_op_restrict_hb intro!: arg_cong[where f=from_bool])
 
 lemma set_rw_spec_restrict_hb[simp]:
 "set_rw_spec op (restrict_hb c) r 
 \<longleftrightarrow> set_rw_spec op c r"
-  apply (auto simp add: set_rw_spec_def restrict_hb_def restrict_relation_def split: setOp.splits)
-  apply (metis (no_types, lifting)  domI  )+
-  done
+  by (auto simp add: set_rw_spec_def set_spec_def flag_dw_spec_restrict_hb2 split: setOp.splits)
 
 
 
@@ -1080,7 +1110,7 @@ lemma calls_restrict_ctxt_op2: "calls (restrict_ctxt_op f ctxt)
   by (auto simp add: calls_restrict_ctxt_op split: option.splits call.splits)
 
 
-lemma happensBefore_restrict_ctxt_op:  "(c, c') \<in> happensBefore (restrict_ctxt_op f ctxt) \<longleftrightarrow> 
+lemma happensBefore_restrict_ctxt_op2:  "(c, c') \<in> happensBefore (restrict_ctxt_op f ctxt) \<longleftrightarrow> 
 (\<exists>op r op' r'. (c, c') \<in> happensBefore ctxt 
   \<and> calls ctxt c \<triangleq> Call op r \<and> f op \<noteq> None 
   \<and> calls ctxt c' \<triangleq> Call op' r' \<and> f op' \<noteq> None)"
@@ -1235,13 +1265,33 @@ lemma map_dw_spec_queries_cannot_guess_ids[intro]:
   by (simp add: map_spec_queries_cannot_guess_ids map_dw_spec_def nested)
 
 
+lemma latest_values_call:
+  assumes "x \<in> latestValues ctxt"
+  shows "\<exists>c. Op ctxt c \<triangleq> Assign x"
+  using assms  by (auto simp add: latestValues_def2 Op_def)
+
 lemma register_spec_queries_cannot_guess_ids[intro]:
   assumes i_no: "uniqueIds i = {}"
   shows "queries_cannot_guess_ids (register_spec i)"
+  apply (auto simp add: queries_cannot_guess_ids_def2 register_spec_def i_no  split: registerOp.splits)
+  apply (frule latest_values_call)
+  apply auto
+  subgoal for ctxt res x x' c
+    apply (drule spec[where x=c])
+    apply (drule spec[where x="Assign res"])
+    apply (auto simp add: Op_def)
+    subgoal for z
+      by (cases z, auto)
+    done
+  done
+
+
+(*
   apply (auto simp add: latestAssignments_def queries_cannot_guess_ids_def2 register_spec_def latestValues_def i_no
       latestAssignments_h_def ran_def uniqueIds_registerOp_def split: registerOp.splits option.splits if_splits)
   apply (auto split: call.splits if_splits registerOp.splits)
   by (metis call.sel(1) registerOp.distinct(1) registerOp.inject)
+*)
 
 
 lemma query_cannot_guess_ids_struct_field:

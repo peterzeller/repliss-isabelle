@@ -24,10 +24,10 @@ type_synonym 'v store = "iref \<rightharpoonup> 'v"
 instantiation ref :: (type) small begin
 instance proof
   obtain V_of :: "nat \<Rightarrow> V" and A :: "V" where "inj V_of" and "range V_of \<subseteq> elts A"
-    using small by blast
+    by (metis infinite_\<omega> infinite_countable_subset)
 
 
-  show "\<exists>(V_of::'a ref \<Rightarrow> V) A. inj V_of \<and> range V_of \<subseteq> elts A"
+  have "\<exists>(V_of::'a ref \<Rightarrow> V) A. inj V_of \<and> range V_of \<subseteq> elts A"
   proof (intro conjI exI)
     show "inj (V_of \<circ> iref)"
       by (metis (mono_tags, lifting) \<open>inj V_of\<close> comp_apply injD inj_on_def ref.expand)
@@ -35,6 +35,10 @@ instance proof
     show " range (V_of \<circ> iref) \<subseteq> elts A"
       using \<open>range V_of \<subseteq> elts A\<close> by auto
   qed
+
+  show "small (UNIV::'a ref set)"
+    by (meson \<open>\<exists>V_of A. inj V_of \<and> range V_of \<subseteq> elts A\<close> down small_image_iff)
+
 qed
 end
 

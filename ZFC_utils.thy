@@ -22,7 +22,7 @@ proof -
 
 
   hence ex: "\<exists>f::'a\<Rightarrow>V. inj f \<and> ((\<exists>g::'a\<Rightarrow>V. inj g \<and> small (range g)) \<longrightarrow> small (range f))"
-    by blast
+    by auto
 
 
   from someI_ex[OF ex, simplified to_V_def[symmetric]] [[show_sorts]]
