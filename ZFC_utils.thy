@@ -43,12 +43,12 @@ lemma from_V_rev[simp]:
   by (simp add: from_V_def the_inv_f_f to_V_inj)
 
 lemma to_V_small: "small (range (to_V::'a::small\<Rightarrow>V))"
-  using to_V_property down small by blast 
+  using to_V_property down small by auto 
 
 lemma show_small_type_class:
   assumes "\<exists>V_of::'a\<Rightarrow>V. inj V_of \<and> small (range V_of)"
   shows "OFCLASS('a, small_class)"
-  by (standard, use assms small_iff in force)
+  by (standard) (use assms in auto)
 
 \<comment> \<open>TODO add methods to derive instances \<close>
 

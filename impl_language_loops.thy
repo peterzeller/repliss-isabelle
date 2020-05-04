@@ -210,7 +210,7 @@ instance loopResult :: (small, small) small
 proof (rule show_small_type_class, intro conjI exI)
 
   have "\<exists>(f::'a \<Rightarrow> V). inj f \<and>   small (range f)"
-    using small down by auto 
+    using small down to_V_property to_V_small by blast
 
   show "inj loopResult_to_V"
     by (simp add: loopResult_to_V_inj)

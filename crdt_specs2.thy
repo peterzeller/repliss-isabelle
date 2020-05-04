@@ -331,7 +331,7 @@ lemma  latest_assignments_rel:
   shows "(latest_assignments' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out)
       = {(x,y) | x y. latestAssignments (sub_context C_in Cs ctxt) x \<triangleq> y}"
 proof (auto simp add: latest_assignments'_def latestAssignments_def  latestAssignments_h_def 
-    map_chain_eq_some dom_def
+    map_chain_eq_some dom_def Op_def
     split: option.splits registerOp.splits call.splits, 
     fuzzy_goal_cases A B C D E F G H)
   case (A a b y)
@@ -444,10 +444,40 @@ definition set_rw_spec' :: "('op, 'v setOp, ('r::{default,from_bool})) ccrdtSpec
 
 lemma set_rw_spec_rel:
   shows "crdt_spec_rel set_rw_spec set_rw_spec'"
-  apply (rule show_crdt_spec_rel)
-  by (auto simp add: set_rw_spec_def set_rw_spec'_def 
+proof (rule show_crdt_spec_rel)
+
+
+  show "set_rw_spec op (sub_context C_in Cs ctxt) r = set_rw_spec' op (dom (calls (sub_context C_in Cs ctxt))) (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+    if c0: "is_reverse C_in C_out"
+      and c1: "C_in outer_op \<triangleq> op"
+    for  C_in C_out ctxt outer_op op r Cs
+  proof (cases op)
+    case (Add x1)
+    then show ?thesis
+      by (simp add: set_rw_spec'_def)
+  next
+    case (Remove x2)
+    then show ?thesis
+      by (simp add: set_rw_spec'_def)
+  next
+    case (Contains x3)
+    then show ?thesis 
+      apply (auto simp add: set_rw_spec'_def )
+      apply (drule set_rw_spec_Contains)
+(* TODO need wf and trans assumptions *)
+
+
+      find_theorems set_rw_spec Contains
+      sorry
+  qed
+
+
+
+  apply (auto simp add: set_rw_spec_def  
       extract_op_into_sub_context happens_before_into_sub_context
       split: setOp.splits intro!: arg_cong[where f="from_bool"])
+  apply (metis set_rw_spec_Add set_rw_spec_def)
+
 
 
 lemma set_rw_spec_wf[simp]:
