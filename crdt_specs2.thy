@@ -105,6 +105,8 @@ definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 're
   (\<forall>ctxt (outer_op::'op) (op::'opn) r Cs. 
        C_in outer_op \<triangleq> op
     \<longrightarrow> Cs \<subseteq> (dom ((map_map (calls ctxt) call_operation) \<ggreater> C_in))
+    \<longrightarrow> wf ((happensBefore ctxt)\<inverse>)
+    \<longrightarrow> trans (happensBefore ctxt)
     \<longrightarrow>
        (spec op (sub_context C_in Cs ctxt) r
     \<longleftrightarrow> cspec op Cs (extract_op (calls ctxt))  (happensBefore ctxt) C_out r))
@@ -118,6 +120,8 @@ lemmas use_crdt_spec_rel2 = crdt_spec_rel_def[unfolded atomize_eq, THEN iffD1, r
 lemma use_crdt_spec_rel_toplevel:
   assumes rel: "crdt_spec_rel spec cspec"
     and hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+    and "trans (happensBefore ctxt)"
+    and "wf ((happensBefore ctxt)\<inverse>)"
   shows "spec op ctxt r 
  =  cspec op (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id  r"
 proof (fuzzy_rule use_crdt_spec_rel[OF rel])
@@ -142,6 +146,9 @@ proof (fuzzy_rule use_crdt_spec_rel[OF rel])
   from h1 h2
   show "sub_context Some (dom (calls ctxt)) ctxt = ctxt"
     by (simp add: ctxt_restrict_calls_def hb_wf restrict_map_noop restrict_relation_noop sub_context_def)
+
+  show "wf ((happensBefore ctxt)\<inverse>)" using `wf ((happensBefore ctxt)\<inverse>)` .
+  show "trans (happensBefore ctxt)" using `trans (happensBefore ctxt)` .
 qed
 
 
@@ -166,6 +173,8 @@ definition convert_spec ::  "('op, 'op, 'res) ccrdtSpec \<Rightarrow> ('op, 'res
 lemma crdt_spec_rel_convert:
   assumes rel: "crdt_spec_rel spec cspec"
     and field: "Field (happensBefore ctxt) \<subseteq> dom (calls (ctxt))"
+    and  "wf ((happensBefore ctxt)\<inverse>)"
+    and "trans (happensBefore ctxt)"
   shows "spec op ctxt r = convert_spec cspec op ctxt r"
   unfolding convert_spec_def
 proof -
@@ -187,6 +196,11 @@ proof -
     from h1 h2
     show "sub_context Some (dom (calls ctxt)) ctxt = ctxt"
       by (simp add: ctxt_restrict_calls_def field restrict_map_noop restrict_relation_noop sub_context_def)
+
+
+  (* TODO define well-formed context*)
+    show "wf ((happensBefore ctxt)\<inverse>)" using `wf ((happensBefore ctxt)\<inverse>)` .
+    show "trans (happensBefore ctxt)" using `trans (happensBefore ctxt)` .
   qed
 qed
 
