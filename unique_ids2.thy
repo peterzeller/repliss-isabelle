@@ -84,6 +84,11 @@ definition uid_is_private' where
     \<and> new_unique_not_in_invocationRes s_invocationRes uidv
     \<and> uidv \<notin> s_knownIds
     "
+
+abbreviation
+"uid_is_private_S i S uidv \<equiv>
+  uid_is_private' i (calls S) (invocationOp S) (invocationRes S) (knownIds S) uidv"
+
 lemma uid_is_private'_implies:
 "uid_is_private i S uidv
  \<Longrightarrow> uid_is_private' i (calls S) (invocationOp S) (invocationRes S) (knownIds S) uidv"

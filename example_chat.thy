@@ -140,7 +140,7 @@ definition crdtSpec' :: "(operation, operation, val) ccrdtSpec" where
 )"
 
 lemma crdtSpec'_alt:
-  assumes hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+  assumes wf: "operationContext_wf ctxt" 
   shows "crdtSpec oper ctxt res
 \<longleftrightarrow> crdtSpec' oper (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id res "
 proof (cases oper)
@@ -151,7 +151,7 @@ proof (cases oper)
       =  struct_field' Chat (set_rw_spec' n_op) (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id res"
     proof (fuzzy_rule struct_field_eq)
       show "sub_context Some (dom (calls ctxt)) ctxt = ctxt"
-        using hb_wf sub_context_id2 by blast
+        by (simp add: local.wf sub_context_id3)
       show "is_reverse Some id"
         by (simp add: is_reverse_trivial)
       show " is_reverse (\<lambda>a. case a of Chat x \<Rightarrow> Some x | Message x \<Rightarrow> Map.empty x) Chat"
@@ -162,6 +162,8 @@ proof (cases oper)
 
       show "crdt_spec_rel set_rw_spec set_rw_spec'"
         by (rule set_rw_spec_rel)
+      show "operationContext_wf ctxt"
+        using wf .
     qed
   qed
 next
@@ -173,7 +175,7 @@ next
      (happensBefore ctxt) id res"
     proof (fuzzy_rule struct_field_eq)
       show "sub_context Some (dom (calls ctxt)) ctxt = ctxt"
-        using hb_wf sub_context_id2 by blast
+        using local.wf sub_context_id3 by blast
       show "is_reverse Some id"
         by (simp add: is_reverse_trivial)
       show "is_reverse (\<lambda>a. case a of Chat x \<Rightarrow> Map.empty x | Message x \<Rightarrow> Some x) Message"
@@ -190,6 +192,7 @@ next
             if c0: "is_reverse C_in C_out"
               and c1: "C_in outer_op \<triangleq> op"
               and c2: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
+              and wf: "operationContext_wf ctxt"
             for  C_in C_out ctxt outer_op op r Cs
           proof (cases op)
             case (Author author)
@@ -212,6 +215,8 @@ next
 
                 show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
                   by (rule register_spec_rel)
+                show "operationContext_wf ctxt"
+                  using wf. 
               qed
             qed
           next
@@ -234,11 +239,19 @@ next
 
                 show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
                   by (rule register_spec_rel)
+
+                show "operationContext_wf ctxt"
+                  using local.wf by auto
+
               qed
             qed
           qed
         qed
       qed
+
+      show "operationContext_wf ctxt"
+        by (simp add: local.wf)
+
     qed
   qed
 qed
@@ -679,13 +692,13 @@ proof M_show_programCorrect
 
             have [simp]:"resb = Undef"
               using AtCommit.crdtSpec3
-              by (auto simp add: crdtSpec_def struct_field_def set_rw_spec_def)
+              by (auto simp add: crdtSpec_def struct_field_def set_rw_spec'_def)
 
             have [simp]:  "in_sequence [c, ca, cb] c ca"
               by (simp add: in_sequence_cons)
 
             have "new_unique_not_in_calls s_calls' vn"
-              by (meson AtCommit.uid_is_private' uid_is_private'_def)
+              by (meson AtCommit.uid_is_private'2 uid_is_private'_def)
 
 
             hence no_v: "vn \<notin> uniqueIds opr" if "s_calls' c \<triangleq> Call opr r" for c opr r
@@ -1122,6 +1135,7 @@ proof M_show_programCorrect
                      \<lparr>calls = s_calls' |` vis', happensBefore = s_happensBefore' |r vis'\<rparr> (Bool True)\<close>
                   have "crdtSpec' (Message (KeyExists (MessageId m))) (dom s_calls' \<inter> vis') (extract_op s_calls') s_happensBefore' id (Bool True)"
                     apply (subst(asm) crdtSpec'_alt)
+
                     by (auto simp add: crdtSpec'_alt crdtSpec'_simp_op crdtSpec'_simp_hb)
 
 

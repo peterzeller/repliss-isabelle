@@ -4099,7 +4099,8 @@ lemma execution_s_check_newId:
     tc v;
     vn \<notin> knownIds PS;
     vn \<notin> ps_generatedLocal PS;
-    uniqueIds v = {vn}
+    uniqueIds v = {vn};
+    uid_is_private_S (ps_i PS) PS vn
 \<rbrakk> \<Longrightarrow>
     P 
       (PS\<lparr> ps_localKnown := ps_localKnown PS \<union> {vn},
@@ -4144,6 +4145,9 @@ proof (rule execution_s_check_proof_rule)
         by (auto simp add: uid_fresh_def uid_is_private'_def)
       show "uniqueIds uidv = {uid}"
         by (simp add: c4)
+
+      show "uid_is_private_S (ps_i PS) PS uid"
+        using c6 uid_fresh_def by blast
 
     qed auto
   qed

@@ -105,8 +105,7 @@ definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 're
   (\<forall>ctxt (outer_op::'op) (op::'opn) r Cs. 
        C_in outer_op \<triangleq> op
     \<longrightarrow> Cs \<subseteq> (dom ((map_map (calls ctxt) call_operation) \<ggreater> C_in))
-    \<longrightarrow> wf ((happensBefore ctxt)\<inverse>)
-    \<longrightarrow> trans (happensBefore ctxt)
+    \<longrightarrow> operationContext_wf ctxt
     \<longrightarrow>
        (spec op (sub_context C_in Cs ctxt) r
     \<longleftrightarrow> cspec op Cs (extract_op (calls ctxt))  (happensBefore ctxt) C_out r))
@@ -120,8 +119,7 @@ lemmas use_crdt_spec_rel2 = crdt_spec_rel_def[unfolded atomize_eq, THEN iffD1, r
 lemma use_crdt_spec_rel_toplevel:
   assumes rel: "crdt_spec_rel spec cspec"
     and hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
-    and "trans (happensBefore ctxt)"
-    and "wf ((happensBefore ctxt)\<inverse>)"
+    and "operationContext_wf ctxt"
   shows "spec op ctxt r 
  =  cspec op (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id  r"
 proof (fuzzy_rule use_crdt_spec_rel[OF rel])
@@ -147,8 +145,7 @@ proof (fuzzy_rule use_crdt_spec_rel[OF rel])
   show "sub_context Some (dom (calls ctxt)) ctxt = ctxt"
     by (simp add: ctxt_restrict_calls_def hb_wf restrict_map_noop restrict_relation_noop sub_context_def)
 
-  show "wf ((happensBefore ctxt)\<inverse>)" using `wf ((happensBefore ctxt)\<inverse>)` .
-  show "trans (happensBefore ctxt)" using `trans (happensBefore ctxt)` .
+  show "operationContext_wf ctxt" using `operationContext_wf ctxt` .
 qed
 
 
@@ -157,6 +154,7 @@ lemma show_crdt_spec_rel:
   assumes
   a: "\<And>C_in C_out  ctxt outer_op op r Cs.
 \<lbrakk>is_reverse C_in C_out; 
+operationContext_wf ctxt;
  C_in outer_op \<triangleq> op\<rbrakk> \<Longrightarrow>
      spec op (sub_context C_in Cs ctxt) r
  \<longleftrightarrow> cspec op (dom (calls (sub_context C_in Cs ctxt))) (extract_op (calls ctxt))  (happensBefore ctxt) C_out  r 
@@ -173,8 +171,7 @@ definition convert_spec ::  "('op, 'op, 'res) ccrdtSpec \<Rightarrow> ('op, 'res
 lemma crdt_spec_rel_convert:
   assumes rel: "crdt_spec_rel spec cspec"
     and field: "Field (happensBefore ctxt) \<subseteq> dom (calls (ctxt))"
-    and  "wf ((happensBefore ctxt)\<inverse>)"
-    and "trans (happensBefore ctxt)"
+    and "operationContext_wf ctxt"
   shows "spec op ctxt r = convert_spec cspec op ctxt r"
   unfolding convert_spec_def
 proof -
@@ -198,9 +195,8 @@ proof -
       by (simp add: ctxt_restrict_calls_def field restrict_map_noop restrict_relation_noop sub_context_def)
 
 
-  (* TODO define well-formed context*)
-    show "wf ((happensBefore ctxt)\<inverse>)" using `wf ((happensBefore ctxt)\<inverse>)` .
-    show "trans (happensBefore ctxt)" using `trans (happensBefore ctxt)` .
+    show "operationContext_wf ctxt"
+      by (simp add: assms)
   qed
 qed
 
@@ -456,14 +452,80 @@ definition set_rw_spec' :: "('op, 'v setOp, ('r::{default,from_bool})) ccrdtSpec
                  \<longrightarrow> (\<exists>a'\<in>vis. op a' = C (Add v) \<and> (r,a')\<in>hb)))"
 
 
+lemma sub_context_operationContext_wf:
+  assumes wf: "operationContext_wf ctxt"
+  shows "operationContext_wf (sub_context C_in Cs ctxt)"
+  using wf
+  unfolding operationContext_wf_def
+proof (intro conjI; elim conjE)
+  assume a0: "trans (happensBefore ctxt)"
+    and a1: "wf ((happensBefore ctxt)\<inverse>)"
+    and a2: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+
+
+  show "trans (happensBefore (sub_context C_in Cs ctxt))"
+    by (metis (mono_tags, lifting) a0 happens_before_sub_context trans_def)
+
+  show " wf ((happensBefore (sub_context C_in Cs ctxt))\<inverse>)"
+    by (metis a1 converse.cases converse.intros happens_before_sub_context wf_def)
+
+  show "Field (happensBefore (sub_context C_in Cs ctxt)) \<subseteq> dom (calls (sub_context C_in Cs ctxt))"
+    using a2
+    by (auto simp add: sub_context_def restrict_ctxt_op_def ctxt_restrict_calls_def restrict_ctxt_def
+          restrict_relation_def fmap_map_values_def restrict_map_def Field_def)
+
+
+qed
+
+
+lemma Op_subcontext:
+"Op (sub_context C_in Cs ctxt) c \<triangleq> op
+\<longleftrightarrow> (\<exists>op'. c\<in>Cs \<and> Op ctxt c \<triangleq> op' \<and> C_in op' \<triangleq> op)"
+  by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def restrict_hb_def Op_def 
+      ctxt_restrict_calls_def restrict_map_def
+      fmap_map_values_def option_bind_def split: option.splits call.splits)
+
+lemma "calls (sub_context C_in Cs ctxt) c = ???"
+  apply (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def restrict_hb_def Op_def 
+      ctxt_restrict_calls_def restrict_map_def
+      fmap_map_values_def option_bind_def split: option.splits call.splits)
+  oops
+
+lemma calls_subcontext: 
+"calls (sub_context C_in Cs ctxt)
+  = (\<lambda>c. if c\<in>Cs then 
+            case calls ctxt c of 
+              None \<Rightarrow> None 
+            | Some (Call op r) \<Rightarrow> C_in op \<bind> (\<lambda>op'. Some (Call op' r))
+         else None)"
+  by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def restrict_hb_def Op_def 
+      ctxt_restrict_calls_def restrict_map_def
+      fmap_map_values_def option_bind_def split: option.splits call.splits intro!: ext)
+
+lemma calls_subcontext_dom: 
+"dom (calls (sub_context C_in Cs ctxt))
+= {c | c op r. c\<in>Cs \<and> calls ctxt c \<triangleq> Call op r \<and> C_in op \<noteq> None}"
+  by (auto simp add: calls_subcontext option_bind_def split: if_splits option.splits call.splits)
+
+lemma calls_subcontext_some:
+"calls (sub_context C_in Cs ctxt) c \<triangleq> ci
+\<longleftrightarrow> c\<in>Cs \<and> (\<exists>ci'. calls ctxt c \<triangleq> ci' \<and> call_res ci = call_res ci' \<and> C_in (call_operation ci') \<triangleq> call_operation ci)"
+  by (auto simp add: calls_subcontext option_bind_def split: if_splits option.splits call.splits)
+
+lemma calls_subcontext_some':
+"calls (sub_context C_in Cs ctxt) c \<triangleq> ci
+\<longleftrightarrow> c\<in>Cs \<and> (\<exists>op'. calls ctxt c \<triangleq> Call op' (call_res ci) \<and> C_in op' \<triangleq> call_operation ci)"
+  by (auto simp add: calls_subcontext option_bind_def split: if_splits option.splits call.splits)
+
 lemma set_rw_spec_rel:
   shows "crdt_spec_rel set_rw_spec set_rw_spec'"
 proof (rule show_crdt_spec_rel)
 
 
   show "set_rw_spec op (sub_context C_in Cs ctxt) r = set_rw_spec' op (dom (calls (sub_context C_in Cs ctxt))) (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-    if c0: "is_reverse C_in C_out"
+    if irev: "is_reverse C_in C_out"
       and c1: "C_in outer_op \<triangleq> op"
+      and wf: "operationContext_wf ctxt"
     for  C_in C_out ctxt outer_op op r Cs
   proof (cases op)
     case (Add x1)
@@ -475,22 +537,41 @@ proof (rule show_crdt_spec_rel)
       by (simp add: set_rw_spec'_def)
   next
     case (Contains x3)
-    then show ?thesis 
-      apply (auto simp add: set_rw_spec'_def )
-      apply (drule set_rw_spec_Contains)
-(* TODO need wf and trans assumptions *)
 
+    have wf': "operationContext_wf (sub_context C_in Cs ctxt)"
+      by (simp add: local.wf sub_context_operationContext_wf)
 
-      find_theorems set_rw_spec Contains
-      sorry
+    from Contains
+    show ?thesis
+      apply (auto simp add: set_rw_spec'_def set_rw_spec_Contains_iff[OF wf'] intro!: arg_cong[where f="from_bool"])
+      apply (auto simp add: extract_op_into_sub_context[OF irev]
+          happens_before_into_sub_context[OF irev])
+             apply (auto simp add: happens_before_sub_context Op_subcontext)
+             apply (auto simp add: calls_subcontext_dom calls_subcontext_some)
+      apply (auto simp add: Op_def extract_op_def is_reverse_2[OF irev])
+      subgoal
+        by (metis (no_types, lifting) call.collapse)
+      subgoal
+        using is_reverse_2[OF irev]
+        by blast    
+      subgoal for x a_info c c_info x_info
+        apply (cases a_info; cases x_info)
+        by fastforce
+      subgoal for a y ra ci' z
+        apply (cases y; cases ci')
+        apply auto
+        by (metis (no_types, lifting) call.collapse)
+      subgoal for a z
+        by (cases z) auto
+      subgoal for a ra y ci' z
+        apply (cases y; cases ci'; cases z)
+        apply auto
+        apply (thin_tac "_ = from_bool _")
+        using is_reverse_2[OF irev]
+        by (metis (mono_tags, lifting) call.sel(1))
+      done
   qed
-
-
-
-  apply (auto simp add: set_rw_spec_def  
-      extract_op_into_sub_context happens_before_into_sub_context
-      split: setOp.splits intro!: arg_cong[where f="from_bool"])
-  apply (metis set_rw_spec_Add set_rw_spec_def)
+qed
 
 
 
@@ -599,6 +680,7 @@ proof (intro allI impI)
     if is_rev: "is_reverse C_in C_out"
    and in_out: "C_in outer_op \<triangleq> op"
    and Cs_sub: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
+   and wf: "operationContext_wf ctxt"
    for  C_in C_out ctxt outer_op op r Cs
   proof -
 
@@ -695,6 +777,9 @@ proof (intro allI impI)
               deleted_calls' Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out k)
              (extract_op (calls ctxt)) (happensBefore ctxt) (\<lambda>x. C_out (NestedOp k x)) r"
             by (simp add: h1 h5)
+          show "operationContext_wf ctxt"
+            by (simp add: local.wf)
+
         qed
       qed
 
@@ -828,7 +913,7 @@ lemma struct_field_eq:
     and is_rev: "is_reverse C_in C_out"
     and is_rev': "is_reverse C_in' C_out'"
     and c_calls_subset: "c_calls \<subseteq> dom (calls ctxt)"
-
+    and wf: "operationContext_wf ctxt"
 shows "struct_field (nspec n_op) C_in (sub_context C_in' c_calls ctxt) res 
       =  struct_field' C_out (nspec' n_op) c_calls (extract_op (calls ctxt)) (happensBefore ctxt) C_out' res"
 proof (simp add: struct_field_def struct_field'_def C_out_calls_def)
@@ -871,6 +956,9 @@ proof (simp add: struct_field_def struct_field'_def C_out_calls_def)
         apply (metis is_rev is_rev' is_reverse_1)
        apply (metis is_rev is_rev' is_reverse_1)
       by (metis is_rev is_rev' is_reverse_1)
+
+    show "operationContext_wf ctxt"
+      using wf .
   qed 
 qed
 
@@ -915,6 +1003,14 @@ lemma sub_context_id2:
   assumes  hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
   shows "(sub_context Some (dom (calls ctxt)) ctxt) = ctxt"
   by (simp add: hb_wf sub_context_id)
+
+lemma sub_context_id3: 
+  assumes  wf: "operationContext_wf ctxt"
+  shows "(sub_context Some (dom (calls ctxt)) ctxt) = ctxt"
+proof (rule sub_context_id2)
+  show "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+    by (simp add: local.wf operationContext_wf_hb_field)
+qed
 
 
 
