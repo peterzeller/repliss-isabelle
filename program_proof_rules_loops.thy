@@ -13,6 +13,7 @@ theory program_proof_rules_loops
     topological_sort
     program_verification_tactics
     "HOL-Eisbach.Eisbach_Tools"
+    crdt_specs_v
 begin
 
 term "set"
@@ -295,12 +296,20 @@ definition "ps_growing S S' t \<equiv>
         localState := (localState CS')(ps_i S := localState CS (ps_i S)),
         visibleCalls := (visibleCalls CS')(ps_i S := visibleCalls CS (ps_i S))\<rparr>)"
 
+
+definition "current_operationContext S \<equiv> \<lparr>
+  calls = calls S,
+  happensBefore = updateHb (happensBefore S) (ps_vis S) (ps_localCalls S)
+\<rparr>"
+
+definition "current_vis S \<equiv> ps_vis S \<union> set (ps_localCalls S)"
+
 text "Define execution of io commands:"
 
 
 definition step_io :: "
      (('proc::valueType, 'operation::valueType, 'any::valueType) invariantContext \<Rightarrow> bool)
-  \<Rightarrow> ('operation \<Rightarrow> ('operation, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool)
+  \<Rightarrow> ('operation, 'operation, 'any) ccrdtSpec
   \<Rightarrow> ('proc, 'any, 'operation) proof_state 
   \<Rightarrow> ('a, 'operation, 'any) io
   \<Rightarrow> ('proc, 'any, 'operation) proof_state
@@ -373,7 +382,7 @@ definition step_io :: "
            calls S c = None
          \<and> ps_tx S \<noteq> None
          \<and> uniqueIds oper \<subseteq> ps_localKnown S 
-         \<and> qrySpec oper (getContextH (calls S) (updateHb (happensBefore S) (ps_vis S) (ps_localCalls S)) (Some (ps_vis S \<union> set (ps_localCalls S)))) res
+         \<and> toplevel_spec qrySpec (current_operationContext S) (current_vis S) oper res
          \<and> cmd' = n res
          \<and> (S' = S\<lparr>
             ps_localKnown := ps_localKnown S \<union> uniqueIds res, 
@@ -401,7 +410,7 @@ Otherwise, the result is Some r.
 
 inductive steps_io :: "
      (('proc::valueType, 'operation::valueType, 'any::valueType) invariantContext \<Rightarrow> bool)
-  \<Rightarrow> ('operation \<Rightarrow> ('operation, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool)
+  \<Rightarrow> ('operation, 'operation, 'any) ccrdtSpec
   \<Rightarrow> ('proc, 'any, 'operation) proof_state 
   \<Rightarrow> ('a, 'operation, 'any) io
   \<Rightarrow> ('proc, 'any, 'operation) proof_state
@@ -555,8 +564,9 @@ lemma step_io_simulation:
     and cmd_prefix: "currentCommand S i = cmd \<bind> cmdCont"
     and cm_no_return: "\<And>r. cmd \<noteq> WaitReturn r"
     and prog_wf: "program_wellFormed (prog S)"
+    and spec_rel: "crdt_spec_rel (querySpec (prog S)) querySpec'"
     and no_generate_db: "\<And>c Op res. action = ADbOp c Op res \<Longrightarrow> uniqueIds Op \<subseteq> ps_localKnown PS"
-  shows "\<exists>PS' cmd'. step_io (invariant (prog S)) (querySpec (prog S)) 
+  shows "\<exists>PS' cmd'. step_io (invariant (prog S)) querySpec' 
                             PS cmd PS' cmd' Inv 
                \<and> (Inv \<longrightarrow> proof_state_rel PS' S' \<and> currentCommand S' i = cmd' \<bind> cmdCont)" (is ?g)
 proof (rule ccontr)
@@ -734,7 +744,7 @@ proof (rule ccontr)
 
 
 
-        thus "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd' Inv"
+        thus "step_io (invariant (prog S)) querySpec' PS cmd PS' cmd' Inv"
           by (auto simp add: step_io_def c0 c2 action_def Inv PS'_def show_proof_state_wellFormed)
 
         show "currentCommand S' i = cmd' \<bind> cmdCont"
@@ -914,7 +924,7 @@ proof (rule ccontr)
 
 
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' n Inv"
+        show "step_io (invariant (prog S)) querySpec' PS cmd PS' n Inv"
         proof (auto simp add: step_io_def `cmd = impl_language_loops.io.WaitBeginAtomic n`; (intro exI conjI)?)
 
           show "proof_state_wellFormed PS'"
@@ -1190,7 +1200,7 @@ proof (rule ccontr)
           using A.currentTransaction_eq \<open>i' = ps_i PS\<close> proof_state_rel_currentTx rel by fastforce 
 
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' n Inv"
+        show "step_io (invariant (prog S)) querySpec' PS cmd PS' n Inv"
         proof (auto simp add: step_io_def WaitEndAtomic)
           show "Inv \<Longrightarrow> proof_state_wellFormed PS'"
             using show_proof_state_wellFormed[OF `proof_state_rel PS' S'`].
@@ -1324,7 +1334,7 @@ proof (rule ccontr)
 
 
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd' Inv"
+        show "step_io (invariant (prog S)) querySpec' PS cmd PS' cmd' Inv"
         proof (auto simp add: step_io_def WaitNewId; (intro exI conjI)?)
 
           from `f ls = NewId ls'`
@@ -1406,7 +1416,7 @@ proof (rule ccontr)
 
         show False
         proof (rule goal, intro exI conjI impI)
-          show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' cmd Inv"
+          show "step_io (invariant (prog S)) querySpec' PS cmd PS' cmd Inv"
             using `cmd = impl_language_loops.io.WaitDbOperation oper n`
               `x \<in> uniqueIds oper` `x \<notin> ps_localKnown PS`
             by (auto simp add: step_io_def `\<not> Inv` PS'_def)
@@ -1616,7 +1626,7 @@ proof (rule ccontr)
           qed ((insert proof_state_rel_facts[OF rel], (auto simp add: PS'_def S'_def sorted_by_empty)[1]); fail)+
 
 
-          show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' (n res) Inv"
+          show "step_io (invariant (prog S)) querySpec' PS cmd PS' (n res) Inv"
           proof (auto simp add: step_io_def WaitDbOperation; (intro exI conjI)?)
 
             show "ps_tx PS \<triangleq> t"
@@ -1634,11 +1644,16 @@ proof (rule ccontr)
               by (auto simp add: getContextH_def proof_state_rel_facts[OF rel])
 
             from `querySpec (prog S) Op (getContext S i') res`
-            show "querySpec (prog S) Op
+            have "querySpec (prog S) Op
          (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
            (Some (ps_vis PS \<union> set (ps_localCalls PS))))
            res" 
               by (auto simp add: vis ctxt_same)
+
+            show "toplevel_spec querySpec' (current_operationContext PS) (current_vis PS) Op res"
+
+              sorry
+
 
             show "uniqueIds Op \<subseteq> ps_localKnown PS"
               using validUids by auto
@@ -1738,7 +1753,7 @@ proof (rule ccontr)
           using i_def ls_S' by auto
 
 
-        show "step_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS
+        show "step_io (invariant (prog S)) querySpec' PS cmd PS
          (loop_body_from_V body init \<bind> (\<lambda>r. case r of Continue x \<Rightarrow> Loop x body n | Break x \<Rightarrow> n x)) Inv"
           using `proof_state_rel PS S`
           by (auto simp add: step_io_def Loop `Inv` show_proof_state_wellFormed)
@@ -2172,10 +2187,11 @@ lemma steps_io_simulation:
     and not_correct: "\<not>traceCorrect_s tr"
     and prog_wf: "program_wellFormed (prog S)"
     and cmd_def: "cmd = currentCommand S i"
-  shows "\<exists>PS' res. steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd  PS' res
+    and qry_rel: "crdt_spec_rel (querySpec (prog S)) querySpec'"
+  shows "\<exists>PS' res. steps_io (invariant (prog S)) querySpec' PS cmd  PS' res
                \<and> (res = None \<or> \<not>invariant_return (invariant (prog S))  PS' res)
                " \<comment> \<open>TODO or final state after return that does not satisfy invariant.\<close>
-  using rel steps i_def not_correct prog_wf cmd_def proof (induct "length tr" arbitrary: S' tr PS S cmd)
+  using rel steps i_def not_correct prog_wf cmd_def qry_rel proof (induct "length tr" arbitrary: S' tr PS S cmd)
   case (0 tr S' PS S cmd)
   hence "tr = []"
     by auto
@@ -2301,7 +2317,7 @@ next
 
       show ?thesis
       proof (intro conjI exI)
-        show "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS (Some res)"
+        show "steps_io (invariant (prog S)) querySpec' PS cmd PS (Some res)"
         proof (fuzzy_rule steps_io_final)
           show "impl_language_loops.io.WaitReturn res = cmd"
             using `cmd = WaitReturn res` by simp
@@ -2367,7 +2383,7 @@ next
       by simp
 
     have "\<exists>PS' cmd'.
-       step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) PS' cmd' ok \<and>
+       step_io (invariant (prog S)) querySpec' PS (currentCommand S i) PS' cmd' ok \<and>
        (ok \<longrightarrow> proof_state_rel PS' S1 \<and> currentCommand S1 i = cmd' \<bind> impl_language_loops.return)"
       using `proof_state_rel PS S` first_step `i = ps_i PS` current
     proof (rule step_io_simulation)
@@ -2382,12 +2398,14 @@ next
         for  c Op res
         by (metis Suc.prems(1) Suc.prems(3) \<open>\<And>thesis. (\<And>S1. \<lbrakk>S ~~ (i, action, ok) \<leadsto>\<^sub>S S1; S1 ~~ (i, tr') \<leadsto>\<^sub>S* S'\<rbrakk> \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> action.distinct(33) action.distinct(53) proof_state_rel_def step_s_to_step that use_invocation_cannot_guess_ids_dbop)
 
+      show "crdt_spec_rel (querySpec (prog S)) querySpec'"
+        using `crdt_spec_rel (querySpec (prog S)) querySpec'` by auto
 
 
     qed
 
     from this obtain PS' cmd' 
-      where step_io: "step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) PS' cmd' ok"
+      where step_io: "step_io (invariant (prog S)) querySpec' PS (currentCommand S i) PS' cmd' ok"
         and step_io2: "(ok \<Longrightarrow> proof_state_rel PS' S1 \<and> currentCommand S1 i = cmd')"
       by auto
 
@@ -2420,19 +2438,24 @@ next
         using `currentCommand S1 i = cmd'`
         by simp
 
+      from `crdt_spec_rel (querySpec (prog S)) querySpec'` `prog S1 = prog S`
+      have "crdt_spec_rel (querySpec (prog S1)) querySpec'" by simp
+
+
       from Suc.hyps(1)[OF `k = length tr'` `proof_state_rel PS' S1` `S1 ~~ (i, tr') \<leadsto>\<^sub>S* S'` 
-          `i = ps_i PS'` `\<not> traceCorrect_s tr'` `program_wellFormed (prog S1)` `cmd' = currentCommand S1 i`]
+          `i = ps_i PS'` `\<not> traceCorrect_s tr'` `program_wellFormed (prog S1)` `cmd' = currentCommand S1 i`
+          `crdt_spec_rel (querySpec (prog S1)) querySpec'`]
       obtain PS'' and res
-        where steps_tr': "steps_io (invariant (prog S1)) (querySpec (prog S1)) PS' cmd'  PS'' res"
+        where steps_tr': "steps_io (invariant (prog S1)) querySpec' PS' cmd'  PS'' res"
           and incorrect_cases: "res = None \<or> \<not> invariant_return (invariant (prog S1)) PS'' res"
         by auto
 
-      have steps_combined: "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd  PS'' res" 
+      have steps_combined: "steps_io (invariant (prog S)) querySpec' PS cmd  PS'' res" 
         using step_io 
       proof (fuzzy_rule steps_io_step)
         show "currentCommand S i = cmd"
           by (simp add: Suc.prems(6))
-        show " steps_io (invariant (prog S)) (querySpec (prog S)) PS' cmd' PS'' res"
+        show " steps_io (invariant (prog S)) querySpec' PS' cmd' PS'' res"
           using steps_tr'
           by (metis (no_types, lifting) Suc.prems(2) other_steps unchangedProg) 
         show "ok = True"
@@ -2440,8 +2463,6 @@ next
       qed
 
 
-
-      thm `prog S1 = prog S`
 
       have "prog S1 = prog S"
         using unchangedProg1[OF first_step]
@@ -2466,8 +2487,8 @@ next
     next
       case False
 
-      from \<open>step_io (invariant (prog S)) (querySpec (prog S)) PS (currentCommand S i) PS' cmd' ok\<close>
-      have "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' None"
+      from \<open>step_io (invariant (prog S)) querySpec' PS (currentCommand S i) PS' cmd' ok\<close>
+      have "steps_io (invariant (prog S)) querySpec' PS cmd PS' None"
       proof (fuzzy_rule steps_io_error)
         show "ok = False" using False by simp
 
@@ -2739,6 +2760,7 @@ lemma execution_s_check_sound:
                   knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
     and P_ids: "\<And>S' res. P S' res \<Longrightarrow> uniqueIds res \<subseteq> ps_localKnown S'"
     and prog_wf: "program_wellFormed (prog S)"
+    and qry_rel: "crdt_spec_rel (querySpec progr) querySpec'"
     and PS_def: "PS = \<lparr>
       calls = (calls S),
       happensBefore = (happensBefore S),
@@ -2757,7 +2779,7 @@ lemma execution_s_check_sound:
       ps_firstTx = firstTx,
       ps_store = Map.empty,
       ps_prog = prog S\<rparr>"
-    and c: "execution_s_check (invariant progr) (querySpec progr) PS ls P"
+    and c: "execution_s_check (invariant progr) querySpec' PS ls P"
     \<comment> \<open>The execution check ensures that executing statement s only produces valid traces ending in a state 
    satisfying P.\<close>
   shows "execution_s_correct S i"
@@ -2802,14 +2824,14 @@ proof (auto simp add:  execution_s_correct_def)
 
     from steps_io_simulation[OF `proof_state_rel PS S` steps `i = ps_i PS` `\<not> traceCorrect_s trace` prog_wf `cmd = currentCommand S i`]
     obtain PS' res
-      where steps_io: "steps_io (invariant (prog S)) (querySpec (prog S)) PS cmd PS' res"
+      where steps_io: "steps_io (invariant (prog S)) querySpec' PS cmd PS' res"
         and not_correct: "res = None \<or> \<not> invariant_return (invariant (prog S)) PS' res"
-      by blast
+      using progr_def qry_rel  by blast
 
 
     from c 
     have c1:  "(case res of None \<Rightarrow> False | Some r \<Rightarrow> P S' r)"
-      if "steps_io (invariant progr) (querySpec progr) PS ls  S' res"
+      if "steps_io (invariant progr) querySpec' PS ls  S' res"
         and "proof_state_wellFormed PS"
       for S' res
       using execution_s_check_def that by blast+
@@ -2821,7 +2843,6 @@ proof (auto simp add:  execution_s_correct_def)
         by (simp add: cmd_def ls_def)
       show "prog S = progr"
         by (simp add: progr_def)
-      thus "prog S = progr".
       show "proof_state_wellFormed PS"
         using S_wf \<open>proof_state_rel PS S\<close> show_proof_state_wellFormed by blast
 
@@ -2868,6 +2889,7 @@ lemma execution_s_check_sound3:
                   knownIds := knownIds S' \<union> uniqueIds res\<rparr>))"
     and P_ids: "\<And>S' res. P S' res \<Longrightarrow> uniqueIds res \<subseteq> ps_localKnown S'"
     and inv: "invariant progr (invariantContext.truncate S)"
+    and qry_rel: "crdt_spec_rel (querySpec progr) querySpec'"
     and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
 \<lbrakk>
 \<And>tx. s_transactionOrigin tx \<noteq> Some i;
@@ -2881,7 +2903,7 @@ invariant progr \<lparr>
   invocationRes = s_invocationRes(i:=None)
 \<rparr>
 \<rbrakk> \<Longrightarrow>
-  execution_s_check (invariant progr) (querySpec progr) \<lparr>
+  execution_s_check (invariant progr) querySpec' \<lparr>
       calls = s_calls,
       happensBefore = s_happensBefore,
       callOrigin = s_callOrigin,
@@ -2964,7 +2986,7 @@ proof (rule execution_s_check_sound[where P=P])
   show "program_wellFormed (prog S)"
     by (simp add: prog_wf)
 
-  show "execution_s_check (invariant progr) (querySpec progr)
+  show "execution_s_check (invariant progr) querySpec'
      \<lparr>calls = calls S, happensBefore = happensBefore S, callOrigin = callOrigin S,
         transactionOrigin = transactionOrigin S, knownIds = knownIds S, invocationOp = invocationOp S,
         invocationRes = invocationRes S, ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {},
@@ -3021,6 +3043,8 @@ proof (rule execution_s_check_sound[where P=P])
        ps_tx = currentTransaction S i, ps_firstTx = \<forall>c tx. transactionOrigin S tx \<triangleq> i \<longrightarrow> callOrigin S c \<triangleq> tx \<longrightarrow> transactionStatus S tx \<noteq> Some Committed, ps_store = Map.empty, ps_prog = prog S\<rparr>"
     by (auto simp add: a4 \<open>prog S = progr\<close>)
 
+  show "crdt_spec_rel (querySpec progr) querySpec'"
+    using qry_rel by auto
 
 qed (simp add: a4; fail )+
 
@@ -3033,6 +3057,7 @@ lemma execution_s_check_sound4:
     and a4: "invocationOp S i \<triangleq> op"
     and prog_wf: "program_wellFormed (prog S)"
     and inv: "invariant_all' S"
+    and qry_rel: "crdt_spec_rel (querySpec progr) querySpec'"
     and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
 \<lbrakk>
 \<And>tx. s_transactionOrigin tx \<noteq> Some i;
@@ -3046,7 +3071,7 @@ invariant progr \<lparr>
   invocationRes = s_invocationRes(i:=None)
 \<rparr>
 \<rbrakk> \<Longrightarrow>
-  execution_s_check (invariant progr) (querySpec progr) \<lparr>
+  execution_s_check (invariant progr) querySpec' \<lparr>
       calls = s_calls,
       happensBefore = s_happensBefore,
       callOrigin = s_callOrigin,
@@ -3086,6 +3111,9 @@ proof (fuzzy_rule execution_s_check_sound3[where P="finalCheck (invariant progr)
 
   show "invContext' S = invariantContext.truncate S"
     by (simp add: invContext'_truncate)
+
+  show "crdt_spec_rel (querySpec progr) querySpec'"
+    by (simp add: qry_rel)
 
 
 qed auto
@@ -4507,9 +4535,11 @@ lemma execution_s_check_call:
   assumes in_tx: "ps_tx PS \<triangleq> tx"
     and unique_wf: "uniqueIds OP \<subseteq> ps_localKnown PS"
     and cont: "\<And>c res. \<lbrakk>
-crdtSpec OP \<lparr>
-      calls = calls PS |` (ps_vis PS \<union> set (ps_localCalls PS)), 
-      happensBefore=updateHb (happensBefore PS |r ps_vis PS) (ps_vis PS) (ps_localCalls PS)\<rparr> res
+toplevel_spec crdtSpec \<lparr>
+      calls = calls PS, 
+      happensBefore=updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)\<rparr>
+      (ps_vis PS \<union> set (ps_localCalls PS))
+       OP res
 \<rbrakk> \<Longrightarrow>
     P
       (PS\<lparr>calls := (calls PS)(c \<mapsto> Call OP res), 
@@ -4532,11 +4562,17 @@ proof (rule execution_s_check_proof_rule)
   proof 
 
     from step_io  
+    have ???
+      apply (auto simp add: step_io_def call_def unique_wf return_def split: if_splits)
+      sorry
+
+
+    from step_io  
     obtain c y res
       where c0: "ok"
         and c1: "calls PS c = None"
         and c2: "ps_tx PS \<triangleq> y"
-        and c3: "crdtSpec OP (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)) (Some (ps_vis PS \<union> set (ps_localCalls PS)))) res"
+        and c3: "toplevel_spec crdtSpec (current_operationContext PS) (current_vis PS) OP res"
         and c4: "cmd' = return res"
         and PS'_def: "PS' = PS \<lparr>ps_localKnown := ps_localKnown PS \<union> uniqueIds res, ps_generatedLocalPrivate := ps_generatedLocalPrivate PS - uniqueIds OP, calls := calls PS(c \<mapsto> Call OP res), ps_localCalls := ps_localCalls PS @ [c]\<rparr>"
       by (auto simp add: step_io_def call_def unique_wf return_def split: if_splits)
@@ -4550,28 +4586,11 @@ proof (rule execution_s_check_proof_rule)
       show "P PS' res"
       proof (fuzzy_rule cont[where c=c])
 
+        from c3
+        show "toplevel_spec crdtSpec \<lparr>calls = calls PS, happensBefore = updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)\<rparr>
+           (ps_vis PS \<union> set (ps_localCalls PS)) OP res"
+          unfolding current_operationContext_def current_vis_def by auto
 
-
-        show "crdtSpec OP
-         \<lparr>calls = calls PS |` (ps_vis PS \<union> set (ps_localCalls PS)),
-            happensBefore = updateHb (happensBefore PS |r ps_vis PS) (ps_vis PS) (ps_localCalls PS)\<rparr>
-         res"
-        proof (fuzzy_rule c3)
-          have wf2: "Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}"
-            by (simp add: local.wf proof_state_wellFormed_disjoint_happensBefore_localCalls)
-
-          hence wf2': "x \<notin> set (ps_localCalls PS) \<and> y \<notin> set (ps_localCalls PS)" 
-            if "(x,y)\<in>happensBefore PS"
-            for x y
-            using that by (meson FieldI1 FieldI2 disjoint_iff_not_equal) 
-
-          show " getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
-               (Some (ps_vis PS \<union> set (ps_localCalls PS))) =
-              \<lparr>calls = calls PS |` (ps_vis PS \<union> set (ps_localCalls PS)),
-                 happensBefore = updateHb (happensBefore PS |r ps_vis PS) (ps_vis PS) (ps_localCalls PS)\<rparr>"
-            using wf2'
-            by (auto simp add: getContextH_def updateHb_cases restrict_relation_def in_sequence_in1 in_sequence_in2 Field_def)
-        qed
 
         show "PS\<lparr>calls := calls PS(c \<mapsto> Call OP res),
            ps_generatedLocalPrivate := ps_generatedLocalPrivate PS - uniqueIds OP ,
