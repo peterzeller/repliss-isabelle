@@ -53,7 +53,7 @@ lemma show_only_store_changed:
   using assms by (auto simp add: only_store_changed_def)
 
 definition loop_inv :: "nat ref \<Rightarrow> nat list \<Rightarrow> (proc, val, unit) proof_state \<Rightarrow> nat list \<Rightarrow> 'a list \<Rightarrow> nat list \<Rightarrow> (proc, val, unit) proof_state \<Rightarrow> bool" where
-"loop_inv resR p_list PS_old Done Res Todo  PS \<equiv>
+"loop_inv resR p_list PS_old Done res Todo  PS \<equiv>
  \<exists>re.
           (iref resR) \<in> dom (ps_store PS)
         \<and> re ::= s_read (ps_store PS) resR 
@@ -112,6 +112,14 @@ definition inv :: "(proc, operation, val) invariantContext \<Rightarrow> bool" w
     inv1 (invocationOp ctxt) (invocationRes ctxt) "
 
 definition "crdtSpec c op r = False"
+
+definition "crdtSpec' op Cs Ops  Hb C_out r = False"
+
+lemma crdtSpec_rel: 
+  shows "crdt_spec_rel crdtSpec crdtSpec'"
+  by (rule show_crdt_spec_rel')
+   (auto simp add: crdtSpec_def crdtSpec'_def)
+
 
 definition progr :: "(proc, localState, operation, val) prog" where
   "progr \<equiv> \<lparr>
@@ -211,9 +219,10 @@ proof M_show_programCorrect
           from `invariant_all' S`
           show "invariant_all' S" .
 
+          show "crdt_spec_rel (querySpec progr) crdtSpec'"
+            using crdtSpec_rel progr_def by simp
 
-
-          show "program_proof_rules_loops.execution_s_check (invariant progr) (querySpec progr) \<lparr>
+          show "program_proof_rules_loops.execution_s_check (invariant progr) crdtSpec' \<lparr>
                   calls = s_calls, 
                   happensBefore = s_happensBefore, 
                   callOrigin = s_callOrigin, 

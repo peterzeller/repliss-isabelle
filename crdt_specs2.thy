@@ -801,7 +801,38 @@ proof (rule sub_context_id2)
     by (simp add: local.wf operationContext_wf_hb_field)
 qed
 
+(*
+text "We can also do a generic conversion between the two specification formats: "
+
+definition "some_inverse f \<equiv> SOME g. is_reverse g f"
+
+lemma "inj f \<Longrightarrow> \<exists>g. is_reverse g f"
+  apply (auto simp add: is_reverse_def)
 
 
+
+lemma "is_reverse (some_inverse f) f"
+  unfolding some_inverse_def
+proof -
+
+
+  show "is_reverse (SOME g. is_reverse g f) f"
+  proof (rule someI[where P="\<lambda>x. is_reverse x f"])
+
+definition "transformSpec spec op Cs ops hb C_out r \<equiv> 
+  spec op (sub_context (some_inverse C_out) Cs \<lparr>calls = \<lambda>c. if c\<in>Cs then Some (Call (ops c) ???) else None, happensBefore = hb\<rparr>) r"
+
+lemma 
+"crdt_spec_rel crdtSpec (transformSpec crdtSpec)"
+proof (rule show_crdt_spec_rel')
+
+  show "crdtSpec op (sub_context C_in Cs ctxt) r = transformSpec crdtSpec op Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+    if c0: "is_reverse C_in C_out"
+      and c1: "operationContext_wf ctxt"
+      and c2: "C_in outer_op \<triangleq> op"
+      and c3: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
+    for  C_in C_out ctxt outer_op op r Cs
+
+*)
 
 end
