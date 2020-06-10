@@ -170,13 +170,27 @@ lemma show_crdt_spec_rel:
   a: "\<And>C_in C_out  ctxt outer_op op r Cs.
 \<lbrakk>is_reverse C_in C_out; 
 operationContext_wf ctxt;
- C_in outer_op \<triangleq> op\<rbrakk> \<Longrightarrow>
+ C_in outer_op \<triangleq> op;
+Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)\<rbrakk> \<Longrightarrow>
      spec op (sub_context C_in Cs ctxt) r
  \<longleftrightarrow> cspec op (dom (calls (sub_context C_in Cs ctxt))) (extract_op (calls ctxt))  (happensBefore ctxt) C_out  r 
 "
 shows "crdt_spec_rel spec cspec"
   by (simp add: crdt_spec_rel_def assms dom_calls_sub_context_rewrite inf.absorb_iff2)
 
+
+lemma show_crdt_spec_rel':
+  assumes
+  a: "\<And>C_in C_out  ctxt outer_op op r Cs.
+\<lbrakk>is_reverse C_in C_out; 
+operationContext_wf ctxt;
+ C_in outer_op \<triangleq> op;
+Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)\<rbrakk> \<Longrightarrow>
+     spec op (sub_context C_in Cs ctxt) r
+ \<longleftrightarrow> cspec op Cs (extract_op (calls ctxt))  (happensBefore ctxt) C_out  r 
+"
+shows "crdt_spec_rel spec cspec"
+  by (simp add: crdt_spec_rel_def assms dom_calls_sub_context_rewrite inf.absorb_iff2)
 
 definition convert_spec ::  "('op, 'op, 'res) ccrdtSpec \<Rightarrow> ('op, 'res) crdtSpec" where
 "convert_spec cspec op ctxt res \<equiv> 
