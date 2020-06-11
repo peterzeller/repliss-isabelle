@@ -238,6 +238,63 @@ definition userStruct :: "(userDataOp, val) crdtSpec" where
 definition crdtSpec :: "(operation, val) crdtSpec" where
   "crdtSpec \<equiv> map_dw_spec userStruct"
 
+
+definition userStruct' :: "('a, userDataOp, val) ccrdtSpec" where
+"userStruct' \<equiv> (\<lambda>oper.
+  case oper of
+    Name op \<Rightarrow> struct_field' Name (register_spec' Undef op) 
+  | Mail op \<Rightarrow> struct_field' Mail (register_spec' Undef op) 
+)"
+
+definition crdtSpec' :: "(operation, operation, val) ccrdtSpec" where
+  "crdtSpec' \<equiv> map_dw_spec' userStruct'"
+
+lemma crdtSpec_rel:
+  shows "crdt_spec_rel crdtSpec crdtSpec'"
+  unfolding crdtSpec_def crdtSpec'_def
+proof (rule map_dw_spec_rel)
+
+  show "crdt_spec_rel userStruct userStruct'"
+  proof (rule show_crdt_spec_rel')
+
+
+    show "userStruct op (sub_context C_in Cs ctxt) r = userStruct' op Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+      if c0: "is_reverse C_in C_out"
+        and c1: "operationContext_wf ctxt"
+        and c2: "C_in outer_op \<triangleq> op"
+        and c3: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
+      for  C_in C_out ctxt outer_op op r Cs
+      unfolding userStruct_def userStruct'_def
+    proof (cases op; clarsimp)
+      case (Name x1)
+      show "struct_field (register_spec Undef x1) (case_userDataOp Some Map.empty) (sub_context C_in Cs ctxt) r =
+          struct_field' Name (register_spec' Undef x1) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+        apply (rule struct_field_eq)
+        subgoal by (simp add: register_spec_rel)
+        subgoal by (simp add: is_reverse_def split: userDataOp.splits)
+        subgoal by (simp add: c0)
+        subgoal by (smt c3 domI dom_map_map in_dom map_chain_eq_some subsetI)
+        subgoal by (simp add: c1)
+        done
+
+
+    next
+      case (Mail x2)
+      show "struct_field (register_spec Undef x2) (case_userDataOp Map.empty Some) (sub_context C_in Cs ctxt) r =
+          struct_field' Mail (register_spec' Undef x2) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+        apply (rule struct_field_eq)
+        subgoal by (simp add: register_spec_rel)
+        subgoal by (simp add: is_reverse_def split: userDataOp.splits)
+        subgoal by (simp add: c0)
+        subgoal by (smt c3 domI dom_map_map in_dom map_chain_eq_some subsetI)
+        subgoal by (simp add: c1)
+        done
+    qed
+  qed
+qed
+
+
+
 definition progr :: "(proc, localState, operation, val) prog" where
   "progr \<equiv> \<lparr>
   querySpec = crdtSpec,
@@ -305,6 +362,11 @@ lemma if_distrib_eq: "(if c then x else y) = z \<longleftrightarrow> (if c then 
 
 declare invariantContext.defs[simp]
 
+lemmas crdt_spec_defs = 
+  toplevel_spec_def crdtSpec'_def struct_field'_def map_dw_spec'_def map_spec'_def userStruct'_def register_spec'_def
+  set_rw_spec'_def deleted_calls_dw'_def
+
+
 theorem userbase_correct: "programCorrect progr"
 proof M_show_programCorrect
 
@@ -368,8 +430,13 @@ proof M_show_programCorrect
           show "invariant_all' S"
             using execution.in_initial_state by blast
 
+          from crdtSpec_rel
+          show "crdt_spec_rel (querySpec progr) crdtSpec'"
+            by simp 
 
-          show "execution_s_check (invariant progr) (querySpec progr) \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RegisterUser name mail), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (RegisterUser name mail), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (registerUser_impl (String name) (String mail)) (finalCheck (invariant progr) i)"
+
+
+          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RegisterUser name mail), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (RegisterUser name mail), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (registerUser_impl (String name) (String mail)) (finalCheck (invariant progr) i)"
             if c0: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
               and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RegisterUser name mail), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
@@ -386,7 +453,7 @@ proof M_show_programCorrect
             proof (rule new_unique_not_in_calls_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format])
               show " new_unique_not_in_calls s_calls' vn"
                 using AtCommit.uid_is_private'
-                by (simp add: uid_is_private'_def)
+                by (meson AtCommit.uid_is_private'2 uid_is_private'_def)
 
               show "s_calls' c \<triangleq> Call op r"
                 using that .
@@ -409,7 +476,7 @@ proof M_show_programCorrect
             have v_no_op': "vn \<notin> uniqueIds op" if "s_calls' c \<triangleq> Call op r" for c op r
             proof (rule new_unique_not_in_calls_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format])
               show " new_unique_not_in_calls s_calls' vn"
-                by (meson AtCommit.uid_is_private' uid_is_private'_def)
+                by (meson AtCommit.uid_is_private'2 uid_is_private'_def)
 
               show "s_calls' c \<triangleq> Call op r"
                 using that .
@@ -517,7 +584,11 @@ proof M_show_programCorrect
             using execution.in_initial_state by blast
 
 
-          show "execution_s_check (invariant progr) (querySpec progr) \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> UpdateMail user mail), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (UpdateMail user mail), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (updateMail_impl (UserId user) (String mail)) (finalCheck (invariant progr) i)"
+          from crdtSpec_rel
+          show "crdt_spec_rel (querySpec progr) crdtSpec'"
+            by simp 
+
+          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> UpdateMail user mail), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (UpdateMail user mail), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (updateMail_impl (UserId user) (String mail)) (finalCheck (invariant progr) i)"
             if c0: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
               and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> UpdateMail user mail), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
@@ -543,13 +614,14 @@ proof M_show_programCorrect
             next
               case inv3
 
-              from \<open>crdtSpec (KeyExists (UserId user)) \<lparr>calls = s_calls' |` vis', happensBefore = s_happensBefore' |r vis'\<rparr> (Bool True)\<close>
+              from \<open>toplevel_spec crdtSpec' \<lparr>calls = s_calls', happensBefore = s_happensBefore'\<rparr> vis' (KeyExists (UserId user)) (Bool True)\<close>
                 obtain upd_c upd_op upd_r 
                   where c0: "upd_c \<in> vis'"
                     and c1: "is_update upd_op"
                     and c2: "s_calls' upd_c \<triangleq> Call (NestedOp (UserId user) upd_op) upd_r"
                     and c3: "\<forall>c'. c' \<in> vis' \<longrightarrow> (\<forall>r. s_calls' c' \<noteq> Some (Call (DeleteKey (UserId user)) r)) \<or> (c', upd_c) \<in> s_happensBefore'"
-                  by (auto simp add: crdtSpec_def map_dw_spec_def map_spec_def deleted_calls_dw_def restrict_relation_def restrict_map_def split: if_splits)
+                  apply (auto simp add: crdt_spec_defs)
+                  by (smt extract_op_eq inv3.less_eq subset_h1)
 
 
                 show ?case
@@ -670,16 +742,20 @@ proof M_show_programCorrect
             using execution.in_initial_state by blast
 
 
-          show "execution_s_check (invariant progr) (querySpec progr) \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RemoveUser user), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (RemoveUser user), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (removeUser_impl (UserId user)) (finalCheck (invariant progr) i)"
+          from crdtSpec_rel
+          show "crdt_spec_rel (querySpec progr) crdtSpec'"
+            by simp 
+
+          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RemoveUser user), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (RemoveUser user), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (removeUser_impl (UserId user)) (finalCheck (invariant progr) i)"
             if c0: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
               and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RemoveUser user), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
           proof (repliss_vcg_l, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" )
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res PS')
 
-            from \<open>crdtSpec (DeleteKey (UserId user)) \<lparr>calls = s_calls' |` vis', happensBefore = s_happensBefore' |r vis'\<rparr> res\<close>
+            from \<open>toplevel_spec crdtSpec' \<lparr>calls = s_calls', happensBefore = s_happensBefore'\<rparr> vis' (DeleteKey (UserId user)) res\<close>
             have [simp]: "res= Undef"
-              by (auto simp add: crdtSpec_def map_dw_spec_def map_spec_def)
+              by (auto simp add: crdt_spec_defs)
 
             from Exists_AtCommit
             show ?case
@@ -749,7 +825,11 @@ proof M_show_programCorrect
             using execution.in_initial_state by blast
 
 
-          show "execution_s_check (invariant progr) (querySpec progr) \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> GetUser user), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (GetUser user), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (getUser_impl (UserId user)) (finalCheck (invariant progr) i)"
+          from crdtSpec_rel
+          show "crdt_spec_rel (querySpec progr) crdtSpec'"
+            by simp 
+
+          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> GetUser user), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (GetUser user), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (getUser_impl (UserId user)) (finalCheck (invariant progr) i)"
             if c0: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
               and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> GetUser user), invocationRes = s_invocationRes(i := None)\<rparr>"
             for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
@@ -782,13 +862,14 @@ proof M_show_programCorrect
 
               text "From the query result, we get an update that is not affected by a remove."
 
-              from \<open>crdtSpec (KeyExists (UserId user)) \<lparr>calls = s_calls' |` vis', happensBefore = s_happensBefore' |r vis'\<rparr> (Bool True)\<close>
+              from \<open>toplevel_spec crdtSpec' \<lparr>calls = s_calls', happensBefore = s_happensBefore'\<rparr> vis' (KeyExists (UserId user)) (Bool True)\<close>
               obtain upd_c upd_op upd_r
                 where upd_c0: "upd_c \<in> vis'"
                   and upd_c1: "is_update upd_op"
                   and upd_c2: "s_calls' upd_c \<triangleq> Call (NestedOp (UserId user) upd_op) upd_r"
                   and upd_c3: "\<forall>c'. c' \<in> vis' \<longrightarrow> (\<forall>r. s_calls' c' \<noteq> Some (Call (DeleteKey (UserId user)) r)) \<or> (c', upd_c) \<in> s_happensBefore'"
-                by (auto simp add:crdtSpec_def map_dw_spec_def map_spec_def deleted_calls_dw_def restrict_map_def restrict_relation_def split: if_splits)
+                apply (auto simp add: crdt_spec_defs  split: if_splits)
+                by (smt extract_op_eq in_mono inv1.less_eq)
 
 
 
