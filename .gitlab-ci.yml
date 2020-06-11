@@ -5,7 +5,7 @@ before_script:
   - curl -o ~/isabelle-deps/fuzzy_rule.zip https://codeload.github.com/peterzeller/isabelle_fuzzy_rule/zip/master
   - unzip ~/isabelle-deps/fuzzy_rule.zip -d ~/isabelle-deps/
   - echo ~/isabelle-deps/isabelle_fuzzy_rule-master >> ~/.isabelle/ROOTS
-  - echo ~/isabelle-deps/isabelle_fuzzy_rule-master >> ~/.isabelle/Isabelle2019/ROOTS
+  - echo ~/isabelle-deps/isabelle_fuzzy_rule-master >> ~/.isabelle/Isabelle2020/ROOTS
 compile:
   stage: build
   script:

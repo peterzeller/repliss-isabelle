@@ -25,7 +25,7 @@ instantiation ref :: (type) small begin
 instance proof
   obtain V_of :: "nat \<Rightarrow> V" and A :: "V" where "inj V_of" and "range V_of \<subseteq> elts A"
     by (metis infinite_\<omega> infinite_countable_subset)
-
+                    
 
   have "\<exists>(V_of::'a ref \<Rightarrow> V) A. inj V_of \<and> range V_of \<subseteq> elts A"
   proof (intro conjI exI)
