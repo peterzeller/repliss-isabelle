@@ -133,11 +133,15 @@ lemmas use_crdt_spec_rel2 = crdt_spec_rel_def[unfolded atomize_eq, THEN iffD1, r
 
 lemma use_crdt_spec_rel_toplevel:
   assumes rel: "crdt_spec_rel spec cspec"
-    and hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
-    and "operationContext_wf ctxt"
+    and wf: "operationContext_wf ctxt"
   shows "spec op ctxt r 
  =  cspec op (dom (calls ctxt)) (extract_op (calls ctxt)) (happensBefore ctxt) id  r"
 proof (fuzzy_rule use_crdt_spec_rel[OF rel])
+
+  have hb_wf: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+    by (simp add: wf operationContext_wf_hb_field)
+
+
   show "is_reverse Some id"
     by (simp add: is_reverse_def)
 

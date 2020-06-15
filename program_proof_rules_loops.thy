@@ -557,6 +557,141 @@ lemma
   using imp by auto
 
 
+lemma operationContext_wf_getContext:
+  assumes  ctxt1_def: "ctxt1 = (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)) (Some (ps_vis PS \<union> set (ps_localCalls PS))))"
+    and \<open>state_wellFormed S\<close>
+    and rel: "proof_state_rel PS S"
+  shows "operationContext_wf ctxt1"
+  unfolding operationContext_wf_def
+proof (intro conjI)
+
+  obtain i' where vis: "visibleCalls S i' \<triangleq> (ps_vis PS \<union> set (ps_localCalls PS))"
+    using proof_state_rel_vis rel by blast
+
+  have vis_subset_calls: "\<exists>y. calls PS x \<triangleq> y" if "x \<in> ps_vis PS" for x
+    using \<open>state_wellFormed S\<close> proof_state_rel_calls rel that  wellFormed_visibleCallsSubsetCalls_h(2) vis by fastforce
+
+  have local_subset_calls: "\<exists>y. calls PS x \<triangleq> y" if "x \<in> set (ps_localCalls PS)" for x
+    using \<open>state_wellFormed S\<close> proof_state_rel_calls rel that vis wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
+
+
+
+
+
+  show " Field (happensBefore ctxt1) \<subseteq> dom (calls ctxt1)"
+    by (auto simp add: ctxt1_def getContextH_def Field_def updateHb_cases restrict_relation_def 
+        vis_subset_calls local_subset_calls)
+  have "trans (happensBefore PS)"
+    by (smt FieldI2 \<open>state_wellFormed S\<close> disjoint_iff_not_equal happensBefore_transitive proof_state_rel_happensBefore_localCalls_disjoint proof_state_rel_hb rel trans_def updateHb_simp2)
+
+
+  have "wf ((happensBefore S)\<inverse>)"
+    by (simp add: \<open>state_wellFormed S\<close> happensBefore_wf)
+
+  have "wf ((happensBefore PS)\<inverse>)"
+    by (smt FieldI2 \<open>wf ((happensBefore S)\<inverse>)\<close> converse_iff disjoint_iff_not_equal proof_state_rel_happensBefore_localCalls_disjoint proof_state_rel_hb rel updateHb_simp2 wf_eq_minimal)
+
+
+  show "trans (happensBefore ctxt1)"
+    unfolding ctxt1_def
+    using `trans (happensBefore PS)` happensBefore_transitive proof_state_rel_def rel trans_Restr
+    by (auto simp add: getContextH_def restrict_relation_def) fastforce
+  show "wf ((happensBefore ctxt1)\<inverse>)"
+    unfolding ctxt1_def
+    using `wf ((happensBefore PS)\<inverse>)` 
+    by (auto simp add: getContextH_def restrict_relation_def)
+      (metis \<open>wf ((happensBefore S)\<inverse>)\<close> converse_Int proof_state_rel_hb rel wf_Int1)
+qed
+
+lemma Field_def':
+"Field R = {x | x y. (x,y)\<in>R \<or> (y,x)\<in>R}"
+  by (auto simp add: Field_def)
+
+lemma updateHb_trans:
+  assumes hb_trans: "trans hb"
+    and vis_ls_disj: "vis \<inter> set ls = {}"
+    and hb_ls_disj: "Field hb \<inter> set ls = {}"
+    and vis_dc: "vis = vis \<down> hb"
+    and ls_dist: "distinct ls"
+  shows "trans (updateHb hb vis ls)"
+  apply (auto simp add: trans_def updateHb_cases in_sequence_in1 in_sequence_in2 elim: transE[OF hb_trans])
+  apply (metis downwardsClosure_in vis_dc)
+  apply (meson FieldI2 disjoint_iff_not_equal hb_ls_disj in_sequence_in1)
+  apply (meson FieldI1 disjoint_iff_not_equal hb_ls_disj)
+  using FieldI1 hb_ls_disj in_sequence_in2 apply fastforce
+  using FieldI1 hb_ls_disj in_sequence_in2 apply fastforce
+  apply (meson disjoint_iff_not_equal in_sequence_in2 vis_ls_disj)
+  apply (auto simp add: in_sequence_def)
+  by (metis distinct_conv_nth dual_order.strict_trans ls_dist)
+
+
+
+lemma operationContext_wf_current_operationContext:
+  assumes  \<open>state_wellFormed S\<close>
+    and rel: "proof_state_rel PS S"
+  shows "operationContext_wf (current_operationContext PS)"
+  unfolding operationContext_wf_def
+proof (intro conjI)
+
+  obtain i' where vis: "visibleCalls S i' \<triangleq> (ps_vis PS \<union> set (ps_localCalls PS))"
+    using proof_state_rel_vis rel by blast
+
+  have vis_subset_calls: "\<exists>y. calls PS x \<triangleq> y" if "x \<in> ps_vis PS" for x
+    using \<open>state_wellFormed S\<close> proof_state_rel_calls rel that  wellFormed_visibleCallsSubsetCalls_h(2) vis by fastforce
+
+  have local_subset_calls: "\<exists>y. calls PS x \<triangleq> y" if "x \<in> set (ps_localCalls PS)" for x
+    using \<open>state_wellFormed S\<close> proof_state_rel_calls rel that vis wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
+
+
+  have  " Field (happensBefore S) \<subseteq> dom (calls S)"
+    by (meson assms(1) domIff subsetI wellFormed_happensBefore_Field)
+
+  then
+  have  "Field (happensBefore PS) \<subseteq> dom (calls PS)"
+    by (auto simp add: proof_state_rel_hb[OF rel] proof_state_rel_calls[OF rel] subset_eq Field_def' updateHb_cases)
+
+  show " Field (happensBefore (current_operationContext PS)) \<subseteq> dom (calls (current_operationContext PS))"
+    using \<open>Field (happensBefore PS) \<subseteq> dom (calls PS)\<close>
+    by (auto simp add: current_operationContext_def getContextH_def Field_def' updateHb_cases restrict_relation_def 
+        vis_subset_calls local_subset_calls subset_eq in_sequence_in1 in_sequence_in2)
+
+
+  have "trans (happensBefore PS)"
+    by (smt FieldI2 \<open>state_wellFormed S\<close> disjoint_iff_not_equal happensBefore_transitive proof_state_rel_happensBefore_localCalls_disjoint proof_state_rel_hb rel trans_def updateHb_simp2)
+
+
+  have "wf ((happensBefore S)\<inverse>)"
+    by (simp add: \<open>state_wellFormed S\<close> happensBefore_wf)
+
+  have "wf ((happensBefore PS)\<inverse>)"
+    by (smt FieldI2 \<open>wf ((happensBefore S)\<inverse>)\<close> converse_iff disjoint_iff_not_equal proof_state_rel_happensBefore_localCalls_disjoint proof_state_rel_hb rel updateHb_simp2 wf_eq_minimal)
+
+  have "ps_vis PS \<inter> set (ps_localCalls PS) = {}"
+    using proof_state_rel_def rel by blast 
+
+  show "trans (happensBefore (current_operationContext PS))"
+    apply (auto simp add: current_operationContext_def intro!: updateHb_trans)
+    subgoal by (simp add: \<open>trans (happensBefore PS)\<close>)
+    subgoal
+      using `ps_vis PS \<inter> set (ps_localCalls PS) = {}` by auto
+    subgoal
+      by (meson disjoint_iff_not_equal proof_state_rel_happensBefore_localCalls_disjoint rel)
+    subgoal
+      by (simp add: downwardsClosure_in)
+    subgoal
+      by (smt FieldI1 UnE Un_upper1 \<open>\<And>x. \<lbrakk>x \<in> Field (happensBefore PS); x \<in> set (ps_localCalls PS)\<rbrakk> \<Longrightarrow> False\<close> assms(1) downwardsClosure_in proof_state_rel_hb rel subset_h1 updateHb_simp_distinct2 vis wf_vis_downwards_closed2)
+    subgoal
+      using proof_state_rel_localCalls_distinct rel by blast
+    done
+
+  show "wf ((happensBefore (current_operationContext PS))\<inverse>)"
+    unfolding current_operationContext_def
+    apply simp
+    by (metis \<open>wf ((happensBefore S)\<inverse>)\<close> proof_state_rel_def rel)
+  
+qed
+
+
 lemma step_io_simulation:
   assumes rel: "proof_state_rel PS S"
     and step: "S ~~ (i, action, Inv) \<leadsto>\<^sub>S S'"
@@ -1644,15 +1779,66 @@ proof (rule ccontr)
               by (auto simp add: getContextH_def proof_state_rel_facts[OF rel])
 
             from `querySpec (prog S) Op (getContext S i') res`
-            have "querySpec (prog S) Op
+            have qspec: "querySpec (prog S) Op
          (getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
            (Some (ps_vis PS \<union> set (ps_localCalls PS))))
            res" 
               by (auto simp add: vis ctxt_same)
 
-            show "toplevel_spec querySpec' (current_operationContext PS) (current_vis PS) Op res"
+            define ctxt1 where "ctxt1 \<equiv> getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)) (Some (ps_vis PS \<union> set (ps_localCalls PS)))"
 
-              sorry
+
+            have qspec1: "querySpec (prog S) Op ctxt1 res"
+              using ctxt1_def qspec by blast 
+
+            have vis_subset_calls: "\<exists>y. calls PS x \<triangleq> y" if "x \<in> ps_vis PS" for x
+              using \<open>state_wellFormed S\<close> proof_state_rel_calls rel that vis wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
+
+
+            have local_subset_calls: "\<exists>y. calls PS x \<triangleq> y" if "x \<in> set (ps_localCalls PS)" for x
+              using \<open>state_wellFormed S\<close> proof_state_rel_calls rel that vis wellFormed_visibleCallsSubsetCalls_h(2) by fastforce
+
+
+            show "toplevel_spec querySpec' (current_operationContext PS) (current_vis PS) Op res"
+            proof (simp add: toplevel_spec_def)
+
+              show " querySpec' Op (current_vis PS) (extract_op (calls (current_operationContext PS)))
+                       (happensBefore (current_operationContext PS)) id res"
+              proof (rule use_crdt_spec_rel[OF spec_rel, THEN iffD1])
+
+                have ctxt_same: "(getContextH (calls PS) (updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS))
+                  (Some (ps_vis PS \<union> set (ps_localCalls PS))))
+                  = (sub_context Some (current_vis PS) (current_operationContext PS))"
+                  by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def restrict_hb_def
+                      getContextH_def restrict_map_def fmap_map_values_def 
+                      ctxt_restrict_calls_def current_operationContext_def
+                        option_bind_def current_vis_def restrict_relation_def
+                        updateHb_cases vis_subset_calls local_subset_calls
+                        split: option.splits call.splits
+                      intro!: HOL.ext)
+
+                from `querySpec (prog S) Op ctxt1 res`
+                show "querySpec (prog S) Op (sub_context Some (current_vis PS) (current_operationContext PS)) res"
+                  unfolding ctxt1_def
+                  by (simp add: ctxt_same)
+
+
+                show "is_reverse Some id"
+                  by (simp add: is_reverse_trivial)
+
+                show "Some Op \<triangleq> Op" by simp
+
+                show "current_vis PS \<subseteq> dom (map_map (calls (current_operationContext PS)) call_operation \<ggreater> Some)"
+                  apply (auto simp add: current_vis_def map_map_def current_operationContext_def option_bind_def map_chain_def )
+                  using vis_subset_calls apply fastforce
+                  using local_subset_calls by fastforce
+
+
+                show "operationContext_wf (current_operationContext PS)"
+                  using operationContext_wf_current_operationContext proof_state_rel_def rel by blast
+              qed
+            qed
+
 
 
             show "uniqueIds Op \<subseteq> ps_localKnown PS"
@@ -4560,11 +4746,6 @@ proof (rule execution_s_check_proof_rule)
       and wf: "proof_state_wellFormed PS"
     for  PS' cmd' ok
   proof 
-
-    from step_io  
-    have ???
-      apply (auto simp add: step_io_def call_def unique_wf return_def split: if_splits)
-      sorry
 
 
     from step_io  
