@@ -596,11 +596,33 @@ proof (intro conjI)
     unfolding ctxt1_def
     using `trans (happensBefore PS)` happensBefore_transitive proof_state_rel_def rel trans_Restr
     by (auto simp add: getContextH_def restrict_relation_def) fastforce
-  show "wf ((happensBefore ctxt1)\<inverse>)"
+
+
+  have "irrefl (happensBefore S)"
+    by (simp add: assms(2) happensBefore_irrefl)
+  hence "irrefl (happensBefore PS)"
+    by (metis irrefl_def proof_state_rel_hb rel updateHb_simp_distinct2)
+
+  thus "irrefl (happensBefore ctxt1)"
     unfolding ctxt1_def
-    using `wf ((happensBefore PS)\<inverse>)` 
-    by (auto simp add: getContextH_def restrict_relation_def)
-      (metis \<open>wf ((happensBefore S)\<inverse>)\<close> converse_Int proof_state_rel_hb rel wf_Int1)
+    apply (auto simp add: getContextH_def restrict_relation_def irrefl_def updateHb_cases)
+    using proof_state_rel_facts(17) rel apply fastforce
+    apply (meson disjoint_iff_not_equal in_sequence_in1 proof_state_rel_vis_localCalls_disjoint rel)
+    using proof_state_rel_vis_localCalls_disjoint rel apply fastforce
+    using assms(2) happensBefore_not_refl proof_state_rel_hb rel updateHb_cases by fastforce
+
+   
+
+
+  show "finite (dom (calls ctxt1))"
+  proof (rule finite_subset)
+    show "finite (dom (calls PS))"
+      using proof_state_rel_def rel wf_finite_calls by fastforce
+
+    show "dom (calls ctxt1) \<subseteq> dom (calls PS)"
+      by (auto simp add: ctxt1_def getContextH_def)
+  qed
+
 qed
 
 lemma Field_def':
@@ -684,10 +706,34 @@ proof (intro conjI)
       using proof_state_rel_localCalls_distinct rel by blast
     done
 
-  show "wf ((happensBefore (current_operationContext PS))\<inverse>)"
+
+  have "irrefl (happensBefore PS)"
+    by (metis \<open>trans (happensBefore PS)\<close> \<open>wf ((happensBefore PS)\<inverse>)\<close> acyclic_converse acyclic_irrefl trancl_id wf_acyclic) 
+
+
+  show "irrefl (happensBefore (current_operationContext PS))"
     unfolding current_operationContext_def
-    apply simp
-    by (metis \<open>wf ((happensBefore S)\<inverse>)\<close> proof_state_rel_def rel)
+    apply (auto simp add: irrefl_def updateHb_cases)
+    subgoal
+      by (meson \<open>irrefl (happensBefore PS)\<close> irrefl_def)
+    subgoal
+      using \<open>ps_vis PS \<inter> set (ps_localCalls PS) = {}\<close> by blast
+    subgoal
+      apply (auto simp add: in_sequence_def)
+      by (metis (no_types, lifting) dual_order.strict_trans nat_neq_iff nth_eq_iff_index_eq proof_state_rel_localCalls_distinct rel)
+    done
+
+
+  show " finite (dom (calls (current_operationContext PS)))"
+  proof (rule finite_subset)
+
+    show "finite (dom (calls PS))"
+      using assms(1) proof_state_rel_calls rel wf_finite_calls by fastforce
+
+    show "dom (calls (current_operationContext PS)) \<subseteq> dom (calls PS)"
+      by (simp add: current_operationContext_def)
+  qed
+
   
 qed
 

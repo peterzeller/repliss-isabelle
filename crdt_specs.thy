@@ -15,17 +15,38 @@ text "An operation context is well-formed if the happens-before relation is tran
 definition 
 "operationContext_wf ctxt \<equiv>
      trans (happensBefore ctxt)
-   \<and> wf ((happensBefore ctxt)\<inverse>)
-   \<and> Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+   \<and> irrefl (happensBefore ctxt)
+   \<and> Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)
+   \<and> finite (dom (calls ctxt))"
+
 
 lemma operationContext_wf_trans: "operationContext_wf ctxt \<Longrightarrow> trans (happensBefore ctxt)"
+  unfolding operationContext_wf_def by auto
+
+lemma operationContext_wf_irrefl: "operationContext_wf ctxt \<Longrightarrow> irrefl (happensBefore ctxt)"
   unfolding operationContext_wf_def by auto
 
 lemma operationContext_wf_hb_field: "operationContext_wf ctxt \<Longrightarrow> Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
   unfolding operationContext_wf_def by auto
 
-lemma operationContext_wf_wf: "operationContext_wf ctxt \<Longrightarrow> wf ((happensBefore ctxt)\<inverse>)"
+lemma operationContext_wf_finite: "operationContext_wf ctxt \<Longrightarrow> finite (dom (calls ctxt))"
   unfolding operationContext_wf_def by auto
+
+lemma operationContext_wf_finite_hb: 
+  assumes "operationContext_wf ctxt"
+  shows "finite (happensBefore ctxt)"
+proof (rule finite_subset)
+  show "happensBefore ctxt \<subseteq> dom (calls ctxt) \<times> dom (calls ctxt)"
+    using operationContext_wf_hb_field[OF assms] 
+    by (auto simp add: Field_def)
+  show "finite (dom (calls ctxt) \<times> dom (calls ctxt))"
+    using operationContext_wf_finite[OF assms] by auto
+qed
+
+lemma operationContext_wf_wf: 
+  assumes "operationContext_wf ctxt"
+  shows "wf ((happensBefore ctxt)\<inverse>)"
+  by (simp add: assms operationContext_wf_finite_hb operationContext_wf_irrefl operationContext_wf_trans wf_converse)
 
 lemma operationContext_wf_exists_max:
   assumes wf: "operationContext_wf ctxt"
@@ -767,9 +788,26 @@ lemma Field_restrict_ctxt_op:
 lemma operationContext_wf_restrict_ctxt_op:
   assumes "operationContext_wf ctxt"
   shows "operationContext_wf (restrict_ctxt_op (set_to_flag x) ctxt)"
-  by (meson Field_restrict_ctxt_op assms operationContext_wf_def trans_restrict_ctxt_op wf_restrict_ctxt_op)
+  unfolding operationContext_wf_def 
+proof (intro conjI)
+  show "trans (happensBefore (restrict_ctxt_op (set_to_flag x) ctxt))"
+  by (simp add: assms operationContext_wf_trans trans_restrict_ctxt_op)
+  
 
+  show "Field (happensBefore (restrict_ctxt_op (set_to_flag x) ctxt)) \<subseteq> dom (calls (restrict_ctxt_op (set_to_flag x) ctxt))"
+    by (simp add: Field_restrict_ctxt_op assms operationContext_wf_hb_field)
 
+  show "irrefl (happensBefore (restrict_ctxt_op (set_to_flag x) ctxt))"
+    by (meson assms happensBefore_restrict_ctxt_op irrefl_def operationContext_wf_irrefl)
+
+  show "finite (dom (calls (restrict_ctxt_op (set_to_flag x) ctxt)))"
+  proof (rule finite_subset)
+    show "dom (calls (restrict_ctxt_op (set_to_flag x) ctxt)) \<subseteq> dom (calls ctxt)"
+      by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def option_bind_def split: option.splits)
+    show "finite (dom (calls ctxt))"
+      by (simp add: assms operationContext_wf_finite)
+  qed
+qed
 
 lemma set_aw_spec_Contains:
   assumes spec: "set_aw_spec (Contains x) ctxt res"

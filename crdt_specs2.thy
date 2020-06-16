@@ -244,26 +244,38 @@ definition set_rw_spec' :: "('op, 'v setOp, ('r::{default,from_bool})) ccrdtSpec
 lemma sub_context_operationContext_wf:
   assumes wf: "operationContext_wf ctxt"
   shows "operationContext_wf (sub_context C_in Cs ctxt)"
-  using wf
   unfolding operationContext_wf_def
-proof (intro conjI; elim conjE)
-  assume a0: "trans (happensBefore ctxt)"
-    and a1: "wf ((happensBefore ctxt)\<inverse>)"
-    and a2: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+proof (intro conjI)
+  have a0: "trans (happensBefore ctxt)"
+    by (simp add: local.wf operationContext_wf_trans)
+
+  have a1: "wf ((happensBefore ctxt)\<inverse>)"
+    by (simp add: local.wf operationContext_wf_wf)
+
+  have a2: "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
+    by (simp add: local.wf operationContext_wf_hb_field)
+
 
 
   show "trans (happensBefore (sub_context C_in Cs ctxt))"
     by (metis (mono_tags, lifting) a0 happens_before_sub_context trans_def)
 
-  show " wf ((happensBefore (sub_context C_in Cs ctxt))\<inverse>)"
-    by (metis a1 converse.cases converse.intros happens_before_sub_context wf_def)
+  show "irrefl (happensBefore (sub_context C_in Cs ctxt))"
+    by (meson a1 acyclic_converse happens_before_sub_context irrefl_def local.wf operationContext_wf_finite_hb wf_acyclic wf_asym wf_iff_acyclic_if_finite)
+
 
   show "Field (happensBefore (sub_context C_in Cs ctxt)) \<subseteq> dom (calls (sub_context C_in Cs ctxt))"
     using a2
     by (auto simp add: sub_context_def restrict_ctxt_op_def ctxt_restrict_calls_def restrict_ctxt_def
           restrict_relation_def fmap_map_values_def restrict_map_def Field_def)
 
-
+  show "finite (dom (calls (sub_context C_in Cs ctxt)))"
+  proof (rule finite_subset)
+    show "dom (calls (sub_context C_in Cs ctxt)) \<subseteq> dom (calls ctxt)"
+      by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def ctxt_restrict_calls_def fmap_map_values_def option_bind_def restrict_map_def split: option.splits if_splits)
+    show "finite (dom (calls ctxt))"
+      using local.wf operationContext_wf_def by blast
+  qed
 qed
 
 

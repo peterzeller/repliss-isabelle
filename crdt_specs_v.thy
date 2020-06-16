@@ -113,7 +113,7 @@ shows "(x,y) \<in> happensBefore ctxt
 
 
 definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 'res) ccrdtSpec \<Rightarrow> bool" where
-"crdt_spec_rel spec cspec \<equiv>
+"crdt_spec_rel spec cspec \<equiv>                                                 
 \<forall>C_in::'op \<rightharpoonup> 'opn. \<forall>C_out::'opn \<Rightarrow> 'op.
   is_reverse C_in C_out
   \<longrightarrow> 
