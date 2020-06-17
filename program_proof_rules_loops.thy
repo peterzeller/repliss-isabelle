@@ -491,27 +491,6 @@ method remove_first_equality = (
     ((rule impI)+)?
     )
 
-lemma "\<And>y a b q. \<lbrakk>x = y; A x y a; B x y b; C x y \<rbrakk> \<Longrightarrow> D x y a"
-  apply remove_first_equality
-  oops
-
-lemma "\<lbrakk>S = Sxxxxxxxxxxxxxxxxxx; (i, action, Inv) = (ia, ABeginAtomic t vis', True); S' = S'';
-     localState Sxxxxxxxxxxxxxxxxxx ia \<triangleq> ls; currentProc Sxxxxxxxxxxxxxxxxxx ia \<triangleq> f; f ls = BeginAtomic ls';
-     currentTransaction Sxxxxxxxxxxxxxxxxxx ia = None; transactionStatus Sxxxxxxxxxxxxxxxxxx t = None;
-     prog S'a = prog Sxxxxxxxxxxxxxxxxxx; state_monotonicGrowth ia Sxxxxxxxxxxxxxxxxxx S'a;
-     \<And>t. transactionOrigin Sxxxxxxxxxxxxxxxxxx t \<triangleq> ia = transactionOrigin S'a t \<triangleq> ia; invariant_all S'a;
-     \<And>tx. transactionStatus S'a tx \<noteq> Some Uncommitted; state_wellFormed S'a; state_wellFormed S'';
-     localState S'a ia \<triangleq> ls; currentProc S'a ia \<triangleq> f; currentTransaction S'a ia = None;
-     visibleCalls Sxxxxxxxxxxxxxxxxxx ia \<triangleq> vis; visibleCalls S'a ia \<triangleq> vis; chooseSnapshot vis' vis S'a;
-     consistentSnapshot S'a vis'; transactionStatus S'a t = None; \<And>c. callOrigin S'a c \<noteq> Some t;
-     transactionOrigin S'a t = None;
-     S'' = S'a
-     \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommitted),
-        transactionOrigin := transactionOrigin S'a(t \<mapsto> ia), currentTransaction := currentTransaction S'a(ia \<mapsto> t),
-        localState := localState S'a(ia \<mapsto> ls'), visibleCalls := visibleCalls S'a(ia \<mapsto> vis')\<rparr>\<rbrakk>
-    \<Longrightarrow> False"
-  apply remove_first_equality
-  oops
 
 
 

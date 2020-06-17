@@ -67,9 +67,7 @@ proof -
 
   from wf_queryspec[OF state_wf] upd_call
   obtain ctxt where "querySpec progr oper ctxt upd_r"
-    apply atomize_elim
-    apply auto
-    by blast
+    by auto blast
   thus ?thesis
     by blast
 qed
@@ -140,9 +138,7 @@ next
 
 
   show ?case 
-    apply (simp add: updateHb_cons)
-    apply (subst updateHb_simp_split)
-  proof (rule acyclic_union_disjoint)
+  proof (simp add: updateHb_cons, subst updateHb_simp_split, rule acyclic_union_disjoint)
     show "acyclic (vis \<times> {a})"
       by (simp add: acyclic_prod `a \<notin> vis`)
     show " acyclic (updateHb {} (insert a vis) cs)"
@@ -164,9 +160,8 @@ lemma acyclic_updateHb:
     and "vis \<inter> set cs = {}"
     and "Field hb \<inter> set cs = {}"
   shows "acyclic (updateHb hb vis cs)"
-  apply (subst  updateHb_simp_split)
   using `acyclic hb`
-proof (rule acyclic_union_disjoint)
+proof (subst  updateHb_simp_split, rule acyclic_union_disjoint)
 
   show "acyclic (updateHb {} vis cs)"
     by (simp add: acyclic_updateHb1 assms(2) assms(3))

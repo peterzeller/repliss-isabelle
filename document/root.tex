@@ -37,6 +37,19 @@
 % for uniform font size
 %\renewcommand{\isastyle}{\isastyleminor}
 
+% See
+\usepackage{ifthen}
+
+\newcommand{\DefineSnippet}[2]{%
+ \expandafter\newcommand\csname snippet--#1\endcsname{%
+   \begin{quote}
+   \begin{isabelle}
+   #2
+   \end{isabelle}
+   \end{quote}}}
+\newcommand{\Snippet}[1]{%
+ \ifcsname snippet--#1\endcsname{\csname snippet--#1\endcsname}%
+ \else+++++++ERROR: Snippet ``#1 not defined+++++++ \fi}
 
 \begin{document}
 

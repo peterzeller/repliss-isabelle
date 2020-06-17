@@ -176,20 +176,6 @@ method implication_subst_fuzzy_h uses r declares pos_cong = (
 method implication_subst_fuzzy uses r declares pos_cong =
   (implication_subst_fuzzy_h r: r pos_cong: pos_cong, (unfold not_not)?)
 
-lemma example1: 
-  assumes a1: "\<And>x y. x = 3 \<and> y = 4 \<Longrightarrow> Q x y"
-  shows "\<exists>x y. A x \<and> Q x y \<and> B y"
-proof (implication_subst r: a1)
-  show "\<exists>x y. A x \<and> (x = 3 \<and> y = 4) \<and> B y"
-    oops
-
-
-lemma example2: 
-  assumes a1: "\<And>x y. x = 3 \<and> y = 4 \<Longrightarrow> Q x y"
-  shows "(\<exists>x y. \<not>(\<not>A x \<or> \<not>Q x y \<or> \<not>B y))"
-proof (implication_subst r: a1)
-  show "\<exists>x y. \<not> (\<not> A x \<or> \<not> (x = 3 \<and> y = 4) \<or> \<not> B y)"
-    oops
 
 
 

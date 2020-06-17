@@ -201,19 +201,32 @@ next
   next
     case (beginAtomic s' ls f ls' t vis' snapshot)
     show ?thesis 
-      using g1 g2 g3 apply (auto simp add: beginAtomic)
-      using \<open>transactionStatus C t = None\<close> \<open>state_wellFormed C\<close> wellFormed_state_callOrigin_transactionStatus apply auto[1]
-      using IH1 \<open>currentTransaction C s' = None\<close> local.beginAtomic(8) apply fastforce
-       defer
-      using IH1 apply blast
-    proof -
-      assume a0: "snapshot = vis"
-        and a1: "c \<in> vis"
-        and a2: "callOrigin C c \<triangleq> tx"
-        and a3: "tx \<noteq> t"
-        and a4: "s = s'"
+      using g1 g2 g3 proof (auto simp add: beginAtomic)
+
+      show "currentTransaction C s \<triangleq> t"
+        if c0: "visibleCalls C s \<triangleq> vis"
+          and c1: "c \<in> vis"
+          and c2: "callOrigin C c \<triangleq> t"
+          and c3: "tx = t"
+          and c4: "s \<noteq> s'"
+        using c2 local.beginAtomic(7) step.hyps(1) wf_no_transactionStatus_origin_for_nothing by blast
+
 
       show "transactionStatus C tx \<triangleq> Committed"
+        if c0: "visibleCalls C s \<triangleq> vis"
+          and c1: "c \<in> vis"
+          and c2: "callOrigin C c \<triangleq> tx"
+          and c3: "tx \<noteq> t"
+          and c4: "s \<noteq> s'"
+          and c5: "currentTransaction C s \<noteq> Some tx"
+        using IH1 c0 c2 c5 g2 by auto
+
+      show "transactionStatus C tx \<triangleq> Committed"
+        if a0: "snapshot = vis"
+          and a1: "c \<in> vis"
+          and a2: "callOrigin C c \<triangleq> tx"
+          and a3: "tx \<noteq> t"
+          and a4: "s = s'"
       proof (cases "c \<in> vis'")
         case True
         then show "transactionStatus C tx \<triangleq> Committed"
@@ -236,17 +249,43 @@ next
   next
     case (endAtomic s' ls f ls' t)
     show ?thesis 
-      using g1 g2 g3 apply (auto simp add: endAtomic)
-      using IH1 local.endAtomic(6) apply fastforce
-      using IH1 by blast
+      using g1 g2 g3 
+      by (auto simp add: endAtomic) (use IH1 local.endAtomic(6) in \<open>fastforce\<close>)+
       
   next
     case (dbop s' ls f Op ls' t c' res vis')
     show ?thesis 
-      using g1 g2 g3 apply (auto simp add: dbop split: if_splits)
-      using IH1 local.dbop(6) local.dbop(9) apply fastforce
-      using local.dbop(7) step.hyps(1) wellFormed_visibleCallsSubsetCalls2 apply blast
-      using IH1 by blast
+      using g1 g2 g3 
+    proof (auto simp add: dbop split: if_splits)
+
+      show "transactionStatus C tx \<triangleq> Committed"
+        if c0: "s = s'"
+          and c1: "c \<noteq> c'"
+          and c2: "callOrigin C c \<triangleq> tx"
+          and c3: "vis = insert c' vis'"
+          and c4: "t \<noteq> tx"
+          and c5: "c \<in> vis'"
+        using IH1 c2 c4 c5 local.dbop(6) local.dbop(9) by fastforce
+
+      show "transactionStatus C tx \<triangleq> Committed"
+        if c0: "s \<noteq> s'"
+          and c1: "visibleCalls C s \<triangleq> vis"
+          and c2: "c' \<in> vis"
+          and c3: "c = c'"
+          and c4: "t = tx"
+          and c5: "currentTransaction C s \<noteq> Some tx"
+        using c1 c2 local.dbop(7) step.hyps(1) wellFormed_visibleCallsSubsetCalls2 by blast
+
+
+      show "transactionStatus C tx \<triangleq> Committed"
+        if c0: "s \<noteq> s'"
+          and c1: "visibleCalls C s \<triangleq> vis"
+          and c2: "c \<in> vis"
+          and c3: "c \<noteq> c'"
+          and c4: "callOrigin C c \<triangleq> tx"
+          and c5: "currentTransaction C s \<noteq> Some tx"
+        using IH1 c1 c4 c5 g2 by blast
+    qed
       
   next
     case (invocation s' procName initialState impl)
@@ -345,10 +384,19 @@ next
     proof (cases "s' = s")
       case True
       then show ?thesis 
-      using g1 g2 g3 apply (auto simp add: dbop split: if_splits)
-      apply (metis local.dbop(6) local.dbop(9) step.hyps(1) wellFormed_state_calls_from_current_transaction_in_vis)
-      using local.dbop(7) local.dbop(9) step.hyps(1) wellFormed_visibleCallsSubsetCalls2 apply blast
-      using IH2 local.dbop(9) by blast
+        using g1 g2 g3 
+      proof (auto simp add: dbop split: if_splits, fuzzy_goal_cases A B C)
+        case A
+        show ?case
+          by (metis A.Some_eq A.not_member local.dbop(6) local.dbop(9) step.hyps(1) wellFormed_state_calls_from_current_transaction_in_vis)
+      next case B
+        show ?case
+          using B.member local.dbop(7) local.dbop(9) step.hyps(1) wellFormed_visibleCallsSubsetCalls2 by blast
+      next case C
+        show ?case
+          using C.callOrigin_eq C.member C.not_member IH2 local.dbop(9) by blast
+      qed
+
       
     next
       case False
@@ -357,10 +405,18 @@ next
         using local.dbop(6) not_uncommitted_cases step.hyps(1) wellFormed_currentTransactionUncommitted by blast
       
       show ?thesis 
-      using False g1 g2 g3 apply (auto simp add: dbop split: if_splits)
-      using not_committed_h IH1 local.dbop(6) step.hyps(1) wellFormed_currentTransaction_unique_h(1) apply blast
-      using local.dbop(7) step.hyps(1) wellFormed_visibleCallsSubsetCalls2 apply blast 
-      using IH2 by blast
+        using False g1 g2 g3 
+      proof (auto simp add: dbop split: if_splits, fuzzy_goal_cases A B C)
+       case A
+       show ?case
+         using A.callOrigin_eq A.visibleCalls_eq False IH1 g2 local.dbop(6) not_committed_h step.hyps(1) wellFormed_currentTransaction_unique by blast
+      next case B
+        show ?case
+          using B.member B.visibleCalls_eq local.dbop(7) step.hyps(1) wellFormed_visibleCallsSubsetCalls2 by blast
+      next case C
+        show ?case
+          using C.callOrigin_eq C.visibleCalls_eq IH2 g2 by blast
+      qed
     qed
   next
     case (invocation s procName initialState impl)
@@ -391,9 +447,13 @@ next
   next
     case (beginAtomic s ls f ls' t vis snapshot)
     show ?thesis 
-      using g1 g2 g3 apply (auto simp add: beginAtomic split: if_splits)
-      using local.beginAtomic(7) step.hyps(1) wellFormed_state_callOrigin_transactionStatus apply blast
-      using IH4 by blast
+      using g1 g2 g3 
+    proof (auto simp add: beginAtomic split: if_splits, fuzzy_goal_cases A B)
+      case A show ?case
+        using A.callOrigin_eq2 local.beginAtomic(7) step.hyps(1) wf_no_transactionStatus_origin_for_nothing by blast
+    next case B show ?case
+        using B.callOrigin_eq B.callOrigin_eq2 B.member B.not_tx'___def2 IH4 by auto
+    qed
       
   next
     case (endAtomic s ls f ls' t)
@@ -401,11 +461,17 @@ next
   next
     case (dbop s ls f Op ls' t c res vis)
     show ?thesis 
-      using g1 g2 g3 apply (auto simp add: dbop split: if_splits)
-      using local.dbop(7) step.hyps(1) wellFormed_happensBefore_calls_r apply blast
-      using IH1 local.dbop(6) local.dbop(9) apply fastforce
-      using local.dbop(7) step.hyps(1) wellFormed_happensBefore_calls_l apply blast
-      using IH4 by blast
+      using g1 g2 g3 
+    proof (auto simp add: dbop split: if_splits, fuzzy_goal_cases A B C D)
+      case A show ?case
+        using A.member local.dbop(7) step.hyps(1) wellFormed_happensBefore_calls_r by blast
+    next case B show ?case
+        using B.callOrigin_eq B.member B.not_tx'___def B.t___def IH1 local.dbop(6) local.dbop(9) by fastforce
+    next case C show ?case
+        using C.member local.dbop(7) step.hyps(1) wellFormed_happensBefore_calls_l by blast
+    next case D show ?case
+        using D.callOrigin_eq D.callOrigin_eq2 D.member D.not_tx'___def IH4 by blast
+    qed
       
   next
     case (invocation s procName initialState impl)
@@ -552,21 +618,44 @@ qed
 lemma happensBefore_transitive:
 assumes wf: "state_wellFormed S"
 shows "trans (happensBefore S)"
-using assms  apply (induct rule: wellFormed_induct) 
-apply (auto simp add: initialState_def step_simps_all)
-apply (subst trans_def)
-apply (auto dest: transD)
-  apply (meson causallyConsistent_def wellFormed_state_causality(1))
-  by (meson domIff happensBefore_in_calls_left)
+  using assms  proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case
+    by (auto simp add: initialState_def step_simps_all)
+next
+  case (step t a s)
+  then show ?case
+  proof (auto simp add: initialState_def step_simps_all dest: transD intro!: transI, fuzzy_goal_cases A B C D)
+    case A
+    show ?case
+      by (meson A.member A.member2 A.not_member A.trans transE)
+  next case B
+    show ?case
+      by (meson B.member B.member2 B.not_member B.trans transE)
+  next case C
+    show ?case
+      by (meson C.member C.member2 C.state_wellFormed C.visibleCalls_eq causallyConsistent_def wellFormed_state_causality(1))
+  next case D
+    show ?case
+      using D.calls_eq D.member2 D.state_wellFormed wellFormed_happensBefore_calls_l by blast
+  qed 
+qed
   
 
 
 lemma happensBefore_irrefl:
 assumes wf: "state_wellFormed S"
 shows "irrefl (happensBefore S)"
-using assms  apply (induct rule: wellFormed_induct) 
-  apply (auto simp add: initialState_def step_simps_all irreflI)
-  by (smt Un_iff irrefl_def mem_Sigma_iff singletonD wellFormed_visibleCallsSubsetCalls2)
+using assms  proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case
+    by  (auto simp add: initialState_def step_simps_all irreflI)
+next
+  case (step t a s)
+  then show ?case 
+    by (auto simp add: initialState_def step_simps_all irreflI)
+     (metis SigmaE2 Un_iff irrefl_def singletonD wellFormed_visibleCallsSubsetCalls2)
+qed 
 
 lemma happensBefore_acyclic:
 assumes wf: "state_wellFormed S"
@@ -581,8 +670,9 @@ lemma causallyConsistent_downwards:
   shows "causallyConsistent hb (vis \<union> S \<down> hb)"
 proof -
   show ?thesis
-    using cs apply (auto simp add: causallyConsistent_def downwardsClosure_def)
-    by (meson local.trans transE)
+    using cs 
+    by (auto simp add: causallyConsistent_def downwardsClosure_def)
+      (meson local.trans transE)
 qed
 
 lemma wf_vis_downwards_closed:

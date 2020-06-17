@@ -325,6 +325,13 @@ definition getMessage_impl :: "val \<Rightarrow> (val,operation,val) io" where
   })
 }"
 
+ text \<open>
+ \DefineSnippet{getMessage_impl}{
+    @{thm [display] filter_def}
+ }%EndSnippet
+ \<close>
+
+
 
 
 datatype proc =

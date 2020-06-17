@@ -480,14 +480,14 @@ lemma "flag_sdw_spec ReadFlag example2 False"
 
 
 lemma "flag_ew_spec ReadFlag example3 True"
-  apply (auto simp add: flag_ew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
-  by (smt callId.inject)
+  by (auto simp add: flag_ew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+   (smt callId.inject)
 lemma "flag_sew_spec ReadFlag example3 True"
-  apply (auto simp add: flag_sew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
-  by (smt callId.inject)
+  by (auto simp add: flag_sew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+   (smt callId.inject)
 lemma "flag_dw_spec ReadFlag example3 True"
-  apply (auto simp add: flag_dw_spec_def latestOps_def example3_def Op_def cong: conj_cong)
-  by (smt callId.inject)
+  by (auto simp add: flag_dw_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+   (smt callId.inject)
 lemma "flag_sdw_spec ReadFlag example3 False"
   by (auto simp add: flag_sdw_spec_def latestOps_def example3_def Op_def cong: conj_cong)
 
@@ -498,8 +498,8 @@ lemma "flag_sew_spec ReadFlag example4 True"
 lemma "flag_dw_spec ReadFlag example4 False"
   by (auto simp add: flag_dw_spec_def latestOps_def example4_def Op_def cong: conj_cong)
 lemma "flag_sdw_spec ReadFlag example4 False"
-  apply (auto simp add: flag_sdw_spec_def latestOps_def example4_def Op_def cong: conj_cong)
-  by (smt callId.inject)+
+  by (auto simp add: flag_sdw_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+   (smt callId.inject)+
 
 
 
@@ -582,29 +582,27 @@ lemma latestOps_Enable:
   assumes wf: "operationContext_wf ctxt"
   shows "Enable \<in> latestOps ctxt \<longleftrightarrow>
   (\<exists>c. Op ctxt c \<triangleq> Enable \<and> (\<forall>c'. Op ctxt c' \<triangleq> Disable \<longrightarrow> (c, c')\<notin>happensBefore ctxt))"
-  apply (auto simp add: latestOps_alt[OF wf])
-  using flagOp.exhaust by blast
+  using flagOp.exhaust by (auto simp add: latestOps_alt[OF wf]) 
 
 
 lemma latestOps_Disable:
   assumes wf: "operationContext_wf ctxt"
   shows "Disable \<in> latestOps ctxt \<longleftrightarrow>
   (\<exists>c. Op ctxt c \<triangleq> Disable \<and> (\<forall>c'. Op ctxt c' \<triangleq> Enable \<longrightarrow> (c, c')\<notin>happensBefore ctxt))"
-  apply (auto simp add: latestOps_alt[OF wf])
-  using flagOp.exhaust by blast
+  using flagOp.exhaust by (auto simp add: latestOps_alt[OF wf])
 
 
 lemma latestOps_Enable':
   shows "Enable \<in> latestOps ctxt \<longleftrightarrow>
   (\<exists>c. Op ctxt c \<triangleq> Enable \<and> (\<forall>c'. Op ctxt c' \<triangleq> Enable \<or> Op ctxt c' \<triangleq> Disable \<longrightarrow> (c, c')\<notin>happensBefore ctxt))"
-  apply (auto simp add: latestOps_def)
-  by (metis (mono_tags, lifting) flagOp.exhaust)
+  by (auto simp add: latestOps_def)
+   (metis (mono_tags, lifting) flagOp.exhaust)
 
 lemma latestOps_Disable':
   shows "Disable \<in> latestOps ctxt \<longleftrightarrow>
   (\<exists>c. Op ctxt c \<triangleq> Disable \<and> (\<forall>c'. Op ctxt c' \<triangleq> Enable \<or> Op ctxt c' \<triangleq> Disable \<longrightarrow> (c, c')\<notin>happensBefore ctxt))"
-  apply (auto simp add: latestOps_def)
-  by (metis (mono_tags, lifting) flagOp.exhaust)
+  by (auto simp add: latestOps_def)
+   (metis (mono_tags, lifting) flagOp.exhaust)
 
 
 lemma latestOps_Enable'':
@@ -625,8 +623,8 @@ proof -
     by auto
 
   show ?thesis
-    apply (auto simp add: latestOps_alt[OF wf])
-    by (metis (mono_tags, lifting) \<open>\<And>thesis. (\<And>em. \<lbrakk>Op ctxt em \<triangleq> Enable \<or> Op ctxt em \<triangleq> Disable; \<forall>e'. Op ctxt e' \<triangleq> Enable \<or> Op ctxt e' \<triangleq> Disable \<longrightarrow> (em, e') \<notin> happensBefore ctxt\<rbrakk> \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> assms(3) flagOp.exhaust)
+    by (auto simp add: latestOps_alt[OF wf])
+     (metis (mono_tags, lifting) \<open>\<And>thesis. (\<And>em. \<lbrakk>Op ctxt em \<triangleq> Enable \<or> Op ctxt em \<triangleq> Disable; \<forall>e'. Op ctxt e' \<triangleq> Enable \<or> Op ctxt e' \<triangleq> Disable \<longrightarrow> (em, e') \<notin> happensBefore ctxt\<rbrakk> \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> assms(3) flagOp.exhaust)
 qed
 
 lemma latestOps_Disable'':
@@ -647,8 +645,8 @@ proof -
     by auto
 
   show ?thesis
-    apply (auto simp add: latestOps_alt[OF wf])
-    by (metis (full_types) \<open>Op ctxt em \<triangleq> Enable \<or> Op ctxt em \<triangleq> Disable\<close> \<open>\<forall>e'. Op ctxt e' \<triangleq> Enable \<or> Op ctxt e' \<triangleq> Disable \<longrightarrow> (em, e') \<notin> happensBefore ctxt\<close> assms(3) flagOp.exhaust)
+    by (auto simp add: latestOps_alt[OF wf])
+     (metis (full_types) \<open>Op ctxt em \<triangleq> Enable \<or> Op ctxt em \<triangleq> Disable\<close> \<open>\<forall>e'. Op ctxt e' \<triangleq> Enable \<or> Op ctxt e' \<triangleq> Disable \<longrightarrow> (em, e') \<notin> happensBefore ctxt\<close> assms(3) flagOp.exhaust)
 qed
 
 
@@ -666,8 +664,8 @@ proof -
 
   show ?thesis
     unfolding res1
-    apply  (rule arg_cong[where f=from_bool])
-    by (meson latestOps_Disable latestOps_Enable' latestOps_Enable'' local.wf)
+    by  (rule arg_cong[where f=from_bool])
+     (meson latestOps_Disable latestOps_Enable' latestOps_Enable'' local.wf)
 
 qed
 
@@ -750,6 +748,11 @@ lemma from_bool_eq_simp:
   using assms
   by (metis from_bool_inj) 
 
+lemma from_bool_eq_simp':
+  assumes "a \<longleftrightarrow> b"
+  shows "(res = from_bool a \<longleftrightarrow> res = from_bool b)"
+  by (simp add: assms)
+
 lemma set_to_flag_Enable:
 "set_to_flag x y \<triangleq> Enable \<longleftrightarrow> y = Add x"
   by (auto simp add: set_to_flag_def split: setOp.splits)
@@ -827,10 +830,9 @@ lemma set_aw_spec_Contains:
 
 
   thus "\<exists>a. Op ctxt a \<triangleq> Add x \<and> (\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (a, r) \<notin> happensBefore ctxt)"
-    apply (auto simp add: Op_restrict_ctxt_op option_bind_def happensBefore_restrict_ctxt_op
-        set_to_flag_Enable set_to_flag_Disable split: option.splits)
-    apply (auto simp add: set_to_flag_def)
-    done
+    by (auto simp add: Op_restrict_ctxt_op option_bind_def happensBefore_restrict_ctxt_op
+        set_to_flag_Enable set_to_flag_Disable  split: option.splits)
+     (auto simp add: set_to_flag_def)
 
 next
 
@@ -946,10 +948,7 @@ next
       by moura
     obtain cca :: "flagOp \<Rightarrow> (flagOp, 'b) operationContext \<Rightarrow> callId" where
       "\<forall>x0 x1. (\<exists>v2. Op x1 v2 \<triangleq> x0 \<and> (\<forall>v3 v4. (Op x1 v3 \<noteq> Some v4 \<or> is_query v4 \<or> (v2, v3) \<notin> happensBefore x1) \<or> v4 = x0)) = (Op x1 (cca x0 x1) \<triangleq> x0 \<and> (\<forall>v3 v4. (Op x1 v3 \<noteq> Some v4 \<or> is_query v4 \<or> (cca x0 x1, v3) \<notin> happensBefore x1) \<or> v4 = x0))"
-      apply atomize_elim
-      apply (subst exists_skolem2a)
-      apply auto
-      by blast
+      by (atomize_elim, subst exists_skolem2a, auto, blast)
     then have f3: "\<forall>f z. ((f \<in> latestOps z) = (is_update f \<and> (\<exists>c. Op z c \<triangleq> f \<and> (\<forall>ca fa. (Op z ca \<noteq> Some fa \<or> is_query fa \<or> (c, ca) \<notin> happensBefore z) \<or> fa = f)))) = ((f \<notin> latestOps z \<or> is_update f \<and> Op z (cca f z) \<triangleq> f \<and> (\<forall>c fa. (Op z c \<noteq> Some fa \<or> is_query fa \<or> (cca f z, c) \<notin> happensBefore z) \<or> fa = f)) \<and> (f \<in> latestOps z \<or> is_query f \<or> (\<forall>c. Op z c \<noteq> Some f \<or> (Op z (cc c f z) \<triangleq> ff c f z \<and> is_update (ff c f z) \<and> (c, cc c f z) \<in> happensBefore z) \<and> ff c f z \<noteq> f)))"
       using f2 by blast
     have f4: "wf ((happensBefore (restrict_ctxt_op (set_to_flag x) ctxt))\<inverse>)"
@@ -1101,9 +1100,8 @@ lemma flag_ew_spec_restrict_hb[simp]:
 lemma latestOps_restrict_ctxt_op_restrict_hb:
 " latestOps (restrict_ctxt_op f (restrict_hb c))
  =  latestOps (restrict_ctxt_op f c)"
-  apply (auto simp add: latestOps_def)
-  apply (auto simp add: restrict_ctxt_op_def Op_def restrict_ctxt_def fmap_map_values_def restrict_relation_def)
-  by (metis (mono_tags, lifting) bind_eq_None_conv domIff)
+  by (auto simp add: latestOps_def restrict_ctxt_op_def Op_def restrict_ctxt_def fmap_map_values_def restrict_relation_def)
+   (metis (mono_tags, lifting) bind_eq_None_conv domIff)
 
 
 lemma flag_ew_spec_restrict_hb2:
@@ -1212,9 +1210,8 @@ lemma happensBefore_restrict_ctxt_op2:  "(c, c') \<in> happensBefore (restrict_c
 (\<exists>op r op' r'. (c, c') \<in> happensBefore ctxt 
   \<and> calls ctxt c \<triangleq> Call op r \<and> f op \<noteq> None 
   \<and> calls ctxt c' \<triangleq> Call op' r' \<and> f op' \<noteq> None)"
-  apply (auto simp add: restrict_ctxt_op_def restrict_ctxt_def restrict_relation_def  fmap_map_values_eq_some split: call.splits option.splits)
-    apply (meson call.exhaust option.exhaust)
-  done
+  by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def restrict_relation_def  fmap_map_values_eq_some split: call.splits option.splits)
+     (meson call.exhaust option.exhaust)
 
 lemma happensBefore_ctxt_restrict_calls: "(c, c') \<in> happensBefore (ctxt_restrict_calls S ctxt) \<longleftrightarrow> (c, c') \<in> happensBefore ctxt |r S"
   by (auto simp add: ctxt_restrict_calls_def)
@@ -1223,10 +1220,9 @@ lemma restrict_simp1:
 "(restrict_ctxt_op (nested_op_on_key x11)
            (ctxt_restrict_calls (deleted_calls_uw (restrict_hb c) x) (restrict_hb c)))
 = (restrict_hb (restrict_ctxt_op (nested_op_on_key x11) (ctxt_restrict_calls (deleted_calls_uw c x) c)))"
-  apply (auto simp add: fmap_map_values_def restrict_map_def restrict_relation_def restrict_ctxt_op_def
-      restrict_hb_def restrict_ctxt_def ctxt_restrict_calls_def intro!: ext split: option.splits call.splits)
-           apply (auto simp add:  deleted_calls_uw_def)
-  done 
+  by (auto simp add: fmap_map_values_def restrict_map_def restrict_relation_def restrict_ctxt_op_def
+      restrict_hb_def restrict_ctxt_def ctxt_restrict_calls_def  intro!: ext split: option.splits call.splits)
+            (auto simp add:  deleted_calls_uw_def)
 
 lemma map_spec_restrict_hb[simp]:
   assumes a1: "dc (restrict_hb c) = dc c"
@@ -1371,25 +1367,26 @@ lemma latest_values_call:
 lemma register_spec_queries_cannot_guess_ids[intro]:
   assumes i_no: "uniqueIds i = {}"
   shows "queries_cannot_guess_ids (register_spec i)"
-  apply (auto simp add: queries_cannot_guess_ids_def2 register_spec_def i_no  split: registerOp.splits)
-  apply (frule latest_values_call)
-  apply auto
-  subgoal for ctxt res x x' c
-    apply (drule spec[where x=c])
-    apply (drule spec[where x="Assign res"])
-    apply (auto simp add: Op_def)
-    subgoal for z
-      by (cases z, auto)
-    done
-  done
+proof (auto simp add: queries_cannot_guess_ids_def2 register_spec_def i_no  split: registerOp.splits)
+  fix ctxt res x xa
+  assume a0: "res \<in> latestValues ctxt"
+    and a1: "x \<in> uniqueIds res"
+    and a2: "\<forall>cId opr. (\<forall>res. calls ctxt cId \<noteq> Some (Call opr res)) \<or> x \<notin> uniqueIds opr"
+    and a3: "xa \<in> latestValues ctxt"
 
+  from latest_values_call[OF a0]
+  obtain a where "Op ctxt a \<triangleq> Assign res"
+    by blast
 
-(*
-  apply (auto simp add: latestAssignments_def queries_cannot_guess_ids_def2 register_spec_def latestValues_def i_no
-      latestAssignments_h_def ran_def uniqueIds_registerOp_def split: registerOp.splits option.splits if_splits)
-  apply (auto split: call.splits if_splits registerOp.splits)
-  by (metis call.sel(1) registerOp.distinct(1) registerOp.inject)
-*)
+  from this obtain r where "calls ctxt a \<triangleq> Call (Assign res) r"
+    by (auto simp add: Op_def)
+     (metis call.collapse)
+
+  with a1 a2
+  show "False"
+    by fastforce
+qed
+
 
 
 lemma query_cannot_guess_ids_struct_field:

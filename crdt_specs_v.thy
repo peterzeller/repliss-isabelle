@@ -94,10 +94,21 @@ lemma extract_op_into_sub_context:
 and in_dom: "c\<in>dom (calls (sub_context C_in Cs ctxt))"
 shows "extract_op (calls ctxt) c = C_out op
 \<longleftrightarrow> (\<exists>r. calls (sub_context C_in Cs ctxt) c \<triangleq> Call op r)"
-  using in_dom  apply (auto simp add: calls_sub_context restrict_map_def option_bind_def
+  using in_dom  by (auto simp add: calls_sub_context restrict_map_def option_bind_def
  call_operation_def extract_op_def is_rev is_reverse_2
       split: option.splits if_splits call.splits)
-  using is_rev is_reverse_1 by fastforce
+  (use is_rev is_reverse_1 in fastforce)
+
+lemma extract_op_into_sub_context':
+  assumes is_rev: "is_reverse C_in C_out"
+and in_dom: "c\<in>dom (calls (sub_context C_in Cs ctxt))"
+shows "extract_op (calls ctxt) c = C_out op
+\<longleftrightarrow> Op (sub_context C_in Cs ctxt) c \<triangleq> op"
+  using extract_op_into_sub_context[OF is_rev in_dom] 
+  by (auto simp add: Op_def)
+   (metis call.collapse)
+
+
 
 lemma happens_before_into_sub_context:
   assumes is_rev: "is_reverse C_in C_out"
@@ -155,9 +166,8 @@ proof (fuzzy_rule use_crdt_spec_rel[OF rel])
     by (auto simp add: calls_sub_context)
 
   have h2: "happensBefore (sub_context Some UNIV ctxt) =  happensBefore ctxt "
-    apply (auto simp add: happens_before_sub_context calls_sub_context)
-     apply (meson FieldI1 domD hb_wf subsetD)
-    by (meson FieldI2 domD hb_wf in_mono)
+    by (auto simp add: happens_before_sub_context calls_sub_context)
+      (meson FieldI1 FieldI2 domD hb_wf subsetD in_mono)+
 
 
   from h1 h2
