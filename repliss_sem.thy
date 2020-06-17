@@ -57,8 +57,10 @@ datatype ('ls, 'operation, 'any) localAction =
   | DbOperation 'operation "'any \<Rightarrow> 'ls"
   | Return 'any
 
-
-type_synonym ('ls, 'operation, 'any) procedureImpl = "'ls \<Rightarrow> ('ls, 'operation, 'any) localAction"
+text_raw \<open>\DefineSnippet{procedureImpl}{\<close>
+type_synonym ('ls, 'operation, 'any) procedureImpl = 
+  "'ls \<Rightarrow> ('ls, 'operation, 'any) localAction"
+text_raw \<open>}%EndSnippet\<close>
 
 datatype transactionStatus = Uncommitted | Committed 
 

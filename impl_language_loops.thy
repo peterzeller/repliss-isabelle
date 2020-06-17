@@ -17,10 +17,13 @@ text "So far, we have assumed that procedure implementations are given by arbitr
 Here we define an implementation language using a shallow embedding with the monad syntax package.
 "
 
-type_synonym iref = nat
-datatype 'a ref = Ref (iref:iref)
-type_synonym 'v store = "iref \<rightharpoonup> 'v"
 
+text_raw \<open>\DefineSnippet{io_defs_types}{\<close>
+type_synonym iref = nat
+type_synonym 'v store = "iref \<rightharpoonup> 'v"
+text_raw \<open>}%EndSnippet\<close>
+
+datatype 'a ref = Ref (iref:iref)
 instantiation ref :: (type) small begin
 instance proof
   obtain V_of :: "nat \<Rightarrow> V" and A :: "V" where "inj V_of" and "range V_of \<subseteq> elts A"
@@ -65,6 +68,7 @@ end
 
 datatype ('c,'b) loopResult = Continue 'c | Break 'b
 
+text_raw \<open>\DefineSnippet{io_defs_datatype}{\<close>
 datatype ('a,'operation, 'any) io =
     WaitLocalStep "'any store \<Rightarrow> bool \<times> 'any store \<times> ('a,'operation, 'any) io"
   | WaitBeginAtomic "('a,'operation, 'any) io"
@@ -72,7 +76,10 @@ datatype ('a,'operation, 'any) io =
   | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitDbOperation 'operation "'any \<Rightarrow> ('a,'operation, 'any) io"
   | WaitReturn "'a" 
-  | Loop 'any "V" "'any \<Rightarrow> ('a,'operation, 'any) io" \<comment> \<open>body is an @{typ \<open>'any \<Rightarrow> (('any,'any) loopResult, 'operation, 'any) io\<close>} encoded a type V. 
+  | Loop 'any "V" "'any \<Rightarrow> ('a,'operation, 'any) io" 
+text_raw \<open>}%EndSnippet\<close>
+
+\<comment> \<open>body is an @{typ \<open>'any \<Rightarrow> (('any,'any) loopResult, 'operation, 'any) io\<close>} encoded a type V.
                                             Had to use dynamic typing here as Isabelle has no GADTs. \<close>
 
 
@@ -237,15 +244,17 @@ lemma loop_body_from_V_rev[simp]: "loop_body_from_V (loop_body_to_V x) = x"
   by (simp add: loop_body_from_V_def loop_body_to_V_def)
 
 
-function (domintros) bind :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io" (infixl "\<bind>io" 54)  where
-  "bind (WaitLocalStep n) f = (WaitLocalStep (\<lambda>s. let (a,b,c) = n s  
+text_raw \<open>\DefineSnippet{io_defs_bind}{\<close>
+function (*<*) (domintros) (*>*) bind (*<*) :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io" (*>*) (infixl "\<bind>io" 54)  where
+  "WaitLocalStep n \<bind>io f = (WaitLocalStep (\<lambda>s. let (a,b,c) = n s  
                                                   in (a, b, bind c f)))"
-| "bind (WaitBeginAtomic n) f = (WaitBeginAtomic (bind n f))"
-| "bind (WaitEndAtomic n) f = (WaitEndAtomic (bind n f))"
-| "bind (WaitNewId P n) f = (WaitNewId P (\<lambda>i.  bind (n i) f))"
-| "bind (WaitDbOperation op n) f = (WaitDbOperation op (\<lambda>i.  bind (n i) f))"
-| "bind (WaitReturn s) f = (f s)"
-| "bind (Loop i body n) f = (Loop i body (\<lambda>x. bind (n x) f))"
+| "WaitBeginAtomic n \<bind>io f = (WaitBeginAtomic (n \<bind>io f))"
+| "WaitEndAtomic n \<bind>io f = (WaitEndAtomic (n \<bind>io f))"
+| "WaitNewId P n \<bind>io f = (WaitNewId P (\<lambda>i. n i \<bind>io f))"
+| "WaitDbOperation op n \<bind>io f = (WaitDbOperation op (\<lambda>i. n i \<bind>io f))"
+| "WaitReturn s \<bind>io f = (f s)"
+| "Loop i body n \<bind>io f = (Loop i body (\<lambda>x. n x \<bind>io f))"
+text_raw \<open>}%EndSnippet\<close>
   by (pat_completeness, auto)
 termination
   using [[show_sorts]]
@@ -323,6 +332,8 @@ definition atomic ::"('a,'operation, 'any) io \<Rightarrow> ('a,'operation, 'any
 
 definition 
 "skip \<equiv> return undefined"
+
+
 
 text "Next, we define some operations to work with references: 
 We simply encode references using natural numbers."
@@ -491,6 +502,15 @@ next
 qed
 
 
+ text \<open>
+ \DefineSnippet{io_bind_monad_rules}{
+    @{thm [display] return_left_ident}
+    @{thm [display] right_ident}
+    @{thm [display] bind_assoc}
+ }%EndSnippet
+ \<close>
+
+
 
 lemma atomic_simp1[simp]: 
 "toImpl (s, u, atomic f) = BeginAtomic (s, u, f \<bind> (\<lambda>r. endAtomic \<bind> (\<lambda>_. return r)))"
@@ -528,6 +548,28 @@ definition "forEach"  :: "'e::countable list \<Rightarrow> ('e \<Rightarrow> ('a
         | (x#xs) \<Rightarrow> body x \<bind>io (\<lambda>r. return (Continue (xs, r#acc)))   
     )"
   
+
+
+ text \<open>
+ \DefineSnippet{io_language_constructs}{
+    @{thm [display] pause_def}
+    @{thm [display] beginAtomic_def}
+    @{thm [display] endAtomic_def}
+    @{thm [display] newId_def}
+    @{thm [display] call_def}
+    @{thm [display] return_def}
+    @{thm [display] skip_def}
+    @{thm [display] atomic_def}
+    @{thm [display] makeRef_def}
+    @{thm [display] read_def}
+    @{thm [display] assign_def}
+    @{thm [display] update_def}
+    @{thm [display] loop_def}
+    @{thm [display] while_def}
+    @{thm [display] forEach_def}
+ }%EndSnippet
+ \<close>
+
 
 
 end

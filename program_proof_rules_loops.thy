@@ -33,7 +33,7 @@ Still, it might be worth a try as it would make the rules more readable.
 \<close>
 
 
-
+text_raw \<open>\DefineSnippet{proof_state_record}{\<close>
 record ('proc, 'any, 'operation) proof_state = "('proc, 'operation, 'any) invariantContext" +
   ps_i :: invocId
   ps_generatedLocal  :: "uniqueId set"
@@ -45,6 +45,8 @@ record ('proc, 'any, 'operation) proof_state = "('proc, 'operation, 'any) invari
   ps_firstTx :: bool
   ps_store :: "'any store"
   ps_prog :: "('proc, ('any store \<times> uniqueId set \<times> ('any, 'operation, 'any) io), 'operation, 'any) prog"
+text_raw \<open>}%EndSnippet\<close>
+
 
 lemma proof_state_ext: "((x::('proc, 'any, 'operation) proof_state) = y) \<longleftrightarrow> (
     calls x = calls y
@@ -274,6 +276,7 @@ definition "uid_fresh uid S \<equiv> uid_is_private' (ps_i S) (calls S)
 
 
 \<comment> \<open>TODO: need some information about Growing \<close>
+text_raw \<open>\DefineSnippet{ps_growing}{\<close>
 definition "ps_growing S S' t \<equiv> 
   \<exists>CS CS'.
     proof_state_rel S CS
@@ -295,6 +298,8 @@ definition "ps_growing S S' t \<equiv>
         currentTransaction := (currentTransaction CS')(ps_i S := None), 
         localState := (localState CS')(ps_i S := localState CS (ps_i S)),
         visibleCalls := (visibleCalls CS')(ps_i S := visibleCalls CS (ps_i S))\<rparr>)"
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 definition "current_operationContext S \<equiv> \<lparr>
@@ -307,7 +312,8 @@ definition "current_vis S \<equiv> ps_vis S \<union> set (ps_localCalls S)"
 text "Define execution of io commands:"
 
 
-definition step_io :: "
+text_raw \<open>\DefineSnippet{step_io}{\<close>
+definition step_io (*<*):: "
      (('proc::valueType, 'operation::valueType, 'any::valueType) invariantContext \<Rightarrow> bool)
   \<Rightarrow> ('operation, 'operation, 'any) ccrdtSpec
   \<Rightarrow> ('proc, 'any, 'operation) proof_state 
@@ -315,7 +321,7 @@ definition step_io :: "
   \<Rightarrow> ('proc, 'any, 'operation) proof_state
   \<Rightarrow> ('a, 'operation, 'any) io
   \<Rightarrow> bool \<comment> \<open>step is correct\<close>
-  \<Rightarrow> bool " where
+  \<Rightarrow> bool " (*>*) where
   "step_io progInv qrySpec S cmd S' cmd' Inv \<equiv> 
   (Inv \<longrightarrow> proof_state_wellFormed S')
   \<and> (case cmd of
@@ -398,7 +404,7 @@ definition step_io :: "
       \<and> Inv
       \<and> (S' = S))
 "
-
+text_raw \<open>}%EndSnippet\<close>
 
 
 
@@ -408,14 +414,15 @@ If the result is None, there was an error in the execution.
 Otherwise, the result is Some r.
 \<close>
 
-inductive steps_io :: "
+text_raw \<open>\DefineSnippet{steps_io}{\<close>
+inductive steps_io (*<*):: "
      (('proc::valueType, 'operation::valueType, 'any::valueType) invariantContext \<Rightarrow> bool)
   \<Rightarrow> ('operation, 'operation, 'any) ccrdtSpec
   \<Rightarrow> ('proc, 'any, 'operation) proof_state 
   \<Rightarrow> ('a, 'operation, 'any) io
   \<Rightarrow> ('proc, 'any, 'operation) proof_state
   \<Rightarrow> 'a option
-  \<Rightarrow> bool " for progInv qrySpec where
+  \<Rightarrow> bool " (*>*) for progInv qrySpec where
   steps_io_final:
   "steps_io progInv qrySpec S (WaitReturn res) S (Some res)"
 | steps_io_error:
@@ -426,6 +433,7 @@ inductive steps_io :: "
    steps_io progInv qrySpec S' cmd' S'' res
 \<rbrakk>
  \<Longrightarrow>  steps_io progInv qrySpec S cmd S'' res"
+text_raw \<open>}%EndSnippet\<close>
 
 \<comment> \<open>TODO might want to change this: remove the trace 
 and steps-io-partial. Instead return None when not ok and 
@@ -2931,26 +2939,39 @@ next
 qed
 
 
+text_raw \<open>\DefineSnippet{execution_s_check}{\<close>
 definition 
   "execution_s_check progInv qrySpec S cmd P \<equiv>
   \<forall>S' res. steps_io progInv qrySpec S cmd  S' res
     \<longrightarrow> proof_state_wellFormed S
     \<longrightarrow> (case res of Some r \<Rightarrow> P S' r | None \<Rightarrow> False)
   "
+text_raw \<open>}%EndSnippet\<close>
+
+text \<open>
+ \DefineSnippet{execution_s_check2}{
+    @{thm [display] execution_s_check_def}
+ }%EndSnippet
+ \<close>
+
 
 lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format]
 
+text_raw \<open>\DefineSnippet{finalCheck}{\<close>
 definition
-  "finalCheck Inv i S res \<equiv>
-Inv (invariantContext.truncate (S\<lparr>invocationRes := invocationRes S(i \<mapsto> res), knownIds := knownIds S \<union> uniqueIds res\<rparr>))
-\<and> uniqueIds res \<subseteq> ps_localKnown S"
+"finalCheck Inv i S res \<equiv>
+  Inv (invariantContext.truncate (S\<lparr>
+      invocationRes := invocationRes S(i \<mapsto> res), 
+      knownIds := knownIds S \<union> uniqueIds res\<rparr>))
+  \<and> uniqueIds res \<subseteq> ps_localKnown S"
+text_raw \<open>}%EndSnippet\<close>
 
 lemmas show_finalCheck = finalCheck_def[THEN meta_eq_to_obj_eq, THEN iffD2, rule_format]
 
 
 text "It is sufficient to check with @{term execution_s_check} to ensure that the procedure is correct:"
 
-
+text_raw \<open>\DefineSnippet{execution_s_check_sound}{\<close>
 lemma execution_s_check_sound:
   assumes ls_def: "localState S i \<triangleq> (Map.empty, localKnown, ls)"
     and vis_def: "visibleCalls S i \<triangleq> vis"
@@ -2991,9 +3012,10 @@ lemma execution_s_check_sound:
       ps_store = Map.empty,
       ps_prog = prog S\<rparr>"
     and c: "execution_s_check (invariant progr) querySpec' PS ls P"
+  shows "execution_s_correct S i"
+text_raw \<open>}%EndSnippet\<close>
     \<comment> \<open>The execution check ensures that executing statement s only produces valid traces ending in a state 
    satisfying P.\<close>
-  shows "execution_s_correct S i"
 proof (auto simp add:  execution_s_correct_def)
   fix trace S'
   assume steps: "S ~~ (i, trace) \<leadsto>\<^sub>S* S'"
@@ -3406,7 +3428,7 @@ inductive_cases step_s_NewId: "S ~~ (i, ANewId uidv, Inv) \<leadsto>\<^sub>S S'"
 
 
 
-
+text_raw \<open>\DefineSnippet{execution_s_check_proof_rule}{\<close>
 lemma execution_s_check_proof_rule:
   assumes noReturn: "\<And>r. cmd \<noteq> WaitReturn r"
     and cont: "
@@ -3418,6 +3440,7 @@ lemma execution_s_check_proof_rule:
   \<and> (\<exists>res. cmd' = return res
     \<and> P PS' res)"
   shows "execution_s_check Inv crdtSpec PS  (cmd) P"
+text_raw \<open>}%EndSnippet\<close>
 proof (auto simp add: execution_s_check_def)
   fix S' res
   assume steps_io: "steps_io Inv crdtSpec PS cmd S' res"
@@ -4261,6 +4284,7 @@ qed
 subsection "References"
 
 
+text_raw \<open>\DefineSnippet{check_makeRef}{\<close>
 lemma execution_s_check_makeRef:
   assumes cont: "
 \<And>ref. \<lbrakk>
@@ -4272,6 +4296,7 @@ lemma execution_s_check_makeRef:
     (Ref ref)
     "
   shows "execution_s_check Inv crdtSpec PS  (makeRef a) P"
+text_raw \<open>}%EndSnippet\<close>
 proof (rule execution_s_check_proof_rule)
   show "\<And>r. makeRef a \<noteq> WaitReturn r"
     by (simp add: makeRef_def)
@@ -4298,10 +4323,12 @@ proof (rule execution_s_check_proof_rule)
 qed
 
 
+text_raw \<open>\DefineSnippet{check_read}{\<close>
 lemma execution_s_check_read:
   assumes validRef: "iref r \<in> dom (ps_store PS)"
     and cont: "P PS (s_read (ps_store PS) r)"
-  shows "execution_s_check Inv crdtSpec PS  (read r) P"
+shows "execution_s_check Inv crdtSpec PS  (read r) P"
+text_raw \<open>}%EndSnippet\<close>
 proof (rule execution_s_check_proof_rule)
   show "\<And>ra. read r \<noteq> impl_language_loops.io.WaitReturn ra"
     by (simp add: read_def)
@@ -4315,11 +4342,13 @@ proof (rule execution_s_check_proof_rule)
     by (auto simp add:  step_io_def read_def return_def intro!: exI)
 qed
 
+text_raw \<open>\DefineSnippet{check_assign}{\<close>
 lemma execution_s_check_assign:
   assumes validRef: "iref r \<in> dom (ps_store PS)"
     and cont: "
     P (PS\<lparr>ps_store := ps_store PS(iref r \<mapsto> intoAny v)\<rparr>) ()"
   shows "execution_s_check Inv crdtSpec PS  (assign r v) P"
+  text_raw \<open>}%EndSnippet\<close>
 proof (rule execution_s_check_proof_rule)
   show "\<And>ra. r :\<leftarrow> v \<noteq> impl_language_loops.io.WaitReturn ra"
     by (simp add: assign_def)
@@ -4332,6 +4361,7 @@ proof (rule execution_s_check_proof_rule)
 
 qed
 
+text_raw \<open>\DefineSnippet{check_newId}{\<close>
 lemma execution_s_check_newId:
   assumes infPred: "infinite (Collect tc)"
     and cont: "\<And>v vn. \<lbrakk>
@@ -4347,7 +4377,8 @@ lemma execution_s_check_newId:
            ps_generatedLocalPrivate  := ps_generatedLocalPrivate PS \<union> {vn}
            \<rparr>)
       v"
-  shows "execution_s_check Inv crdtSpec PS  (newId tc) P"
+shows "execution_s_check Inv crdtSpec PS  (newId tc) P"
+text_raw \<open>}%EndSnippet\<close>
 proof (rule execution_s_check_proof_rule)
   show "\<And>r. impl_language_loops.newId tc \<noteq> impl_language_loops.io.WaitReturn r"
     by (simp add: newId_def)
@@ -4436,6 +4467,7 @@ qed
 
 
 
+text_raw \<open>\DefineSnippet{check_beginAtomic}{\<close>
 lemma execution_s_check_beginAtomic:
   assumes cont: "\<And>tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis'
  s_invocationOp' s_invocationRes' PS'. \<lbrakk>
@@ -4466,6 +4498,7 @@ ps_growing PS PS' tx
 \<rbrakk> \<Longrightarrow>
     P PS' ()"
   shows "execution_s_check Inv crdtSpec PS beginAtomic P"
+text_raw \<open>}%EndSnippet\<close>
 proof (rule execution_s_check_proof_rule)
 
   show "\<And>r. beginAtomic \<noteq> WaitReturn r"

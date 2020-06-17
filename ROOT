@@ -5,7 +5,7 @@
 *)
 session "repliss" = "HOL" +
   options [document = pdf, document_output = "output"]
-  sessions 
+  sessions
     "HOL-Library"
     "HOL-Eisbach"
     "Case_Labeling"
@@ -29,3 +29,4 @@ session "repliss" = "HOL" +
   document_files
     "root.tex"
     "mathpartir.sty"
+    build

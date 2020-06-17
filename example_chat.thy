@@ -310,7 +310,7 @@ definition deleteMessage_impl :: "val \<Rightarrow> (val,operation,val) io" wher
   return Undef
 }"
 
-
+text_raw \<open>\DefineSnippet{getMessage_impl}{\<close>
 definition getMessage_impl :: "val \<Rightarrow> (val,operation,val) io" where
   "getMessage_impl m \<equiv>  do {
   atomic (do {
@@ -324,10 +324,11 @@ definition getMessage_impl :: "val \<Rightarrow> (val,operation,val) io" where
     }
   })
 }"
+text_raw \<open>}%EndSnippet\<close>
 
  text \<open>
- \DefineSnippet{getMessage_impl}{
-    @{thm [display] filter_def}
+ \DefineSnippet{getMessage_impl2}{
+    @{thm [display] getMessage_impl_def}
  }%EndSnippet
  \<close>
 
