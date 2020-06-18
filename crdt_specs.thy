@@ -697,7 +697,7 @@ text_raw \<open>\DefineSnippet{setOp}{\<close>
 datatype 'v setOp =
     Add 'v
   | Remove 'v
-| Contains 'v
+  | Contains 'v
 text_raw \<open>}%EndSnippet\<close>
 
  
@@ -895,6 +895,7 @@ lemma exists_skolem2b:
   by (subst all_comm, subst exists_skolem2a) auto
 
 
+text_raw \<open>\DefineSnippet{set_rw_spec_Contains}{\<close>
 lemma set_rw_spec_Contains:
   assumes spec: "set_rw_spec (Contains x) ctxt res"
     and wf: "operationContext_wf ctxt"
@@ -902,6 +903,7 @@ lemma set_rw_spec_Contains:
                            \<and> (\<forall>r. Op ctxt r \<triangleq> Remove x
                                 \<longrightarrow> (\<exists>a. Op ctxt a \<triangleq> Add x
                                     \<and> (r,a)\<in>happensBefore ctxt)))"
+text_raw \<open>}%EndSnippet\<close>
   using spec proof (auto simp add: set_rw_spec_def set_spec_def flag_dw_spec_def from_bool_inj)
   assume a0: "res = from_bool True"
     and a1: "Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)"

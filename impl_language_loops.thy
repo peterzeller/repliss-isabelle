@@ -570,6 +570,22 @@ definition "forEach"  :: "'e::countable list \<Rightarrow> ('e \<Rightarrow> ('a
  }%EndSnippet
  \<close>
 
+ text \<open>
+ \DefineSnippet{io_language_constructs_refs}{
+    @{thm [display] makeRef_def}
+    @{thm [display] read_def}
+    @{thm [display] assign_def}
+    @{thm [display] update_def}
+ }%EndSnippet
+ \<close>
+
+ text \<open>
+ \DefineSnippet{io_language_constructs_loops}{
+    @{thm [display] loop_def}
+    @{thm [display] while_def}
+    @{thm [display] forEach_def}
+ }%EndSnippet
+ \<close>
 
 
 end
