@@ -230,6 +230,7 @@ lemma lww_register_spec_wf[simp]:
 
 subsection "Sets"
 
+text_raw \<open>\DefineSnippet{set_rw_spec2}{\<close>
 definition set_rw_spec' :: "('op, 'v setOp, ('r::{default,from_bool})) ccrdtSpec" where
 "set_rw_spec' oper vis op hb C  res \<equiv> 
   case oper of
@@ -239,6 +240,8 @@ definition set_rw_spec' :: "('op, 'v setOp, ('r::{default,from_bool})) ccrdtSpec
         (\<exists>a\<in>vis. op a = C (Add v)
            \<and> (\<forall>r\<in>vis. op r = C (Remove v)
                  \<longrightarrow> (\<exists>a'\<in>vis. op a' = C (Add v) \<and> (r,a')\<in>hb)))"
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 lemma sub_context_operationContext_wf:

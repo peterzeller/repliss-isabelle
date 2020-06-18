@@ -47,7 +47,10 @@ end
 
 
 
+text_raw \<open>\DefineSnippet{call}{\<close>
 datatype ('operation, 'any) call = Call (call_operation: 'operation) (call_res:"'any")
+text_raw \<open>}%EndSnippet\<close>
+
 
 datatype ('ls, 'operation, 'any) localAction =
     LocalStep bool 'ls
@@ -79,9 +82,12 @@ lemma onlyCommittedGreater: "a \<triangleq> Committed" if "a\<ge>Some Committed"
 
 
 
+text_raw \<open>\DefineSnippet{operationContext}{\<close>
 record ('operation, 'any) operationContext = 
   calls :: "callId \<rightharpoonup> ('operation, 'any) call"
   happensBefore :: "callId rel"
+text_raw \<open>}%EndSnippet\<close>
+
 
 record ('proc, 'operation, 'any) invariantContext = "('operation, 'any) operationContext" +
   callOrigin :: "callId \<rightharpoonup> txid"

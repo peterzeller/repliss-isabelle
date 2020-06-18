@@ -3732,10 +3732,13 @@ lemma if_distrib_bind:
 
 subsection "Check With Bind"
 
+text_raw \<open>\DefineSnippet{execution_s_check_bind}{\<close>
 lemma execution_s_check_bind:
   assumes "execution_s_check progInv qrySpec S cmd (\<lambda>S' r. 
     execution_s_check progInv qrySpec S' (cont r) P)"
-  shows "execution_s_check progInv qrySpec S (cmd \<bind> cont) P"
+shows "execution_s_check progInv qrySpec S (cmd \<bind> cont) P"
+  text_raw \<open>}%EndSnippet\<close>
+
 proof (auto simp add: execution_s_check_def)
   fix S' res
   assume steps: "steps_io progInv qrySpec S (cmd \<bind> cont) S' res"
@@ -3785,9 +3788,11 @@ lemma execution_s_check_strengthen:
 
 subsection "Return Rule"
 
+text_raw \<open>\DefineSnippet{show_execution_s_check_return}{\<close>
 lemma show_execution_s_check_return:
   assumes "P PS r"
-  shows "execution_s_check Inv crdtSpec PS (return r) P"
+shows "execution_s_check Inv crdtSpec PS (return r) P"
+text_raw \<open>}%EndSnippet\<close>
   using assms execution_s_check_def steps_io_return by fastforce
 
 
@@ -4030,6 +4035,7 @@ lemma steps_io_bind':
   using assms steps_io_bind by blast
 
 
+text_raw \<open>\DefineSnippet{execution_s_check_Loop}{\<close>
 lemma execution_s_check_Loop:
   fixes init :: "'any::valueType"
     and LoopInv :: "('b::valueType, 'any, 'operation::valueType) proof_state \<Rightarrow> 'any \<Rightarrow> ('b, 'any, 'operation) proof_state \<Rightarrow> bool"
@@ -4042,7 +4048,9 @@ lemma execution_s_check_Loop:
 \<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec PSl (body acc)
     (\<lambda>PS' r. case r of Break res \<Rightarrow> P PS' (f res)
                      | Continue acc' \<Rightarrow> LoopInv PS acc' PS' )"
-  shows "execution_s_check Inv crdtSpec PS (Loop init (loop_body_to_V body) (return \<circ> f)) P"
+shows "execution_s_check Inv crdtSpec PS (Loop init (loop_body_to_V body) (return \<circ> f)) P"
+  text_raw \<open>}%EndSnippet\<close>
+
   unfolding execution_s_check_def proof (intro allI impI)
   fix S' :: "('b, 'any, 'operation) proof_state" and res :: "'a option"
   assume steps_io: "steps_io Inv crdtSpec PS (Loop init (loop_body_to_V body) (return \<circ> f)) S' res"
@@ -4127,6 +4135,7 @@ lemma loopResult_nested_case_simp:
 (case r of Break x \<Rightarrow> f' (f x) | Continue x \<Rightarrow> g' (g x))"
   by (auto split: loopResult.splits)
 
+text_raw \<open>\DefineSnippet{execution_s_check_loop}{\<close>
 lemma execution_s_check_loop:
   fixes PS :: "('proc::valueType, 'any::{small,valueType,natConvert}, 'operation::valueType) proof_state" 
     and init :: "'acc::countable"
@@ -4139,6 +4148,8 @@ lemma execution_s_check_loop:
     (\<lambda>PS' r. case r of Break x \<Rightarrow> P PS' x
                      | Continue x \<Rightarrow> LoopInv PS x PS' )"
   shows "execution_s_check Inv crdtSpec PS (loop_a init LoopInv body) P"
+  text_raw \<open>}%EndSnippet\<close>
+
   unfolding loop_a_def loop_def
   using inv_pre
 proof (fuzzy_rule execution_s_check_Loop[where LoopInv="\<lambda>PS a PS'. LoopInv PS (fromAny a) PS'"])
@@ -4167,6 +4178,7 @@ proof (fuzzy_rule execution_s_check_Loop[where LoopInv="\<lambda>PS a PS'. LoopI
 qed
 
 
+text_raw \<open>\DefineSnippet{execution_s_check_while}{\<close>
 lemma execution_s_check_while:
   assumes inv_pre: "LoopInv PS PS"
     and cont: "
@@ -4175,7 +4187,9 @@ lemma execution_s_check_while:
 \<rbrakk> \<Longrightarrow> execution_s_check Inv crdtSpec  PSl body 
     (\<lambda>PS' r. if r then P PS' ()
              else LoopInv PS PS' )"
-  shows "execution_s_check Inv crdtSpec PS (while_a LoopInv body) P"
+shows "execution_s_check Inv crdtSpec PS (while_a LoopInv body) P"
+  text_raw \<open>}%EndSnippet\<close>
+
   unfolding while_a_def while_def
   using inv_pre
 proof (fuzzy_rule execution_s_check_Loop[where LoopInv="\<lambda>PS a PS'. LoopInv PS PS'"])
@@ -4195,6 +4209,7 @@ qed
 
 
 
+text_raw \<open>\DefineSnippet{execution_s_check_forEach}{\<close>
 lemma execution_s_check_forEach:
   assumes inv_pre: "LoopInv PS [] [] elems PS"
     and iter: "
@@ -4208,7 +4223,9 @@ lemma execution_s_check_forEach:
   LoopInv PS elems results [] PSl;
   length elems = length results
 \<rbrakk> \<Longrightarrow> P PSl results"
-  shows "execution_s_check Inv crdtSpec PS (forEach_a elems LoopInv body) P"
+shows "execution_s_check Inv crdtSpec PS (forEach_a elems LoopInv body) P"
+  text_raw \<open>}%EndSnippet\<close>
+
 proof -
 
   define LI where "LI \<equiv> \<lambda>S0 acc S. 
@@ -4775,6 +4792,7 @@ proof (rule execution_s_check_proof_rule)
 qed
 
 
+text_raw \<open>\DefineSnippet{execution_s_check_call}{\<close>
 lemma execution_s_check_call:
   assumes in_tx: "ps_tx PS \<triangleq> tx"
     and unique_wf: "uniqueIds OP \<subseteq> ps_localKnown PS"
@@ -4792,7 +4810,8 @@ toplevel_spec crdtSpec \<lparr>
         ps_localCalls := ps_localCalls PS @ [c]
        \<rparr>)  
       res"
-  shows "execution_s_check Inv crdtSpec PS (call OP) P"
+shows "execution_s_check Inv crdtSpec PS (call OP) P"
+  text_raw \<open>}%EndSnippet\<close>
 proof (rule execution_s_check_proof_rule)
 
   show "\<And>r. impl_language_loops.call OP \<noteq> impl_language_loops.io.WaitReturn r" 
@@ -4844,6 +4863,7 @@ qed
 
 
 
+text_raw \<open>\DefineSnippet{execution_s_check_endAtomic}{\<close>
 lemma execution_s_check_endAtomic:
   assumes in_tx: "ps_tx PS \<triangleq> tx"
     and tx_nonempty: "(ps_localCalls PS) \<noteq> []"
@@ -4876,7 +4896,8 @@ PS' = PS\<lparr>happensBefore := updateHb (happensBefore PS) (ps_vis PS) (ps_loc
 \<rbrakk> \<Longrightarrow>
     Inv (invariantContext.truncate PS')
     \<and> P PS' ()"
-  shows "execution_s_check Inv crdtSpec PS endAtomic P"
+shows "execution_s_check Inv crdtSpec PS endAtomic P"
+text_raw \<open>}%EndSnippet\<close>
 proof (rule execution_s_check_proof_rule)
 
   show "\<And>r. impl_language_loops.endAtomic \<noteq> impl_language_loops.io.WaitReturn r"
@@ -5081,6 +5102,7 @@ lemmas repliss_proof_rules =
   show_finalCheck
   execution_s_check_bind
 
+text_raw \<open>\DefineSnippet{repliss_vcg_methods}{\<close>
 method repliss_vcg_step1 uses asmUnfold = 
   (rule repliss_proof_rules; 
     ((subst(asm) asmUnfold)+)?; 
@@ -5098,6 +5120,8 @@ method repliss_vcg_l uses impl asmUnfold =
     (unfold atomic_def skip_def)?, 
     simp?, 
     repliss_vcg_step asmUnfold: asmUnfold)
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 

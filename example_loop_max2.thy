@@ -52,6 +52,7 @@ lemma show_only_store_changed:
   shows "only_store_changed PS_old PS'"
   using assms by (auto simp add: only_store_changed_def)
 
+text_raw \<open>\DefineSnippet{loop_max_example_loop_inv}{\<close>
 definition loop_inv :: "nat ref \<Rightarrow> nat list \<Rightarrow> (proc, val, unit) proof_state \<Rightarrow> nat list \<Rightarrow> 'a list \<Rightarrow> nat list \<Rightarrow> (proc, val, unit) proof_state \<Rightarrow> bool" where
 "loop_inv resR p_list PS_old Done res Todo  PS \<equiv>
  \<exists>re.
@@ -59,7 +60,9 @@ definition loop_inv :: "nat ref \<Rightarrow> nat list \<Rightarrow> (proc, val,
         \<and> re ::= s_read (ps_store PS) resR 
         \<and> (if Done = [] then re = 0 else re = Max (set Done))
         \<and> (only_store_changed PS_old PS)"
+text_raw \<open>}%EndSnippet\<close>
 
+text_raw \<open>\DefineSnippet{loop_max_example_impl}{\<close>
 definition max_impl :: "nat list \<Rightarrow> (val,operation,val) io" where
 "max_impl p_list \<equiv> 
    do {
@@ -70,7 +73,9 @@ definition max_impl :: "nat list \<Rightarrow> (val,operation,val) io" where
       });
       res \<leftarrow> read resR;
       return (Nat res)
-   }"
+}"
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 
@@ -96,7 +101,7 @@ definition procedures :: "proc \<Rightarrow> (localState \<times> (localState, o
     PMax n \<Rightarrow> toImpl' invoc (max_impl n)
 "
 
-
+text_raw \<open>\DefineSnippet{loop_max_example_inv}{\<close>
 definition inv1 where
 "inv1 op res \<equiv> \<forall>i list r.
     op i \<triangleq> PMax list
@@ -104,6 +109,7 @@ definition inv1 where
   \<and> res i \<triangleq> r
   \<longrightarrow> (r = Nat (Max (set list)))
 "
+text_raw \<open>}%EndSnippet\<close>
 
 
 

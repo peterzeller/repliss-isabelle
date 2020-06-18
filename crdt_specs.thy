@@ -99,11 +99,19 @@ definition
 definition 
 "map_Call f c \<equiv> case c of Call op r \<Rightarrow> (case f op of None \<Rightarrow> None | Some op' \<Rightarrow> Some (Call op' r))"
 
+text_raw \<open>\DefineSnippet{sub_contexts}{\<close>
 definition restrict_ctxt_op :: "('op1 \<rightharpoonup> 'op2) \<Rightarrow>   ('op1, 'r) operationContext \<Rightarrow>   ('op2, 'r) operationContext" where
 "restrict_ctxt_op f \<equiv> 
   restrict_ctxt (\<lambda>c. 
-    case c of Call op r \<Rightarrow> (case f op of Some op' \<Rightarrow> Some (Call op' r) | None \<Rightarrow> None))
-"
+    case c of Call op r \<Rightarrow> (case f op of Some op' \<Rightarrow> Some (Call op' r) | None \<Rightarrow> None))"
+
+definition ctxt_restrict_calls :: "callId set \<Rightarrow> ('op, 'r) operationContext \<Rightarrow> ('op, 'r) operationContext"  where
+"ctxt_restrict_calls Cs ctxt = \<lparr>calls = calls ctxt |` Cs, happensBefore = happensBefore ctxt |r Cs\<rparr>"
+
+definition sub_context :: "('c \<Rightarrow> 'a option) \<Rightarrow> callId set \<Rightarrow> ('c, 'b) operationContext \<Rightarrow> ('a, 'b) operationContext" where
+"sub_context C_in Cs ctxt \<equiv>
+  (restrict_ctxt_op C_in (ctxt_restrict_calls Cs ctxt))"
+text_raw \<open>}%EndSnippet\<close>
 
 
 lemma calls_restrict_ctxt_op1:
@@ -138,8 +146,6 @@ lemma happensBefore_restrict_ctxt_op':
   by (auto simp add: happensBefore_restrict_ctxt_op option_bind_def split: option.splits)
 
 
-definition ctxt_restrict_calls :: "callId set \<Rightarrow> ('op, 'r) operationContext \<Rightarrow> ('op, 'r) operationContext"  where
-"ctxt_restrict_calls Cs ctxt = \<lparr>calls = calls ctxt |` Cs, happensBefore = happensBefore ctxt |r Cs\<rparr>"
 
 
 text "To combine CRDT specifications, we need to distinguish updates from queries, which we can do using
@@ -171,9 +177,12 @@ lemma use_crdt_spec_wf:
 
 subsection "Counter"
 
+text_raw \<open>\DefineSnippet{counterOp}{\<close>
 datatype counterOp =
-    Increment int
+      Increment int
     | GetCount
+text_raw \<open>}%EndSnippet\<close>
+
 
 instance counterOp :: countable
   by countable_datatype
@@ -186,27 +195,33 @@ end
 
 
 
-definition 
-"increments op \<equiv> case op of Increment i \<Rightarrow> i | _ \<Rightarrow> 0"
+
 
 class from_int = valueType +
   fixes from_int :: "int \<Rightarrow> 'a"
   assumes from_int_no_uniqueIds: "uniqueIds (from_int x) = {}"
 
+text_raw \<open>\DefineSnippet{counter_spec}{\<close>
+definition 
+"increments op \<equiv> case op of Increment i \<Rightarrow> i | _ \<Rightarrow> 0"
 
 definition counter_spec :: "(counterOp, 'a::{default,from_int}) crdtSpec" where
 "counter_spec oper ctxt res \<equiv> 
   case oper of
     Increment i \<Rightarrow> res = default
   | GetCount \<Rightarrow> res = from_int (\<Sum>(_,c)\<leftarrow>\<^sub>m calls ctxt. increments (call_operation c))"
+text_raw \<open>}%EndSnippet\<close>
 
 
 
 subsection "Register"
 
+text_raw \<open>\DefineSnippet{registerOp}{\<close>
 datatype 'a registerOp =
     Assign 'a
-  | Read
+| Read
+text_raw \<open>}%EndSnippet\<close>
+
 
 instance registerOp :: (countable) countable
   by countable_datatype
@@ -227,6 +242,7 @@ end
 
 text "The latest values are all assigned values that have not been overridden by another call to assign."
 
+text_raw \<open>\DefineSnippet{register_spec}{\<close>
 definition 
 "latestAssignments_h c_ops s_happensBefore \<equiv> 
    \<lambda>c. case c_ops c of 
@@ -236,6 +252,22 @@ definition
 
 definition latestAssignments :: "('a registerOp, 'r) operationContext \<Rightarrow> callId \<rightharpoonup> 'a"  where
 "latestAssignments ctxt \<equiv> latestAssignments_h (Op ctxt) (happensBefore ctxt)"
+
+definition 
+"latestValues ctxt \<equiv> Map.ran (latestAssignments ctxt)" 
+
+definition register_spec :: "'a::default \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
+"register_spec initial oper ctxt res \<equiv> 
+  case oper of
+    Assign x \<Rightarrow> res = default
+  | Read \<Rightarrow> if latestValues ctxt = {} then res = initial else res \<in> latestValues ctxt "
+
+definition lww_register_spec :: "'a::default \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
+"lww_register_spec initial oper ctxt res \<equiv> 
+  case oper of
+    Assign x \<Rightarrow> res = default
+| Read \<Rightarrow> res = firstValue initial (latestAssignments ctxt)"
+text_raw \<open>}%EndSnippet\<close>
 
 
 lemma ctxt_spec_wf_latestAssignments[simp]:
@@ -248,8 +280,7 @@ lemma ctxt_spec_wf_latestAssignments[simp]:
 
 
 
-definition 
-"latestValues ctxt \<equiv> Map.ran (latestAssignments ctxt)" 
+
 
 lemma latestValues_def2:
 "latestValues ctxt =
@@ -269,11 +300,6 @@ lemma ctxt_spec_wf_latestValues[simp]:
 
 
 
-definition register_spec :: "'a::default \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
-"register_spec initial oper ctxt res \<equiv> 
-  case oper of
-    Assign x \<Rightarrow> res = default
-  | Read \<Rightarrow> if latestValues ctxt = {} then res = initial else res \<in> latestValues ctxt "
 
 
 lemma latest_assignments_wf:
@@ -301,17 +327,6 @@ lemma register_spec_wf: "crdt_spec_wf (register_spec i)"
   by (auto simp add: crdt_spec_wf_def )
 
 
-text "To define LWW-registers, we use some arbitrary order on calls.
-First we show that this exists:"
-
-
-
-definition lww_register_spec :: "'a::default \<Rightarrow> ('a registerOp, 'a) crdtSpec" where
-"lww_register_spec initial oper ctxt res \<equiv> 
-  case oper of
-    Assign x \<Rightarrow> res = default
-  | Read \<Rightarrow> res = firstValue initial (latestAssignments ctxt)"
-
 lemma lwwregister_restrict_hb[simp]: 
 "lww_register_spec i op (restrict_hb c) r
 \<longleftrightarrow> lww_register_spec i op c r"
@@ -327,11 +342,14 @@ subsection "Multi-Value Register"
 class is_set =
   fixes is_set :: "'a \<Rightarrow> 'a set \<Rightarrow> bool"
 
+text_raw \<open>\DefineSnippet{mv_register_spec}{\<close>
 definition mv_register_spec :: "('a registerOp, 'a::{default,is_set}) crdtSpec" where
 "mv_register_spec oper ctxt res \<equiv> 
   case oper of
     Assign x \<Rightarrow> res = default
-  | Read \<Rightarrow> is_set res (latestValues ctxt)"
+| Read \<Rightarrow> is_set res (latestValues ctxt)"
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 lemma mv_register_spec_restrict_hb[simp]: 
@@ -345,7 +363,10 @@ lemma mv_register_spec_wf: "crdt_spec_wf mv_register_spec"
 
 subsection "Flags"
 
+text_raw \<open>\DefineSnippet{flagOp}{\<close>
 datatype flagOp = Enable | Disable | ReadFlag
+text_raw \<open>}%EndSnippet\<close>
+
 
 instance flagOp :: countable
   by countable_datatype
@@ -369,6 +390,7 @@ end
 
 
 
+text_raw \<open>\DefineSnippet{flag_specs}{\<close>
 definition 
 "latestOps ctxt \<equiv> 
   {op | c op. 
@@ -384,16 +406,11 @@ definition flag_dw_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
    ReadFlag \<Rightarrow> res = from_bool (Enable \<in> latestOps ctxt \<and> Disable \<notin> latestOps ctxt)
   | _ \<Rightarrow> res = default"
 
-
-
 definition flag_ew_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
 "flag_ew_spec oper ctxt res \<equiv> 
   case oper of
    ReadFlag \<Rightarrow> res = from_bool (Enable \<in> latestOps ctxt)
   | _ \<Rightarrow> res = default"
-
-
-text "Strong variants:"
 
 definition flag_sdw_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
 "flag_sdw_spec oper ctxt res \<equiv> 
@@ -409,6 +426,8 @@ definition flag_sew_spec :: "(flagOp, 'a::{default,from_bool}) crdtSpec" where
                   \<and> (\<nexists>d. Op ctxt d \<triangleq> Disable
                     \<and> (\<forall>e. Op ctxt e \<triangleq> Enable \<longrightarrow> (e,d)\<in>happensBefore ctxt)))
   | _ \<Rightarrow> res = default"
+text_raw \<open>}%EndSnippet\<close>
+
 
 text "Next we validate the specification on some examples"
 
@@ -674,10 +693,13 @@ qed
 
 subsection "Sets"
 
+text_raw \<open>\DefineSnippet{setOp}{\<close>
 datatype 'v setOp =
     Add 'v
   | Remove 'v
-  | Contains 'v
+| Contains 'v
+text_raw \<open>}%EndSnippet\<close>
+
  
 instance setOp :: (countable) countable
   by countable_datatype
@@ -704,6 +726,7 @@ instance by (standard, auto simp add: uniqueIds_setOp_def)
 end
 
 
+text_raw \<open>\DefineSnippet{set_specs}{\<close>
 definition set_to_flag where
 "set_to_flag v op \<equiv> case op of
    Add x \<Rightarrow> if x = v then Some Enable else None
@@ -722,6 +745,8 @@ definition set_spec :: "(flagOp, 'r::{default,from_bool}) crdtSpec \<Rightarrow>
 definition "set_aw_spec \<equiv> set_spec flag_ew_spec"
 
 definition "set_rw_spec \<equiv> set_spec flag_dw_spec"
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 lemma set_aw_spec_Add[simp]:
@@ -1024,6 +1049,7 @@ proof (auto simp add: set_rw_spec_def set_spec_def flag_dw_spec_def spec intro!:
 qed
 
 
+text_raw \<open>\DefineSnippet{set_rw_spec_Contains_iff}{\<close>
 lemma set_rw_spec_Contains_iff:
   assumes wf: "operationContext_wf ctxt"
   shows  "set_rw_spec (Contains x) ctxt res
@@ -1031,6 +1057,7 @@ lemma set_rw_spec_Contains_iff:
                            \<and> (\<forall>r. Op ctxt r \<triangleq> Remove x
                                 \<longrightarrow> (\<exists>a. Op ctxt a \<triangleq> Add x
                                     \<and> (r,a)\<in>happensBefore ctxt)))"
+  text_raw \<open>}%EndSnippet\<close>
   using local.wf set_rw_spec_Contains set_rw_spec_Contains2 by fastforce
 
 
@@ -1130,10 +1157,13 @@ lemma set_rw_spec_restrict_hb[simp]:
 
 subsection "Maps"
 
+text_raw \<open>\DefineSnippet{mapOp}{\<close>
 datatype ('k,'v) mapOp =
       NestedOp 'k 'v
     | KeyExists 'k
-    | DeleteKey 'k
+| DeleteKey 'k
+text_raw \<open>}%EndSnippet\<close>
+
 
 instance mapOp :: (countable,countable) countable
   by countable_datatype
@@ -1162,6 +1192,7 @@ instance by (standard, auto simp add: uniqueIds_mapOp_def)
 end
 
 
+text_raw \<open>\DefineSnippet{map_specs}{\<close>
 definition
 "nested_op_on_key k op \<equiv> case op of NestedOp k' op' \<Rightarrow> if k = k' then Some op' else None | _ \<Rightarrow> None"
 
@@ -1171,11 +1202,6 @@ definition
 definition
 "deleted_calls_dw ctxt k \<equiv> {c\<in>dom (calls ctxt). \<exists>c' r. calls ctxt c' \<triangleq> Call (DeleteKey k) r 
                               \<and> (c',c)\<notin>happensBefore ctxt}"
-
-
-definition sub_context :: "('c \<Rightarrow> 'a option) \<Rightarrow> callId set \<Rightarrow> ('c, 'b) operationContext \<Rightarrow> ('a, 'b) operationContext" where
-"sub_context C_in Cs ctxt \<equiv>
-  (restrict_ctxt_op C_in (ctxt_restrict_calls Cs ctxt))"
 
 
 definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::{default,from_bool}) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow>  ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
@@ -1192,6 +1218,8 @@ definition map_uw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Righ
 
 definition map_dw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_dw_spec \<equiv> map_spec deleted_calls_dw"
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 lemma calls_ctxt_restrict_calls: "calls (ctxt_restrict_calls S ctxt) c = (calls ctxt |` S) c"
@@ -1297,8 +1325,11 @@ lemma map_dw_spec_wf:
 
 subsection "Structs"
 
+text_raw \<open>\DefineSnippet{struct_field}{\<close>
 definition struct_field :: "(('i, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool) \<Rightarrow> ('o \<Rightarrow> 'i option) \<Rightarrow> ('o, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool"  where
 "struct_field spec to_op   \<equiv> \<lambda>ctxt r. spec (restrict_ctxt_op to_op ctxt) r"
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 definition ctxt_map_result :: "('a \<Rightarrow> 'b) \<Rightarrow> ('o, 'a) operationContext \<Rightarrow> ('o, 'b) operationContext" where

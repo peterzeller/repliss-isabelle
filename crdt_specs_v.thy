@@ -18,6 +18,7 @@ text "In the following type definition we have three type parameters:
 \<^enum> opn is the type of nested operations, on which the specification works
 \<^enum> res is the type of results "
 
+text_raw \<open>\DefineSnippet{ccrdtSpec}{\<close>
 type_synonym ('op, 'opn, 'res) cOperationResultSpec = 
         "callId set                  \<comment> \<open>visible calls\<close>
       \<Rightarrow> (callId \<Rightarrow>'op)              \<comment> \<open>call information\<close> 
@@ -28,6 +29,8 @@ type_synonym ('op, 'opn, 'res) cOperationResultSpec =
 
 type_synonym ('op, 'opn, 'res) ccrdtSpec = 
         "'opn \<Rightarrow> ('op, 'opn, 'res) cOperationResultSpec"
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 definition 
@@ -123,6 +126,7 @@ shows "(x,y) \<in> happensBefore ctxt
 
 
 
+text_raw \<open>\DefineSnippet{crdt_spec_rel}{\<close>
 definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 'res) ccrdtSpec \<Rightarrow> bool" where
 "crdt_spec_rel spec cspec \<equiv>                                                 
 \<forall>C_in::'op \<rightharpoonup> 'opn. \<forall>C_out::'opn \<Rightarrow> 'op.
@@ -134,9 +138,9 @@ definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 're
     \<longrightarrow> operationContext_wf ctxt
     \<longrightarrow>
        (spec op (sub_context C_in Cs ctxt) r
-    \<longleftrightarrow> cspec op Cs (extract_op (calls ctxt))  (happensBefore ctxt) C_out r))
+    \<longleftrightarrow> cspec op Cs (extract_op (calls ctxt))  (happensBefore ctxt) C_out r))"
+text_raw \<open>}%EndSnippet\<close>
 
-"
 
 lemmas use_crdt_spec_rel = crdt_spec_rel_def[unfolded atomize_eq, THEN iffD1, rule_format]
 lemmas use_crdt_spec_rel1 = crdt_spec_rel_def[unfolded atomize_eq, THEN iffD1, rule_format, THEN iffD1]
