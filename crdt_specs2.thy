@@ -385,12 +385,12 @@ lemma set_rw_spec_wf[simp]:
 subsection "Maps"
 
 
-definition deleted_calls_dw' :: "callId set \<Rightarrow> (callId \<Rightarrow>'op) \<Rightarrow> callId rel \<Rightarrow> (('k, 'opn) mapOp \<Rightarrow> 'op) \<Rightarrow> 'k \<Rightarrow> callId set" where
-"deleted_calls_dw' vis op hb C k \<equiv> {c\<in>vis. \<exists>d\<in>vis. op d = C (DeleteKey k) \<and> (d,c)\<notin>hb}"
+definition deleted_calls_sdw' :: "callId set \<Rightarrow> (callId \<Rightarrow>'op) \<Rightarrow> callId rel \<Rightarrow> (('k, 'opn) mapOp \<Rightarrow> 'op) \<Rightarrow> 'k \<Rightarrow> callId set" where
+"deleted_calls_sdw' vis op hb C k \<equiv> {c\<in>vis. \<exists>d\<in>vis. op d = C (DeleteKey k) \<and> (d,c)\<notin>hb}"
 
-lemma in_deleted_calls_dw':
-"c\<in>deleted_calls_dw' vis op hb C k \<longleftrightarrow> c\<in>vis \<and> (\<exists>d\<in>vis. op d = C (DeleteKey k) \<and> (d,c)\<notin>hb)"
-  by (auto simp add: deleted_calls_dw'_def)
+lemma in_deleted_calls_sdw':
+"c\<in>deleted_calls_sdw' vis op hb C k \<longleftrightarrow> c\<in>vis \<and> (\<exists>d\<in>vis. op d = C (DeleteKey k) \<and> (d,c)\<notin>hb)"
+  by (auto simp add: deleted_calls_sdw'_def)
 
 definition "C_out_calls C_out op vis \<equiv> {c\<in>vis. \<exists>x. op c = C_out x}"
 
@@ -415,10 +415,10 @@ definition map_spec' :: "
 "
 
 
-definition map_dw_spec' :: "
+definition map_sdw_spec' :: "
        ('op, 'opn::crdt_op, 'r) ccrdtSpec
     \<Rightarrow> ('op, ('k, 'opn) mapOp, ('r::{default,from_bool})) ccrdtSpec" where
-"map_dw_spec' \<equiv>  map_spec' deleted_calls_dw'"
+"map_sdw_spec' \<equiv>  map_spec' deleted_calls_sdw'"
 
 
 
@@ -439,12 +439,12 @@ lemma subcontext_of_subcontext_collapse:
       intro!: ext split: option.splits call.splits)
 
 
-lemma deleted_calls_dw_rel:
+lemma deleted_calls_sdw_rel:
   assumes "is_reverse C_in C_out"
-  assumes "L = deleted_calls_dw (sub_context C_in Cs ctxt) k"
-and "R = deleted_calls_dw' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
+  assumes "L = deleted_calls_sdw (sub_context C_in Cs ctxt) k"
+and "R = deleted_calls_sdw' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
 shows "L = R"
-  by (auto simp add: deleted_calls_dw_def deleted_calls_dw'_def sub_context_def assms restrict_ctxt_op_def restrict_ctxt_def
+  by (auto simp add: deleted_calls_sdw_def deleted_calls_sdw'_def sub_context_def assms restrict_ctxt_op_def restrict_ctxt_def
       fmap_map_values_def option_bind_def ctxt_restrict_calls_def restrict_map_def
       restrict_relation_def extract_op_def'  map_map_def map_chain_def
       split: option.splits call.splits if_splits,
@@ -649,16 +649,16 @@ qed
 
 
 
-lemma map_dw_spec_rel:
+lemma map_sdw_spec_rel:
   assumes nested_rel: "crdt_spec_rel nestedSpec nestedSpec'"
-  shows "crdt_spec_rel (map_dw_spec nestedSpec) (map_dw_spec' nestedSpec') "
-  unfolding map_dw_spec'_def map_dw_spec_def
+  shows "crdt_spec_rel (map_sdw_spec nestedSpec) (map_sdw_spec' nestedSpec') "
+  unfolding map_sdw_spec'_def map_sdw_spec_def
 proof (rule map_spec_rel[OF nested_rel])
-  show "deleted_calls_dw (sub_context C_in Cs ctxt) k = deleted_calls_dw' Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
+  show "deleted_calls_sdw (sub_context C_in Cs ctxt) k = deleted_calls_sdw' Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out k"
     if c0: "is_reverse C_in C_out"
       and c1: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
     for  ctxt C_in C_out Cs k
-    by (metis c0 c1 deleted_calls_dw_rel inf.absorb_iff2)
+    by (metis c0 c1 deleted_calls_sdw_rel inf.absorb_iff2)
 qed
 
 lemma restrict_calls_wf:
@@ -697,19 +697,19 @@ proof (simp add: ccrdtSpec_wf_def; intro impI allI)
   qed
 qed
 
-lemma map_dw_spec_wf[simp]:
+lemma map_sdw_spec_wf[simp]:
   assumes nested_rel: "\<And>oper. ccrdtSpec_wf (nestedSpec oper)"
-  shows "ccrdtSpec_wf (map_dw_spec' nestedSpec oper) "
-  unfolding map_dw_spec'_def using nested_rel
+  shows "ccrdtSpec_wf (map_sdw_spec' nestedSpec oper) "
+  unfolding map_sdw_spec'_def using nested_rel
 proof (rule map_spec_wf; intro allI impI)
 
-  show "deleted_calls_dw' Cs op hb C_out k = deleted_calls_dw' Cs op' hb' C_out k"
+  show "deleted_calls_sdw' Cs op hb C_out k = deleted_calls_sdw' Cs op' hb' C_out k"
     if c0: "\<And>oper. ccrdtSpec_wf (nestedSpec oper)"
       and c1: "map_same_on Cs op op'"
       and c2: "rel_same_on Cs hb hb'"
     for  oper Cs op op' hb hb' C_out k
     using c1 c2
-    by (auto simp add: deleted_calls_dw'_def map_same_on_def rel_same_on_def)
+    by (auto simp add: deleted_calls_sdw'_def map_same_on_def rel_same_on_def)
 qed
 
 

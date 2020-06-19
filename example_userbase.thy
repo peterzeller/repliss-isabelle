@@ -236,7 +236,7 @@ definition userStruct :: "(userDataOp, val) crdtSpec" where
 )" 
 
 definition crdtSpec :: "(operation, val) crdtSpec" where
-  "crdtSpec \<equiv> map_dw_spec userStruct"
+  "crdtSpec \<equiv> map_sdw_spec userStruct"
 
 
 definition userStruct' :: "('a, userDataOp, val) ccrdtSpec" where
@@ -247,12 +247,12 @@ definition userStruct' :: "('a, userDataOp, val) ccrdtSpec" where
 )"
 
 definition crdtSpec' :: "(operation, operation, val) ccrdtSpec" where
-  "crdtSpec' \<equiv> map_dw_spec' userStruct'"
+  "crdtSpec' \<equiv> map_sdw_spec' userStruct'"
 
 lemma crdtSpec_rel:
   shows "crdt_spec_rel crdtSpec crdtSpec'"
   unfolding crdtSpec_def crdtSpec'_def
-proof (rule map_dw_spec_rel)
+proof (rule map_sdw_spec_rel)
 
   show "crdt_spec_rel userStruct userStruct'"
   proof (rule show_crdt_spec_rel')
@@ -363,8 +363,8 @@ lemma if_distrib_eq: "(if c then x else y) = z \<longleftrightarrow> (if c then 
 declare invariantContext.defs[simp]
 
 lemmas crdt_spec_defs = 
-  toplevel_spec_def crdtSpec'_def struct_field'_def map_dw_spec'_def map_spec'_def userStruct'_def register_spec'_def
-  set_rw_spec'_def deleted_calls_dw'_def
+  toplevel_spec_def crdtSpec'_def struct_field'_def map_sdw_spec'_def map_spec'_def userStruct'_def register_spec'_def
+  set_rw_spec'_def deleted_calls_sdw'_def
 
 
 theorem userbase_correct: "programCorrect progr"

@@ -1418,7 +1418,6 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
 
 
 
-    thm convert_to_single_session_trace[OF \<open>initialState program ~~ tr'_min \<leadsto>* S_fail\<close>]
     from \<open>initialState program ~~ tr'_min \<leadsto>* S_fail\<close>
     have "\<exists>tr' S2.
        (initialState program ~~ (invoc, tr') \<leadsto>\<^sub>S* S2) \<and>

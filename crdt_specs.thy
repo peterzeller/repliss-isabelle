@@ -1024,7 +1024,6 @@ proof (auto simp add: set_rw_spec_def set_spec_def flag_dw_spec_def spec intro!:
       set_to_flag_Disable happensBefore_restrict_ctxt_op' set_to_flag_None\<close>)
 
 
-  thm Op_restrict_ctxt_op Op_restrict_ctxt_op_eq happensBefore_restrict_ctxt_op latestOps_Disable set_to_flag_Disable set_to_flag_Enable wf'
   show "False"
     if c0: "\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (\<exists>a. Op ctxt a \<triangleq> Add x \<and> (r, a) \<in> happensBefore ctxt)"
       and c1: "Op ctxt a \<triangleq> Add x"
@@ -1199,11 +1198,12 @@ definition
 "nested_op_on_key k op \<equiv> case op of NestedOp k' op' \<Rightarrow> if k = k' then Some op' else None | _ \<Rightarrow> None"
 
 definition
-"deleted_calls_uw ctxt k \<equiv> {c\<in>dom (calls ctxt).  \<exists>c' r. calls ctxt c' \<triangleq> Call (DeleteKey k) r \<and> (c,c')\<in>happensBefore ctxt}"
+"deleted_calls_uw ctxt k \<equiv> {c\<in>dom (calls ctxt).  
+    \<exists>d. Op ctxt d \<triangleq> DeleteKey k \<and> (c,d)\<in>happensBefore ctxt}"
 
 definition
-"deleted_calls_dw ctxt k \<equiv> {c\<in>dom (calls ctxt). \<exists>c' r. calls ctxt c' \<triangleq> Call (DeleteKey k) r 
-                              \<and> (c',c)\<notin>happensBefore ctxt}"
+"deleted_calls_sdw ctxt k \<equiv> {c\<in>dom (calls ctxt). 
+  \<exists>d. Op ctxt d \<triangleq> DeleteKey k \<and> (d,c)\<notin>happensBefore ctxt}"
 
 
 definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::{default,from_bool}) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow>  ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
@@ -1218,8 +1218,34 @@ definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::{default,from_bool}) oper
 definition map_uw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_uw_spec \<equiv> map_spec deleted_calls_uw"
 
+definition map_sdw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+"map_sdw_spec \<equiv> map_spec deleted_calls_sdw"
+text_raw \<open>}%EndSnippet\<close>
+
+abbreviation "
+is_concurrent ctxt c c' \<equiv> (c,c')\<notin>happensBefore ctxt \<and> (c',c)\<notin>happensBefore ctxt \<and> c\<noteq>c'"
+
+text_raw \<open>\DefineSnippet{map_specs2}{\<close>
+
+definition
+"deleted_calls_suw ctxt k \<equiv> {c\<in>dom (calls ctxt).  
+    \<exists>d. Op ctxt d \<triangleq> DeleteKey k \<and> (c,d)\<in>happensBefore ctxt
+     \<and> (\<nexists>u u_op. Op ctxt u \<triangleq> NestedOp k u_op \<and> is_update u_op \<and> is_concurrent ctxt u d)}"
+
+definition
+"deleted_calls_dw ctxt k \<equiv> {c\<in>dom (calls ctxt). 
+  \<exists>d. Op ctxt d \<triangleq> DeleteKey k \<and> 
+  ((c,d)\<in>happensBefore ctxt
+   \<or> is_concurrent ctxt c d 
+      \<and> (\<nexists>u u_op. Op ctxt u \<triangleq> NestedOp k u_op \<and> is_update u_op 
+                 \<and> (d,u)\<in>happensBefore ctxt))}"
+
+definition map_suw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+"map_suw_spec \<equiv> map_spec deleted_calls_suw"
+
 definition map_dw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_dw_spec \<equiv> map_spec deleted_calls_dw"
+
 text_raw \<open>}%EndSnippet\<close>
 
 
@@ -1294,9 +1320,9 @@ lemma deleted_calls_uw_restrict_hb[simp]:
   by (auto simp add: deleted_calls_uw_def restrict_relation_def intro!: ext, auto)
 
 
-lemma deleted_calls_dw_restrict_hb[simp]:
- "deleted_calls_dw (restrict_hb c) = deleted_calls_dw c"
-  by (auto simp add: deleted_calls_dw_def restrict_relation_def intro!: ext, auto)
+lemma deleted_calls_sdw_restrict_hb[simp]:
+ "deleted_calls_sdw (restrict_hb c) = deleted_calls_sdw c"
+  by (auto simp add: deleted_calls_sdw_def restrict_relation_def intro!: ext, auto)
 
 
 lemma map_uw_spec_wf_restrict_hb[simp]:
@@ -1306,12 +1332,12 @@ lemma map_uw_spec_wf_restrict_hb[simp]:
 \<longleftrightarrow> map_uw_spec nested op c r"
   by (simp add: map_uw_spec_def wf)
 
-lemma map_dw_spec_wf_restrict_hb[simp]:
+lemma map_sdw_spec_wf_restrict_hb[simp]:
   assumes wf: "crdt_spec_wf nested"
   shows
-"map_dw_spec nested op (restrict_hb c) r
-\<longleftrightarrow> map_dw_spec nested op c r"
-  by (simp add: map_dw_spec_def wf)
+"map_sdw_spec nested op (restrict_hb c) r
+\<longleftrightarrow> map_sdw_spec nested op c r"
+  by (simp add: map_sdw_spec_def wf)
 
 
 lemma map_uw_spec_wf: 
@@ -1319,10 +1345,10 @@ lemma map_uw_spec_wf:
   shows "crdt_spec_wf (map_uw_spec nested)"
   using crdt_spec_wf_def local.wf map_uw_spec_wf_restrict_hb by blast
 
-lemma map_dw_spec_wf: 
+lemma map_sdw_spec_wf: 
   assumes wf: "crdt_spec_wf nested"
-  shows "crdt_spec_wf (map_dw_spec nested)"
-  using crdt_spec_wf_def local.wf map_dw_spec_wf_restrict_hb by blast
+  shows "crdt_spec_wf (map_sdw_spec nested)"
+  using crdt_spec_wf_def local.wf map_sdw_spec_wf_restrict_hb by blast
 
 
 subsection "Structs"
@@ -1386,10 +1412,10 @@ lemma map_uw_spec_queries_cannot_guess_ids[intro]:
   shows"queries_cannot_guess_ids (map_uw_spec n) "
   by (simp add: map_spec_queries_cannot_guess_ids map_uw_spec_def nested)
 
-lemma map_dw_spec_queries_cannot_guess_ids[intro]:
+lemma map_sdw_spec_queries_cannot_guess_ids[intro]:
   assumes nested: "queries_cannot_guess_ids n"
-  shows"queries_cannot_guess_ids (map_dw_spec n) "
-  by (simp add: map_spec_queries_cannot_guess_ids map_dw_spec_def nested)
+  shows"queries_cannot_guess_ids (map_sdw_spec n) "
+  by (simp add: map_spec_queries_cannot_guess_ids map_sdw_spec_def nested)
 
 
 lemma latest_values_call:

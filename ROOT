@@ -22,6 +22,7 @@ session "repliss" = "HOL" +
   theories [show_question_marks = false, names_short]
     invariant_simps
     completeness
+    crdt_examples
     example_userbase
     example_chat
     example_loop_max

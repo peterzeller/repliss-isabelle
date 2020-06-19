@@ -13,9 +13,6 @@ theory example_chat
 begin
 
 
-
-
-
 datatype val =
     String string
   | UserId int
@@ -120,7 +117,7 @@ definition messageStruct :: "(messageDataOp, val) crdtSpec" where
 definition crdtSpec :: "(operation, val) crdtSpec" where
 "crdtSpec \<equiv> (\<lambda>oper.
   case oper of
-    Message op \<Rightarrow> struct_field (map_dw_spec messageStruct op) (\<lambda>oper. case oper of Message op \<Rightarrow> Some op | _ \<Rightarrow> None) 
+    Message op \<Rightarrow> struct_field (map_sdw_spec messageStruct op) (\<lambda>oper. case oper of Message op \<Rightarrow> Some op | _ \<Rightarrow> None) 
   | Chat op \<Rightarrow> struct_field (set_rw_spec op) (\<lambda>oper. case oper of Chat op \<Rightarrow> Some op | _ \<Rightarrow> None)
 )"
 
@@ -135,7 +132,7 @@ definition messageStruct'  :: "('a, messageDataOp, val) ccrdtSpec"  where
 definition crdtSpec' :: "(operation, operation, val) ccrdtSpec" where
 "crdtSpec' \<equiv> (\<lambda>oper.
   case oper of
-    Message op \<Rightarrow> struct_field' Message (map_dw_spec' messageStruct' op) 
+    Message op \<Rightarrow> struct_field' Message (map_sdw_spec' messageStruct' op) 
   | Chat op \<Rightarrow> struct_field'  Chat (set_rw_spec' op) 
 )"
 
@@ -171,8 +168,8 @@ proof (rule show_crdt_spec_rel')
     qed (auto simp add: c0 c3)
   next
     case (Message op')
-    show "struct_field (map_dw_spec messageStruct op') (case_operation Map.empty Some) (sub_context C_in Cs ctxt) r =
-          struct_field' Message (map_dw_spec' messageStruct' op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+    show "struct_field (map_sdw_spec messageStruct op') (case_operation Map.empty Some) (sub_context C_in Cs ctxt) r =
+          struct_field' Message (map_sdw_spec' messageStruct' op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
     proof (rule struct_field_eq)
 
       show "is_reverse (\<lambda>a. case a of Chat x \<Rightarrow> Map.empty x | Message x \<Rightarrow> Some x) Message"
@@ -182,8 +179,8 @@ proof (rule show_crdt_spec_rel')
         using c2 subset_map_map by blast
 
 
-      show "crdt_spec_rel (map_dw_spec messageStruct) (map_dw_spec' messageStruct')"
-      proof (rule map_dw_spec_rel)
+      show "crdt_spec_rel (map_sdw_spec messageStruct) (map_sdw_spec' messageStruct')"
+      proof (rule map_sdw_spec_rel)
         show "crdt_spec_rel messageStruct messageStruct'"
         proof (rule show_crdt_spec_rel')
 
@@ -243,12 +240,12 @@ lemma crdtSpec'_wf:
   unfolding crdtSpec'_def
 proof (auto  split: operation.splits)
 
-  show "ccrdtSpec_wf (struct_field' Message (map_dw_spec' messageStruct' x))"
+  show "ccrdtSpec_wf (struct_field' Message (map_sdw_spec' messageStruct' x))"
     if c0: "oper = Message x"
     for  x
   proof (rule struct_field_wf)
-    show "ccrdtSpec_wf (map_dw_spec' messageStruct' x)"
-    proof (rule map_dw_spec_wf)
+    show "ccrdtSpec_wf (map_sdw_spec' messageStruct' x)"
+    proof (rule map_sdw_spec_wf)
       show "ccrdtSpec_wf (messageStruct' oper)" for oper
         unfolding messageStruct'_def by (auto split: messageDataOp.splits)
     qed
@@ -497,10 +494,10 @@ proof (auto simp add: program_wellFormed_def)
     show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field (set_rw_spec x1) (case_operation Some Map.empty))"
       by (standard, auto split: operation.splits)
 
-    show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field (map_dw_spec messageStruct x2) (case_operation Map.empty Some))"
+    show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field (map_sdw_spec messageStruct x2) (case_operation Map.empty Some))"
     proof (standard, auto split: operation.splits)
 
-      show "queries_cannot_guess_ids (map_dw_spec messageStruct)"
+      show "queries_cannot_guess_ids (map_sdw_spec messageStruct)"
       proof (standard, auto simp add: messageStruct_def queries_cannot_guess_ids_def split: messageDataOp.splits)
 
         show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field (register_spec Undef x1) (case_messageDataOp Some Map.empty))"
@@ -545,7 +542,7 @@ proof -
 
   thus "upd_r = Undef"
     using upd_is_update
-    by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
+    by (auto simp add: crdtSpec_def struct_field_def map_sdw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
 
 qed
 
@@ -592,7 +589,7 @@ proof -
 
   thus "upd_r = Undef"
     using upd_is_update
-    by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
+    by (auto simp add: crdtSpec_def struct_field_def map_sdw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
 
 qed
 
@@ -602,8 +599,8 @@ declare invariantContext.defs[simp]
 
 
 lemmas crdt_spec_defs = 
-  toplevel_spec_def crdtSpec'_def struct_field'_def map_dw_spec'_def map_spec'_def messageStruct'_def register_spec'_def
-  set_rw_spec'_def deleted_calls_dw'_def
+  toplevel_spec_def crdtSpec'_def struct_field'_def map_sdw_spec'_def map_spec'_def messageStruct'_def register_spec'_def
+  set_rw_spec'_def deleted_calls_sdw'_def
 
 theorem chat_app_correct: "programCorrect progr"
 proof M_show_programCorrect
@@ -1149,7 +1146,7 @@ proof M_show_programCorrect
                       and upd_c_op: "extract_op s_calls' upd_c = Message (NestedOp (MessageId m) upd_op)"
                       and upd_is_update: "is_update upd_op"
                       and ud_not_deleted: "\<forall>d. extract_op s_calls' d = Message (DeleteKey (MessageId m)) \<longrightarrow> d \<in> dom s_calls' \<and> d \<in> vis' \<longrightarrow> (d, upd_c) \<in> s_happensBefore'"
-                    by (auto simp add: C_out_calls_def crdtSpec'_def struct_field'_def map_dw_spec'_def map_spec'_def deleted_calls_dw'_def)
+                    by (auto simp add: C_out_calls_def crdtSpec'_def struct_field'_def map_sdw_spec'_def map_spec'_def deleted_calls_sdw'_def)
 
                   obtain upd_r where 
                     upd_call: "s_calls' upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
@@ -1255,14 +1252,14 @@ proof M_show_programCorrect
                          ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                          (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                            (insert c (dom s_calls' \<inter> (vis'))) -
-                          deleted_calls_dw'
+                          deleted_calls_sdw'
                            (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                              (insert c (dom s_calls' \<inter> (vis'))))
                            ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
                            (MessageId m)))
                        ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c])
                        (Message \<circ> NestedOp (MessageId m) \<circ> Author))"
-                    by (auto simp add: crdtSpec'_def `resa = String author` struct_field'_def map_dw_spec'_def
+                    by (auto simp add: crdtSpec'_def `resa = String author` struct_field'_def map_sdw_spec'_def
                         map_spec'_def restrict_calls_def2 messageStruct'_def register_spec'_def)
 
                   hence spec3: "(String author) \<in>
@@ -1271,7 +1268,7 @@ proof M_show_programCorrect
                          ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                          (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                            (insert c (dom s_calls' \<inter> (vis' ))) -
-                          deleted_calls_dw'
+                          deleted_calls_sdw'
                            (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                              (insert c (dom s_calls' \<inter> (vis' ))))
                            ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
@@ -1285,7 +1282,7 @@ proof M_show_programCorrect
                        (C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                          (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                            (insert c (dom s_calls' \<inter> (vis'))) -
-                          deleted_calls_dw'
+                          deleted_calls_sdw'
                            (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                              (insert c (dom s_calls' \<inter> (vis'))))
                            ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
@@ -1326,7 +1323,7 @@ proof M_show_programCorrect
                         using d_call get_query_spec2 inv1.proof_state_wellFormed proof_state.simps(10) by fastforce
 
                       hence [simp]: "x2 = Undef"
-                        by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def) 
+                        by (auto simp add: crdtSpec_def struct_field_def map_sdw_spec_def map_spec_def) 
 
                       have [simp]: "d \<in> dom s_calls'"
                         using d_call by blast
@@ -1358,7 +1355,7 @@ proof M_show_programCorrect
                                   ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                                   (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                                     (insert c (dom s_calls' \<inter> vis')) -
-                                   deleted_calls_dw'
+                                   deleted_calls_sdw'
                                     (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
                                       (insert c (dom s_calls' \<inter> vis')))
                                     ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
@@ -1382,10 +1379,10 @@ proof M_show_programCorrect
                         by auto
 
                       show "upda_c
-                          \<notin> deleted_calls_dw' {ca. ca \<noteq> c \<longrightarrow> ca \<in> dom s_calls' \<and> ca \<in> vis' \<and> (\<exists>x. extract_op s_calls' ca = Message x)}
+                          \<notin> deleted_calls_sdw' {ca. ca \<noteq> c \<longrightarrow> ca \<in> dom s_calls' \<and> ca \<in> vis' \<and> (\<exists>x. extract_op s_calls' ca = Message x)}
                         ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
                         (MessageId m)"
-                        using delete_before_upda_c  by (auto simp add: deleted_calls_dw'_def updateHb_cons extract_op_def' split: call.splits)
+                        using delete_before_upda_c  by (auto simp add: deleted_calls_sdw'_def updateHb_cons extract_op_def' split: call.splits)
                     qed
                   qed
 *)
@@ -1451,7 +1448,7 @@ extract_op_def C_out_calls_def c0 restrict_calls_def updateHb_cons extract_op_eq
                     using get_query_spec2 inv1.proof_state_wellFormed proof_state.select_convs(10) by fastforce
 
                   hence [simp]: " updb_res = Undef"
-                    by (auto simp add: crdtSpec_def struct_field_def map_dw_spec_def map_spec_def messageStruct_def register_spec_def)
+                    by (auto simp add: crdtSpec_def struct_field_def map_sdw_spec_def map_spec_def messageStruct_def register_spec_def)
 
                   from updb_c_call
                   have updb_c_call': " s_calls' updb_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign (String author))))) Undef"
@@ -1502,6 +1499,7 @@ extract_op_def C_out_calls_def c0 restrict_calls_def updateHb_cons extract_op_eq
     qed
   qed
 qed
+
 
 
 end

@@ -1776,8 +1776,6 @@ lemma remove_context_switches_in_transactions:
       case True
       text "If the action before j was a context, then only consider the trace up to this and use IH."
 
-      thm less.hyps
-
       have "isPrefix (take i_switch trace) trace"
         by (metis append_take_drop_id isPrefix_appendI)
 

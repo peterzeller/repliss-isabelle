@@ -222,8 +222,6 @@ proof -
     where rel: "proof_state_rel PS S" by blast
 
 
-  thm  proof_state_rel_wf[OF rel]
-
   show ?thesis
   proof (intro exI, intro conjI)
 
@@ -2159,7 +2157,6 @@ proof (intro conjI)
   have "state_wellFormed S"
     using \<open>proof_state_rel PS S\<close> proof_state_rel_facts(1) by blast
 
-  thm proof_state_rel_facts[OF rel]
   have "dom (callOrigin PS) \<inter> set (ps_localCalls PS) = {}"
     using proof_state_rel_facts(18) rel by blast
   have "Field (happensBefore PS) \<inter> set (ps_localCalls PS) = {}"
@@ -3285,6 +3282,7 @@ proof (rule execution_s_check_sound[where P=P])
 qed (simp add: a4; fail )+
 
 
+text_raw \<open>\DefineSnippet{execution_s_check_sound4}{\<close>
 lemma execution_s_check_sound4:
   fixes S :: "('proc::valueType, 'any store \<times>  uniqueId set \<times> ('any,'operation, 'any) impl_language_loops.io, 'operation::valueType, 'any::valueType) state"
   assumes a1: "localState S i \<triangleq> (Map.empty, uniqueIds op, ls)"
@@ -3325,7 +3323,8 @@ invariant progr \<lparr>
       ps_firstTx = True,
       ps_store = Map.empty,
       ps_prog = progr\<rparr> ls (finalCheck (invariant progr) i)" 
-  shows "execution_s_correct S i"
+shows "execution_s_correct S i"
+text_raw \<open>}%EndSnippet\<close>
   using a1 a2 a3 a4 prog_wf inv c
 proof (fuzzy_rule execution_s_check_sound3[where P="finalCheck (invariant progr) i"])
 
@@ -4769,8 +4768,6 @@ proof (rule execution_s_check_proof_rule)
         fix v
         assume v: "v \<in> ps_generatedLocalPrivate PS"
 
-        thm CS_rel
-        thm CS'_rel
         from proof_state_rel_facts(24)[OF CS_rel, simplified]
         have "uid_is_private (ps_i PS) CS v" using v by simp
 
