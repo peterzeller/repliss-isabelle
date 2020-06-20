@@ -4,6 +4,105 @@ begin
 
 section "CRDT Examples"
 
+
+text "Next we validate the specification on some examples"
+
+subsection "Flags"
+
+
+abbreviation "enable \<equiv> Call Enable default"
+abbreviation "disable \<equiv> Call Disable default"
+
+abbreviation "c1 \<equiv> CallId 1"
+abbreviation "c2 \<equiv> CallId 2"
+abbreviation "c3 \<equiv> CallId 3"
+abbreviation "c4 \<equiv> CallId 4"
+
+definition "example1 \<equiv> \<lparr>
+  calls = Map.empty,
+  happensBefore = {}
+\<rparr>"
+
+definition "example2 \<equiv> \<lparr>
+  calls = [
+    c1 \<mapsto> enable,
+    c2 \<mapsto> disable
+  ],
+  happensBefore = {}
+\<rparr>"
+
+definition "example3 \<equiv> \<lparr>
+  calls = [
+    c1 \<mapsto> disable,
+    c2 \<mapsto> disable,
+    c3 \<mapsto> enable,
+    c4 \<mapsto> enable
+  ],
+  happensBefore = {(c1,c3), (c2,c4)}
+\<rparr>"
+
+
+definition "example4 \<equiv> \<lparr>
+  calls = [
+    c1 \<mapsto> enable,
+    c2 \<mapsto> enable,
+    c3 \<mapsto> disable,
+    c4 \<mapsto> disable
+  ],
+  happensBefore = {(c1,c3), (c2,c4)}
+\<rparr>"
+
+
+
+lemma "flag_ew_spec ReadFlag example1 False"
+  by (auto simp add: flag_ew_spec_def latestOps_def example1_def Op_def)
+lemma "flag_sew_spec ReadFlag example1 False"
+  by (auto simp add: flag_sew_spec_def latestOps_def example1_def Op_def)
+lemma "flag_dw_spec ReadFlag example1 False"
+  by (auto simp add: flag_dw_spec_def latestOps_def example1_def Op_def)
+lemma "flag_sdw_spec ReadFlag example1 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example1_def Op_def)
+
+
+lemma "flag_ew_spec ReadFlag example2 True"
+  by (auto simp add: flag_ew_spec_def latestOps_def example2_def Op_def)
+lemma "flag_sew_spec ReadFlag example2 True"
+  by (auto simp add: flag_sew_spec_def latestOps_def example2_def Op_def)
+lemma "flag_dw_spec ReadFlag example2 False"
+  by (auto simp add: flag_dw_spec_def latestOps_def example2_def Op_def cong: conj_cong)
+lemma "flag_sdw_spec ReadFlag example2 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example2_def Op_def cong: conj_cong)
+
+
+lemma "flag_ew_spec ReadFlag example3 True"
+  by (auto simp add: flag_ew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+   (smt callId.inject)
+lemma "flag_sew_spec ReadFlag example3 True"
+  by (auto simp add: flag_sew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+   (smt callId.inject)
+lemma "flag_dw_spec ReadFlag example3 True"
+  by (auto simp add: flag_dw_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+   (smt callId.inject)
+lemma "flag_sdw_spec ReadFlag example3 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+
+lemma "flag_ew_spec ReadFlag example4 False"
+  by (auto simp add: flag_ew_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+lemma "flag_sew_spec ReadFlag example4 True"
+  by (auto simp add: flag_sew_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+lemma "flag_dw_spec ReadFlag example4 False"
+  by (auto simp add: flag_dw_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+lemma "flag_sdw_spec ReadFlag example4 False"
+  by (auto simp add: flag_sdw_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+   (smt callId.inject)+
+
+
+
+
+
+subsection "Maps"
+
+
 text \<open>We illustrate the different map semantics based on examples:\<close>
 
 abbreviation "c \<equiv> CallId"
