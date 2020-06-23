@@ -103,10 +103,12 @@ text_raw \<open>\DefineSnippet{sub_contexts}{\<close>
 definition restrict_ctxt_op :: "('op1 \<rightharpoonup> 'op2) \<Rightarrow>   ('op1, 'r) operationContext \<Rightarrow>   ('op2, 'r) operationContext" where
 "restrict_ctxt_op f \<equiv> 
   restrict_ctxt (\<lambda>c. 
-    case c of Call op r \<Rightarrow> (case f op of Some op' \<Rightarrow> Some (Call op' r) | None \<Rightarrow> None))"
+    map_option (\<lambda>op'. Call op' (call_res c)) (f (call_operation c)))"
 
 definition ctxt_restrict_calls :: "callId set \<Rightarrow> ('op, 'r) operationContext \<Rightarrow> ('op, 'r) operationContext"  where
-"ctxt_restrict_calls Cs ctxt = \<lparr>calls = calls ctxt |` Cs, happensBefore = happensBefore ctxt |r Cs\<rparr>"
+"ctxt_restrict_calls Cs ctxt = \<lparr>
+    calls = calls ctxt |` Cs, 
+    happensBefore = happensBefore ctxt |r Cs\<rparr>"
 
 definition sub_context :: "('c \<Rightarrow> 'a option) \<Rightarrow> callId set \<Rightarrow> ('c, 'b) operationContext \<Rightarrow> ('a, 'b) operationContext" where
 "sub_context C_in Cs ctxt \<equiv>
@@ -123,6 +125,8 @@ lemma Op_restrict_ctxt_op:
 "Op (restrict_ctxt_op f ctxt) = (\<lambda>c. Op ctxt c \<bind> f)"
   by (auto simp add: Op_def option_bind_def restrict_ctxt_op_def restrict_ctxt_def  fmap_map_values_def
       intro!: ext split: option.splits call.splits)
+   (metis (no_types, lifting) call.sel(1) option.exhaust_sel option.simps(8) option.simps(9))
+
 
 lemma Op_restrict_ctxt_op_eq: 
 "Op (restrict_ctxt_op f ctxt) c \<triangleq> X \<longleftrightarrow> (\<exists>Y. Op ctxt c \<triangleq> Y \<and> f Y \<triangleq> X)"
@@ -1066,7 +1070,7 @@ text_raw \<open>\DefineSnippet{mapOp}{\<close>
 datatype ('k,'v) mapOp =
       NestedOp 'k 'v
     | KeyExists 'k
-| DeleteKey 'k
+    | DeleteKey 'k
 text_raw \<open>}%EndSnippet\<close>
 
 
@@ -1099,37 +1103,30 @@ end
 
 text_raw \<open>\DefineSnippet{map_specs}{\<close>
 definition
-"nested_op_on_key k op \<equiv> case op of NestedOp k' op' \<Rightarrow> if k = k' then Some op' else None | _ \<Rightarrow> None"
-
-definition
-"deleted_calls_uw ctxt k \<equiv> {c\<in>dom (calls ctxt).  
-    \<exists>d. Op ctxt d \<triangleq> DeleteKey k \<and> (c,d)\<in>happensBefore ctxt}"
-
-definition
-"deleted_calls_sdw ctxt k \<equiv> {c\<in>dom (calls ctxt). 
-  \<exists>d. Op ctxt d \<triangleq> DeleteKey k \<and> (d,c)\<notin>happensBefore ctxt}"
-
+"nested_op_on_key k op \<equiv> 
+    case op of NestedOp k' op' \<Rightarrow> if k = k' then Some op' else None 
+             | _ \<Rightarrow> None"
 
 definition map_spec :: "((('k, 'v::crdt_op) mapOp, 'r::{default,from_bool}) operationContext \<Rightarrow> 'k \<Rightarrow> callId set) \<Rightarrow>  ('v,'r) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_spec deleted_calls nestedSpec oper ctxt res \<equiv>
   case oper of
     DeleteKey k \<Rightarrow> res = default
-  | KeyExists k \<Rightarrow> res = from_bool (\<exists>c op r. calls ctxt c \<triangleq> Call (NestedOp k op) r \<and> is_update op \<and>  c \<notin> deleted_calls ctxt k)
+  | KeyExists k \<Rightarrow> res = from_bool (\<exists>c op r. calls ctxt c \<triangleq> Call (NestedOp k op) r 
+                                        \<and> is_update op \<and>  c \<notin> deleted_calls ctxt k)
   | NestedOp k op \<Rightarrow>
      nestedSpec op (sub_context (nested_op_on_key k) (- deleted_calls ctxt k) ctxt) res
 "
-
-definition map_uw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
-"map_uw_spec \<equiv> map_spec deleted_calls_uw"
-
-definition map_sdw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
-"map_sdw_spec \<equiv> map_spec deleted_calls_sdw"
 text_raw \<open>}%EndSnippet\<close>
 
 abbreviation "
 is_concurrent ctxt c c' \<equiv> (c,c')\<notin>happensBefore ctxt \<and> (c',c)\<notin>happensBefore ctxt \<and> c\<noteq>c'"
 
 text_raw \<open>\DefineSnippet{map_specs2}{\<close>
+
+
+definition
+"deleted_calls_uw ctxt k \<equiv> {c\<in>dom (calls ctxt).  
+    \<exists>d. Op ctxt d \<triangleq> DeleteKey k \<and> (c,d)\<in>happensBefore ctxt}"
 
 definition
 "deleted_calls_suw ctxt k \<equiv> {c\<in>dom (calls ctxt).  
@@ -1144,12 +1141,21 @@ definition
       \<and> (\<nexists>u u_op. Op ctxt u \<triangleq> NestedOp k u_op \<and> is_update u_op 
                  \<and> (d,u)\<in>happensBefore ctxt))}"
 
+definition
+"deleted_calls_sdw ctxt k \<equiv> {c\<in>dom (calls ctxt). 
+  \<exists>d. Op ctxt d \<triangleq> DeleteKey k \<and> (d,c)\<notin>happensBefore ctxt}"
+
+definition map_uw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+"map_uw_spec \<equiv> map_spec deleted_calls_uw"
+
 definition map_suw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_suw_spec \<equiv> map_spec deleted_calls_suw"
 
 definition map_dw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
 "map_dw_spec \<equiv> map_spec deleted_calls_dw"
 
+definition map_sdw_spec :: "('v::crdt_op,'r::{default,from_bool}) crdtSpec \<Rightarrow> (('k, 'v) mapOp, 'r) crdtSpec" where
+"map_sdw_spec \<equiv> map_spec deleted_calls_sdw"
 text_raw \<open>}%EndSnippet\<close>
 
 
@@ -1159,7 +1165,7 @@ lemma calls_ctxt_restrict_calls: "calls (ctxt_restrict_calls S ctxt) c = (calls 
 
 lemma calls_restrict_ctxt_op: "calls (restrict_ctxt_op f ctxt) c
   = (case calls ctxt c of None \<Rightarrow> None | Some (Call op r) \<Rightarrow> (case f op of None \<Rightarrow> None | Some op' \<Rightarrow> Some (Call op' r)))"
-  by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def')
+  by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def' split: option.splits call.splits)
 
 lemma calls_restrict_ctxt_op2: "calls (restrict_ctxt_op f ctxt)
   = (\<lambda>c. calls ctxt c \<bind> (\<lambda>call. f (call_operation call) \<bind> (\<lambda>op'. Some (Call op' (call_res call)))))"
@@ -1171,7 +1177,7 @@ lemma happensBefore_restrict_ctxt_op2:  "(c, c') \<in> happensBefore (restrict_c
   \<and> calls ctxt c \<triangleq> Call op r \<and> f op \<noteq> None 
   \<and> calls ctxt c' \<triangleq> Call op' r' \<and> f op' \<noteq> None)"
   by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def restrict_relation_def  fmap_map_values_eq_some split: call.splits option.splits)
-     (meson call.exhaust option.exhaust)
+   (metis call.collapse)
 
 lemma happensBefore_ctxt_restrict_calls: "(c, c') \<in> happensBefore (ctxt_restrict_calls S ctxt) \<longleftrightarrow> (c, c') \<in> happensBefore ctxt |r S"
   by (auto simp add: ctxt_restrict_calls_def)
@@ -1182,7 +1188,8 @@ lemma restrict_simp1:
 = (restrict_hb (restrict_ctxt_op (nested_op_on_key x11) (ctxt_restrict_calls (deleted_calls_uw c x) c)))"
   by (auto simp add: fmap_map_values_def restrict_map_def restrict_relation_def restrict_ctxt_op_def
       restrict_hb_def restrict_ctxt_def ctxt_restrict_calls_def  intro!: ext split: option.splits call.splits)
-            (auto simp add:  deleted_calls_uw_def)
+    (auto simp add:  deleted_calls_uw_def Op_def)
+
 
 lemma map_spec_restrict_hb[simp]:
   assumes a1: "dc (restrict_hb c) = dc c"
@@ -1221,12 +1228,13 @@ qed
 
 lemma deleted_calls_uw_restrict_hb[simp]:
  "deleted_calls_uw (restrict_hb c) = deleted_calls_uw c"
-  by (auto simp add: deleted_calls_uw_def restrict_relation_def intro!: ext, auto)
+  by (auto simp add: deleted_calls_uw_def restrict_relation_def Op_def intro!: ext, auto)
+
 
 
 lemma deleted_calls_sdw_restrict_hb[simp]:
  "deleted_calls_sdw (restrict_hb c) = deleted_calls_sdw c"
-  by (auto simp add: deleted_calls_sdw_def restrict_relation_def intro!: ext, auto)
+  by (auto simp add: deleted_calls_sdw_def restrict_relation_def Op_def intro!: ext, auto)
 
 
 lemma map_uw_spec_wf_restrict_hb[simp]:
@@ -1258,11 +1266,18 @@ lemma map_sdw_spec_wf:
 subsection "Structs"
 
 text_raw \<open>\DefineSnippet{struct_field}{\<close>
-definition struct_field :: "(('i, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool) \<Rightarrow> ('o \<Rightarrow> 'i option) \<Rightarrow> ('o, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool"  where
-"struct_field spec to_op   \<equiv> \<lambda>ctxt r. spec (restrict_ctxt_op to_op ctxt) r"
+definition "select_field f x \<equiv> 
+  if \<exists>y. x = f y then Some (inv f x) else None"
+
+definition struct_field :: "('i \<Rightarrow> 'o) \<Rightarrow> (('i, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool) \<Rightarrow> ('o, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool"  where
+"struct_field f spec \<equiv> \<lambda>ctxt r. spec (restrict_ctxt_op (select_field f) ctxt) r"
 text_raw \<open>}%EndSnippet\<close>
 
 
+lemma select_field_reverse:
+  assumes "inj f"
+  shows "is_reverse (select_field f) f"
+  by (auto simp add: is_reverse_def select_field_def assms)
 
 definition ctxt_map_result :: "('a \<Rightarrow> 'b) \<Rightarrow> ('o, 'a) operationContext \<Rightarrow> ('o, 'b) operationContext" where
 "ctxt_map_result f ctxt  \<equiv> \<lparr>
@@ -1354,34 +1369,36 @@ qed
 
 lemma query_cannot_guess_ids_struct_field:
   assumes a1: "query_cannot_guess_ids uids spec"
-    and a2: "\<And>op op'. f op \<triangleq> op' \<Longrightarrow> uniqueIds op' \<subseteq> uniqueIds op"
-  shows "query_cannot_guess_ids uids (struct_field spec f)"
+    and a2: "\<And>op. uniqueIds op \<subseteq> uniqueIds (f op)"
+  shows "query_cannot_guess_ids uids (struct_field f spec)"
   using a1 proof (auto simp add: query_cannot_guess_ids_def2)
   fix ctxt res x
   assume a0: "\<forall>ctxt res.            spec ctxt res \<longrightarrow> (\<forall>x. x \<in> uniqueIds res \<longrightarrow> x \<notin> uids \<longrightarrow> (\<exists>cId opr. (\<exists>res. calls ctxt cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr))"
-    and a1: "struct_field spec f ctxt res"
+    and a1: "struct_field f spec ctxt res"
     and a2: "x \<in> uniqueIds res"
     and a3: "x \<notin> uids"
 
-  from a1 have "spec (restrict_ctxt_op f ctxt) res"
+  from a1 have "spec (restrict_ctxt_op (select_field f) ctxt) res"
     by (auto simp add: struct_field_def)
 
   from a0[rule_format, OF this a2 a3]
-  have " \<exists>cId opr. (\<exists>res. calls (restrict_ctxt_op f ctxt) cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
+  have " \<exists>cId opr. (\<exists>res. calls (restrict_ctxt_op (select_field f) ctxt) cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
     by simp
 
   from this obtain cId opr res' 
-    where "calls (restrict_ctxt_op f ctxt) cId \<triangleq> Call opr res'"
+    where "calls (restrict_ctxt_op (select_field f) ctxt) cId \<triangleq> Call opr res'"
       and "x \<in> uniqueIds opr"
     by blast
 
   from this obtain opr'
     where "calls ctxt cId \<triangleq> Call opr' res'"
-      and "f opr' \<triangleq> opr"
-    by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def' split: option.splits call.splits)
+      and "opr' = f opr"
+    by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def' select_field_def inv_def split: option.splits call.splits if_splits)
+     (metis (mono_tags, lifting) call.collapse someI_ex)
+
 
   have "x \<in> uniqueIds opr'"
-    using \<open>f opr' \<triangleq> opr\<close> \<open>x \<in> uniqueIds opr\<close> assms(2) by blast
+    using \<open>opr' = f opr\<close> \<open>x \<in> uniqueIds opr\<close> assms(2) by blast
 
 
   show "\<exists>cId opr. (\<exists>res. calls ctxt cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
@@ -1390,8 +1407,8 @@ qed
 
 lemma query_cannot_guess_ids_struct_field2[intro]:
   assumes a1: "queries_cannot_guess_ids spec"
-    and a2: "\<And>op op'. f op \<triangleq> op' \<Longrightarrow> uniqueIds op' \<subseteq> uniqueIds op"
-  shows "query_cannot_guess_ids (uniqueIds op) (struct_field (spec op) f)"
+    and a2: "\<And>op op'. uniqueIds op \<subseteq> uniqueIds (f op)"
+  shows "query_cannot_guess_ids (uniqueIds op) (struct_field f (spec op))"
   using a1 a2 queries_cannot_guess_ids_def query_cannot_guess_ids_struct_field by blast
 
 

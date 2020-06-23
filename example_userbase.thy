@@ -231,8 +231,8 @@ shows "(delete, write) \<notin> hb"
 definition userStruct :: "(userDataOp, val) crdtSpec" where
   "userStruct \<equiv> (\<lambda>oper.
   case oper of
-    Name op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Name op \<Rightarrow> Some op | _ \<Rightarrow> None) 
-  | Mail op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Mail op \<Rightarrow> Some op | _ \<Rightarrow> None)
+    Name op \<Rightarrow> struct_field Name (register_spec Undef op) 
+  | Mail op \<Rightarrow> struct_field Mail (register_spec Undef op)
 )" 
 
 definition crdtSpec :: "(operation, val) crdtSpec" where
@@ -267,28 +267,37 @@ proof (rule map_sdw_spec_rel)
       unfolding userStruct_def userStruct'_def
     proof (cases op; clarsimp)
       case (Name x1)
-      show "struct_field (register_spec Undef x1) (case_userDataOp Some Map.empty) (sub_context C_in Cs ctxt) r =
+      show "struct_field Name (register_spec Undef x1) (sub_context C_in Cs ctxt) r =
           struct_field' Name (register_spec' Undef x1) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-        apply (rule struct_field_eq)
-        subgoal by (simp add: register_spec_rel)
-        subgoal by (simp add: is_reverse_def split: userDataOp.splits)
-        subgoal by (simp add: c0)
-        subgoal by (smt c3 domI dom_map_map in_dom map_chain_eq_some subsetI)
-        subgoal by (simp add: c1)
-        done
-
+      proof (rule struct_field_eq)
+        show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
+          by (simp add: register_spec_rel)
+        show "inj Name"
+          using inj_def by auto
+        show "is_reverse C_in C_out"
+          by (simp add: c0)
+        show "Cs \<subseteq> dom (calls ctxt)"
+          by (smt c3 domI dom_map_map in_dom map_chain_eq_some subsetI)
+        show "operationContext_wf ctxt"
+          by (simp add: c1)
+      qed
 
     next
       case (Mail x2)
-      show "struct_field (register_spec Undef x2) (case_userDataOp Map.empty Some) (sub_context C_in Cs ctxt) r =
+      show "struct_field Mail (register_spec Undef x2) (sub_context C_in Cs ctxt) r =
           struct_field' Mail (register_spec' Undef x2) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-        apply (rule struct_field_eq)
-        subgoal by (simp add: register_spec_rel)
-        subgoal by (simp add: is_reverse_def split: userDataOp.splits)
-        subgoal by (simp add: c0)
-        subgoal by (smt c3 domI dom_map_map in_dom map_chain_eq_some subsetI)
-        subgoal by (simp add: c1)
-        done
+      proof (rule struct_field_eq)
+        show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
+          by (simp add: register_spec_rel)
+        show "inj Mail"
+          using inj_def by auto
+        show "is_reverse C_in C_out"
+          by (simp add: c0)
+        show "Cs \<subseteq> dom (calls ctxt)"
+          by (smt c3 domI dom_map_map in_dom map_chain_eq_some subsetI)
+        show "operationContext_wf ctxt"
+          by (simp add: c1)
+      qed
     qed
   qed
 qed
@@ -330,11 +339,11 @@ proof (auto simp add: program_wellFormed_def)
     show "queries_cannot_guess_ids userStruct"
     proof (auto simp add: userStruct_def queries_cannot_guess_ids_def split: userDataOp.splits)
 
-      show "query_cannot_guess_ids (uniqueIds s) (struct_field (register_spec Undef s) (case_userDataOp Some Map.empty))" for s
+      show "query_cannot_guess_ids (uniqueIds s) (struct_field Name (register_spec Undef s) )" for s
         by (standard, auto split: userDataOp.splits)
 
 
-      show "query_cannot_guess_ids (uniqueIds s) (struct_field (register_spec Undef s) (case_userDataOp Map.empty Some))" for s 
+      show "query_cannot_guess_ids (uniqueIds s) (struct_field Mail (register_spec Undef s) )" for s 
         by (standard, auto split: userDataOp.splits)
     qed
 

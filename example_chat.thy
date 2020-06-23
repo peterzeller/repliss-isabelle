@@ -110,15 +110,15 @@ end
 definition messageStruct :: "(messageDataOp, val) crdtSpec" where
   "messageStruct \<equiv> (\<lambda>oper.
   case oper of
-    Author op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Author op \<Rightarrow> Some op | _ \<Rightarrow> None) 
-  | Content op \<Rightarrow> struct_field (register_spec Undef op) (\<lambda>oper. case oper of Content op \<Rightarrow> Some op | _ \<Rightarrow> None)
+    Author op \<Rightarrow> struct_field Author (register_spec Undef op)  
+  | Content op \<Rightarrow> struct_field Content (register_spec Undef op) 
 )" 
 
 definition crdtSpec :: "(operation, val) crdtSpec" where
 "crdtSpec \<equiv> (\<lambda>oper.
   case oper of
-    Message op \<Rightarrow> struct_field (map_sdw_spec messageStruct op) (\<lambda>oper. case oper of Message op \<Rightarrow> Some op | _ \<Rightarrow> None) 
-  | Chat op \<Rightarrow> struct_field (set_rw_spec op) (\<lambda>oper. case oper of Chat op \<Rightarrow> Some op | _ \<Rightarrow> None)
+    Message op \<Rightarrow> struct_field Message (map_sdw_spec messageStruct op) 
+  | Chat op \<Rightarrow> struct_field Chat (set_rw_spec op) 
 )"
 
 
@@ -154,13 +154,13 @@ proof (rule show_crdt_spec_rel')
     unfolding crdtSpec_def crdtSpec'_def
   proof (cases op; clarsimp)
     case (Chat op')
-    show "struct_field (set_rw_spec op') (case_operation Some Map.empty) (sub_context C_in Cs ctxt) r =
+    show "struct_field Chat (set_rw_spec op')  (sub_context C_in Cs ctxt) r =
           struct_field' Chat (set_rw_spec' op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
     proof (rule struct_field_eq)
       show "crdt_spec_rel set_rw_spec set_rw_spec'"
         by (simp add: set_rw_spec_rel)
-      show "is_reverse (\<lambda>a. case a of Chat x \<Rightarrow> Some x | Message x \<Rightarrow> Map.empty x) Chat"
-        by (auto simp add: is_reverse_def split: operation.splits)
+      show "inj Chat"
+        using inj_def by blast
 
       show "Cs \<subseteq> dom (calls ctxt)"
         using c2 subset_map_map by blast
@@ -168,12 +168,12 @@ proof (rule show_crdt_spec_rel')
     qed (auto simp add: c0 c3)
   next
     case (Message op')
-    show "struct_field (map_sdw_spec messageStruct op') (case_operation Map.empty Some) (sub_context C_in Cs ctxt) r =
+    show "struct_field  Message (map_sdw_spec messageStruct op')  (sub_context C_in Cs ctxt) r =
           struct_field' Message (map_sdw_spec' messageStruct' op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
     proof (rule struct_field_eq)
 
-      show "is_reverse (\<lambda>a. case a of Chat x \<Rightarrow> Map.empty x | Message x \<Rightarrow> Some x) Message"
-        by (auto simp add: is_reverse_def split: operation.splits)
+      show "inj Message"
+        by (meson injI operation.inject(2))
 
       show "Cs \<subseteq> dom (calls ctxt)"
         using c2 subset_map_map by blast
@@ -193,14 +193,14 @@ proof (rule show_crdt_spec_rel')
             unfolding crdt_spec_rel_def messageStruct_def messageStruct'_def
           proof (cases op; clarsimp)
             case (Author op')
-            show "struct_field (register_spec Undef op') (case_messageDataOp Some Map.empty) (sub_context C_in Cs ctxt) r =
+            show "struct_field Author(register_spec Undef op')  (sub_context C_in Cs ctxt) r =
                   struct_field' Author (register_spec' Undef op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
             proof (rule struct_field_eq)
               show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
                 by (simp add: register_spec_rel)
 
-              show "is_reverse (\<lambda>a. case a of Author x \<Rightarrow> Some x | Content x \<Rightarrow> Map.empty x) Author"
-                by (auto simp add: is_reverse_def split: messageDataOp.splits)
+              show "inj Author"
+                by (auto simp add: inj_def)
 
               show "Cs \<subseteq> dom (calls ctxt)"
                 using d3 subset_map_map by blast
@@ -208,14 +208,14 @@ proof (rule show_crdt_spec_rel')
             qed (auto simp add: d0 d1)
           next
             case (Content op')
-            show "struct_field (register_spec Undef op') (case_messageDataOp Map.empty Some) (sub_context C_in Cs ctxt) r =
+            show "struct_field  Content (register_spec Undef op')  (sub_context C_in Cs ctxt) r =
                   struct_field' Content (register_spec' Undef op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
             proof (rule struct_field_eq)
               show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
                 by (simp add: register_spec_rel)
 
-              show "is_reverse (\<lambda>a. case a of Author x \<Rightarrow> Map.empty x | Content x \<Rightarrow> Some x) Content"
-                by (auto simp add: is_reverse_def split: messageDataOp.splits)
+              show "inj Content"
+                by (auto simp add: inj_def)
 
               show "Cs \<subseteq> dom (calls ctxt)"
                 using d3 subset_map_map by blast
@@ -491,19 +491,19 @@ proof (auto simp add: program_wellFormed_def)
   show "queries_cannot_guess_ids crdtSpec"
   proof (auto simp add:  crdtSpec_def queries_cannot_guess_ids_def split: operation.splits)
 
-    show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field (set_rw_spec x1) (case_operation Some Map.empty))"
+    show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field Chat (set_rw_spec x1))"
       by (standard, auto split: operation.splits)
 
-    show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field (map_sdw_spec messageStruct x2) (case_operation Map.empty Some))"
+    show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field Message (map_sdw_spec messageStruct x2))"
     proof (standard, auto split: operation.splits)
 
       show "queries_cannot_guess_ids (map_sdw_spec messageStruct)"
       proof (standard, auto simp add: messageStruct_def queries_cannot_guess_ids_def split: messageDataOp.splits)
 
-        show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field (register_spec Undef x1) (case_messageDataOp Some Map.empty))"
+        show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field Author (register_spec Undef x1))"
           by (standard, auto split: messageDataOp.splits)
 
-        show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field (register_spec Undef x2) (case_messageDataOp Map.empty Some))"
+        show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field Content (register_spec Undef x2))"
           by (standard, auto split: messageDataOp.splits)
       qed
     qed

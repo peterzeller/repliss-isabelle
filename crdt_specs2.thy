@@ -446,11 +446,11 @@ and "R = deleted_calls_sdw' (dom (map_map (calls ctxt) call_operation \<ggreater
 shows "L = R"
   by (auto simp add: deleted_calls_sdw_def deleted_calls_sdw'_def sub_context_def assms restrict_ctxt_op_def restrict_ctxt_def
       fmap_map_values_def option_bind_def ctxt_restrict_calls_def restrict_map_def
-      restrict_relation_def extract_op_def'  map_map_def map_chain_def
+      restrict_relation_def extract_op_def'  map_map_def map_chain_def Op_def
       split: option.splits call.splits if_splits,
-   (smt IntI assms(1) call.collapse call.sel(1) domExists_simp domIff is_reverse_def o_apply option.case_eq_if option.sel),
-   (metis assms(1) is_reverse_2 option.distinct(1) option.inject),
-   (metis assms(1) is_reverse_2 option.distinct(1) option.sel))
+   (metis (mono_tags, lifting) IntI assms(1) call.sel(1) comp_eq_dest_lhs domIff is_reverse_1 option.simps(3) option.simps(5)),
+   (metis assms(1) call.collapse call.sel(1) is_reverse_2 option.sel),
+   (metis assms(1) call.collapse call.sel(1) is_reverse_2 option.sel))
 
 
 
@@ -725,28 +725,28 @@ definition struct_field' :: "('opn \<Rightarrow> 'a) \<Rightarrow> ('op, 'opn, '
 
 lemma struct_field_eq:
   assumes rel: "crdt_spec_rel nspec nspec'"
-    and is_rev: "is_reverse C_in C_out"
+    and C_out_inj: "inj C_out"
     and is_rev': "is_reverse C_in' C_out'"
     and c_calls_subset: "c_calls \<subseteq> dom (calls ctxt)"
     and wf: "operationContext_wf ctxt"
-shows "struct_field (nspec n_op) C_in (sub_context C_in' c_calls ctxt) res 
+shows "struct_field C_out (nspec n_op) (sub_context C_in' c_calls ctxt) res 
       =  struct_field' C_out (nspec' n_op) c_calls (extract_op (calls ctxt)) (happensBefore ctxt) C_out' res"
 proof (simp add: struct_field_def struct_field'_def C_out_calls_def)
-  show " nspec n_op (restrict_ctxt_op C_in (sub_context C_in' c_calls ctxt)) res =
+  show " nspec n_op (restrict_ctxt_op (select_field C_out) (sub_context C_in' c_calls ctxt)) res =
     nspec' n_op {c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)} (extract_op (calls ctxt))
      (happensBefore ctxt) (C_out' \<circ> C_out) res"
   proof (fuzzy_rule use_crdt_spec_rel[OF rel])
 
 
-    show "is_reverse (C_in' \<ggreater> C_in) (C_out' \<circ> C_out)"
-      by (simp add: is_rev is_rev' is_reverse_combine)
+    show "is_reverse (C_in' \<ggreater> select_field C_out) (C_out' \<circ> C_out)"
+      by (simp add: C_out_inj is_rev' is_reverse_combine select_field_reverse)
 
 
-    show "(C_in' \<ggreater> C_in) (C_out' (C_out n_op)) \<triangleq> n_op"
-      by (simp add: is_rev is_rev' is_reverse_2 map_chain_def)
+    show "(C_in' \<ggreater> select_field C_out) (C_out' (C_out n_op)) \<triangleq> n_op"
+      by (metis C_out_inj bind.simps(2) inv_f_f is_rev' is_reverse_2 map_chain_def select_field_def)
 
     show "{c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)}
-      \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in' \<ggreater> C_in)"
+      \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in' \<ggreater> select_field C_out)"
     proof (auto simp add: 
           operationContext_ext calls_sub_context happens_before_sub_context
           option_bind_def restrict_ctxt_op_def restrict_map_def 
@@ -763,37 +763,56 @@ proof (simp add: struct_field_def struct_field'_def C_out_calls_def)
       show "\<And>x xa x2a y.
        \<lbrakk>x \<in> c_calls; extract_op (calls ctxt) x = C_out' (C_out xa); C_in' (call_operation y) \<triangleq> x2a;
         calls ctxt x \<triangleq> y\<rbrakk>
-       \<Longrightarrow> \<exists>y. C_in x2a \<triangleq> y"
-        by (metis extract_op_def is_rev is_rev' is_reverse_def option.sel)
+       \<Longrightarrow> \<exists>y. select_field C_out x2a \<triangleq> y"
+        by (metis extract_op_def is_rev' is_reverse_2 option.sel select_field_def)
     qed
 
+    have [simp]: "inv C_out (C_out x) = x" for x
+      by (rule inv_f_f, rule C_out_inj)
+  
 
-    show "sub_context (C_in' \<ggreater> C_in) {c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)} ctxt =
-    restrict_ctxt_op C_in (sub_context C_in' c_calls ctxt)"
+
+    show "sub_context (C_in' \<ggreater> select_field C_out) {c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)} ctxt =
+      restrict_ctxt_op (select_field C_out) (sub_context C_in' c_calls ctxt)"
     proof (auto simp add: map_map_def map_chain_def option_bind_def  split: option.splits)
-      show " sub_context (\<lambda>x. case C_in' x of None \<Rightarrow> None | Some a \<Rightarrow> C_in a)
-     {c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)} ctxt =
-    restrict_ctxt_op C_in (sub_context C_in' c_calls ctxt)"
+      show "sub_context (\<lambda>x. case C_in' x of None \<Rightarrow> None | Some a \<Rightarrow> select_field C_out a)
+       {c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)} ctxt =
+      restrict_ctxt_op (select_field C_out) (sub_context C_in' c_calls ctxt)"
 
         using c_calls_subset proof (auto simp add: call_operation_def extract_op_def is_rev' is_reverse_2 operationContext_ext calls_sub_context 
           restrict_map_def option_bind_def
           restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def option_bind_def
           happens_before_sub_context restrict_relation_def
-          is_reverse_1[OF is_rev] is_reverse_1[OF is_rev']
-          is_reverse_2[OF is_rev] is_reverse_2[OF is_rev']
+          is_reverse_1[OF is_rev']
+          is_reverse_2[OF is_rev']
+          select_field_def
           intro!: ext
           split: option.splits  call.splits  if_splits,
-          fuzzy_goal_cases A B C)
+          fuzzy_goal_cases A B C D E F G H)
         case A
         show ?case
-          by (metis A.C_in'_eq A.C_in_eq is_rev is_rev' is_reverse_1) 
+          using A.C_in'_eq is_rev' is_reverse_1 by fastforce
       next case B
         show ?case
-          by (metis B.C_in'_eq B.C_in_eq is_rev is_rev' is_reverse_1) 
-
+          using B.All_not_C_out_eq by auto
       next case C
         show ?case
-          by (metis C.C_in'_eq2 C.C_in_eq2 is_rev is_rev' is_reverse_1)
+          using C.C_in'_eq is_rev' is_reverse_1 by fastforce
+      next case D
+        show ?case
+          using D.All_not_C_out_eq by auto
+      next case E
+        show ?case
+          using E.C_in'_eq is_rev' is_reverse_1 by fastforce
+      next case F
+        show ?case
+          using F.C_in'_eq2 is_rev' is_reverse_1 by fastforce
+      next case G
+        show ?case
+          using G.All_not_C_out_eq by auto
+      next case H
+        show ?case
+          using H.All_not_C_out_eq by blast
       qed
     qed
     show "operationContext_wf ctxt"

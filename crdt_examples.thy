@@ -241,7 +241,54 @@ lemma "map_sdw_spec counter_spec (NestedOp 1 GetCount) exampleD (from_int 0)"
   by eval_example
     (smt callId.inject)+
 
+subsection \<open>Struct example\<close>
 
+text \<open>This is a struct with two fields: a counter and a set.\<close>
+
+datatype val =
+    I int
+  | Bool bool
+  | ListVal "val list"
+
+instance val :: countable
+  by countable_datatype
+
+definition [simp]: "uniqueIds_val_r (x::val) = ({}::uniqueId set)" 
+
+instantiation val :: valueType begin
+definition [simp]: "uniqueIds_val \<equiv> uniqueIds_val_r"
+definition [simp]: "default_val \<equiv> I 0"
+
+instance by (standard, auto)
+end
+
+instantiation val :: from_bool begin
+definition [simp]: "from_bool_val \<equiv> Bool"
+
+instance by (standard, auto)
+end
+
+instantiation val :: from_int begin
+definition [simp]: "from_int_val \<equiv> I"
+
+instance by (standard, auto)
+end
+
+text_raw \<open>\DefineSnippet{struct_example1}{\<close>
+datatype structOp = 
+    A counterOp
+  | B \<open>int setOp\<close>
+text_raw \<open>}%EndSnippet\<close>
+
+
+text_raw \<open>\DefineSnippet{struct_example2}{\<close>
+definition crdtSpec :: "(structOp, val) crdtSpec" where
+"crdtSpec \<equiv> (\<lambda>oper.
+  case oper of
+    A op \<Rightarrow> struct_field A (counter_spec op) 
+  | B op \<Rightarrow> struct_field B (set_rw_spec op)
+)"
+text_raw \<open>}%EndSnippet\<close>
 
 
 end
