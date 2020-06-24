@@ -173,4 +173,41 @@ qed
 
 declare invariantContext.defs[simp]
 
+
+
+
+lemma invContextH2_Op:
+"Op (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
+      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+= cOp state_calls"
+  by (auto simp add: invContextH2_calls)
+
+lemma cOp_empty[simp]:
+"cOp Map.empty = Map.empty"
+  by (auto simp add: cOp_def)
+
+lemma cOp_update[simp]: 
+"cOp (m(c \<mapsto> cc)) = (cOp m)(c \<mapsto> call_operation cc)"
+  by (auto simp add: cOp_def)
+
+lemma cOp_none[simp]: 
+  assumes "m c = None"
+  shows "cOp m c = None"
+  using assms  by (auto simp add: cOp_def)
+
+
+lemma cOp_Some[simp]: 
+  assumes "m c \<triangleq> cc"
+  shows "cOp m c \<triangleq> call_operation cc"
+  using assms by (auto simp add: cOp_def)
+
+
+
+lemma cOp_Some_iff: 
+  shows "cOp m c \<triangleq> opr \<longleftrightarrow> (\<exists>r. m c \<triangleq> Call opr r)"
+  by (auto simp add: cOp_def)
+   (metis call.collapse)
+
+
+
 end

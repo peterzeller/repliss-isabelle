@@ -108,7 +108,7 @@ and in_dom: "c\<in>dom (calls (sub_context C_in Cs ctxt))"
 shows "extract_op (calls ctxt) c = C_out op
 \<longleftrightarrow> Op (sub_context C_in Cs ctxt) c \<triangleq> op"
   using extract_op_into_sub_context[OF is_rev in_dom] 
-  by (auto simp add: Op_def)
+  by (auto simp add: cOp_def)
    (metis call.collapse)
 
 

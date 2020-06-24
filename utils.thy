@@ -717,6 +717,11 @@ lemma is_from_exists:
   shows "is_from x initial S \<longleftrightarrow> x \<in> S"
   by (metis assms empty_iff is_from_def)
 
+lemma is_from_not_initial:
+  assumes "x\<noteq> initial"
+  shows "is_from x initial S \<longleftrightarrow> x \<in> S"
+  by (metis assms empty_iff is_from_def)
+
 subsection "Minimums and Maximums"
 
 text "A finite set with an acyclic order has minimal elements."

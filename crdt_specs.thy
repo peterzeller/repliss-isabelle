@@ -57,8 +57,9 @@ lemma operationContext_wf_exists_max:
 
 text "Some helper functions for defining the specs:"
 
+definition "cOp c_calls c \<equiv> map_option call_operation (c_calls c)"
 
-definition "Op ctxt c \<equiv> map_option call_operation (calls ctxt c)"
+abbreviation "Op ctxt \<equiv> cOp (calls ctxt)"
 
 definition "Res ctxt c \<equiv> map_option call_res (calls ctxt c)"
 
@@ -123,7 +124,7 @@ lemma calls_restrict_ctxt_op1:
 
 lemma Op_restrict_ctxt_op: 
 "Op (restrict_ctxt_op f ctxt) = (\<lambda>c. Op ctxt c \<bind> f)"
-  by (auto simp add: Op_def option_bind_def restrict_ctxt_op_def restrict_ctxt_def  fmap_map_values_def
+  by (auto simp add: cOp_def option_bind_def restrict_ctxt_op_def restrict_ctxt_def  fmap_map_values_def
       intro!: ext split: option.splits call.splits)
    (metis (no_types, lifting) call.sel(1) option.exhaust_sel option.simps(8) option.simps(9))
 
@@ -138,7 +139,7 @@ lemma happensBefore_restrict_ctxt_op:
 \<longleftrightarrow> (x,y)\<in>happensBefore ctxt 
       \<and> (\<exists>op. (Op ctxt x \<bind> f) \<triangleq> op)
       \<and> (\<exists>op. (Op ctxt y \<bind> f) \<triangleq> op)"
-  by (auto simp add: restrict_ctxt_op_def Op_def restrict_ctxt_def fmap_map_values_def
+  by (auto simp add: restrict_ctxt_op_def cOp_def restrict_ctxt_def fmap_map_values_def
       restrict_relation_def option_bind_def
       split: option.splits call.splits)
 
@@ -277,7 +278,7 @@ text_raw \<open>}%EndSnippet\<close>
 lemma ctxt_spec_wf_latestAssignments[simp]:
 "latestAssignments (restrict_hb c) = latestAssignments c"
   by (auto simp add: restrict_hb_def latestAssignments_h_def
-      restrict_relation_def latestAssignments_def Op_def
+      restrict_relation_def latestAssignments_def cOp_def
       intro!: ext 
       split: option.splits if_splits registerOp.splits call.splits,
       blast+)
@@ -294,7 +295,7 @@ proof (auto simp add: latestValues_def latestAssignments_def latestAssignments_h
     split: option.splits call.splits if_splits, fuzzy_goal_cases G)
   case (G x a y)
   then show ?case
-    by (auto simp add: Op_def split: option.splits registerOp.splits if_splits)
+    by (auto simp add: cOp_def split: option.splits registerOp.splits if_splits)
 qed
 
 
@@ -317,7 +318,7 @@ lemma latest_assignments_wf2[simp]:
   assumes "c_calls \<subseteq>\<^sub>m Op c"
   shows "latestAssignments_h c_calls (happensBefore (restrict_hb c))
 = latestAssignments_h c_calls (happensBefore c)"
-  using assms  by (auto simp add: Op_def  map_option_case map_le_def latestAssignments_h_def restrict_hb_def restrict_relation_def intro!: ext split: call.splits option.splits registerOp.splits,
+  using assms  by (auto simp add: cOp_def  map_option_case map_le_def latestAssignments_h_def restrict_hb_def restrict_relation_def intro!: ext split: call.splits option.splits registerOp.splits,
       auto,
       meson domExists_simp domIff)
 
@@ -718,7 +719,7 @@ lemma Field_restrict_ctxt_op:
   assumes "Field (happensBefore ctxt) \<subseteq> dom (calls ctxt)"
   shows "Field (happensBefore (restrict_ctxt_op (set_to_flag x) ctxt)) \<subseteq> dom (calls (restrict_ctxt_op (set_to_flag x) ctxt))"
   using assms by (auto simp add: Field_def happensBefore_restrict_ctxt_op)
-   (metis Op_def Op_restrict_ctxt_op map_option_eq_Some)+
+   (metis cOp_def Op_restrict_ctxt_op map_option_eq_Some)+
 
 
 lemma operationContext_wf_restrict_ctxt_op:
@@ -1028,7 +1029,7 @@ lemma set_rw_spec_cannot_guess_ids[simp,intro]:
 lemma flag_ew_spec_restrict_hb[simp]:
 "flag_ew_spec op (restrict_hb c) r
 \<longleftrightarrow> flag_ew_spec op c r"
-  by (auto simp add: flag_ew_spec_def latestOps_def restrict_relation_def restrict_hb_def Op_def 
+  by (auto simp add: flag_ew_spec_def latestOps_def restrict_relation_def restrict_hb_def cOp_def 
       intro!: arg_cong[where f=from_bool]
       split: flagOp.splits)
 
@@ -1036,7 +1037,7 @@ lemma flag_ew_spec_restrict_hb[simp]:
 lemma latestOps_restrict_ctxt_op_restrict_hb:
 " latestOps (restrict_ctxt_op f (restrict_hb c))
  =  latestOps (restrict_ctxt_op f c)"
-  by (auto simp add: latestOps_def restrict_ctxt_op_def Op_def restrict_ctxt_def fmap_map_values_def restrict_relation_def)
+  by (auto simp add: latestOps_def restrict_ctxt_op_def cOp_def restrict_ctxt_def fmap_map_values_def restrict_relation_def)
    (metis (mono_tags, lifting) bind_eq_None_conv domIff)
 
 
@@ -1188,7 +1189,7 @@ lemma restrict_simp1:
 = (restrict_hb (restrict_ctxt_op (nested_op_on_key x11) (ctxt_restrict_calls (deleted_calls_uw c x) c)))"
   by (auto simp add: fmap_map_values_def restrict_map_def restrict_relation_def restrict_ctxt_op_def
       restrict_hb_def restrict_ctxt_def ctxt_restrict_calls_def  intro!: ext split: option.splits call.splits)
-    (auto simp add:  deleted_calls_uw_def Op_def)
+    (auto simp add:  deleted_calls_uw_def cOp_def)
 
 
 lemma map_spec_restrict_hb[simp]:
@@ -1228,13 +1229,13 @@ qed
 
 lemma deleted_calls_uw_restrict_hb[simp]:
  "deleted_calls_uw (restrict_hb c) = deleted_calls_uw c"
-  by (auto simp add: deleted_calls_uw_def restrict_relation_def Op_def intro!: ext, auto)
+  by (auto simp add: deleted_calls_uw_def restrict_relation_def cOp_def intro!: ext, auto)
 
 
 
 lemma deleted_calls_sdw_restrict_hb[simp]:
  "deleted_calls_sdw (restrict_hb c) = deleted_calls_sdw c"
-  by (auto simp add: deleted_calls_sdw_def restrict_relation_def Op_def intro!: ext, auto)
+  by (auto simp add: deleted_calls_sdw_def restrict_relation_def cOp_def intro!: ext, auto)
 
 
 lemma map_uw_spec_wf_restrict_hb[simp]:
@@ -1269,9 +1270,20 @@ text_raw \<open>\DefineSnippet{struct_field}{\<close>
 definition "select_field f x \<equiv> 
   if \<exists>y. x = f y then Some (inv f x) else None"
 
-definition struct_field :: "('i \<Rightarrow> 'o) \<Rightarrow> (('i, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool) \<Rightarrow> ('o, 'r) operationContext \<Rightarrow> 'r \<Rightarrow> bool"  where
-"struct_field f spec \<equiv> \<lambda>ctxt r. spec (restrict_ctxt_op (select_field f) ctxt) r"
+definition struct_field :: "('i \<Rightarrow> 'o) \<Rightarrow> ('i, 'r) crdtSpec \<Rightarrow> ('o, 'r) crdtSpec"  where
+"struct_field f spec \<equiv> \<lambda>op ctxt r. 
+    case select_field f op of 
+      Some i_op \<Rightarrow> spec i_op (restrict_ctxt_op (select_field f) ctxt) r
+    | None \<Rightarrow> False"
+
+definition compose_struct :: "('o, 'r) crdtSpec \<Rightarrow> ('o, 'r) crdtSpec \<Rightarrow> ('o, 'r) crdtSpec" (infixr ".\<or>." 30) where
+"A .\<or>. B \<equiv> \<lambda>op ctxt r. A op ctxt r \<or> B op ctxt r"
 text_raw \<open>}%EndSnippet\<close>
+
+
+lemma compose_struct_simp[simp]:
+"(A .\<or>. B) op ctxt r \<longleftrightarrow> A op ctxt r \<or> B op ctxt r"
+  by (auto simp add: compose_struct_def)
 
 
 lemma select_field_reverse:
@@ -1326,12 +1338,12 @@ and a3: "x \<notin> uniqueIds op"
 qed
 
 
-lemma map_uw_spec_queries_cannot_guess_ids[intro]:
+lemma map_uw_spec_queries_cannot_guess_ids[intro!]:
   assumes nested: "queries_cannot_guess_ids n"
   shows"queries_cannot_guess_ids (map_uw_spec n) "
   by (simp add: map_spec_queries_cannot_guess_ids map_uw_spec_def nested)
 
-lemma map_sdw_spec_queries_cannot_guess_ids[intro]:
+lemma map_sdw_spec_queries_cannot_guess_ids[intro!]:
   assumes nested: "queries_cannot_guess_ids n"
   shows"queries_cannot_guess_ids (map_sdw_spec n) "
   by (simp add: map_spec_queries_cannot_guess_ids map_sdw_spec_def nested)
@@ -1340,7 +1352,7 @@ lemma map_sdw_spec_queries_cannot_guess_ids[intro]:
 lemma latest_values_call:
   assumes "x \<in> latestValues ctxt"
   shows "\<exists>c. Op ctxt c \<triangleq> Assign x"
-  using assms  by (auto simp add: latestValues_def2 Op_def)
+  using assms  by (auto simp add: latestValues_def2 cOp_def)
 
 lemma register_spec_queries_cannot_guess_ids[intro]:
   assumes i_no: "uniqueIds i = {}"
@@ -1357,7 +1369,7 @@ proof (auto simp add: queries_cannot_guess_ids_def2 register_spec_def i_no  spli
     by blast
 
   from this obtain r where "calls ctxt a \<triangleq> Call (Assign res) r"
-    by (auto simp add: Op_def)
+    by (auto simp add: cOp_def)
      (metis call.collapse)
 
   with a1 a2
@@ -1367,49 +1379,47 @@ qed
 
 
 
-lemma query_cannot_guess_ids_struct_field:
-  assumes a1: "query_cannot_guess_ids uids spec"
-    and a2: "\<And>op. uniqueIds op \<subseteq> uniqueIds (f op)"
-  shows "query_cannot_guess_ids uids (struct_field f spec)"
-  using a1 proof (auto simp add: query_cannot_guess_ids_def2)
-  fix ctxt res x
-  assume a0: "\<forall>ctxt res.            spec ctxt res \<longrightarrow> (\<forall>x. x \<in> uniqueIds res \<longrightarrow> x \<notin> uids \<longrightarrow> (\<exists>cId opr. (\<exists>res. calls ctxt cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr))"
-    and a1: "struct_field f spec ctxt res"
-    and a2: "x \<in> uniqueIds res"
-    and a3: "x \<notin> uids"
 
-  from a1 have "spec (restrict_ctxt_op (select_field f) ctxt) res"
-    by (auto simp add: struct_field_def)
-
-  from a0[rule_format, OF this a2 a3]
-  have " \<exists>cId opr. (\<exists>res. calls (restrict_ctxt_op (select_field f) ctxt) cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
-    by simp
-
-  from this obtain cId opr res' 
-    where "calls (restrict_ctxt_op (select_field f) ctxt) cId \<triangleq> Call opr res'"
-      and "x \<in> uniqueIds opr"
-    by blast
-
-  from this obtain opr'
-    where "calls ctxt cId \<triangleq> Call opr' res'"
-      and "opr' = f opr"
-    by (auto simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def' select_field_def inv_def split: option.splits call.splits if_splits)
-     (metis (mono_tags, lifting) call.collapse someI_ex)
-
-
-  have "x \<in> uniqueIds opr'"
-    using \<open>opr' = f opr\<close> \<open>x \<in> uniqueIds opr\<close> assms(2) by blast
-
-
-  show "\<exists>cId opr. (\<exists>res. calls ctxt cId \<triangleq> Call opr res) \<and> x \<in> uniqueIds opr"
-    using \<open>calls ctxt cId \<triangleq> Call opr' res'\<close> \<open>x \<in> uniqueIds opr'\<close> by blast
-qed
-
-lemma query_cannot_guess_ids_struct_field2[intro]:
+lemma query_cannot_guess_ids_struct_field2[intro!]:
   assumes a1: "queries_cannot_guess_ids spec"
     and a2: "\<And>op op'. uniqueIds op \<subseteq> uniqueIds (f op)"
-  shows "query_cannot_guess_ids (uniqueIds op) (struct_field f (spec op))"
-  using a1 a2 queries_cannot_guess_ids_def query_cannot_guess_ids_struct_field by blast
+    and "inj f"
+  shows "queries_cannot_guess_ids (struct_field f spec)"
+  unfolding queries_cannot_guess_ids_def query_cannot_guess_ids_def struct_field_def
+proof (auto split: option.splits)
+  fix opr ctxt res x2 x
+  assume b0: "select_field f opr \<triangleq> x2"
+    and b1: "spec x2 (restrict_ctxt_op (select_field f) ctxt) res"
+    and b2: "x \<in> uniqueIds res"
+    and b3: "\<forall>xa. (\<forall>cId c. xa = uniqueIds (call_operation c) \<longrightarrow> calls ctxt cId \<noteq> Some c) \<or> x \<notin> xa"
+
+  from b0
+  obtain y 
+    where "opr = f y"
+      and "x2 = inv f opr"
+    unfolding select_field_def by (auto split: if_splits)
+
+  have "\<nexists>cId opr res. calls (restrict_ctxt_op (select_field f) ctxt) cId \<triangleq> Call opr res \<and> x \<in> uniqueIds opr "
+    using a2 assms(3) b3  
+    by (auto  simp add: restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def option_bind_def select_field_def split: option.splits)
+     fastforce
+
+
+
+  with use_queries_cannot_guess_ids[OF a1 b1 b2]
+  have r: "x \<in> uniqueIds x2"
+    by blast
+
+  then
+  show "x \<in> uniqueIds opr"
+    using \<open>opr = f y\<close> \<open>x2 = inv f opr\<close> a2 assms(3) by auto
+qed
+
+lemma queries_cannot_guess_ids_combine[intro!]:
+  assumes "queries_cannot_guess_ids specA"
+    and "queries_cannot_guess_ids specB"
+  shows "queries_cannot_guess_ids (specA .\<or>. specB)"
+  using assms by (auto simp add: compose_struct_def queries_cannot_guess_ids_def query_cannot_guess_ids_def)
 
 
 

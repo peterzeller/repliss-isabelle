@@ -108,33 +108,29 @@ instance by (standard, auto)
 end
 
 definition messageStruct :: "(messageDataOp, val) crdtSpec" where
-  "messageStruct \<equiv> (\<lambda>oper.
-  case oper of
-    Author op \<Rightarrow> struct_field Author (register_spec Undef op)  
-  | Content op \<Rightarrow> struct_field Content (register_spec Undef op) 
-)" 
+  "messageStruct \<equiv> 
+      struct_field Author (register_spec Undef)  
+  .\<or>. struct_field Content (register_spec Undef) 
+" 
 
 definition crdtSpec :: "(operation, val) crdtSpec" where
-"crdtSpec \<equiv> (\<lambda>oper.
-  case oper of
-    Message op \<Rightarrow> struct_field Message (map_sdw_spec messageStruct op) 
-  | Chat op \<Rightarrow> struct_field Chat (set_rw_spec op) 
-)"
+"crdtSpec \<equiv> 
+      struct_field Message (map_sdw_spec messageStruct) 
+  .\<or>. struct_field Chat set_rw_spec 
+"
 
 
 definition messageStruct'  :: "('a, messageDataOp, val) ccrdtSpec"  where
-  "messageStruct' \<equiv> (\<lambda>oper.
-  case oper of
-    Author op \<Rightarrow> struct_field' Author (register_spec' Undef op) 
-  | Content op \<Rightarrow> struct_field' Content (register_spec' Undef op) 
-)" 
+  "messageStruct' \<equiv> 
+       struct_field' Author (register_spec' Undef) 
+  .\<or>.. struct_field' Content (register_spec' Undef) 
+" 
 
 definition crdtSpec' :: "(operation, operation, val) ccrdtSpec" where
-"crdtSpec' \<equiv> (\<lambda>oper.
-  case oper of
-    Message op \<Rightarrow> struct_field' Message (map_sdw_spec' messageStruct' op) 
-  | Chat op \<Rightarrow> struct_field'  Chat (set_rw_spec' op) 
-)"
+"crdtSpec' \<equiv> 
+        struct_field' Message (map_sdw_spec' messageStruct') 
+  .\<or>.. struct_field'  Chat set_rw_spec' 
+"
 
 lemma subset_map_map:
   assumes "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
@@ -143,90 +139,9 @@ lemma subset_map_map:
 
 lemma crdtSpec_rel:
   shows "crdt_spec_rel crdtSpec crdtSpec'"
-proof (rule show_crdt_spec_rel')
+  unfolding crdtSpec_def crdtSpec'_def
+  by (auto simp add: inj_def messageStruct_def messageStruct'_def) 
 
-  show "crdtSpec op (sub_context C_in Cs ctxt) r = crdtSpec' op Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-    if c0: "is_reverse C_in C_out"
-      and c1: "C_in outer_op \<triangleq> op"
-      and c2: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
-      and c3: "operationContext_wf ctxt"
-    for  C_in C_out ctxt outer_op op r Cs
-    unfolding crdtSpec_def crdtSpec'_def
-  proof (cases op; clarsimp)
-    case (Chat op')
-    show "struct_field Chat (set_rw_spec op')  (sub_context C_in Cs ctxt) r =
-          struct_field' Chat (set_rw_spec' op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-    proof (rule struct_field_eq)
-      show "crdt_spec_rel set_rw_spec set_rw_spec'"
-        by (simp add: set_rw_spec_rel)
-      show "inj Chat"
-        using inj_def by blast
-
-      show "Cs \<subseteq> dom (calls ctxt)"
-        using c2 subset_map_map by blast
-
-    qed (auto simp add: c0 c3)
-  next
-    case (Message op')
-    show "struct_field  Message (map_sdw_spec messageStruct op')  (sub_context C_in Cs ctxt) r =
-          struct_field' Message (map_sdw_spec' messageStruct' op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-    proof (rule struct_field_eq)
-
-      show "inj Message"
-        by (meson injI operation.inject(2))
-
-      show "Cs \<subseteq> dom (calls ctxt)"
-        using c2 subset_map_map by blast
-
-
-      show "crdt_spec_rel (map_sdw_spec messageStruct) (map_sdw_spec' messageStruct')"
-      proof (rule map_sdw_spec_rel)
-        show "crdt_spec_rel messageStruct messageStruct'"
-        proof (rule show_crdt_spec_rel')
-
-          show "messageStruct op (sub_context C_in Cs ctxt) r = messageStruct' op Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-            if d0: "is_reverse C_in C_out"
-              and d1: "operationContext_wf ctxt"
-              and d2: "C_in outer_op \<triangleq> op"
-              and d3: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
-            for  C_in C_out ctxt outer_op op r Cs
-            unfolding crdt_spec_rel_def messageStruct_def messageStruct'_def
-          proof (cases op; clarsimp)
-            case (Author op')
-            show "struct_field Author(register_spec Undef op')  (sub_context C_in Cs ctxt) r =
-                  struct_field' Author (register_spec' Undef op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-            proof (rule struct_field_eq)
-              show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
-                by (simp add: register_spec_rel)
-
-              show "inj Author"
-                by (auto simp add: inj_def)
-
-              show "Cs \<subseteq> dom (calls ctxt)"
-                using d3 subset_map_map by blast
-
-            qed (auto simp add: d0 d1)
-          next
-            case (Content op')
-            show "struct_field  Content (register_spec Undef op')  (sub_context C_in Cs ctxt) r =
-                  struct_field' Content (register_spec' Undef op') Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-            proof (rule struct_field_eq)
-              show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
-                by (simp add: register_spec_rel)
-
-              show "inj Content"
-                by (auto simp add: inj_def)
-
-              show "Cs \<subseteq> dom (calls ctxt)"
-                using d3 subset_map_map by blast
-
-            qed (auto simp add: d0 d1)
-          qed
-        qed
-      qed
-    qed (auto simp add: c0 c3)
-  qed
-qed
 
 
 lemma crdtSpec'_alt:
@@ -238,19 +153,8 @@ lemma crdtSpec'_alt:
 lemma crdtSpec'_wf:
 "ccrdtSpec_wf (crdtSpec' oper)"
   unfolding crdtSpec'_def
-proof (auto  split: operation.splits)
+  by (auto simp add: messageStruct'_def  split: operation.splits )
 
-  show "ccrdtSpec_wf (struct_field' Message (map_sdw_spec' messageStruct' x))"
-    if c0: "oper = Message x"
-    for  x
-  proof (rule struct_field_wf)
-    show "ccrdtSpec_wf (map_sdw_spec' messageStruct' x)"
-    proof (rule map_sdw_spec_wf)
-      show "ccrdtSpec_wf (messageStruct' oper)" for oper
-        unfolding messageStruct'_def by (auto split: messageDataOp.splits)
-    qed
-  qed
-qed
 
 lemma crdtSpec'_simp_op:
   assumes "Cs \<subseteq> vis"
@@ -361,7 +265,13 @@ definition [simp]: "default_proc \<equiv> SendMessage [] []"
 instance by (standard, auto)
 end
 
+lemma inj_fields[simp]: "inj Chat"
+  "inj Message"
+  "inj Author"
+  "inj Content"
+  by (auto simp add: inj_def)
 
+thm inj_fields
 
 type_synonym localState = "val store  \<times> uniqueId set \<times> (val, operation, val) io"
 
@@ -404,7 +314,7 @@ invariant forall c: callId, m: MessageId, u: UserId ::
 
 definition inv2 where
 "inv2 op cop \<equiv> \<forall>c m u.
-  cop c \<triangleq> Call (Message (NestedOp m (Author (Assign (String u))))) Undef
+  cop c \<triangleq> Message (NestedOp m (Author (Assign (String u))))
   \<longrightarrow> (\<exists>i s. op i \<triangleq> SendMessage u s) "
 
 
@@ -419,9 +329,9 @@ invariant forall c1: callId, m: MessageId, s: String ::
 
 definition inv3 where
 "inv3 cop hb \<equiv> \<forall>c1 m s.
-    cop c1 \<triangleq> Call (Message (NestedOp m (Content (Assign s)))) Undef
+    cop c1 \<triangleq> Message (NestedOp m (Content (Assign s)))
     \<longrightarrow> (\<exists>c2 u. 
-           cop c2 \<triangleq> Call (Message (NestedOp m (Author (Assign u)))) Undef
+           cop c2 \<triangleq> Message (NestedOp m (Author (Assign u)))
            \<and> (c2, c1)\<in>hb) " 
 
 
@@ -438,17 +348,17 @@ invariant !(exists write: callId, delete: callId, m: MessageId ::
 definition inv4 where
 "inv4 cop hb \<equiv>
   \<nexists>write delete m no.
-   cop write \<triangleq> Call (Message (NestedOp m no)) Undef
+   cop write \<triangleq> Message (NestedOp m no)
    \<and> is_update no
-   \<and> cop delete \<triangleq> Call (Message (DeleteKey m)) Undef
+   \<and> cop delete \<triangleq> Message (DeleteKey m)
    \<and> (delete,write)\<in>hb"
 
 definition inv :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
   "inv ctxt \<equiv> 
     inv1 (invocationOp ctxt) (invocationRes ctxt) 
-  \<and> inv2 (invocationOp ctxt) (calls ctxt)
-  \<and> inv3 (calls ctxt) (happensBefore ctxt)
-  \<and> inv4 (calls ctxt) (happensBefore ctxt)"
+  \<and> inv2 (invocationOp ctxt) (Op ctxt)
+  \<and> inv3 (Op ctxt) (happensBefore ctxt)
+  \<and> inv4 (Op ctxt) (happensBefore ctxt)"
 
 
 
@@ -489,25 +399,8 @@ proof (auto simp add: program_wellFormed_def)
   qed
 
   show "queries_cannot_guess_ids crdtSpec"
-  proof (auto simp add:  crdtSpec_def queries_cannot_guess_ids_def split: operation.splits)
-
-    show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field Chat (set_rw_spec x1))"
-      by (standard, auto split: operation.splits)
-
-    show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field Message (map_sdw_spec messageStruct x2))"
-    proof (standard, auto split: operation.splits)
-
-      show "queries_cannot_guess_ids (map_sdw_spec messageStruct)"
-      proof (standard, auto simp add: messageStruct_def queries_cannot_guess_ids_def split: messageDataOp.splits)
-
-        show "\<And>x1. query_cannot_guess_ids (uniqueIds x1) (struct_field Author (register_spec Undef x1))"
-          by (standard, auto split: messageDataOp.splits)
-
-        show "\<And>x2. query_cannot_guess_ids (uniqueIds x2) (struct_field Content (register_spec Undef x2))"
-          by (standard, auto split: messageDataOp.splits)
-      qed
-    qed
-  qed
+    by (auto simp add: inj_def crdtSpec_def messageStruct_def)
+  
 qed
 
 
@@ -523,28 +416,6 @@ qed
 
 
 
-lemma query_result_undef_old:
-  assumes wf: "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
-     state_wellFormed
-      \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
-         transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
-         invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
-         generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
-         visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
-    and upd_call: "s_calls' upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
-    and upd_is_update: "is_update upd_op"
-  shows "upd_r = Undef"
-proof -
-
-  obtain ctxt where "querySpec progr (Message (NestedOp (MessageId m) upd_op)) ctxt upd_r"
-    by (meson get_query_spec local.wf upd_call)
-
-
-  thus "upd_r = Undef"
-    using upd_is_update
-    by (auto simp add: crdtSpec_def struct_field_def map_sdw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
-
-qed
 
 
 \<comment> \<open>Move to helpers\<close>
@@ -575,6 +446,17 @@ proof -
     by blast
 qed
 
+lemma select_field_some[simp]: 
+  assumes "inj f"
+  shows "select_field f (f x) \<triangleq> x"
+  using assms by (auto simp add: select_field_def)
+
+lemma select_field_none[simp]: 
+  assumes "\<And>x y. g x \<noteq> f y"
+  shows "select_field f (g x) = None"
+  using assms by (auto simp add: select_field_def)
+
+
 lemma query_result_undef:
   assumes wf: "proof_state_wellFormed S"
     and upd_call: "calls S upd_c \<triangleq> Call (Message (NestedOp (MessageId m) upd_op)) upd_r"
@@ -589,7 +471,9 @@ proof -
 
   thus "upd_r = Undef"
     using upd_is_update
-    by (auto simp add: crdtSpec_def struct_field_def map_sdw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
+    by (cases upd_op)
+     (auto simp add: inj_def crdtSpec_def struct_field_def map_sdw_spec_def map_spec_def messageStruct_def register_spec_def split: messageDataOp.splits registerOp.splits if_splits)
+
 
 qed
 
@@ -695,13 +579,17 @@ proof M_show_programCorrect
               by (meson AtCommit.uid_is_private'2 uid_is_private'_def)
 
 
-            hence no_v: "vn \<notin> uniqueIds opr" if "s_calls' c \<triangleq> Call opr r" for c opr r
-              by (meson new_unique_not_in_calls_def that)
+            hence no_v: "vn \<notin> uniqueIds opr" if "cOp s_calls' c \<triangleq> opr" for c opr
+              using that 
+              by (auto simp add: new_unique_not_in_calls_def cOp_Some_iff)
 
-            have [simp]: "s_calls' delete \<noteq> Some (Call (Message (DeleteKey v)) Undef)" for delete
+
+            have [simp]: "cOp s_calls' delete \<noteq> Some (Message (DeleteKey v))" for delete
               apply auto
               apply (drule no_v)
              using `uniqueIds_val_r v = {vn}` by auto
+
+
 
             from AtCommit
             show ?case
@@ -710,6 +598,7 @@ proof M_show_programCorrect
               then show ?case
                 by (auto simp add: inv2_def exists_cases1 )
 
+
             next
               case (inv3 )
               
@@ -717,8 +606,11 @@ proof M_show_programCorrect
                 by (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong, meson)
             next
               case (inv4)
+
+
               then show ?case 
                 by (auto simp add: inv4_def is_update_operation_def in_sequence_cons updateHb_cases)
+
             qed
               
               
@@ -787,9 +679,9 @@ proof M_show_programCorrect
                 knownIds = s_knownIds', invocationOp = s_invocationOp'(i \<mapsto> EditMessage m newContent),
                 invocationRes = s_invocationRes'(i := None)\<rparr>`
             have  i1: "inv1 (s_invocationOp'(i \<mapsto> EditMessage m newContent)) (s_invocationRes'(i := None))"
-              and i2: "inv2 (s_invocationOp'(i \<mapsto> EditMessage m newContent)) s_calls'"
-              and i3: "inv3 s_calls' s_happensBefore'"
-              and i4: "inv4 s_calls' s_happensBefore'"
+              and i2: "inv2 (s_invocationOp'(i \<mapsto> EditMessage m newContent)) (cOp s_calls')"
+              and i3: "inv3 (cOp s_calls') s_happensBefore'"
+              and i4: "inv4 (cOp s_calls') s_happensBefore'"
               by (auto simp add: inv_def)
 
             from \<open>toplevel_spec crdtSpec' \<lparr>calls = s_calls', happensBefore = s_happensBefore'\<rparr> vis' (Message (KeyExists (MessageId m))) (Bool True)\<close>
@@ -837,8 +729,9 @@ proof M_show_programCorrect
               show "\<exists>upda_c upda_val.
                  s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef \<and>
                  ((upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c)"
-                using i3 Content \<open>a = Assign x\<close> \<open>upd_r = Undef\<close> upd_call 
-                by (auto simp add: inv3_def, blast)
+                using i3 Content \<open>a = Assign x\<close> \<open>upd_r = Undef\<close> upd_call
+                apply (auto simp add: inv3_def cOp_Some_iff)
+                using Exists_AtCommit.proof_state_wellFormed query_result_undef by fastforce
             qed
 
 
@@ -871,7 +764,7 @@ proof M_show_programCorrect
               case (inv4)
               then show ?case 
                 apply (auto simp add: inv4_def updateHb_cases in_sequence_cons)
-                by (metis (no_types, lifting) \<open>upd_r = Undef\<close> ipd_not_deleted upd_call upd_is_update)
+                by (meson cOp_Some_iff ipd_not_deleted upd_call upd_is_update)
             qed
               
           next
@@ -957,9 +850,9 @@ proof M_show_programCorrect
                \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin', transactionOrigin = s_transactionOrigin',
                   knownIds = s_knownIds', invocationOp = s_invocationOp'(i \<mapsto> DeleteMessage m), invocationRes = s_invocationRes'(i := None)\<rparr>`
             have  i1: "inv1 (s_invocationOp'(i \<mapsto> DeleteMessage m)) (s_invocationRes'(i := None))"
-              and i2: "inv2 (s_invocationOp'(i \<mapsto> DeleteMessage m)) s_calls'"
-              and i3: "inv3 s_calls' s_happensBefore'"
-              and i4: "inv4 s_calls' s_happensBefore'"
+              and i2: "inv2 (s_invocationOp'(i \<mapsto> DeleteMessage m)) (cOp s_calls')"
+              and i3: "inv3 (cOp s_calls') s_happensBefore'"
+              and i4: "inv4 (cOp s_calls') s_happensBefore'"
               by (auto simp add: inv_def)
 
             show ?case
@@ -1093,9 +986,9 @@ proof M_show_programCorrect
                 transactionOrigin = s_transactionOrigin', knownIds = s_knownIds',
                 invocationOp = s_invocationOp'(i \<mapsto> GetMessage m), invocationRes = s_invocationRes'(i := None)\<rparr>\<close>
             have i1: "inv1 (s_invocationOp'(i \<mapsto> GetMessage m)) (s_invocationRes'(i := None))"
-              and i2: "inv2 (s_invocationOp'(i \<mapsto> GetMessage m)) s_calls'"
-              and i3: "inv3 s_calls' s_happensBefore'"
-              and i4: "inv4 s_calls' s_happensBefore'"
+              and i2: "inv2 (s_invocationOp'(i \<mapsto> GetMessage m)) (cOp s_calls')"
+              and i3: "inv3 (cOp s_calls') s_happensBefore'"
+              and i4: "inv4 (cOp s_calls') s_happensBefore'"
               by (auto simp add: inv_def)
 
             have "c \<notin> vis'"
@@ -1183,7 +1076,8 @@ proof M_show_programCorrect
                  s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef \<and>
                  ((upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c)"
                       using i3 Content \<open>a = Assign x\<close> \<open>upd_r = Undef\<close> upd_call 
-                      by (auto simp add: inv3_def, blast)
+                      apply (auto simp add: inv3_def)
+                      using cOp_Some_iff inv1.proof_state_wellFormed query_result_undef by fastforce
                   qed
 
                   have [simp]: "upda_c \<noteq> c"
@@ -1392,74 +1286,50 @@ proof M_show_programCorrect
                   have c_in_dom[simp]: "c \<in> dom s_calls'" if "c \<in> vis'" for c
                     using inv1(4) that by blast
 
+                  define ops' where "ops' \<equiv> extract_op (s_calls'(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True)))"
+                  define hb' where "hb' \<equiv> updateHb s_happensBefore' vis' [c]"
+
+                  from spec0
+                  have "crdtSpec' (Message (NestedOp (MessageId m) (Author Read))) (insert c vis') ops' hb' id resa"
+                    by (fold ops'_def hb'_def) auto
+
+                  hence h1: "is_from resa Undef
+                   (latest_values'
+                     (C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author) ops'
+                       (restrict_calls (C_out_calls Message ops' (insert c vis')) ops' Message (MessageId m) -
+                        deleted_calls_sdw' (C_out_calls Message ops' (insert c vis')) ops' hb' Message (MessageId m)))
+                     ops' hb' (Message \<circ> NestedOp (MessageId m) \<circ> Author))"
+                    by (auto simp add: crdtSpec'_def map_sdw_spec'_def map_spec'_def messageStruct'_def register_spec'_def)
 
 
-                  from spec0       
-                  obtain updb_c updb_res
-                    where updb_c1: "\<forall>x. x \<in> dom s_calls' \<longrightarrow> (\<exists>res. s_calls' x \<triangleq> Call (Message (DeleteKey (MessageId m))) res) \<longrightarrow> x \<in> vis' \<longrightarrow> (x, updb_c) \<in> s_happensBefore'"
-                      and updb_c_vis: "updb_c \<in> vis'"
-                      and updb_c_call: "s_calls' updb_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign (String author))))) updb_res"
-                      and updb_c2: "\<forall>c'. c' \<in> vis' \<longrightarrow> (\<forall>y res. s_calls' c' \<noteq> Some (Call (Message (NestedOp (MessageId m) y)) res)) \<or> (\<exists>y res. s_calls' c' \<triangleq> Call (Message y) res) \<and> (\<exists>x. (\<exists>res. s_calls' x \<triangleq> Call (Message (DeleteKey (MessageId m))) res) \<and> x \<in> vis' \<and> (x, c') \<notin> s_happensBefore') \<or> (\<forall>y res. s_calls' c' \<noteq> Some (Call (Message (NestedOp (MessageId m) (Author y))) res)) \<or> (\<forall>v' res. s_calls' c' \<noteq> Some (Call (Message (NestedOp (MessageId m) (Author (Assign v')))) res)) \<or> (updb_c, c') \<notin> s_happensBefore'"
-                  proof (atomize_elim, auto simp add: crdt_spec_defs latest_values'_def is_from_def latest_assignments'_def
-extract_op_def C_out_calls_def c0 restrict_calls_def updateHb_cons extract_op_eq
-                          split: if_splits, fuzzy_goal_cases A)
-                      case (A a b aa)
+                  define author_vis where "author_vis \<equiv> C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author) ops'
+                     (restrict_calls (C_out_calls Message ops' (insert c vis')) ops' Message (MessageId m) -
+                      deleted_calls_sdw' (C_out_calls Message ops' (insert c vis')) ops' hb' Message
+                       (MessageId m))"
 
-                      show "\<exists>updb_c.
-                        (\<forall>x. x \<in> dom s_calls' \<longrightarrow>
-                             (\<exists>res. s_calls' x \<triangleq> Call (Message (DeleteKey (MessageId m))) res) \<longrightarrow>
-                             x \<in> vis' \<longrightarrow> (x, updb_c) \<in> s_happensBefore') \<and>
-                        updb_c \<in> vis' \<and>
-                        (\<exists>updb_res. s_calls' updb_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign (String author))))) updb_res) \<and>
-                        (\<forall>c'. c' \<in> vis' \<longrightarrow>
-                              (\<forall>y res. s_calls' c' \<noteq> Some (Call (Message (NestedOp (MessageId m) y)) res)) \<or>
-                              (\<exists>y res. s_calls' c' \<triangleq> Call (Message y) res) \<and>
-                              (\<exists>x. (\<exists>res. s_calls' x \<triangleq> Call (Message (DeleteKey (MessageId m))) res) \<and>
-                                   x \<in> vis' \<and> (x, c') \<notin> s_happensBefore') \<or>
-                              (\<forall>y res. s_calls' c' \<noteq> Some (Call (Message (NestedOp (MessageId m) (Author y))) res)) \<or>
-                              (\<forall>v' res. s_calls' c' \<noteq> Some (Call (Message (NestedOp (MessageId m) (Author (Assign v')))) res)) \<or>
-                              (updb_c, c') \<notin> s_happensBefore')"
-                      proof (rule exI[where x=aa], auto)
+                  from h1
+                  obtain updb_c 
+                    where h2: "updb_c \<in> author_vis"
+                      and h3: "ops' updb_c = Message (NestedOp (MessageId m) (Author (Assign (String author))))"
+                      and h4: "\<forall>c'. c' \<in> author_vis \<longrightarrow>
+                         (\<forall>v'. ops' c' \<noteq> Message (NestedOp (MessageId m) (Author (Assign v')))) \<or> (updb_c, c') \<notin> hb'"
+                    by (auto simp add: c0 author_vis_def is_from_not_initial latest_values'_def latest_assignments'_def)
 
-                        show "(x, aa) \<in> s_happensBefore'"
-                          if c0: "s_calls' x \<triangleq> Call (Message (DeleteKey (MessageId m))) res"
-                            and c1: "x \<in> vis'"
-                          for  x res
-                          by (metis A.All_implies_cases_d_eq2 c0 c1 c_distinct call.sel(1) option.sel)
 
-                        show "aa \<in> vis'"
-                          by (simp add: A.member2)
 
-                        show "\<exists>updb_res. s_calls' aa \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign (String author))))) updb_res"
-                          by (metis A.call_operation_eq2 A.member2 c_in_dom call.collapse domIff option.exhaust_sel)
+                  have updb_c_call': "cOp s_calls' updb_c \<triangleq> Message (NestedOp (MessageId m) (Author (Assign (String author))))"
+                    using h2 h3
+                    apply (auto simp add: author_vis_def C_out_calls_def ops'_def extract_op_def restrict_calls_def split: if_splits)
+                    by (metis (no_types, lifting) cOp_Some c_in_dom domIff option.exhaust_sel)
 
-                        show "\<exists>x. (\<exists>res. s_calls' x \<triangleq> Call (Message (DeleteKey (MessageId m))) res) \<and> x \<in> vis' \<and> (x, c') \<notin> s_happensBefore'"
-                          if c0: "c' \<in> vis'"
-                            and c1: "(aa, c') \<in> s_happensBefore'"
-                            and c2: "s_calls' c' \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign v')))) res"
-                          for  c' res v'
-                          by (metis A.All_cases_c'_eq2 c0 c1 c2 c_in_dom call.collapse call.sel(1) domIff inv1.not_member option.exhaust_sel option.sel)
-
-                      qed
-                    qed
-
-                  from updb_c_call
-                  have "\<exists>ctxt. querySpec progr (Message (NestedOp (MessageId m) (Author (Assign (String author))))) ctxt updb_res"
-                    using get_query_spec2 inv1.proof_state_wellFormed proof_state.select_convs(10) by fastforce
-
-                  hence [simp]: " updb_res = Undef"
-                    by (auto simp add: crdtSpec_def struct_field_def map_sdw_spec_def map_spec_def messageStruct_def register_spec_def)
-
-                  from updb_c_call
-                  have updb_c_call': " s_calls' updb_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign (String author))))) Undef"
-                    by simp
-
-                  from `inv2 (s_invocationOp'(i \<mapsto> GetMessage m)) s_calls'`[unfolded inv2_def, rule_format, OF updb_c_call']
+                  thm `inv2 (s_invocationOp'(i \<mapsto> GetMessage m)) (cOp s_calls')`[unfolded inv2_def, rule_format, OF updb_c_call']
+                  from `inv2 (s_invocationOp'(i \<mapsto> GetMessage m)) (cOp s_calls')`[unfolded inv2_def, rule_format, OF updb_c_call']
                   obtain ia s where "(s_invocationOp'(i \<mapsto> GetMessage m)) ia \<triangleq> SendMessage author s"
                     by blast
 
-                  thus "\<exists>s. s \<noteq> i \<and> (\<exists>content2. s_invocationOp' s \<triangleq> SendMessage author content2)"
-                    by (metis map_upd_Some_unfold proc.distinct(5))
+
+                  show "\<exists>s. s \<noteq> i \<and> (\<exists>content2. s_invocationOp' s \<triangleq> SendMessage author content2)"
+                    by (metis \<open>(s_invocationOp'(i \<mapsto> GetMessage m)) ia \<triangleq> SendMessage author s\<close> map_upd_Some_unfold proc.simps(10))
                 qed
               qed
             qed

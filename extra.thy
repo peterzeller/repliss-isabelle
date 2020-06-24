@@ -30,7 +30,7 @@ proof -
       assume "Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)"
         and "Disable \<notin> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)"
       have "latestOps (restrict_ctxt_op (set_to_flag x) ctxt) = {}"
-        apply (auto simp add: latestOps_def restrict_ctxt_op_def restrict_ctxt_def ctxt_def restrict_hb_def Op_def fmap_map_values_def set_to_flag_def restrict_relation_def split: option.splits)
+        apply (auto simp add: latestOps_def restrict_ctxt_op_def restrict_ctxt_def ctxt_def restrict_hb_def cOp_def fmap_map_values_def set_to_flag_def restrict_relation_def split: option.splits)
         by (metis callId.exhaust gt_ex)
 
       with `Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)`
@@ -39,13 +39,13 @@ proof -
     qed
 
     have no_remove: "Op ctxt r \<noteq> Some (Remove x)" for r
-      by (auto simp add: ctxt_def Op_def)
+      by (auto simp add: ctxt_def cOp_def)
 
     have "((\<exists>a. Op ctxt a \<triangleq> Add x) \<and>
         (\<forall>r. Op ctxt r \<triangleq> Remove x \<longrightarrow> (\<exists>a. Op ctxt a \<triangleq> Add x \<and> (r, a) \<in> happensBefore ctxt)))"
     proof (intro conjI impI allI exI)
       show "Op ctxt (CallId 0) \<triangleq> Add x"
-        by (simp add: Op_def ctxt_def)
+        by (simp add: cOp_def ctxt_def)
     qed (simp add: no_remove)+
 
     thus "from_bool False \<noteq>

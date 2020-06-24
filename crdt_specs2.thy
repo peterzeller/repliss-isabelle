@@ -130,7 +130,7 @@ lemma  latest_assignments_rel:
   shows "(latest_assignments' (dom (map_map (calls ctxt) call_operation \<ggreater> C_in) \<inter> Cs) (extract_op (calls ctxt)) (happensBefore ctxt) C_out)
       = {(x,y) | x y. latestAssignments (sub_context C_in Cs ctxt) x \<triangleq> y}"
 proof (auto simp add: latest_assignments'_def latestAssignments_def  latestAssignments_h_def 
-    map_chain_eq_some dom_def Op_def
+    map_chain_eq_some dom_def cOp_def
     split: option.splits registerOp.splits call.splits, 
     fuzzy_goal_cases A B C D E F G H)
   case (A a b y)
@@ -180,7 +180,7 @@ lemma  latest_assignments_rel2:
   by (metis (mono_tags, lifting) Collect_cong Cs_subset inf.absorb_iff2 is_rev latest_assignments_rel)
 
 
-lemma lww_register_spec_rel:
+lemma lww_register_spec_rel[intro!]:
 "crdt_spec_rel (lww_register_spec initial) (lww_register_spec' initial) "
   unfolding crdt_spec_rel_def
   by (auto simp add: lww_register_spec_def lww_register_spec'_def 
@@ -194,7 +194,7 @@ shows "latestValues (sub_context C_in Cs ctxt)
      = latest_values' Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out"
   by (auto simp add: latestValues_def latest_values'_def latest_assignments_rel2[OF is_rev subset] ran_def in_img_simp)
 
-lemma register_spec_rel:
+lemma register_spec_rel[intro!]:
 "crdt_spec_rel (register_spec initial) (register_spec' initial) "
   unfolding crdt_spec_rel_def
   by (auto simp add: register_spec_def register_spec'_def is_from_def
@@ -285,7 +285,7 @@ qed
 lemma Op_subcontext:
 "Op (sub_context C_in Cs ctxt) c \<triangleq> op
 \<longleftrightarrow> (\<exists>op'. c\<in>Cs \<and> Op ctxt c \<triangleq> op' \<and> C_in op' \<triangleq> op)"
-  by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def restrict_hb_def Op_def 
+  by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def restrict_hb_def cOp_def 
       ctxt_restrict_calls_def restrict_map_def
       fmap_map_values_def option_bind_def split: option.splits call.splits)
 
@@ -297,14 +297,14 @@ lemma calls_subcontext:
               None \<Rightarrow> None 
             | Some (Call op r) \<Rightarrow> C_in op \<bind> (\<lambda>op'. Some (Call op' r))
          else None)"
-  by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def restrict_hb_def Op_def 
+  by (auto simp add: sub_context_def restrict_ctxt_op_def restrict_ctxt_def restrict_hb_def cOp_def 
       ctxt_restrict_calls_def restrict_map_def
       fmap_map_values_def option_bind_def split: option.splits call.splits intro!: ext)
 
 lemma calls_subcontext_dom: 
 "dom (calls (sub_context C_in Cs ctxt))
 = {c | c op. c\<in>Cs \<and> Op ctxt c \<triangleq> op \<and> C_in op \<noteq> None}"
-  by (auto simp add: calls_subcontext option_bind_def Op_def split: if_splits option.splits call.splits)
+  by (auto simp add: calls_subcontext option_bind_def cOp_def split: if_splits option.splits call.splits)
 
 lemma calls_subcontext_dom_exists: 
 "(\<exists>c\<in>dom (calls (sub_context C_in Cs ctxt)). P c)
@@ -335,7 +335,7 @@ lemma forall_call_expand:
 
   thm exists_call_expand
 
-lemma set_rw_spec_rel:
+lemma set_rw_spec_rel[intro!]:
   shows "crdt_spec_rel set_rw_spec set_rw_spec'"
 proof (rule show_crdt_spec_rel)
 
@@ -446,7 +446,7 @@ and "R = deleted_calls_sdw' (dom (map_map (calls ctxt) call_operation \<ggreater
 shows "L = R"
   by (auto simp add: deleted_calls_sdw_def deleted_calls_sdw'_def sub_context_def assms restrict_ctxt_op_def restrict_ctxt_def
       fmap_map_values_def option_bind_def ctxt_restrict_calls_def restrict_map_def
-      restrict_relation_def extract_op_def'  map_map_def map_chain_def Op_def
+      restrict_relation_def extract_op_def'  map_map_def map_chain_def cOp_def
       split: option.splits call.splits if_splits,
    (metis (mono_tags, lifting) IntI assms(1) call.sel(1) comp_eq_dest_lhs domIff is_reverse_1 option.simps(3) option.simps(5)),
    (metis assms(1) call.collapse call.sel(1) is_reverse_2 option.sel),
@@ -457,7 +457,7 @@ shows "L = R"
 
 
 
-lemma map_spec_rel:
+lemma map_spec_rel[intro]:
   fixes nestedSpec :: "('opn::crdt_op, 'res::{default,from_bool}) crdtSpec"
     and nestedSpec' :: "('op, 'opn, 'res) ccrdtSpec"
     and deletedCalls :: "(('k, 'opn) mapOp, 'res) operationContext \<Rightarrow> 'k \<Rightarrow> callId set"
@@ -649,7 +649,7 @@ qed
 
 
 
-lemma map_sdw_spec_rel:
+lemma map_sdw_spec_rel[intro!]:
   assumes nested_rel: "crdt_spec_rel nestedSpec nestedSpec'"
   shows "crdt_spec_rel (map_sdw_spec nestedSpec) (map_sdw_spec' nestedSpec') "
   unfolding map_sdw_spec'_def map_sdw_spec_def
@@ -697,7 +697,7 @@ proof (simp add: ccrdtSpec_wf_def; intro impI allI)
   qed
 qed
 
-lemma map_sdw_spec_wf[simp]:
+lemma map_sdw_spec_wf[intro!]:
   assumes nested_rel: "\<And>oper. ccrdtSpec_wf (nestedSpec oper)"
   shows "ccrdtSpec_wf (map_sdw_spec' nestedSpec oper) "
   unfolding map_sdw_spec'_def using nested_rel
@@ -717,134 +717,137 @@ subsection "Structs"
 
 
 
-definition struct_field' :: "('opn \<Rightarrow> 'a) \<Rightarrow> ('op, 'opn, 'res) cOperationResultSpec \<Rightarrow> ('op, 'a, 'res) cOperationResultSpec "  where
-"struct_field' C_out spec  \<equiv> 
+definition struct_field' :: "('opn \<Rightarrow> 'a) \<Rightarrow> ('op, 'opn, 'res) ccrdtSpec \<Rightarrow> ('op, 'a, 'res) ccrdtSpec " where
+"struct_field' C_out spec opr  \<equiv> 
   \<lambda> vis op hb x_C_out res.
-    spec (C_out_calls (x_C_out \<circ> C_out) op vis) op hb (x_C_out \<circ> C_out)  res"
+    case select_field C_out opr of 
+      Some i_op \<Rightarrow> spec i_op (C_out_calls (x_C_out \<circ> C_out) op vis) op hb (x_C_out \<circ> C_out)  res
+    | None \<Rightarrow> False
+"
+
+definition compose_struct' :: "('op, 'opn, 'r) ccrdtSpec \<Rightarrow> ('op, 'opn, 'r) ccrdtSpec \<Rightarrow> ('op, 'opn, 'r) ccrdtSpec" (infixr ".\<or>.." 30) where
+"A .\<or>.. B \<equiv> \<lambda>opr vis op hb f r. A opr vis op hb f r \<or> B opr vis op hb f r"
 
 
-lemma struct_field_eq:
+lemma compose_struct'_simp[simp]:
+"(A .\<or>.. B) opr vis op hb f r \<longleftrightarrow> A opr vis op hb f r \<or> B opr vis op hb f r"
+  unfolding compose_struct'_def by auto
+
+lemma struct_field'_same[simp]:
+  assumes "inj f"
+  shows "struct_field' f spec (f opr) vis op hb out1 r  \<longleftrightarrow> spec opr (C_out_calls (out1 \<circ> f) op vis) op hb (out1 \<circ> f) r"
+  using assms by (auto simp add: struct_field'_def is_reverse_2 select_field_reverse split: option.splits)
+
+lemma struct_field'_different[simp]:
+  assumes "\<And>x y. f x \<noteq> g y"
+  shows "\<not>struct_field' f spec (g opr) vis op hb out1 r"
+  by (metis (no_types, lifting) assms option.simps(4) select_field_def struct_field'_def)
+
+
+lemma crdt_spec_rel_struct_field[intro!]:
+  fixes nspec :: "('opn, 'r) crdtSpec"
+    and nspec' :: "('op, 'opn, 'r) ccrdtSpec"
   assumes rel: "crdt_spec_rel nspec nspec'"
-    and C_out_inj: "inj C_out"
-    and is_rev': "is_reverse C_in' C_out'"
-    and c_calls_subset: "c_calls \<subseteq> dom (calls ctxt)"
-    and wf: "operationContext_wf ctxt"
-shows "struct_field C_out (nspec n_op) (sub_context C_in' c_calls ctxt) res 
-      =  struct_field' C_out (nspec' n_op) c_calls (extract_op (calls ctxt)) (happensBefore ctxt) C_out' res"
-proof (simp add: struct_field_def struct_field'_def C_out_calls_def)
-  show " nspec n_op (restrict_ctxt_op (select_field C_out) (sub_context C_in' c_calls ctxt)) res =
-    nspec' n_op {c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)} (extract_op (calls ctxt))
-     (happensBefore ctxt) (C_out' \<circ> C_out) res"
-  proof (fuzzy_rule use_crdt_spec_rel[OF rel])
+    and f_inj: "inj f"
+  shows "crdt_spec_rel (struct_field f nspec) (struct_field' f nspec')"
+proof (rule show_crdt_spec_rel')
 
+  show "struct_field f nspec op (sub_context C_in Cs ctxt) r 
+      = struct_field' f nspec' op Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+    if c0: "is_reverse C_in C_out"
+      and c1: "operationContext_wf ctxt"
+      and c2: "C_in outer_op \<triangleq> op"
+      and c3: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
+    for  C_in C_out ctxt outer_op op r Cs
+    unfolding struct_field_def struct_field'_def
+  proof (cases "select_field f op"; clarsimp)
+    case (Some op')
 
-    show "is_reverse (C_in' \<ggreater> select_field C_out) (C_out' \<circ> C_out)"
-      by (simp add: C_out_inj is_rev' is_reverse_combine select_field_reverse)
+    show "nspec op' (restrict_ctxt_op (select_field f) (sub_context C_in Cs ctxt)) r 
+        = nspec' op' (C_out_calls (C_out \<circ> f) (extract_op (calls ctxt)) Cs) (extract_op (calls ctxt))
+          (happensBefore ctxt) (C_out \<circ> f) r"
+    proof (fuzzy_rule use_crdt_spec_rel[OF rel])
 
+      show "is_reverse (C_in \<ggreater> select_field f) (C_out \<circ> f)"
+        by (simp add: c0 f_inj is_reverse_combine select_field_reverse)
 
-    show "(C_in' \<ggreater> select_field C_out) (C_out' (C_out n_op)) \<triangleq> n_op"
-      by (metis C_out_inj bind.simps(2) inv_f_f is_rev' is_reverse_2 map_chain_def select_field_def)
+      show "(C_in \<ggreater> select_field f) outer_op \<triangleq> op'"
+        by (simp add: Some c2 map_chain_eq_some)
 
-    show "{c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)}
-      \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in' \<ggreater> select_field C_out)"
-    proof (auto simp add: 
-          operationContext_ext calls_sub_context happens_before_sub_context
-          option_bind_def restrict_ctxt_op_def restrict_map_def 
-          map_chain_def restrict_ctxt_def fmap_map_values_def
-          restrict_relation_def 
-          split: if_splits option.splits call.splits)
-      show "\<And>x xa. \<lbrakk>x \<in> c_calls; extract_op (calls ctxt) x = C_out' (C_out xa)\<rbrakk> \<Longrightarrow> \<exists>y. calls ctxt x \<triangleq> y"
-        using c_calls_subset by blast
-      show "\<And>x xa y.
-       \<lbrakk>x \<in> c_calls; extract_op (calls ctxt) x = C_out' (C_out xa); C_in' (call_operation y) = None;
-        calls ctxt x \<triangleq> y\<rbrakk>
-       \<Longrightarrow> False"
-        by (simp add: call_operation_def extract_op_def is_rev' is_reverse_2)
-      show "\<And>x xa x2a y.
-       \<lbrakk>x \<in> c_calls; extract_op (calls ctxt) x = C_out' (C_out xa); C_in' (call_operation y) \<triangleq> x2a;
-        calls ctxt x \<triangleq> y\<rbrakk>
-       \<Longrightarrow> \<exists>y. select_field C_out x2a \<triangleq> y"
-        by (metis extract_op_def is_rev' is_reverse_2 option.sel select_field_def)
+      show "operationContext_wf ctxt" using c1 .
+
+      show "C_out_calls (C_out \<circ> f) (extract_op (calls ctxt)) Cs
+        \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in \<ggreater> select_field f)"
+        using c3
+        by (auto simp add: C_out_calls_def extract_op_def  option_bind_def 
+            in_dom map_chain_eq_some map_map_apply_eq_none
+            subset_iff
+            split: option.splits)
+         (smt c0 domI domIff dom_map_map f_inj is_reverse_def map_chain_eq_some option.collapse select_field_reverse)
+
+      show "sub_context (C_in \<ggreater> select_field f) (C_out_calls (C_out \<circ> f) (extract_op (calls ctxt)) Cs) ctxt =
+    restrict_ctxt_op (select_field f) (sub_context C_in Cs ctxt) "
+        using is_reverse_1[OF c0]
+        by (auto simp add: sub_context_def C_out_calls_def select_field_def
+            restrict_ctxt_op_def restrict_ctxt_def restrict_hb_def
+            ctxt_restrict_calls_def restrict_map_def extract_op_def 
+            option_bind_def map_chain_def
+            restrict_relation_def
+            fmap_map_values_def intro!: HOL.ext
+            split: option.splits if_splits)
+          metis+
     qed
-
-    have [simp]: "inv C_out (C_out x) = x" for x
-      by (rule inv_f_f, rule C_out_inj)
-  
-
-
-    show "sub_context (C_in' \<ggreater> select_field C_out) {c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)} ctxt =
-      restrict_ctxt_op (select_field C_out) (sub_context C_in' c_calls ctxt)"
-    proof (auto simp add: map_map_def map_chain_def option_bind_def  split: option.splits)
-      show "sub_context (\<lambda>x. case C_in' x of None \<Rightarrow> None | Some a \<Rightarrow> select_field C_out a)
-       {c \<in> c_calls. \<exists>x. extract_op (calls ctxt) c = C_out' (C_out x)} ctxt =
-      restrict_ctxt_op (select_field C_out) (sub_context C_in' c_calls ctxt)"
-
-        using c_calls_subset proof (auto simp add: call_operation_def extract_op_def is_rev' is_reverse_2 operationContext_ext calls_sub_context 
-          restrict_map_def option_bind_def
-          restrict_ctxt_op_def restrict_ctxt_def fmap_map_values_def option_bind_def
-          happens_before_sub_context restrict_relation_def
-          is_reverse_1[OF is_rev']
-          is_reverse_2[OF is_rev']
-          select_field_def
-          intro!: ext
-          split: option.splits  call.splits  if_splits,
-          fuzzy_goal_cases A B C D E F G H)
-        case A
-        show ?case
-          using A.C_in'_eq is_rev' is_reverse_1 by fastforce
-      next case B
-        show ?case
-          using B.All_not_C_out_eq by auto
-      next case C
-        show ?case
-          using C.C_in'_eq is_rev' is_reverse_1 by fastforce
-      next case D
-        show ?case
-          using D.All_not_C_out_eq by auto
-      next case E
-        show ?case
-          using E.C_in'_eq is_rev' is_reverse_1 by fastforce
-      next case F
-        show ?case
-          using F.C_in'_eq2 is_rev' is_reverse_1 by fastforce
-      next case G
-        show ?case
-          using G.All_not_C_out_eq by auto
-      next case H
-        show ?case
-          using H.All_not_C_out_eq by blast
-      qed
-    qed
-    show "operationContext_wf ctxt"
-      using wf .
-  qed 
+  qed
 qed
 
-lemma struct_field_wf[simp]:
-  assumes nested_rel: "ccrdtSpec_wf nestedSpec"
-  shows "ccrdtSpec_wf (struct_field' C_out nestedSpec) "
-proof (clarsimp simp add: ccrdtSpec_wf_def struct_field'_def C_out_calls_def)
 
-  show "nestedSpec {c \<in> Cs. \<exists>x. op c = C_outa (C_out x)} op hb (C_outa \<circ> C_out) r = nestedSpec {c \<in> Cs. \<exists>x. op' c = C_outa (C_out x)} op' hb' (C_outa \<circ> C_out) r"
-    if c0: "map_same_on Cs op op'"
+
+
+
+lemma crdt_spec_rel_compose[intro!]:
+  assumes relA: "crdt_spec_rel specA specA'"
+    and relB: "crdt_spec_rel specB specB'"
+  shows "crdt_spec_rel (specA .\<or>. specB) (specA' .\<or>.. specB')"
+  using assms  by (auto simp add: compose_struct_def compose_struct'_def dom_calls_sub_context_rewrite 
+      use_crdt_spec_rel1 dom_calls_sub_context_rewrite inf.absorb_iff2 use_crdt_spec_rel2 intro!: show_crdt_spec_rel)
+
+
+
+lemma struct_field_wf[intro!]:
+  assumes nested_rel: "\<And>op. ccrdtSpec_wf (nestedSpec op)"
+  shows "ccrdtSpec_wf (struct_field' C_out nestedSpec op) "
+proof (clarsimp simp add: ccrdtSpec_wf_def struct_field'_def C_out_calls_def split: option.splits)
+
+  show "nestedSpec x2 {c \<in> Cs. \<exists>x. opa c = C_outa (C_out x)} opa hb (C_outa \<circ> C_out) r = nestedSpec x2 {c \<in> Cs. \<exists>x. op' c = C_outa (C_out x)} op' hb' (C_outa \<circ> C_out) r"
+    if c0: "map_same_on Cs opa op'"
       and c1: "rel_same_on Cs hb hb'"
-    for  Cs op op' hb hb' C_outa r
+      and c2: "select_field C_out op \<triangleq> x2"
+    for  Cs opa op' hb hb' C_outa r x2
   proof (subst use_ccrdtSpec_wf[OF nested_rel, where op'=op' and hb'=hb'])
-    have "{c \<in> Cs. \<exists>x. op c = C_outa (C_out x)} =
-          {c \<in> Cs. \<exists>x. op' c = C_outa (C_out x)}"
+
+    have "{c \<in> Cs. \<exists>x. opa c = C_outa (C_out x)}
+        = {c \<in> Cs. \<exists>x. op' c = C_outa (C_out x)}"
       using c0 by (auto simp add: map_same_on_def)
 
-    thus "nestedSpec {c \<in> Cs. \<exists>x. op c = C_outa (C_out x)} op' hb' (C_outa \<circ> C_out) r =
-          nestedSpec {c \<in> Cs. \<exists>x. op' c = C_outa (C_out x)} op' hb' (C_outa \<circ> C_out) r"
-      by simp
+    then
+    show "nestedSpec x2 {c \<in> Cs. \<exists>x. opa c = C_outa (C_out x)} op' hb' (C_outa \<circ> C_out) r =
+    nestedSpec x2 {c \<in> Cs. \<exists>x. op' c = C_outa (C_out x)} op' hb' (C_outa \<circ> C_out) r"
+      by auto
 
-    show "map_same_on {c \<in> Cs. \<exists>x. op c = C_outa (C_out x)} op op'"
+    show "map_same_on {c \<in> Cs. \<exists>x. opa c = C_outa (C_out x)} opa op'"
       using c0 by (auto simp add: map_same_on_def)
 
-    show "rel_same_on {c \<in> Cs. \<exists>x. op c = C_outa (C_out x)} hb hb'"
+    show "rel_same_on {c \<in> Cs. \<exists>x. opa c = C_outa (C_out x)} hb hb'"
       using c1 by (auto simp add: rel_same_on_def)
   qed
 qed
+
+lemma struct_compose_wf[intro!]:
+  assumes wfA: "\<And>op. ccrdtSpec_wf (specA op)"
+and wfB: "\<And>op. ccrdtSpec_wf (specB op)"
+  shows "ccrdtSpec_wf ((specA .\<or>.. specB) op) "
+  by (smt ccrdtSpec_wf_def compose_struct'_def wfA wfB)
+
 
 lemma sub_context_id: 
   assumes calls_sub: "dom (calls ctxt) \<subseteq> c_calls"

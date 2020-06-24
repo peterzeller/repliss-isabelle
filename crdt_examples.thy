@@ -55,45 +55,45 @@ definition "example4 \<equiv> \<lparr>
 
 
 lemma "flag_ew_spec ReadFlag example1 False"
-  by (auto simp add: flag_ew_spec_def latestOps_def example1_def Op_def)
+  by (auto simp add: flag_ew_spec_def latestOps_def example1_def cOp_def)
 lemma "flag_sew_spec ReadFlag example1 False"
-  by (auto simp add: flag_sew_spec_def latestOps_def example1_def Op_def)
+  by (auto simp add: flag_sew_spec_def latestOps_def example1_def cOp_def)
 lemma "flag_dw_spec ReadFlag example1 False"
-  by (auto simp add: flag_dw_spec_def latestOps_def example1_def Op_def)
+  by (auto simp add: flag_dw_spec_def latestOps_def example1_def cOp_def)
 lemma "flag_sdw_spec ReadFlag example1 False"
-  by (auto simp add: flag_sdw_spec_def latestOps_def example1_def Op_def)
+  by (auto simp add: flag_sdw_spec_def latestOps_def example1_def cOp_def)
 
 
 lemma "flag_ew_spec ReadFlag example2 True"
-  by (auto simp add: flag_ew_spec_def latestOps_def example2_def Op_def)
+  by (auto simp add: flag_ew_spec_def latestOps_def example2_def cOp_def)
 lemma "flag_sew_spec ReadFlag example2 True"
-  by (auto simp add: flag_sew_spec_def latestOps_def example2_def Op_def)
+  by (auto simp add: flag_sew_spec_def latestOps_def example2_def cOp_def)
 lemma "flag_dw_spec ReadFlag example2 False"
-  by (auto simp add: flag_dw_spec_def latestOps_def example2_def Op_def cong: conj_cong)
+  by (auto simp add: flag_dw_spec_def latestOps_def example2_def cOp_def cong: conj_cong)
 lemma "flag_sdw_spec ReadFlag example2 False"
-  by (auto simp add: flag_sdw_spec_def latestOps_def example2_def Op_def cong: conj_cong)
+  by (auto simp add: flag_sdw_spec_def latestOps_def example2_def cOp_def cong: conj_cong)
 
 
 lemma "flag_ew_spec ReadFlag example3 True"
-  by (auto simp add: flag_ew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+  by (auto simp add: flag_ew_spec_def latestOps_def example3_def cOp_def cong: conj_cong)
    (smt callId.inject)
 lemma "flag_sew_spec ReadFlag example3 True"
-  by (auto simp add: flag_sew_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+  by (auto simp add: flag_sew_spec_def latestOps_def example3_def cOp_def cong: conj_cong)
    (smt callId.inject)
 lemma "flag_dw_spec ReadFlag example3 True"
-  by (auto simp add: flag_dw_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+  by (auto simp add: flag_dw_spec_def latestOps_def example3_def cOp_def cong: conj_cong)
    (smt callId.inject)
 lemma "flag_sdw_spec ReadFlag example3 False"
-  by (auto simp add: flag_sdw_spec_def latestOps_def example3_def Op_def cong: conj_cong)
+  by (auto simp add: flag_sdw_spec_def latestOps_def example3_def cOp_def cong: conj_cong)
 
 lemma "flag_ew_spec ReadFlag example4 False"
-  by (auto simp add: flag_ew_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+  by (auto simp add: flag_ew_spec_def latestOps_def example4_def cOp_def cong: conj_cong)
 lemma "flag_sew_spec ReadFlag example4 True"
-  by (auto simp add: flag_sew_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+  by (auto simp add: flag_sew_spec_def latestOps_def example4_def cOp_def cong: conj_cong)
 lemma "flag_dw_spec ReadFlag example4 False"
-  by (auto simp add: flag_dw_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+  by (auto simp add: flag_dw_spec_def latestOps_def example4_def cOp_def cong: conj_cong)
 lemma "flag_sdw_spec ReadFlag example4 False"
-  by (auto simp add: flag_sdw_spec_def latestOps_def example4_def Op_def cong: conj_cong)
+  by (auto simp add: flag_sdw_spec_def latestOps_def example4_def cOp_def cong: conj_cong)
    (smt callId.inject)+
 
 
@@ -167,7 +167,7 @@ method eval_example_auto = (auto simp add: map_dw_spec_def map_spec_def
     restrict_ctxt_def fmap_map_values_def ctxt_restrict_calls_def
     restrict_map_def deleted_calls_dw_def 
     exampleA_def exampleB_def exampleC_def exampleD_def 
-    Op_def hb_def
+    cOp_def hb_def
     is_update_counterOp_def sum_map_def map_uw_spec_def deleted_calls_uw_def
     option_bind_def trancl_insert  increments_def nested_op_on_key_def
     rtrancl_insert
@@ -283,11 +283,9 @@ text_raw \<open>}%EndSnippet\<close>
 
 text_raw \<open>\DefineSnippet{struct_example2}{\<close>
 definition crdtSpec :: "(structOp, val) crdtSpec" where
-"crdtSpec \<equiv> (\<lambda>oper.
-  case oper of
-    A op \<Rightarrow> struct_field A (counter_spec op) 
-  | B op \<Rightarrow> struct_field B (set_rw_spec op)
-)"
+"crdtSpec \<equiv> 
+      struct_field A counter_spec 
+  .\<or>. struct_field B set_rw_spec"
 text_raw \<open>}%EndSnippet\<close>
 
 

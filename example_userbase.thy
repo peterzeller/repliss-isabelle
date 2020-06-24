@@ -14,7 +14,7 @@ begin
 
 
 datatype val =
-  String string
+    String string
   | UserId int
   | Bool bool
   | Undef
@@ -61,7 +61,7 @@ fun stringval where
 | "stringval _ = ''''"
 
 datatype userDataOp =
-  Name "val registerOp"
+    Name "val registerOp"
   | Mail "val registerOp"
 
 
@@ -229,78 +229,29 @@ shows "(delete, write) \<notin> hb"
   by (meson assms inv3_def)
 
 definition userStruct :: "(userDataOp, val) crdtSpec" where
-  "userStruct \<equiv> (\<lambda>oper.
-  case oper of
-    Name op \<Rightarrow> struct_field Name (register_spec Undef op) 
-  | Mail op \<Rightarrow> struct_field Mail (register_spec Undef op)
-)" 
+  "userStruct \<equiv> 
+      struct_field Name (register_spec Undef) 
+  .\<or>. struct_field Mail (register_spec Undef)" 
 
 definition crdtSpec :: "(operation, val) crdtSpec" where
   "crdtSpec \<equiv> map_sdw_spec userStruct"
 
 
 definition userStruct' :: "('a, userDataOp, val) ccrdtSpec" where
-"userStruct' \<equiv> (\<lambda>oper.
-  case oper of
-    Name op \<Rightarrow> struct_field' Name (register_spec' Undef op) 
-  | Mail op \<Rightarrow> struct_field' Mail (register_spec' Undef op) 
-)"
+"userStruct' \<equiv> 
+      struct_field' Name (register_spec' Undef) 
+ .\<or>.. struct_field' Mail (register_spec' Undef)" 
 
 definition crdtSpec' :: "(operation, operation, val) ccrdtSpec" where
   "crdtSpec' \<equiv> map_sdw_spec' userStruct'"
 
+lemma inj_fields[simp]:
+  "inj Name" "inj Mail"
+  by (auto simp add: inj_def)
+
 lemma crdtSpec_rel:
   shows "crdt_spec_rel crdtSpec crdtSpec'"
-  unfolding crdtSpec_def crdtSpec'_def
-proof (rule map_sdw_spec_rel)
-
-  show "crdt_spec_rel userStruct userStruct'"
-  proof (rule show_crdt_spec_rel')
-
-
-    show "userStruct op (sub_context C_in Cs ctxt) r = userStruct' op Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-      if c0: "is_reverse C_in C_out"
-        and c1: "operationContext_wf ctxt"
-        and c2: "C_in outer_op \<triangleq> op"
-        and c3: "Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)"
-      for  C_in C_out ctxt outer_op op r Cs
-      unfolding userStruct_def userStruct'_def
-    proof (cases op; clarsimp)
-      case (Name x1)
-      show "struct_field Name (register_spec Undef x1) (sub_context C_in Cs ctxt) r =
-          struct_field' Name (register_spec' Undef x1) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-      proof (rule struct_field_eq)
-        show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
-          by (simp add: register_spec_rel)
-        show "inj Name"
-          using inj_def by auto
-        show "is_reverse C_in C_out"
-          by (simp add: c0)
-        show "Cs \<subseteq> dom (calls ctxt)"
-          by (smt c3 domI dom_map_map in_dom map_chain_eq_some subsetI)
-        show "operationContext_wf ctxt"
-          by (simp add: c1)
-      qed
-
-    next
-      case (Mail x2)
-      show "struct_field Mail (register_spec Undef x2) (sub_context C_in Cs ctxt) r =
-          struct_field' Mail (register_spec' Undef x2) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
-      proof (rule struct_field_eq)
-        show "crdt_spec_rel (register_spec Undef) (register_spec' Undef)"
-          by (simp add: register_spec_rel)
-        show "inj Mail"
-          using inj_def by auto
-        show "is_reverse C_in C_out"
-          by (simp add: c0)
-        show "Cs \<subseteq> dom (calls ctxt)"
-          by (smt c3 domI dom_map_map in_dom map_chain_eq_some subsetI)
-        show "operationContext_wf ctxt"
-          by (simp add: c1)
-      qed
-    qed
-  qed
-qed
+  by (auto simp add: crdtSpec_def crdtSpec'_def userStruct_def userStruct'_def)
 
 
 
@@ -335,19 +286,7 @@ proof (auto simp add: program_wellFormed_def)
   qed
 
   show "queries_cannot_guess_ids crdtSpec"
-  proof (simp add:  crdtSpec_def, standard)
-    show "queries_cannot_guess_ids userStruct"
-    proof (auto simp add: userStruct_def queries_cannot_guess_ids_def split: userDataOp.splits)
-
-      show "query_cannot_guess_ids (uniqueIds s) (struct_field Name (register_spec Undef s) )" for s
-        by (standard, auto split: userDataOp.splits)
-
-
-      show "query_cannot_guess_ids (uniqueIds s) (struct_field Mail (register_spec Undef s) )" for s 
-        by (standard, auto split: userDataOp.splits)
-    qed
-
-  qed 
+    by (auto simp add: crdtSpec_def userStruct_def)
 qed
 
 
