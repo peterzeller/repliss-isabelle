@@ -151,7 +151,7 @@ lemma crdtSpec'_alt:
   by (simp add: crdtSpec_rel local.wf operationContext_wf_hb_field use_crdt_spec_rel_toplevel)
 
 lemma crdtSpec'_wf:
-"ccrdtSpec_wf (crdtSpec' oper)"
+"ccrdtSpec_wf crdtSpec'"
   unfolding crdtSpec'_def
   by (auto simp add: messageStruct'_def  split: operation.splits )
 
@@ -1089,197 +1089,12 @@ proof M_show_programCorrect
                        (insert c vis') (Message (NestedOp (MessageId m) (Author Read))) resa\<close>
                   have spec0: "crdtSpec' (Message (NestedOp (MessageId m) (Author Read))) (insert c vis')     (extract_op (s_calls'(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True)))) (updateHb s_happensBefore' vis' [c]) id     resa"
                     by (simp add: toplevel_spec_def)
-(*
-                  have spec1: "crdtSpec' (Message (NestedOp (MessageId m) (Author Read))) (insert c (dom s_calls' \<inter> (vis' )))
-                       (extract_op ((s_calls' |` (vis'))(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True))))
-                       (updateHb (s_happensBefore' |r vis') vis' [c]) id resa"
-                    thm crdtSpec'_simp_op
-                    apply (subst crdtSpec'_simp_op)
-
-
-                  proof (auto simp add: crdtSpec'_alt crdtSpec'_simp_op crdtSpec'_simp_hb  )
-
-                    show "\<exists>y. s_calls' x \<triangleq> y"
-                      if c0: "x \<in> Field (updateHb (s_happensBefore' |r vis') vis' [c])"
-                        and c1: "x \<noteq> c"
-                      for  x
-                      using that `vis' \<subseteq> dom s_calls'` by (auto simp add: in_sequence_cons Field_def restrict_relation_def updateHb_cases)
-
-
-                    show "x \<in> vis'"
-                      if c0: "x \<in> Field (updateHb (s_happensBefore' |r vis') vis' [c])"
-                        and c1: "x \<noteq> c"
-                      for  x
-                      using that `vis' \<subseteq> dom s_calls'` by (auto simp add: in_sequence_cons Field_def restrict_relation_def updateHb_cases)
-
-                  qed
-
-                  have spec2: "crdtSpec' (Message (NestedOp (MessageId m) (Author Read))) 
-                       (insert c (dom s_calls' \<inter> (vis')))
-                       ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                       (updateHb s_happensBefore' vis' [c]) id resa"
-                  proof (rule use_ccrdtSpec_wf1[OF crdtSpec'_wf, rotated -1, OF spec1])
-
-                    show " map_same_on (insert c (dom s_calls' \<inter> (vis' )))
-                       (extract_op ((s_calls' |` (vis' ))(c \<mapsto> Call (Message (KeyExists (MessageId m))) (Bool True))))
-                       ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))"
-                      by (auto simp add: map_same_on_def extract_op_def)
-
-                    show " rel_same_on (insert c (dom s_calls' \<inter> (vis'))) (updateHb (s_happensBefore' |r vis') vis' [c])
-                           (updateHb s_happensBefore' vis' [c])"
-                      using inv1.not_member2 by (auto simp add: rel_same_on_def updateHb_cons restrict_relation_def)
-
-
-                  qed
-*)
                   have [simp]: "(\<lambda>x. Message (NestedOp (MessageId m) x)) \<circ> Author
                       = Message \<circ> (NestedOp (MessageId m)) \<circ> Author"
                     by auto
 
                   have [simp]: "upda_c \<in> vis'"
                     using causallyConsistent_def inv1(6) upd_vis upda_before_upd by fastforce
-(*
-                  from spec2
-                  have "is_from (String author) Undef
-                     (latest_values'
-                       (C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author)
-                         ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                         (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                           (insert c (dom s_calls' \<inter> (vis'))) -
-                          deleted_calls_sdw'
-                           (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                             (insert c (dom s_calls' \<inter> (vis'))))
-                           ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
-                           (MessageId m)))
-                       ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c])
-                       (Message \<circ> NestedOp (MessageId m) \<circ> Author))"
-                    by (auto simp add: crdtSpec'_def `resa = String author` struct_field'_def map_sdw_spec'_def
-                        map_spec'_def restrict_calls_def2 messageStruct'_def register_spec'_def)
-
-                  hence spec3: "(String author) \<in>
-                     (latest_values'
-                       (C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author)
-                         ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                         (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                           (insert c (dom s_calls' \<inter> (vis' ))) -
-                          deleted_calls_sdw'
-                           (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                             (insert c (dom s_calls' \<inter> (vis' ))))
-                           ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
-                           (MessageId m)))
-                       ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c])
-                       (Message \<circ> NestedOp (MessageId m) \<circ> Author))"
-                    apply (rule is_from_exists[THEN iffD1, rotated])
-                  proof (rule latest_values'_exists)
-
-                    show "finite
-                       (C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                         (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                           (insert c (dom s_calls' \<inter> (vis'))) -
-                          deleted_calls_sdw'
-                           (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                             (insert c (dom s_calls' \<inter> (vis'))))
-                           ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
-                           (MessageId m)))"
-                    proof (rule finite_subset)
-                      show "finite (dom s_calls')"
-                        using proof_state_wellFormed_to_state_wellFormed[OF Exists_AtReturn.proof_state_wellFormed] wf_finite_calls
-                        by fastforce
-                    qed (auto simp add: C_out_calls_def)
-
-                    have "acyclic s_happensBefore'"
-                      using happensBefore_acyclic proof_state_wellFormed_to_state_wellFormed[OF inv1.proof_state_wellFormed]
-                      by fastforce
-
-                    show "acyclic (updateHb s_happensBefore' vis' [c])"
-                      using \<open>acyclic s_happensBefore'\<close>
-                    proof (rule acyclic_updateHb)
-
-                      show "distinct [c]" by simp
-
-                      show "vis' \<inter> set [c] = {}"
-                        using \<open>c \<notin> vis'\<close> by auto
-
-                      show " Field s_happensBefore' \<inter> set [c] = {}"
-                        by (metis DomainE Field_def Int_insert_right_if0 RangeE Un_iff empty_set inf_bot_right inv1.not_member2 inv1.not_member3 list.set(2))
-                    qed
-
-                    from upda_before_upd
-                    have delete_before_upda_c: "(d, upda_c) \<in> s_happensBefore'"
-                      if d_not_c: "d \<noteq> c"
-                        and d_vis: "d \<in> vis'"
-                        and d_call: "s_calls' d \<triangleq> Call (Message (DeleteKey (MessageId m))) x2"
-                      for  d x2
-                    proof 
-
-
-                      obtain d_ctxt where "querySpec progr (Message (DeleteKey (MessageId m))) d_ctxt x2"
-                        using d_call get_query_spec2 inv1.proof_state_wellFormed proof_state.simps(10) by fastforce
-
-                      hence [simp]: "x2 = Undef"
-                        by (auto simp add: crdtSpec_def struct_field_def map_sdw_spec_def map_spec_def) 
-
-                      have [simp]: "d \<in> dom s_calls'"
-                        using d_call by blast
-
-                      have "(d, upd_c) \<in> s_happensBefore'"
-                        using ud_not_deleted[rule_format, where d=d]  d_vis d_call
-                        by (auto simp add: extract_op_def split: option.splits)
-
-                      show "(d, upda_c) \<in> s_happensBefore'" if "upda_c = upd_c"
-                        using `(d, upd_c) \<in> s_happensBefore'` `upda_c = upd_c` by simp
-
-
-                      show "(d, upda_c) \<in> s_happensBefore'"
-                        if c0: "(upda_c, upd_c) \<in> s_happensBefore'"
-                      proof (rule ccontr)
-                        assume "(d, upda_c) \<notin> s_happensBefore'"
-
-                        from `inv4 s_calls' s_happensBefore'`
-                        show False
-                          apply (auto simp add: inv4_def)
-                          apply (drule spec[where x=upd_c])
-                          apply (drule spec[where x=d])
-                          using upd_is_update by (auto simp add: d_call upd_call  \<open>upd_r = Undef\<close> \<open>(d, upd_c) \<in> s_happensBefore'\<close>)
-                      qed
-                    qed
-
-                    show "\<exists>ca y.
-                           ca \<in> C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author)
-                                  ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                                  (C_out_calls (Message \<circ> NestedOp (MessageId m)) ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                                    (insert c (dom s_calls' \<inter> vis')) -
-                                   deleted_calls_sdw'
-                                    (C_out_calls Message ((extract_op s_calls')(c := Message (KeyExists (MessageId m))))
-                                      (insert c (dom s_calls' \<inter> vis')))
-                                    ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
-                                    (MessageId m)) \<and>
-                           ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) ca =
-                           (Message \<circ> NestedOp (MessageId m) \<circ> Author) (Assign y)"
-                    proof (auto simp add: C_out_calls_def cong: conj_cong; intro exI conjI)
-                      show "upda_c \<noteq> c"
-                        by auto
-
-                      from `s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef`
-                      show "extract_op s_calls' upda_c = Message (NestedOp (MessageId m) (Author (Assign upda_val)))"
-                        by (auto  simp add: extract_op_def)
-                      thus "extract_op s_calls' upda_c = Message (NestedOp (MessageId m) (Author (Assign upda_val)))" .
-                      thus "extract_op s_calls' upda_c = Message (NestedOp (MessageId m) (Author (Assign upda_val)))" .
-
-                      show "upda_c \<in> dom s_calls'"
-                        using upda_call by blast
-
-                      show "upda_c \<in> vis'"
-                        by auto
-
-                      show "upda_c
-                          \<notin> deleted_calls_sdw' {ca. ca \<noteq> c \<longrightarrow> ca \<in> dom s_calls' \<and> ca \<in> vis' \<and> (\<exists>x. extract_op s_calls' ca = Message x)}
-                        ((extract_op s_calls')(c := Message (KeyExists (MessageId m)))) (updateHb s_happensBefore' vis' [c]) Message
-                        (MessageId m)"
-                        using delete_before_upda_c  by (auto simp add: deleted_calls_sdw'_def updateHb_cons extract_op_def' split: call.splits)
-                    qed
-                  qed
-*)
                   have c_distinct[simp]: "c' \<noteq> c" if "c' \<in> vis'" for c'
                     using \<open>c \<notin> vis'\<close> that by blast
 
@@ -1294,18 +1109,14 @@ proof M_show_programCorrect
                     by (fold ops'_def hb'_def) auto
 
                   hence h1: "is_from resa Undef
-                   (latest_values'
-                     (C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author) ops'
-                       (restrict_calls (C_out_calls Message ops' (insert c vis')) ops' Message (MessageId m) -
-                        deleted_calls_sdw' (C_out_calls Message ops' (insert c vis')) ops' hb' Message (MessageId m)))
-                     ops' hb' (Message \<circ> NestedOp (MessageId m) \<circ> Author))"
+                       (latest_values' (insert c vis' - deleted_calls_sdw' (insert c vis') ops' hb' Message (MessageId m)) ops' hb'
+                         (Message \<circ> NestedOp (MessageId m) \<circ> Author))"
                     by (auto simp add: crdtSpec'_def map_sdw_spec'_def map_spec'_def messageStruct'_def register_spec'_def)
 
 
-                  define author_vis where "author_vis \<equiv> C_out_calls (Message \<circ> NestedOp (MessageId m) \<circ> Author) ops'
-                     (restrict_calls (C_out_calls Message ops' (insert c vis')) ops' Message (MessageId m) -
-                      deleted_calls_sdw' (C_out_calls Message ops' (insert c vis')) ops' hb' Message
-                       (MessageId m))"
+                  define author_vis where "author_vis \<equiv> insert c vis' -
+                      deleted_calls_sdw' (insert c vis') ops' hb' Message (MessageId m)"
+
 
                   from h1
                   obtain updb_c 
@@ -1313,8 +1124,16 @@ proof M_show_programCorrect
                       and h3: "ops' updb_c = Message (NestedOp (MessageId m) (Author (Assign (String author))))"
                       and h4: "\<forall>c'. c' \<in> author_vis \<longrightarrow>
                          (\<forall>v'. ops' c' \<noteq> Message (NestedOp (MessageId m) (Author (Assign v')))) \<or> (updb_c, c') \<notin> hb'"
-                    by (auto simp add: c0 author_vis_def is_from_not_initial latest_values'_def latest_assignments'_def)
-
+                    apply (atomize_elim)
+                    apply (auto simp add: c0 is_from_not_initial latest_values'_def)
+                    apply (simp add: latest_assignments'_def)
+                    subgoal for a
+                      apply (rule exI[where x=a])
+                      apply safe
+                         apply (simp add: author_vis_def)
+                      using author_vis_def apply blast+
+                      done
+                    done
 
 
                   have updb_c_call': "cOp s_calls' updb_c \<triangleq> Message (NestedOp (MessageId m) (Author (Assign (String author))))"

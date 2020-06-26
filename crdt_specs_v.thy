@@ -134,7 +134,7 @@ definition crdt_spec_rel :: "('opn, 'res) crdtSpec \<Rightarrow> ('op, 'opn, 're
   \<longrightarrow> 
   (\<forall>ctxt (outer_op::'op) (op::'opn) r Cs. 
        C_in outer_op \<triangleq> op
-    \<longrightarrow> Cs \<subseteq> (dom ((map_map (calls ctxt) call_operation) \<ggreater> C_in))
+    \<longrightarrow> Cs \<subseteq> (dom (calls ctxt))
     \<longrightarrow> operationContext_wf ctxt
     \<longrightarrow>
        (spec op (sub_context C_in Cs ctxt) r
@@ -163,8 +163,8 @@ proof (fuzzy_rule use_crdt_spec_rel[OF rel])
   show "Some op \<triangleq> op"
     by simp
 
-  show "dom (calls ctxt) \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> Some)"
-    by (auto simp add: dom_map_map dom_map_chain)
+  show "dom (calls ctxt) \<subseteq> dom (calls ctxt)"
+    by simp
 
   have h1: "calls (sub_context Some UNIV ctxt) =  calls ctxt "
     by (auto simp add: calls_sub_context)
@@ -189,9 +189,9 @@ lemma show_crdt_spec_rel:
 \<lbrakk>is_reverse C_in C_out; 
 operationContext_wf ctxt;
  C_in outer_op \<triangleq> op;
-Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)\<rbrakk> \<Longrightarrow>
+Cs \<subseteq> dom (calls ctxt)\<rbrakk> \<Longrightarrow>
      spec op (sub_context C_in Cs ctxt) r
- \<longleftrightarrow> cspec op (dom (calls (sub_context C_in Cs ctxt))) (extract_op (calls ctxt))  (happensBefore ctxt) C_out  r 
+ \<longleftrightarrow> cspec op Cs (extract_op (calls ctxt))  (happensBefore ctxt) C_out  r 
 "
 shows "crdt_spec_rel spec cspec"
   by (simp add: crdt_spec_rel_def assms dom_calls_sub_context_rewrite inf.absorb_iff2)
@@ -203,7 +203,7 @@ lemma show_crdt_spec_rel':
 \<lbrakk>is_reverse C_in C_out; 
 operationContext_wf ctxt;
  C_in outer_op \<triangleq> op;
-Cs \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> C_in)\<rbrakk> \<Longrightarrow>
+Cs \<subseteq> dom (calls ctxt)\<rbrakk> \<Longrightarrow>
      spec op (sub_context C_in Cs ctxt) r
  \<longleftrightarrow> cspec op Cs (extract_op (calls ctxt))  (happensBefore ctxt) C_out  r 
 "
@@ -228,7 +228,7 @@ proof -
       by (simp add: is_reverse_def)
     show "Some op \<triangleq> op"
       by simp
-    show "dom (calls ctxt) \<subseteq> dom (map_map (calls ctxt) call_operation \<ggreater> Some)"
+    show "dom (calls ctxt) \<subseteq> dom (calls ctxt)"
       by (auto simp add: map_chain_def)
     have h1: "calls (sub_context Some UNIV ctxt) = calls ctxt "
       by (auto simp add: calls_sub_context)
@@ -249,25 +249,39 @@ qed
 
 
 
-definition ccrdtSpec_wf :: "('op, 'opn, 'res) cOperationResultSpec \<Rightarrow> bool" where
+definition ccrdtSpec_wf :: "('op, 'opn, 'res) ccrdtSpec \<Rightarrow> bool" where
 "ccrdtSpec_wf spec  \<equiv> 
-\<forall>Cs op op' hb hb' C_out r. 
-map_same_on Cs op op'
-\<longrightarrow> rel_same_on Cs hb hb'
-\<longrightarrow> (     spec Cs op  hb  C_out r 
-     \<longleftrightarrow>  spec Cs op' hb' C_out r)"
+\<forall>opr Cs Cs' op op' hb hb' C_out r. 
+map_same_on Cs' op op'
+\<longrightarrow> rel_same_on Cs' hb hb'
+\<longrightarrow> Cs' \<subseteq> Cs
+\<longrightarrow> (\<forall>c\<in>Cs. (\<exists>y. C_out y = op c) \<longrightarrow> c\<in>Cs')
+\<longrightarrow> (     spec opr Cs op  hb  C_out r 
+     \<longleftrightarrow>  spec opr Cs' op' hb' C_out r)"
+
+lemmas use_ccrdtSpec_wf' = ccrdtSpec_wf_def[unfolded atomize_eq, THEN iffD1, rule_format]
+lemmas use_ccrdtSpec_wf'1 = use_ccrdtSpec_wf'[THEN iffD1]
+lemmas use_ccrdtSpec_wf'2 = use_ccrdtSpec_wf'[THEN iffD2]
+                                                                  
+
+lemma use_ccrdtSpec_wf:
+  assumes "ccrdtSpec_wf spec"
+    and "map_same_on Cs op op'"
+    and "rel_same_on Cs hb hb'"
+  shows "spec opr Cs op hb C_out r = spec opr Cs op' hb' C_out r"
+  using assms
+  by (rule use_ccrdtSpec_wf') auto
+
+lemmas use_ccrdtSpec_wf1 = use_ccrdtSpec_wf[THEN iffD1]
+lemmas use_ccrdtSpec_wf2 = use_ccrdtSpec_wf[THEN iffD2]
 
 
 
-lemmas use_ccrdtSpec_wf = ccrdtSpec_wf_def[unfolded atomize_eq, THEN iffD1, rule_format]
-lemmas use_ccrdtSpec_wf1 = ccrdtSpec_wf_def[unfolded atomize_eq, THEN iffD1, rule_format, THEN iffD1]
-lemmas use_ccrdtSpec_wf2 = ccrdtSpec_wf_def[unfolded atomize_eq, THEN iffD1, rule_format, THEN iffD2]
 
 
-lemma ccrdtSpec_wf_split_ops:
-  assumes "\<And>x. ccrdtSpec_wf (\<lambda>i. f x)"
-  shows "ccrdtSpec_wf f"
-  using assms by (auto simp add: ccrdtSpec_wf_def)
+
+
+
 
 
 end

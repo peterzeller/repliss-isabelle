@@ -1862,7 +1862,8 @@ proof (rule ccontr)
 
                 show "Some Op \<triangleq> Op" by simp
 
-                show "current_vis PS \<subseteq> dom (map_map (calls (current_operationContext PS)) call_operation \<ggreater> Some)"
+
+                show "current_vis PS \<subseteq> dom (calls (current_operationContext PS))"
                   apply (auto simp add: current_vis_def map_map_def current_operationContext_def option_bind_def map_chain_def )
                   using vis_subset_calls apply fastforce
                   using local_subset_calls by fastforce
@@ -2611,11 +2612,24 @@ next
       show "program_wellFormed (prog S)"
         using `program_wellFormed (prog S)` .
 
+      
 
       show "uniqueIds Op \<subseteq> ps_localKnown PS"
         if c0: "action = ADbOp c Op res"
         for  c Op res
-        by (metis Suc.prems(1) Suc.prems(3) \<open>\<And>thesis. (\<And>S1. \<lbrakk>S ~~ (i, action, ok) \<leadsto>\<^sub>S S1; S1 ~~ (i, tr') \<leadsto>\<^sub>S* S'\<rbrakk> \<Longrightarrow> thesis) \<Longrightarrow> thesis\<close> action.distinct(33) action.distinct(53) proof_state_rel_def step_s_to_step that use_invocation_cannot_guess_ids_dbop)
+      proof -
+        from first_step
+        have "S ~~ (ps_i PS, ADbOp c Op res) \<leadsto> S1"
+          by (simp add: `i = ps_i PS` step_s_to_step that)
+
+
+        from `proof_state_rel PS S`
+        have "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S"
+          by (simp add: proof_state_rel_icgi)
+
+        from use_invocation_cannot_guess_ids_dbop[OF `invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS) S` `S ~~ (ps_i PS, ADbOp c Op res) \<leadsto> S1`] 
+        show "uniqueIds Op \<subseteq> ps_localKnown PS" .
+      qed
 
       show "crdt_spec_rel (querySpec (prog S)) querySpec'"
         using `crdt_spec_rel (querySpec (prog S)) querySpec'` by auto
@@ -2782,8 +2796,8 @@ proof (auto simp add:  execution_s_correct_def)
 
     from `S' ~~ (i, a) \<leadsto>\<^sub>S S''`
     have "localState S' i \<noteq> None"
-      apply (auto simp add: step_s.simps)
-      by (metis S_ls Un_iff \<open>S ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S''\<close> list.set_intros(1) local.wf no_more_invoc option.simps(3) set_append)
+      by (auto simp add: step_s.simps)
+       (metis S_ls Un_iff \<open>S ~~ (i, tr @ [a]) \<leadsto>\<^sub>S* S''\<close> list.set_intros(1) local.wf no_more_invoc option.simps(3) set_append)
 
 
 
@@ -2798,8 +2812,8 @@ proof (auto simp add:  execution_s_correct_def)
     next
       case (step tr S a S')
       then show ?case
-        apply (auto simp add: step_s.simps)
-        by (metis (no_types, lifting) S_ls has_invocationOp_forever local.wf option.exhaust option.simps(3) wf_localState_needs_invocationOp)
+        by (auto simp add: step_s.simps)
+         (metis (no_types, lifting) S_ls has_invocationOp_forever local.wf option.exhaust option.simps(3) wf_localState_needs_invocationOp)
     qed
 
     have "localState S i \<triangleq> (store, localKnown, ls1 \<bind> impl_language_loops.return)"
@@ -3035,8 +3049,8 @@ proof (auto simp add:  execution_s_correct_def)
       by (simp add: PS_def sorted_by_empty)
 
     show "\<forall>c. i_callOriginI PS c \<triangleq> ps_i PS \<longrightarrow> c \<in> ps_vis PS"
-      apply (auto simp add: PS_def)
-      by (metis (mono_tags, lifting) S_wf assms(2) i_callOriginI_h_def not_None_eq option.case_eq_if option.sel state_wellFormed_ls_visibleCalls_callOrigin)
+      by (auto simp add: PS_def)
+       (metis (mono_tags, lifting) S_wf assms(2) i_callOriginI_h_def not_None_eq option.case_eq_if option.sel state_wellFormed_ls_visibleCalls_callOrigin)
 
 
     show "ps_generatedLocal PS \<subseteq> ps_localKnown PS"
