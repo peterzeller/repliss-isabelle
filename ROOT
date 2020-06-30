@@ -23,6 +23,7 @@ session "repliss" = "HOL" +
     invariant_simps
     completeness
     crdt_examples
+    crdt_examples2
     example_userbase
     example_chat
     example_loop_max
