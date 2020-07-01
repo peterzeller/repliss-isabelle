@@ -329,10 +329,12 @@ next
      by (rule step.cases[OF `S ~~ a \<leadsto> S'`]; insert step that, auto split: if_splits)
  qed
 
+text_raw \<open>\DefineSnippet{wf_no_invocation_no_origin}{\<close>
 lemma wf_no_invocation_no_origin:
   assumes "state_wellFormed S"
     and "invocationOp S i = None"
-  shows "transactionOrigin S tx \<noteq> Some i"
+shows "transactionOrigin S tx \<noteq> Some i"
+  text_raw \<open>}%EndSnippet\<close>
   using assms proof (induct rule: wellFormed_induct)
   case initial
   then show ?case by (auto simp add: initialState_def)
@@ -355,10 +357,12 @@ next
   then show ?case by (auto simp add: step.simps)
 qed
 
+text_raw \<open>\DefineSnippet{wf_no_transactionStatus_origin_for_nothing}{\<close>
 lemma wf_no_transactionStatus_origin_for_nothing:
   assumes wf: "state_wellFormed S"
     and txStatusNone: "transactionStatus S txId = None"
-  shows "callOrigin S c \<noteq> Some txId"
+shows "callOrigin S c \<noteq> Some txId"
+text_raw \<open>}%EndSnippet\<close>
   using assms proof (induct rule: wellFormed_induct)
   case initial
   then show ?case by (auto simp add: initialState_def)

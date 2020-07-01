@@ -52,6 +52,66 @@ abbreviation consistentSnapshotI where
 consistentSnapshotH (calls state) (happensBefore state) (callOrigin state) (\<lambda>t. Some Committed) vis"
 
 
+ text \<open>
+ \DefineSnippet{causallyConsistent}{
+    @{thm [display] causallyConsistent_def}
+ }%EndSnippet
+ \<close>
+
+ text \<open>
+ \DefineSnippet{transactionConsistent_committed}{
+    @{thm [display] transactionConsistent_committed_def}
+ }%EndSnippet
+ \<close>
+
+ text \<open>
+ \DefineSnippet{transactionConsistent_atomic}{
+    @{thm [display] transactionConsistent_atomic_def}
+ }%EndSnippet
+ \<close>
+
+ text \<open>
+ \DefineSnippet{transactionConsistent}{
+    @{thm [display] transactionConsistent_def}
+ }%EndSnippet
+ \<close>
+
+
+ text \<open>
+ \DefineSnippet{transactionConsistent_unfolded}{
+    @{thm [display] transactionConsistent_def[unfolded transactionConsistent_committed_def transactionConsistent_atomic_def]}
+ }%EndSnippet
+ \<close>
+
+ text \<open>
+ \DefineSnippet{consistentSnapshotH}{
+    @{thm [display] consistentSnapshotH_def}
+ }%EndSnippet
+ \<close>
+
+schematic_goal consistentSnapshot_def:
+"consistentSnapshot S vis \<longleftrightarrow> ?x"
+  by (subst consistentSnapshotH_def, rule refl)
+
+
+ text \<open>
+ \DefineSnippet{consistentSnapshot}{
+    @{thm [display] consistentSnapshot_def}
+ }%EndSnippet
+ \<close>
+
+text \<open>
+ \DefineSnippet{consistentSnapshot_unfolded}{
+    @{thm [display] consistentSnapshot_def[unfolded causallyConsistent_def transactionConsistent_def transactionConsistent_committed_def transactionConsistent_atomic_def]}
+ }%EndSnippet
+ \<close>
+
+text \<open>
+ \DefineSnippet{consistentSnapshot_unfolded2}{
+    @{thm [display] consistentSnapshot_def[unfolded  transactionConsistent_def]}
+ }%EndSnippet
+ \<close>
+
 lemma show_consistentSnapshot:
   assumes "vis \<subseteq> dom s_calls"
 and "causallyConsistent s_happensBefore vis"
@@ -78,10 +138,12 @@ qed
 
 
 
+text_raw \<open>\DefineSnippet{wellFormed_state_causality}{\<close>
 lemma wellFormed_state_causality:
   assumes wf: "state_wellFormed S"
   shows "\<And>s vis. visibleCalls S s \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore S) vis"
     and "trans (happensBefore S)"
+text_raw \<open>}%EndSnippet\<close>
   using assms  proof (induct rule: wellFormed_induct)
   case initial
   show "visibleCalls (initialState (prog S)) s \<triangleq> vis \<longrightarrow> causallyConsistent (happensBefore (initialState (prog S))) vis" for s vis
@@ -131,7 +193,24 @@ next
 
 qed
 
+text_raw \<open>\DefineSnippet{happensBefore_irrefl}{\<close>
+lemma happensBefore_irrefl:
+assumes wf: "state_wellFormed S"
+shows "irrefl (happensBefore S)"
+  text_raw \<open>}%EndSnippet\<close>
+using assms  proof (induct rule: wellFormed_induct)
+  case initial
+  then show ?case
+    by  (auto simp add: initialState_def step_simps_all irreflI)
+next
+  case (step t a s)
+  then show ?case 
+    by (auto simp add: initialState_def step_simps_all irreflI)
+     (metis SigmaE2 Un_iff irrefl_def singletonD wellFormed_visibleCallsSubsetCalls2)
+qed 
 
+
+text_raw \<open>\DefineSnippet{wellFormed_state_transaction_consistent}{\<close>
 lemma wellFormed_state_transaction_consistent:
 assumes wf: "state_wellFormed S"
 \<comment> \<open>contains only committed calls and calls from current transaction:\<close>
@@ -142,7 +221,8 @@ shows "\<And>s vis c tx. \<lbrakk>visibleCalls S s \<triangleq> vis; c\<in>vis; 
   and "\<And>x y x' y'. \<lbrakk>callOrigin S x \<noteq> callOrigin S y; callOrigin S x = callOrigin S x'; callOrigin S y = callOrigin S y' \<rbrakk> \<Longrightarrow>  (x,y) \<in> happensBefore S \<longleftrightarrow> (x', y') \<in> happensBefore S"
 \<comment> \<open>happens-before only towards committed transactions or to the same transaction\<close>  
   and "\<And>x y tx tx'. \<lbrakk>(x,y)\<in>happensBefore S; callOrigin S y \<triangleq> tx; callOrigin S x \<triangleq> tx'\<rbrakk> \<Longrightarrow> transactionStatus S tx' \<triangleq> Committed \<or> tx' = tx"
-using assms  proof (induct  rule: wellFormed_induct)
+text_raw \<open>}%EndSnippet\<close>
+  using assms  proof (induct  rule: wellFormed_induct)
   case initial
   
   define init where [simp]: "init = (initialState (prog S))"
@@ -587,11 +667,13 @@ shows "transactionConsistent origin txStatus vis"
   using assms by (auto simp add: transactionConsistent_def transactionConsistent_atomic_def transactionConsistent_committed_def)
 
 
+text_raw \<open>\DefineSnippet{wellFormed_state_consistent_snapshot}{\<close>
 lemma wellFormed_state_consistent_snapshot:
 assumes wf: "state_wellFormed S"
 assumes vis: "visibleCalls S s \<triangleq> vis"
 assumes noTx: "\<And>c tx. currentTransaction S s \<triangleq> tx \<Longrightarrow> callOrigin S c \<noteq> Some tx" 
 shows "consistentSnapshot S vis"
+  text_raw \<open>}%EndSnippet\<close>
 unfolding consistentSnapshotH_def proof (intro conjI)
   show "vis \<subseteq> dom (calls S)"
     using wf vis
@@ -601,73 +683,38 @@ unfolding consistentSnapshotH_def proof (intro conjI)
     using local.wf vis wellFormed_state_causality(1) by auto
     
   show "transactionConsistent (callOrigin S) (transactionStatus S) vis"
-  proof (induct rule: show_transactionConsistent)
-    case (only_committed c tx)
-    then show ?case 
-      using noTx vis
-      using local.wf wellFormed_state_transaction_consistent(1) by fastforce 
-  next
-    case (all_from_same c1 c2)
-    then show ?case
-      using local.wf vis wellFormed_state_transaction_consistent(2) by blast 
-  qed
+    unfolding transactionConsistent_def transactionConsistent_atomic_def transactionConsistent_committed_def
+    using wellFormed_state_transaction_consistent[OF wf] noTx vis
+    by meson
 qed
 
 
 
+text_raw \<open>\DefineSnippet{happensBefore_transitive}{\<close>
 lemma happensBefore_transitive:
 assumes wf: "state_wellFormed S"
 shows "trans (happensBefore S)"
-  using assms  proof (induct rule: wellFormed_induct)
-  case initial
-  then show ?case
-    by (auto simp add: initialState_def step_simps_all)
-next
-  case (step t a s)
-  then show ?case
-  proof (auto simp add: initialState_def step_simps_all dest: transD intro!: transI, fuzzy_goal_cases A B C D)
-    case A
-    show ?case
-      by (meson A.member A.member2 A.not_member A.trans transE)
-  next case B
-    show ?case
-      by (meson B.member B.member2 B.not_member B.trans transE)
-  next case C
-    show ?case
-      by (meson C.member C.member2 C.state_wellFormed C.visibleCalls_eq causallyConsistent_def wellFormed_state_causality(1))
-  next case D
-    show ?case
-      using D.calls_eq D.member2 D.state_wellFormed wellFormed_happensBefore_calls_l by blast
-  qed 
-qed
-  
+  text_raw \<open>}%EndSnippet\<close>
+  using local.wf wellFormed_state_causality(2) by blast
 
 
-lemma happensBefore_irrefl:
-assumes wf: "state_wellFormed S"
-shows "irrefl (happensBefore S)"
-using assms  proof (induct rule: wellFormed_induct)
-  case initial
-  then show ?case
-    by  (auto simp add: initialState_def step_simps_all irreflI)
-next
-  case (step t a s)
-  then show ?case 
-    by (auto simp add: initialState_def step_simps_all irreflI)
-     (metis SigmaE2 Un_iff irrefl_def singletonD wellFormed_visibleCallsSubsetCalls2)
-qed 
 
+
+text_raw \<open>\DefineSnippet{happensBefore_acyclic}{\<close>
 lemma happensBefore_acyclic:
 assumes wf: "state_wellFormed S"
 shows "acyclic (happensBefore S)"
+  text_raw \<open>}%EndSnippet\<close>
   by (auto simp add: acyclic_irrefl trancl_id[OF happensBefore_transitive[OF wf]] happensBefore_irrefl[OF wf])
 
 
 
+text_raw \<open>\DefineSnippet{causallyConsistent_downwards}{\<close>
 lemma causallyConsistent_downwards:
   assumes  cs: "causallyConsistent hb vis"
     and trans: "trans hb"
-  shows "causallyConsistent hb (vis \<union> S \<down> hb)"
+shows "causallyConsistent hb (vis \<union> S \<down> hb)"
+text_raw \<open>}%EndSnippet\<close>
 proof -
   show ?thesis
     using cs 
@@ -727,15 +774,8 @@ lemma wf_transactionConsistent1:
 lemma happensBefore_not_refl:
   assumes "state_wellFormed S"
   shows "(c,c) \<notin> happensBefore S"
-  using assms  proof (induct rule: wellFormed_induct)
-  case initial
-  then show ?case
-    by (auto simp add: initialState_def)
-next
-  case (step S a S')
-  then show ?case 
-    by (auto simp add: step.simps, use wellFormed_visibleCallsSubsetCalls2 in blast)
-qed 
+  by (meson assms happensBefore_irrefl irrefl_def)
+
 
 lemma happensBefore_finite:
   assumes "state_wellFormed S"

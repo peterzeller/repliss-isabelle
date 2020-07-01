@@ -61,6 +61,11 @@ next
 qed
 
 
+
+
+
+
+
 text_raw \<open>\DefineSnippet{completeness}{\<close>
 theorem completeness:
   assumes correct: "programCorrect program"
