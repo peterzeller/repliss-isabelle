@@ -560,13 +560,6 @@ definition "forEach"  :: "'e::countable list \<Rightarrow> ('e \<Rightarrow> ('a
     @{thm [display] return_def}
     @{thm [display] skip_def}
     @{thm [display] atomic_def}
-    @{thm [display] makeRef_def}
-    @{thm [display] read_def}
-    @{thm [display] assign_def}
-    @{thm [display] update_def}
-    @{thm [display] loop_def}
-    @{thm [display] while_def}
-    @{thm [display] forEach_def}
  }%EndSnippet
  \<close>
 
