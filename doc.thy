@@ -1,5 +1,6 @@
 theory doc
-imports "repliss_sem"
+  imports "repliss_sem"
+  "HOL-Library.OptionalSugar"
 begin
 
 section "Document Snippets"
@@ -12,45 +13,45 @@ notation (latex output)
 text_raw "\\end{comment}"  
   
 
- text \<open>
- \DefineSnippet{local}{
-    @{thm [mode=Rule] local}
- }%EndSnippet
+text \<open>
+\DefineSnippet{local}{
+  @{thm [display] local}
+}%EndSnippet
 
- \DefineSnippet{newId}{
-    @{thm [mode=Rule] newId}
- }%EndSnippet
+\DefineSnippet{newId}{
+  @{thm [display] newId}
+}%EndSnippet
 
- \DefineSnippet{beginAtomic}{
-    @{thm [mode=Rule] beginAtomic}
- }%EndSnippet
+\DefineSnippet{beginAtomic}{
+  @{thm [display] beginAtomic}
+}%EndSnippet
 
- \DefineSnippet{endAtomic}{
-    @{thm [mode=Rule] endAtomic}
- }%EndSnippet
+\DefineSnippet{endAtomic}{
+  @{thm [display] endAtomic}
+}%EndSnippet
 
- \DefineSnippet{dbop}{
-    @{thm [mode=Rule] dbop}
- }%EndSnippet
+\DefineSnippet{dbop}{
+  @{thm [display] dbop}
+}%EndSnippet
 
- \DefineSnippet{invocation}{
-    @{thm [mode=Rule] invocation}
- }%EndSnippet
+\DefineSnippet{invocation}{
+  @{thm [display] invocation}
+}%EndSnippet
 
- \DefineSnippet{return}{
-    @{thm [mode=Rule] return}
- }%EndSnippet
+\DefineSnippet{return}{
+  @{thm [display] return}
+}%EndSnippet
 
- \DefineSnippet{crash}{
-    @{thm [mode=Rule] crash}
- }%EndSnippet
+\DefineSnippet{crash}{
+  @{thm [display] crash}
+}%EndSnippet
 
- \DefineSnippet{invCheck}{
-    @{thm [mode=Rule] invCheck}
- }%EndSnippet
+\DefineSnippet{invCheck}{
+  @{thm [display] invCheck}
+}%EndSnippet
 
 
- \<close>
+\<close>
 
 
 

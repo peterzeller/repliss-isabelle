@@ -261,6 +261,8 @@ lemma lww_register_spec_wf[simp]:
 
 subsection "Sets"
 
+
+
 text_raw \<open>\DefineSnippet{set_rw_spec2}{\<close>
 definition set_rw_spec' :: "('op, 'v setOp, ('r::{default,from_bool})) ccrdtSpec" where
 "set_rw_spec' oper vis op hb C  res \<equiv> 
@@ -432,6 +434,117 @@ lemma set_rw_spec_wf[simp]:
 
 
 
+text_raw \<open>\DefineSnippet{set_aw_spec2}{\<close>
+definition set_aw_spec' :: "('op, 'v setOp, ('r::{default,from_bool})) ccrdtSpec" where
+"set_aw_spec' oper vis op hb C  res \<equiv> 
+  case oper of
+    Add _ => res = default
+  | Remove _ \<Rightarrow> res = default
+  | Contains v \<Rightarrow> res = from_bool 
+        (\<exists>a\<in>vis. op a = C (Add v)
+           \<and> \<not>(\<exists>r\<in>vis. op r = C (Remove v) \<and> (a,r)\<in>hb))"
+text_raw \<open>}%EndSnippet\<close>
+
+schematic_goal set_aw_spec'_contains:
+"set_aw_spec' (Contains x) vis op hb id res \<longleftrightarrow> ?x"
+  using [[simp_trace,simp_trace_depth_limit=10000]]
+  by (subst set_aw_spec'_def, simp del: bex_simps(8))
+
+text \<open>
+\DefineSnippet{set_aw_spec2_contains}{
+  @{thm [display] set_aw_spec'_contains}
+}%EndSnippet\<close>
+
+lemma set_aw_spec_wf[simp]:
+  "ccrdtSpec_wf set_aw_spec'"
+  by (auto simp add: ccrdtSpec_wf_def set_aw_spec'_def map_same_on_def rel_same_on_def subset_eq
+      split: setOp.splits
+      intro!: arg_cong[where f=from_bool])
+    metis+
+
+
+
+lemma set_aw_spec_rel[intro!]:
+  shows "crdt_spec_rel set_aw_spec set_aw_spec'"
+proof (rule show_crdt_spec_rel, fuzzy_goal_cases A)
+  case (A C_in C_out ctxt outer_op op r Cs)
+  show ?case
+  proof (cases op)
+    case (Add x1)
+    then show ?thesis
+      by (auto simp add: set_aw_spec'_def)
+  next
+    case (Remove x2)
+    then show ?thesis
+      by (auto simp add: set_aw_spec'_def)
+  next
+    case (Contains x3)
+    thus ?thesis
+    proof auto
+      assume a: "set_aw_spec (Contains x3) (sub_context C_in Cs ctxt) r"
+
+      have owf: \<open>operationContext_wf (sub_context C_in Cs ctxt)\<close>
+        by (simp add: A.operationContext_wf sub_context_operationContext_wf)
+
+
+      show "set_aw_spec' (Contains x3) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+        apply (auto simp add: set_aw_spec_Contains[OF a owf] set_aw_spec'_def  intro!: arg_cong[where f=from_bool])
+        subgoal for a
+          apply (rule bexI[where x=a], auto)
+            apply (auto simp add:  Op_subcontext happens_before_sub_context calls_subcontext_dom)
+           apply (auto simp add: cOp_def extract_op_def is_reverse_1[OF A.is_reverse] is_reverse_2[OF A.is_reverse])
+          using A.less_eq  is_reverse_2[OF A.is_reverse] by fastforce
+        subgoal for a
+          apply (rule exI[where x=a], auto)
+           apply (auto simp add:  Op_subcontext happens_before_sub_context calls_subcontext_dom)
+           apply (auto simp add: cOp_def extract_op_def is_reverse_1[OF A.is_reverse] is_reverse_2[OF A.is_reverse])
+          using A.less_eq  is_reverse_2[OF A.is_reverse] by fastforce
+        done
+
+    next 
+
+      assume a: "set_aw_spec' (Contains x3) Cs (extract_op (calls ctxt)) (happensBefore ctxt) C_out r"
+
+      hence "r =
+        from_bool
+         (\<exists>a\<in>Cs.
+             extract_op (calls ctxt) a = C_out (Add x3) \<and>
+             (\<forall>r\<in>Cs. extract_op (calls ctxt) r = C_out (Remove x3) \<longrightarrow> (a, r) \<notin> happensBefore ctxt))"
+        unfolding set_aw_spec'_def
+        by simp
+
+      from is_reverse_2[OF A.is_reverse]
+      have [simp]: "C_in (C_out x) \<triangleq> x" for x .
+
+      from is_reverse_1[OF A.is_reverse]
+      have [simp]: "C_in x \<triangleq> y \<Longrightarrow> C_out y = x" for x y .
+
+      show "set_aw_spec (Contains x3) (sub_context C_in Cs ctxt) r"
+      proof (rule set_aw_spec_Contains2)
+        show "operationContext_wf (sub_context C_in Cs ctxt)"
+          by (simp add: A.operationContext_wf sub_context_operationContext_wf)
+        show "r =
+            from_bool
+             (\<exists>a. Op (sub_context C_in Cs ctxt) a \<triangleq> Add x3 \<and>
+                  (\<nexists>r. Op (sub_context C_in Cs ctxt) r \<triangleq> Remove x3 \<and>
+                       (a, r) \<in> happensBefore (sub_context C_in Cs ctxt)))"
+          using a
+          apply (auto simp add: set_aw_spec'_def intro!: arg_cong[where f=from_bool])
+           apply (auto simp add:  Op_subcontext happens_before_sub_context calls_subcontext_dom)
+           apply (auto simp add: cOp_def extract_op_def)
+          subgoal for a
+            apply (rule exI[where x=a])
+            apply auto
+            by (meson A.is_reverse A.less_eq domIff is_reverse_2 not_some_the subsetD)
+          subgoal for a z
+            apply (rule bexI[where x=a])
+            using A.less_eq apply (auto simp add: subset_iff)
+            by (metis (mono_tags, lifting) \<open>\<And>x. C_in (C_out x) \<triangleq> x\<close> domIff not_some_the option.discI)
+          done
+      qed
+    qed
+  qed
+qed
 
 
 

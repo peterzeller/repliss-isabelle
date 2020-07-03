@@ -791,6 +791,48 @@ next
     using a1' a2' latestOps_Enable operationContext_wf_def wf'' by blast
 qed
 
+lemma set_aw_spec_Contains2:
+  assumes spec: "res = from_bool (\<exists>a. Op ctxt a \<triangleq> Add x
+                           \<and> (\<nexists>r. Op ctxt r \<triangleq> Remove x
+                                \<and> (a,r)\<in>happensBefore ctxt))" (is "res = from_bool ?b")
+    and wf: "operationContext_wf ctxt"
+  shows  "set_aw_spec (Contains x) ctxt res"
+proof (auto simp add: set_aw_spec_def set_spec_def flag_ew_spec_def )
+
+  have owf: "operationContext_wf (restrict_ctxt_op (set_to_flag x) ctxt)"
+    by (simp add: local.wf operationContext_wf_restrict_ctxt_op)
+
+  
+  show "res = from_bool (Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt))"
+  proof (cases "?b")
+    case True
+    from this obtain a where "Op ctxt a \<triangleq> Add x"
+      and "\<nexists>r. Op ctxt r \<triangleq> Remove x \<and> (a, r) \<in> happensBefore ctxt"
+      by blast
+
+    thm set_to_flag_Disable set_to_flag_Enable
+
+    hence "Enable \<in> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)"
+      by (subst latestOps_Enable[OF owf])
+       (auto simp add: Op_restrict_ctxt_op option_bind_def set_to_flag_def happensBefore_restrict_ctxt_op' split: option.splits setOp.splits cong: conj_cong)
+
+    thus ?thesis
+      using True local.spec by auto
+
+  next
+    case False
+    hence "Enable \<notin> latestOps (restrict_ctxt_op (set_to_flag x) ctxt)"
+      by (subst latestOps_Enable[OF owf])
+        (auto simp add: Op_restrict_ctxt_op option_bind_def set_to_flag_def happensBefore_restrict_ctxt_op' split: option.splits setOp.splits cong: conj_cong,
+            fastforce)
+
+
+    then show ?thesis
+      by (smt False local.spec)
+  qed
+qed
+
+
 lemma exists_skolem:
 "(\<exists>f. \<forall>x. P x (f x)) \<longleftrightarrow> (\<forall>x. \<exists>y. P x y)"
   by metis
