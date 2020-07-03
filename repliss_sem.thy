@@ -605,27 +605,29 @@ schematic_goal chooseSnapshot_def2:
 "chooseSnapshot snapshot vis S = ?x"
   by (subst chooseSnapshot_h_def, rule refl)
 
+thm chooseSnapshot_def2
+
 schematic_goal callsInTransaction_def:
 "callsInTransaction S newTxns = ?x"
   by (subst callsInTransactionH_def, rule refl)
 
 
  text \<open>
- \DefineSnippet{chooseSnapshot_def}{
-    @{thm [display] chooseSnapshot_def}
- }%EndSnippet
+\DefineSnippet{chooseSnapshot_def}{
+  @{thm [display] chooseSnapshot_def}
+}%EndSnippet
 
- \DefineSnippet{chooseSnapshot_def2}{
-    @{thm [display] chooseSnapshot_def2}
- }%EndSnippet
+\DefineSnippet{chooseSnapshot_def2}{
+  @{thm [display] chooseSnapshot_def2}
+}%EndSnippet
 
- \DefineSnippet{downwardsClosure_in}{
-    @{thm [display] downwardsClosure_in}
- }%EndSnippet
+\DefineSnippet{downwardsClosure_in}{
+  @{thm [display] downwardsClosure_in}
+}%EndSnippet
 
- \DefineSnippet{callsInTransaction_def}{
-    @{thm [display] callsInTransaction_def}
- }%EndSnippet
+\DefineSnippet{callsInTransaction_def}{
+  @{thm [display] callsInTransaction_def}
+}%EndSnippet
 
  \<close>
 
