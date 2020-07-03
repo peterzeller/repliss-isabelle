@@ -49,16 +49,16 @@ proof (rule iffI2; clarsimp)
            calls S'' = calls S'
          \<and> happensBefore S'' = happensBefore S'
          \<and> prog S'' = prog S'
-         \<and> transactionStatus S'' = transactionStatus S' 
+         \<and> txStatus S'' = txStatus S' 
          \<and> callOrigin S'' = callOrigin S' 
-         \<and> transactionOrigin S'' = transactionOrigin S' 
+         \<and> txOrigin S'' = txOrigin S' 
          \<and> generatedIds S'' = generatedIds S' 
          \<and> knownIds S'' = knownIds S' 
-         \<and> invocationOp S'' = invocationOp S' 
-         \<and> invocationRes S'' = invocationRes S'
+         \<and> invocOp S'' = invocOp S' 
+         \<and> invocRes S'' = invocRes S'
          \<and> (\<forall>s. (s, ACrash) \<notin> set tr \<longrightarrow> ( 
              localState S'' s = localState S' s
-           \<and> currentTransaction S'' s = currentTransaction S' s
+           \<and> currentTx S'' s = currentTx S' s
            \<and> currentProc S'' s = currentProc S' s
            \<and> visibleCalls S'' s = visibleCalls S' s 
          ))
@@ -110,9 +110,9 @@ proof (rule iffI2; clarsimp)
         show ?thesis 
           by (rule exI[where x="S2\<lparr>
                   localState := localState S2(s \<mapsto> ls'), 
-                  currentTransaction := currentTransaction S2(s \<mapsto> t), 
-                  transactionStatus := transactionStatus S1(t \<mapsto> Uncommitted),
-                  transactionOrigin := transactionOrigin S2(t \<mapsto> s),
+                  currentTx := currentTx S2(s \<mapsto> t), 
+                  txStatus := txStatus S1(t \<mapsto> Uncommitted),
+                  txOrigin := txOrigin S2(t \<mapsto> s),
                   visibleCalls := visibleCalls S2(s \<mapsto> snapshot)\<rparr>"],
               insert induct_step.coupling no_fail beginAtomic,
               auto simp add: step_simps state_ext  induct_step steps_single )
@@ -124,7 +124,7 @@ proof (rule iffI2; clarsimp)
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTransaction := (currentTransaction S2)(s := None), transactionStatus := transactionStatus S1(t \<mapsto> Committed)\<rparr>"],
+          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> ls'), currentTx := (currentTx S2)(s := None), txStatus := txStatus S1(t \<mapsto> Committed)\<rparr>"],
               insert induct_step.coupling no_fail endAtomic,
               auto simp add: step_simps state_ext  induct_step steps_single)
       next
@@ -140,12 +140,12 @@ proof (rule iffI2; clarsimp)
 
       next
         case (invocation s procName initialLocalState impl)
-        from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>invocationOp S1 s = None\<close>
+        from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>invocOp S1 s = None\<close>
         have no_fail: "(s, ACrash) \<notin> set tr"
           by (meson everything_starts_with_an_invocation in_set_conv_nth)
 
         show ?thesis 
-          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> initialLocalState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocationOp := invocationOp S2(s \<mapsto> procName)\<rparr>"],
+          by (rule exI[where x="S2\<lparr>localState := localState S2(s \<mapsto> initialLocalState), currentProc := currentProc S2(s \<mapsto> impl), visibleCalls := visibleCalls S2(s \<mapsto> {}), invocOp := invocOp S2(s \<mapsto> procName)\<rparr>"],
               insert induct_step.coupling no_fail invocation,
               auto simp add: step_simps state_ext  induct_step steps_single)
       next
@@ -155,17 +155,17 @@ proof (rule iffI2; clarsimp)
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
 
         show ?thesis 
-          by (rule exI[where x="S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocationRes := invocationRes S1(s \<mapsto> res), knownIds := knownIds S1 \<union> uniqueIds res\<rparr>"],
+          by (rule exI[where x="S2\<lparr>localState := (localState S2)(s := None), currentProc := (currentProc S2)(s := None), visibleCalls := (visibleCalls S2)(s := None), invocRes := invocRes S1(s \<mapsto> res), knownIds := knownIds S1 \<union> uniqueIds res\<rparr>"],
               insert induct_step.coupling no_fail return,
               auto simp add: step_simps state_ext  induct_step steps_single)
       next
-        case (fail s ls)
+        case (crash s ls)
         from \<open>initialState program ~~ tr \<leadsto>* S1\<close> \<open>localState S1 s \<triangleq> ls\<close>
         have no_fail: "(s, ACrash) \<notin> set tr"
           by (metis (full_types) everything_starts_with_an_invocation in_set_conv_nth option.simps(3))
         show ?thesis 
           by (rule exI[where x="S2"],
-              auto simp add: step_simps state_ext  induct_step  fail)
+              auto simp add: step_simps state_ext  induct_step  crash)
 
       next
         case (invCheck res s)

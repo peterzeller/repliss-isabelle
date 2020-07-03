@@ -2,7 +2,7 @@ theory unique_ids_procedure_check
   imports unique_ids
 begin
 
-inductive procedure_cannot_guess_ids :: "uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'operation::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool"  where
+inductive procedure_cannot_guess_ids :: "uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'op::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool"  where
   pcgi_local:  "\<lbrakk>impl ls = LocalStep ok ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
 | pcgi_beginAtomic: "\<lbrakk>impl ls = BeginAtomic ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
 | pcgi_endAtomic:"\<lbrakk>impl ls = EndAtomic ls'; procedure_cannot_guess_ids uids ls' impl\<rbrakk> \<Longrightarrow>  procedure_cannot_guess_ids uids ls impl"
@@ -34,7 +34,7 @@ lemma pcgi_return_case:"\<lbrakk>procedure_cannot_guess_ids uids ls impl; impl l
 
 
 
-definition procedures_cannot_guess_ids :: "('proc::valueType \<Rightarrow> ('ls \<times> ('ls, 'operation::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
+definition procedures_cannot_guess_ids :: "('proc::valueType \<Rightarrow> ('ls \<times> ('ls, 'op::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
   "procedures_cannot_guess_ids proc = 
 (\<forall>p ls impl uids. proc p = (ls, impl) \<longrightarrow>  procedure_cannot_guess_ids (uids\<union>uniqueIds p) ls impl)"
 
@@ -161,18 +161,18 @@ proof (intro allI impI)
         from  `procedures_cannot_guess_ids (procedure progr)`
         have "procedure_cannot_guess_ids (uniqueIds proc) initialState impl"
           apply (auto simp add: procedures_cannot_guess_ids_def)
-          by (metis (no_types, lifting) distributed_state.select_convs(1) initialState_def local.invocation(4) step.steps steps_do_not_change_prog sup.idem)
+          by (metis (no_types, lifting) state.select_convs(1) initialState_def local.invocation(4) step.steps steps_do_not_change_prog sup.idem)
 
         from invocation
         show ?thesis 
           using IH2 l1 l2 apply (auto simp add:  split: if_splits)
-          by (metis (no_types, lifting) assms distributed_state.select_convs(1) initialState_def show_procedures_cannot_guess_ids step.steps steps_do_not_change_prog)
+          by (metis (no_types, lifting) assms state.select_convs(1) initialState_def show_procedures_cannot_guess_ids step.steps steps_do_not_change_prog)
       next
         case (return i ls f res)
         then show ?thesis 
           using IH2 l1 l2 by (auto simp add:  split: if_splits)
       next
-        case (fail i ls)
+        case (crash i ls)
         then show ?thesis 
           using IH2 l1 l2 by (auto simp add:  split: if_splits)
       next

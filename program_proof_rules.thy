@@ -28,10 +28,10 @@ definition execution_s_check where
   s_calls 
   s_happensBefore 
   s_callOrigin 
-  s_transactionOrigin 
+  s_txOrigin 
   s_knownIds 
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   generatedLocalPrivate
   vis
@@ -46,25 +46,25 @@ definition execution_s_check where
        \<longrightarrow> calls S1 = s_calls
        \<longrightarrow> happensBefore S1 = updateHb s_happensBefore vis localCalls
        \<longrightarrow> callOrigin S1 = map_update_all s_callOrigin localCalls (the tx)
-       \<longrightarrow> transactionOrigin S1 = s_transactionOrigin
+       \<longrightarrow> txOrigin S1 = s_txOrigin
        \<longrightarrow> knownIds S1 = s_knownIds
-       \<longrightarrow> invocationOp S1 = s_invocationOp
-       \<longrightarrow> invocationRes S1 = s_invocationRes
+       \<longrightarrow> invocOp S1 = s_invocOp
+       \<longrightarrow> invocRes S1 = s_invocRes
        \<longrightarrow> prog S1 = progr
        \<longrightarrow> generatedLocal = {x. generatedIds S1 x \<triangleq> i}
        \<longrightarrow> localState S1 i \<triangleq> ls
        \<longrightarrow> currentProc S1 i \<triangleq> toImpl
        \<longrightarrow> visibleCalls S1 i \<triangleq>  (vis \<union> set localCalls)
-       \<longrightarrow> currentTransaction S1 i = tx
-       \<longrightarrow> (\<forall>tx'. tx \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted)
+       \<longrightarrow> currentTx S1 i = tx
+       \<longrightarrow> (\<forall>tx'. tx \<noteq> Some tx' \<longrightarrow> txStatus S1 tx' \<noteq> Some Uncommitted)
        \<longrightarrow> (case tx of Some tx' \<Rightarrow> set localCalls =  {c. callOrigin S1 c \<triangleq> tx'} | None \<Rightarrow> localCalls = [])
        \<longrightarrow> (sorted_by (happensBefore S1) localCalls)
        \<longrightarrow> (vis \<inter> set localCalls = {})
        \<longrightarrow> (dom s_callOrigin \<inter> set localCalls = {})
        \<longrightarrow> (Field s_happensBefore \<inter> set localCalls = {})
        \<longrightarrow> distinct localCalls
-       \<longrightarrow> (firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed ))
-       \<longrightarrow> (\<forall>c. i_callOriginI_h s_callOrigin s_transactionOrigin c \<triangleq> i \<longrightarrow> c \<in> vis)
+       \<longrightarrow> (firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S1 c \<triangleq> tx \<and> txOrigin S1 tx \<triangleq> i \<and> txStatus S1 tx \<triangleq> Committed ))
+       \<longrightarrow> (\<forall>c. i_callOriginI_h s_callOrigin s_txOrigin c \<triangleq> i \<longrightarrow> c \<in> vis)
        \<longrightarrow> (generatedLocalPrivate \<subseteq> generatedLocal)
        \<longrightarrow> (\<forall>v\<in>generatedLocalPrivate. uid_is_private i S1 v)
        \<longrightarrow> traceCorrect_s  trace)"
@@ -72,12 +72,12 @@ definition execution_s_check where
 lemmas use_execution_s_check = execution_s_check_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format, rotated]
 
 lemma beforeInvoc_execution_s_check: 
-  assumes "s_invocationOp i = None"
+  assumes "s_invocOp i = None"
   shows "
-execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_transactionOrigin   s_knownIds   s_invocationOp  s_invocationRes  generatedLocal generatedLocalPrivate  vis localCalls  tx firstTx ls
+execution_s_check   progr   i  s_calls   s_happensBefore   s_callOrigin   s_txOrigin   s_knownIds   s_invocOp  s_invocRes  generatedLocal generatedLocalPrivate  vis localCalls  tx firstTx ls
 "
   using assms 
-  by (auto simp add: execution_s_check_def steps_s_cons_simp Let_def wf_localState_to_invocationOp)
+  by (auto simp add: execution_s_check_def steps_s_cons_simp Let_def wf_localState_to_invocOp)
 
 
 
@@ -96,24 +96,24 @@ lemma execution_s_check_sound:
     and generatedLocalPrivate1: "generatedLocalPrivate \<subseteq> generatedLocal"
     and generatedLocalPrivate2: "\<forall>v\<in>generatedLocalPrivate. uid_is_private i S v"
     and S_wf: "state_wellFormed S"
-    and no_uncommitted: "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
-    and no_currentTxn: "currentTransaction S i = None"
-    and firstTx_def: "(firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed ))"
+    and no_uncommitted: "\<And>tx'. currentTx S i \<noteq> Some tx' \<longrightarrow> txStatus S tx' \<noteq> Some Uncommitted"
+    and no_currentTxn: "currentTx S i = None"
+    and firstTx_def: "(firstTx \<longleftrightarrow> (\<nexists>c tx . callOrigin S c \<triangleq> tx \<and> txOrigin S tx \<triangleq> i \<and> txStatus S tx \<triangleq> Committed ))"
     and c: "execution_s_check 
   progr 
   i
   (calls S)
   (happensBefore S)
   (callOrigin S)
-  (transactionOrigin S)
+  (txOrigin S)
   (knownIds S)
-  (invocationOp S)
-  (invocationRes S)
+  (invocOp S)
+  (invocRes S)
   generatedLocal
   generatedLocalPrivate
   vis
   []
-  (currentTransaction S i)
+  (currentTx S i)
   firstTx
   ls"
   shows "execution_s_correct S i"
@@ -144,18 +144,18 @@ proof (auto simp add:  execution_s_correct_def)
     show "currentProc S i \<triangleq> toImpl"
       by (simp add: assms)
 
-    show "currentTransaction S i \<noteq> Some tx' \<Longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted" for tx'
+    show "currentTx S i \<noteq> Some tx' \<Longrightarrow> txStatus S tx' \<noteq> Some Uncommitted" for tx'
       by (simp add: assms)
 
     show "visibleCalls S i \<triangleq> (vis \<union> set [])"
       by (simp add: assms)
 
-    show "case currentTransaction S i of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S c \<triangleq> tx'}"
+    show "case currentTx S i of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S c \<triangleq> tx'}"
       by (simp add: no_currentTxn)
 
     show "sorted_by (happensBefore S) []"
       by (simp add: sorted_by_empty)
-    show "firstTx = (\<nexists>c tx. callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed)"
+    show "firstTx = (\<nexists>c tx. callOrigin S c \<triangleq> tx \<and> txOrigin S tx \<triangleq> i \<and> txStatus S tx \<triangleq> Committed)"
       using firstTx_def by auto
 
     show "\<And>c. i_callOriginI S c \<triangleq> i \<Longrightarrow> c \<in> vis"
@@ -178,11 +178,11 @@ lemma execution_s_check_sound2:
   assumes a1: "localState S i \<triangleq> ls"
     and a2': "S \<in> initialStates' progr i"
     and a3: "currentProc S i \<triangleq> toImpl"
-    and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
+    and c: "\<And>s_calls s_happensBefore s_callOrigin s_txOrigin s_knownIds s_invocOp s_invocRes.
 \<lbrakk>
-s_invocationOp i = invocationOp S i;
-s_invocationRes i = None;
-\<And>tx. s_transactionOrigin tx \<noteq> Some i
+s_invocOp i = invocOp S i;
+s_invocRes i = None;
+\<And>tx. s_txOrigin tx \<noteq> Some i
 \<rbrakk> \<Longrightarrow>
   execution_s_check 
   progr 
@@ -190,10 +190,10 @@ s_invocationRes i = None;
   s_calls
   s_happensBefore
   s_callOrigin
-  s_transactionOrigin
+  s_txOrigin
   s_knownIds
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   {}
   {}
   {}
@@ -224,26 +224,26 @@ proof (rule execution_s_check_sound)
   show "{} = {x. generatedIds S x \<triangleq> i}"
     using a2 wf_generated_ids_invocation_exists by (auto simp add: initialStates_def, blast)
 
-  show currentTx: "currentTransaction S i = None"
+  show currentTx: "currentTx S i = None"
     using a2 initialState_noTxns2 by blast
 
 
-  show "execution_s_check progr i (calls S) (happensBefore S) (callOrigin S) (transactionOrigin S) (knownIds S) (invocationOp S)
-     (invocationRes S) {} {} {} [] (currentTransaction S i) True ls "
+  show "execution_s_check progr i (calls S) (happensBefore S) (callOrigin S) (txOrigin S) (knownIds S) (invocOp S)
+     (invocRes S) {} {} {} [] (currentTx S i) True ls "
     unfolding currentTx
   proof (rule c)
-    show "invocationOp S i = invocationOp S i" by simp
-    show "invocationRes S i = None"
+    show "invocOp S i = invocOp S i" by simp
+    show "invocRes S i = None"
       by (simp add: a1 local.wf state_wellFormed_no_result_when_running)
-    show "\<And>tx. transactionOrigin S tx \<noteq> Some i"
+    show "\<And>tx. txOrigin S tx \<noteq> Some i"
       using a2 by (auto simp add: initialStates_def)
 
   qed
 
-  show "\<And>tx'. currentTransaction S i \<noteq> Some tx' \<longrightarrow> transactionStatus S tx' \<noteq> Some Uncommitted"
+  show "\<And>tx'. currentTx S i \<noteq> Some tx' \<longrightarrow> txStatus S tx' \<noteq> Some Uncommitted"
     using a2 initialState_noTxns1 by blast
 
-  show "True = (\<nexists>c tx. callOrigin S c \<triangleq> tx \<and> transactionOrigin S tx \<triangleq> i \<and> transactionStatus S tx \<triangleq> Committed)"
+  show "True = (\<nexists>c tx. callOrigin S c \<triangleq> tx \<and> txOrigin S tx \<triangleq> i \<and> txStatus S tx \<triangleq> Committed)"
     by (meson \<open>visibleCalls S i \<triangleq> {}\<close> empty_iff local.wf state_wellFormed_ls_visibleCalls_callOrigin)
 
 
@@ -254,10 +254,10 @@ lemma execution_s_check_sound3:
   assumes a1: "localState S i \<triangleq> ls"
     and a2: "S \<in> initialStates' progr i"
     and a3: "currentProc S i \<triangleq> toImpl"
-    and a4: "invocationOp S i \<triangleq> op"
-    and c: "\<And>s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes.
+    and a4: "invocOp S i \<triangleq> op"
+    and c: "\<And>s_calls s_happensBefore s_callOrigin s_txOrigin s_knownIds s_invocOp s_invocRes.
 \<lbrakk>
-\<And>tx. s_transactionOrigin tx \<noteq> Some i
+\<And>tx. s_txOrigin tx \<noteq> Some i
 \<rbrakk> \<Longrightarrow>
   execution_s_check 
   progr 
@@ -265,10 +265,10 @@ lemma execution_s_check_sound3:
   s_calls
   s_happensBefore
   s_callOrigin
-  s_transactionOrigin
+  s_txOrigin
   s_knownIds
-  (s_invocationOp(i\<mapsto>op))
-  (s_invocationRes(i:=None))
+  (s_invocOp(i\<mapsto>op))
+  (s_invocRes(i:=None))
   {}
   {}
   {}
@@ -356,17 +356,17 @@ lemma execution_s_check_newId:
 to_nat v \<notin> s_knownIds;
 to_nat v \<notin> generatedLocal;
 uniqueIds v = {to_nat v};
-uid_is_private' i s_calls s_invocationOp s_invocationRes s_knownIds (to_nat v)
+uid_is_private' i s_calls s_invocOp s_invocRes s_knownIds (to_nat v)
 \<rbrakk> \<Longrightarrow> execution_s_check
   progr 
   i
   s_calls 
   s_happensBefore 
   s_callOrigin 
-  s_transactionOrigin 
+  s_txOrigin 
   s_knownIds 
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   (generatedLocal \<union> {to_nat v})
   (generatedLocalPrivate \<union> {to_nat v})
   vis
@@ -381,10 +381,10 @@ shows"execution_s_check
   s_calls 
   s_happensBefore 
   s_callOrigin 
-  s_transactionOrigin 
+  s_txOrigin 
   s_knownIds 
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   generatedLocalPrivate
   vis
@@ -428,11 +428,11 @@ proof show_proof_rule
       have h2: "new_unique_not_in_calls_result s_calls (to_nat uidv)"
         using Step.calls_eq Step.prog_eq Step.state_wellFormed assms(2) c5 new_unique_not_in_calls_result_def wf_onlyGeneratedIdsInCallResults by blast
 
-      have h3: "new_unique_not_in_invocationOp s_invocationOp (to_nat uidv)"
-        using Step.invocationOp_eq Step.prog_eq Step.state_wellFormed assms(2) c5 new_unique_not_in_invocationOp_def wf_onlyGeneratedIdsInInvocationOps by blast
+      have h3: "new_unique_not_in_invocOp s_invocOp (to_nat uidv)"
+        using Step.invocOp_eq Step.prog_eq Step.state_wellFormed assms(2) c5 new_unique_not_in_invocOp_def wf_onlyGeneratedIdsInInvocationOps by blast
 
-      have h4: "new_unique_not_in_invocationRes s_invocationRes (to_nat uidv)"
-        using Step.invocationRes_eq Step.prog_eq Step.state_wellFormed assms(2) c5 new_unique_not_in_invocationRes_def wf_onlyGeneratedIdsInInvocationRes by blast
+      have h4: "new_unique_not_in_invocRes s_invocRes (to_nat uidv)"
+        using Step.invocRes_eq Step.prog_eq Step.state_wellFormed assms(2) c5 new_unique_not_in_invocRes_def wf_onlyGeneratedIdsInInvocationRes by blast
 
 
       have h5: "new_unique_not_in_other_invocations i S'a (to_nat uidv)"
@@ -473,10 +473,10 @@ proof show_proof_rule
             s_calls 
             s_happensBefore 
             s_callOrigin 
-            s_transactionOrigin 
+            s_txOrigin 
             s_knownIds 
-            s_invocationOp
-            s_invocationRes
+            s_invocOp
+            s_invocRes
             (generatedLocal \<union> {to_nat uidv})
             (generatedLocalPrivate \<union> {to_nat uidv})
             vis
@@ -498,7 +498,7 @@ proof show_proof_rule
         show "uniqueIds uidv = {to_nat uidv}"
           by (simp add: c6)
 
-        show "uid_is_private' i s_calls s_invocationOp s_invocationRes s_knownIds (to_nat uidv)"
+        show "uid_is_private' i s_calls s_invocOp s_invocRes s_knownIds (to_nat uidv)"
           by (simp add: h1 h2 h3 h4 h6 uid_is_private'_def)
 
 
@@ -541,7 +541,7 @@ proof show_proof_rule
           have pre: "uid_is_private i S1 v" 
             by (simp add: Step.Ball that)
 
-          show "new_unique_not_in_invocationOp (invocationOp S'a) v"
+          show "new_unique_not_in_invocOp (invocOp S'a) v"
             using pre by (auto simp add: uid_is_private_def S'a_def)
 
 
@@ -549,7 +549,7 @@ proof show_proof_rule
             using pre by (auto simp add: uid_is_private_def S'a_def)
           show "new_unique_not_in_calls_result (calls S'a) v"
             using pre by (auto simp add: uid_is_private_def S'a_def)
-          show "new_unique_not_in_invocationRes (invocationRes S'a) v"
+          show "new_unique_not_in_invocRes (invocRes S'a) v"
             using pre by (auto simp add: uid_is_private_def S'a_def)
           show "v \<notin> knownIds S'a"
             using pre by (auto simp add: uid_is_private_def S'a_def)
@@ -559,10 +559,10 @@ proof show_proof_rule
             using pre proof (auto simp add: uid_is_private_def )
 
             show "new_unique_not_in_other_invocations i S'a v"
-              if c0: "new_unique_not_in_invocationOp (invocationOp S1) v"
+              if c0: "new_unique_not_in_invocOp (invocOp S1) v"
                 and c1: "new_unique_not_in_calls (calls S1) v"
                 and c2: "new_unique_not_in_calls_result (calls S1) v"
-                and c3: "new_unique_not_in_invocationRes (invocationRes S1) v"
+                and c3: "new_unique_not_in_invocRes (invocRes S1) v"
                 and c4: "v \<notin> knownIds S1"
                 and c5: "generatedIds S1 v \<triangleq> i"
                 and c6: "new_unique_not_in_other_invocations i S1 v"
@@ -603,85 +603,85 @@ qed
 
 lemma execution_s_check_beginAtomic:
   assumes "program_wellFormed progr"
-    and cont: "\<And>tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis'
- s_invocationOp' s_invocationRes' .
+    and cont: "\<And>tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis'
+ s_invocOp' s_invocRes' .
 \<lbrakk>invariant progr
      \<lparr>calls = s_calls', 
       happensBefore = s_happensBefore',
       callOrigin = s_callOrigin',
-      transactionOrigin = s_transactionOrigin', 
+      txOrigin = s_txOrigin', 
       knownIds = s_knownIds',
-      invocationOp = (s_invocationOp'(i := s_invocationOp i)), 
-      invocationRes = s_invocationRes'(i := None)\<rparr>;
-s_transactionOrigin' tx = None;
-\<And>i op. s_invocationOp i \<triangleq> op \<Longrightarrow> s_invocationOp' i \<triangleq> op;
+      invocOp = (s_invocOp'(i := s_invocOp i)), 
+      invocRes = s_invocRes'(i := None)\<rparr>;
+s_txOrigin' tx = None;
+\<And>i op. s_invocOp i \<triangleq> op \<Longrightarrow> s_invocOp' i \<triangleq> op;
 \<And>c. s_callOrigin' c \<noteq> Some tx;
 vis \<subseteq> vis';
 vis' \<subseteq> dom s_calls';
-firstTx \<Longrightarrow> (\<And>c tx. s_callOrigin' c \<triangleq> tx \<Longrightarrow> s_transactionOrigin' tx \<noteq> Some i);
+firstTx \<Longrightarrow> (\<And>c tx. s_callOrigin' c \<triangleq> tx \<Longrightarrow> s_txOrigin' tx \<noteq> Some i);
 \<comment> \<open>consistency: \<close>
 causallyConsistent s_happensBefore' vis';
 transactionConsistent_atomic s_callOrigin' vis';
-\<forall>v\<in>generatedLocalPrivate. uid_is_private' i s_calls' s_invocationOp' s_invocationRes' s_knownIds' v;
+\<forall>v\<in>generatedLocalPrivate. uid_is_private' i s_calls' s_invocOp' s_invocRes' s_knownIds' v;
 \<comment> \<open>generic wellFormed and growth predicates (this is more like a backup, the important facts should be above) : \<close>
-\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
+\<exists>some_generatedIds some_currentTx some_localState some_currentProc some_visibleCalls some_txStatus.
 state_wellFormed \<lparr>
   calls = s_calls',
   happensBefore = s_happensBefore',
   callOrigin = s_callOrigin',
-  transactionOrigin = s_transactionOrigin',
+  txOrigin = s_txOrigin',
   knownIds = s_knownIds',
-  invocationOp = s_invocationOp',
-  invocationRes = s_invocationRes',
+  invocOp = s_invocOp',
+  invocRes = s_invocRes',
   prog = progr,
-  transactionStatus = some_transactionStatus,
+  txStatus = some_txStatus,
   generatedIds =  some_generatedIds,
   localState = some_localState,
   currentProc = some_currentProc,
   visibleCalls =  some_visibleCalls,
-  currentTransaction = some_currentTransaction\<rparr>;
- \<exists>some_generatedIds1 some_currentTransaction1 some_localState1 some_currentProc1 some_visibleCalls1 some_transactionStatus1
-  some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2 some_visibleCalls2 some_transactionStatus2.
+  currentTx = some_currentTx\<rparr>;
+ \<exists>some_generatedIds1 some_currentTx1 some_localState1 some_currentProc1 some_visibleCalls1 some_txStatus1
+  some_generatedIds2 some_currentTx2 some_localState2 some_currentProc2 some_visibleCalls2 some_txStatus2.
 state_monotonicGrowth i \<lparr>
   calls = s_calls,
   happensBefore = s_happensBefore,
   callOrigin = s_callOrigin,
-  transactionOrigin = s_transactionOrigin,
+  txOrigin = s_txOrigin,
   knownIds = s_knownIds,
-  invocationOp = s_invocationOp,
-  invocationRes = s_invocationRes,
+  invocOp = s_invocOp,
+  invocRes = s_invocRes,
   prog = progr,
-  transactionStatus = some_transactionStatus1,
+  txStatus = some_txStatus1,
   generatedIds =  some_generatedIds1,
   localState = some_localState1,
   currentProc = some_currentProc1,
   visibleCalls =  some_visibleCalls1,
-  currentTransaction = some_currentTransaction1\<rparr> 
+  currentTx = some_currentTx1\<rparr> 
 \<lparr>
   calls = s_calls',
   happensBefore = s_happensBefore',
   callOrigin = s_callOrigin',
-  transactionOrigin = s_transactionOrigin',
+  txOrigin = s_txOrigin',
   knownIds = s_knownIds',
-  invocationOp = s_invocationOp',
-  invocationRes = s_invocationRes',
+  invocOp = s_invocOp',
+  invocRes = s_invocRes',
   prog = progr,
-  transactionStatus = some_transactionStatus2,
+  txStatus = some_txStatus2,
   generatedIds =  some_generatedIds2,
   localState = some_localState2,
   currentProc = some_currentProc2,
   visibleCalls =  some_visibleCalls2,
-  currentTransaction = some_currentTransaction2\<rparr>
+  currentTx = some_currentTx2\<rparr>
 \<rbrakk> \<Longrightarrow> execution_s_check
   progr 
   i
   s_calls' 
   s_happensBefore' 
   s_callOrigin' 
-  (s_transactionOrigin'(tx \<mapsto> i))
+  (s_txOrigin'(tx \<mapsto> i))
   s_knownIds' 
-  (s_invocationOp'(i := s_invocationOp i))
-  (s_invocationRes'(i := None))
+  (s_invocOp'(i := s_invocOp i))
+  (s_invocRes'(i := None))
   generatedLocal
   generatedLocalPrivate
   vis'
@@ -697,10 +697,10 @@ shows"execution_s_check
   s_calls
   s_happensBefore 
   s_callOrigin
-  s_transactionOrigin 
+  s_txOrigin 
   s_knownIds
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   generatedLocalPrivate
   vis
@@ -722,26 +722,26 @@ proof show_proof_rule
       and c1: "currentProc S1 i \<triangleq> toImpl"
       and c2: "action = ABeginAtomic t vis''"
       and c3: "Inv"
-      and c4: "currentTransaction S1 i = None"
-      and c5: "transactionStatus S1 t = None"
+      and c4: "currentTx S1 i = None"
+      and c5: "txStatus S1 t = None"
       and c6: "prog S' = prog S1"
       and growth: "state_monotonicGrowth i S1 S'"
-      and c8: "\<forall>x. transactionOrigin S1 x \<triangleq> i = transactionOrigin S' x \<triangleq> i"
+      and c8: "\<forall>x. txOrigin S1 x \<triangleq> i = txOrigin S' x \<triangleq> i"
       and inv: "invariant (prog S1) (invContext S')"
-      and c10: "\<forall>x. transactionStatus S' x \<noteq> Some Uncommitted"
+      and c10: "\<forall>x. txStatus S' x \<noteq> Some Uncommitted"
       and wf_S': "state_wellFormed S'"
-      and c12: "state_wellFormed (S'\<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> cont ()), visibleCalls := visibleCalls S'(i \<mapsto> vis'')\<rparr>)"
+      and c12: "state_wellFormed (S'\<lparr>txStatus := txStatus S'(t \<mapsto> Uncommitted), txOrigin := txOrigin S'(t \<mapsto> i), currentTx := currentTx S'(i \<mapsto> t), localState := localState S'(i \<mapsto> cont ()), visibleCalls := visibleCalls S'(i \<mapsto> vis'')\<rparr>)"
       and c13: "localState S' i \<triangleq> (beginAtomic \<bind> cont)"
       and c14: "currentProc S' i \<triangleq> toImpl"
-      and c15: "currentTransaction S' i = None"
+      and c15: "currentTx S' i = None"
       and c16: "visibleCalls S1 i \<triangleq> vis'"
       and c17: "visibleCalls S' i \<triangleq> vis'"
       and c18: "chooseSnapshot vis'' vis' S'"
       and c19: "consistentSnapshot S' vis''"
-      and c20: "transactionStatus S' t = None"
+      and c20: "txStatus S' t = None"
       and c21: "\<forall>x. callOrigin S' x \<noteq> Some t"
-      and c22: "transactionOrigin S' t = None"
-      and S'a_def: "S'a = S' \<lparr>transactionStatus := transactionStatus S'(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(t \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> t), localState := localState S'(i \<mapsto> cont ()), visibleCalls := visibleCalls S'(i \<mapsto> vis'')\<rparr>"
+      and c22: "txOrigin S' t = None"
+      and S'a_def: "S'a = S' \<lparr>txStatus := txStatus S'(t \<mapsto> Uncommitted), txOrigin := txOrigin S'(t \<mapsto> i), currentTx := currentTx S'(i \<mapsto> t), localState := localState S'(i \<mapsto> cont ()), visibleCalls := visibleCalls S'(i \<mapsto> vis'')\<rparr>"
     by (auto simp add: step_s.simps)
 
 
@@ -775,10 +775,10 @@ proof show_proof_rule
       show "visibleCalls S'a i \<triangleq> (vis'' \<union> set [])"
         by (simp add: S'a_def)
 
-      show "currentTransaction S'a i \<triangleq> t"
+      show "currentTx S'a i \<triangleq> t"
         by (simp add: S'a_def)
 
-      show " \<And>tx'. Some t \<noteq> Some tx' \<Longrightarrow> transactionStatus S'a tx' \<noteq> Some Uncommitted"
+      show " \<And>tx'. Some t \<noteq> Some tx' \<Longrightarrow> txStatus S'a tx' \<noteq> Some Uncommitted"
         by (simp add: S'a_def c10)
       show "case Some t of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S'a c \<triangleq> tx'}"
         by (simp add: S'a_def c21)
@@ -791,24 +791,24 @@ proof show_proof_rule
       show "Field (happensBefore S'a) \<inter> set [] = {}"
         by simp
 
-      show "execution_s_check (prog S'a) i (calls S'a) (happensBefore S'a) (callOrigin S'a) (transactionOrigin S'a) (knownIds S'a)
-     (invocationOp S'a) (invocationRes S'a) generatedLocal generatedLocalPrivate  vis'' [] (Some t) firstTx (cont ())"
+      show "execution_s_check (prog S'a) i (calls S'a) (happensBefore S'a) (callOrigin S'a) (txOrigin S'a) (knownIds S'a)
+     (invocOp S'a) (invocRes S'a) generatedLocal generatedLocalPrivate  vis'' [] (Some t) firstTx (cont ())"
       proof (fuzzy_rule cont)
 
         show "progr = prog S'a"
           by (simp add: S'a_def `prog S1 = progr` c6)
 
-        show "transactionOrigin S'(t \<mapsto> i) = transactionOrigin S'a"
+        show "txOrigin S'(t \<mapsto> i) = txOrigin S'a"
           by (simp add: S'a_def)
 
-        show "transactionOrigin S' t = None"
+        show "txOrigin S' t = None"
           by (simp add: c22)
 
 
         show " invariant progr
      \<lparr>calls = calls S'a, happensBefore = happensBefore S'a, callOrigin = callOrigin S'a,
-        transactionOrigin = transactionOrigin S', knownIds = knownIds S'a, invocationOp = (invocationOp S'a)(i := s_invocationOp i),
-        invocationRes = (invocationRes S'a)(i := None)\<rparr>"
+        txOrigin = txOrigin S', knownIds = knownIds S'a, invocOp = (invocOp S'a)(i := s_invocOp i),
+        invocRes = (invocRes S'a)(i := None)\<rparr>"
         proof (fuzzy_rule inv)
           show "prog S1 = progr"
             by (simp add: Step)
@@ -816,7 +816,7 @@ proof show_proof_rule
           have cCalls: "committedCalls S' = dom (calls S')"
             by (simp add: c10 wf_S' committedCalls_allCommitted)
 
-          have allTransactionsCommitted: "committedTransactions S' = dom (transactionOrigin S')"
+          have allTransactionsCommitted: "committedTransactions S' = dom (txOrigin S')"
             apply (auto simp add: dom_def)
              apply (metis wf_S' domD domIff option.simps(3) wf_transaction_status_iff_origin)
             by (metis c10 not_None_eq not_uncommitted_cases wf_S' wf_transaction_status_iff_origin)
@@ -825,8 +825,8 @@ proof show_proof_rule
 
           show "invContext S' =
            \<lparr>calls = calls S'a, happensBefore = happensBefore S'a, callOrigin = callOrigin S'a,
-            transactionOrigin = transactionOrigin S', knownIds = knownIds S'a, invocationOp = (invocationOp S'a)(i := s_invocationOp i),
-           invocationRes = (invocationRes S'a)(i := None)\<rparr>"
+            txOrigin = txOrigin S', knownIds = knownIds S'a, invocOp = (invocOp S'a)(i := s_invocOp i),
+           invocRes = (invocRes S'a)(i := None)\<rparr>"
           proof (auto simp add: invContextH_def S'a_def cCalls allTransactionsCommitted)
             show "\<And>a b. (a, b) \<in> happensBefore S' |r dom (calls S') \<Longrightarrow> (a, b) \<in> happensBefore S'"
               by (simp add: restrict_relation_def)
@@ -834,16 +834,16 @@ proof show_proof_rule
               by (simp add: wf_S' happensBefore_in_calls_left happensBefore_in_calls_right restrict_relation_def)
             show " callOrigin S' |` dom (calls S') = callOrigin S'"
               by (metis wf_S' restrict_map_noop2 wellFormed_callOrigin_dom)
-            show "invocationOp S' = (invocationOp S')(i := s_invocationOp i)"
-              using Step.invocationOp_eq growth state_monotonicGrowth_invocationOp_i  by fastforce
-            show "invocationRes S' = (invocationRes S')(i := None)"
+            show "invocOp S' = (invocOp S')(i := s_invocOp i)"
+              using Step.invocOp_eq growth state_monotonicGrowth_invocOp_i  by fastforce
+            show "invocRes S' = (invocRes S')(i := None)"
               by (simp add: c13 fun_upd_idem wf_S' wf_localState_noReturn)
           qed
         qed
 
-        show "\<And>i op. s_invocationOp i \<triangleq> op \<Longrightarrow> invocationOp S'a i \<triangleq> op"
+        show "\<And>i op. s_invocOp i \<triangleq> op \<Longrightarrow> invocOp S'a i \<triangleq> op"
           apply(simp add: S'a_def)
-          using Step.invocationOp_eq growth state_monotonicGrowth_invocationOp by blast
+          using Step.invocOp_eq growth state_monotonicGrowth_invocOp by blast
 
         show "\<And>c. callOrigin S'a c \<noteq> Some t"
           using \<open>case Some t of None \<Rightarrow> [] = [] | Some tx' \<Rightarrow> set [] = {c. callOrigin S'a c \<triangleq> tx'}\<close> by auto
@@ -872,45 +872,45 @@ proof show_proof_rule
           by (simp add: S'a_def consistentSnapshotH_def transactionConsistent_def)
 
         from `state_wellFormed S'`
-        show "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
+        show "\<exists>some_generatedIds some_currentTx some_localState some_currentProc some_visibleCalls some_txStatus.
        state_wellFormed
         \<lparr>calls = calls S'a, happensBefore = happensBefore S'a, callOrigin = callOrigin S'a,
-           transactionOrigin = transactionOrigin S', knownIds = knownIds S'a, invocationOp = invocationOp S'a,
-           invocationRes = invocationRes S'a, prog = progr, transactionStatus = some_transactionStatus,
+           txOrigin = txOrigin S', knownIds = knownIds S'a, invocOp = invocOp S'a,
+           invocRes = invocRes S'a, prog = progr, txStatus = some_txStatus,
            generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
-           visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+           visibleCalls = some_visibleCalls, currentTx = some_currentTx\<rparr>"
           apply (simp add: S'a_def `prog S1 = progr`[symmetric])
           by (metis (full_types) c6 old.unit.exhaust state.surjective)
 
         have smg: "state_monotonicGrowth i
          \<lparr>calls = calls S1, happensBefore = happensBefore S1, callOrigin = callOrigin S1,
-            transactionOrigin = transactionOrigin S1, knownIds = knownIds S1, invocationOp = invocationOp S1,
-            invocationRes = invocationRes S1, prog = prog S1, transactionStatus = transactionStatus S1,
+            txOrigin = txOrigin S1, knownIds = knownIds S1, invocOp = invocOp S1,
+            invocRes = invocRes S1, prog = prog S1, txStatus = txStatus S1,
             generatedIds = generatedIds S1, localState = localState S1, currentProc = currentProc S1,
-            visibleCalls = visibleCalls S1, currentTransaction = currentTransaction S1\<rparr>
+            visibleCalls = visibleCalls S1, currentTx = currentTx S1\<rparr>
          \<lparr>calls = calls S', happensBefore = happensBefore S', callOrigin = callOrigin S',
-            transactionOrigin = transactionOrigin S', knownIds = knownIds S', invocationOp = invocationOp S',
-            invocationRes = invocationRes S', prog = prog S', transactionStatus = transactionStatus S',
+            txOrigin = txOrigin S', knownIds = knownIds S', invocOp = invocOp S',
+            invocRes = invocRes S', prog = prog S', txStatus = txStatus S',
             generatedIds = generatedIds S', localState = localState S', currentProc = currentProc S',
-            visibleCalls = visibleCalls S', currentTransaction = currentTransaction S'\<rparr>"
+            visibleCalls = visibleCalls S', currentTx = currentTx S'\<rparr>"
           by (fuzzy_rule `state_monotonicGrowth i S1 S'`, auto)
 
 
 
-        show " \<exists>some_generatedIds1 some_currentTransaction1 some_localState1 some_currentProc1 some_visibleCalls1
-         some_transactionStatus1 some_generatedIds2 some_currentTransaction2 some_localState2 some_currentProc2
-         some_visibleCalls2 some_transactionStatus2.
+        show " \<exists>some_generatedIds1 some_currentTx1 some_localState1 some_currentProc1 some_visibleCalls1
+         some_txStatus1 some_generatedIds2 some_currentTx2 some_localState2 some_currentProc2
+         some_visibleCalls2 some_txStatus2.
          state_monotonicGrowth i
           \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin,
-             transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp,
-             invocationRes = s_invocationRes, prog = progr, transactionStatus = some_transactionStatus1,
+             txOrigin = s_txOrigin, knownIds = s_knownIds, invocOp = s_invocOp,
+             invocRes = s_invocRes, prog = progr, txStatus = some_txStatus1,
              generatedIds = some_generatedIds1, localState = some_localState1, currentProc = some_currentProc1,
-             visibleCalls = some_visibleCalls1, currentTransaction = some_currentTransaction1\<rparr>
+             visibleCalls = some_visibleCalls1, currentTx = some_currentTx1\<rparr>
           \<lparr>calls = calls S'a, happensBefore = happensBefore S'a, callOrigin = callOrigin S'a,
-             transactionOrigin = transactionOrigin S', knownIds = knownIds S'a, invocationOp = invocationOp S'a,
-             invocationRes = invocationRes S'a, prog = progr, transactionStatus = some_transactionStatus2,
+             txOrigin = txOrigin S', knownIds = knownIds S'a, invocOp = invocOp S'a,
+             invocRes = invocRes S'a, prog = progr, txStatus = some_txStatus2,
              generatedIds = some_generatedIds2, localState = some_localState2, currentProc = some_currentProc2,
-             visibleCalls = some_visibleCalls2, currentTransaction = some_currentTransaction2\<rparr>"
+             visibleCalls = some_visibleCalls2, currentTx = some_currentTx2\<rparr>"
           apply (simp add: S'a_def)
           apply (rule exI)+
           apply (fuzzy_rule smg)
@@ -920,7 +920,7 @@ proof show_proof_rule
         
 
         show "\<forall>v\<in>generatedLocalPrivate.
-         uid_is_private' i (calls S'a) (invocationOp S'a) (invocationRes S'a) (knownIds S'a) v"
+         uid_is_private' i (calls S'a) (invocOp S'a) (invocRes S'a) (knownIds S'a) v"
         proof (auto simp add: S'a_def )
           fix v::nat
           assume "v\<in>generatedLocalPrivate"
@@ -931,39 +931,39 @@ proof show_proof_rule
           hence "uid_is_private i S' v"
             using  Step.prog_eq assms(1) growth growth_still_hidden  by  blast
 
-          thus "uid_is_private' i (calls S') (invocationOp S') (invocationRes S') (knownIds S') v"
+          thus "uid_is_private' i (calls S') (invocOp S') (invocRes S') (knownIds S') v"
             by (meson uid_is_private'_implies)
         qed
 
-        show "(invocationOp S'a)(i := s_invocationOp i) = invocationOp S'a"
+        show "(invocOp S'a)(i := s_invocOp i) = invocOp S'a"
           apply (auto simp add: S'a_def)
           apply (rule fun_upd_idem)
-          using Step.invocationOp_eq growth state_monotonicGrowth_invocationOp_i by  blast
+          using Step.invocOp_eq growth state_monotonicGrowth_invocOp_i by  blast
 
-        show "(invocationRes S'a)(i := None) = invocationRes S'a"
+        show "(invocRes S'a)(i := None) = invocRes S'a"
           apply (auto simp add: S'a_def)
           apply (rule fun_upd_idem)
           by (simp add: c13 state_wellFormed_no_result_when_running wf_S')
 
 
-        show "transactionOrigin S' tx \<noteq> Some i"
+        show "txOrigin S' tx \<noteq> Some i"
           if c0: "firstTx"
             and c1: "callOrigin S'a c \<triangleq> tx"
           for  c tx
-          using `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed)`
+          using `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> txOrigin S1 tx \<triangleq> i \<and> txStatus S1 tx \<triangleq> Committed)`
             c0 c1
           apply (auto simp add: S'a_def )
-          by (smt Step.All_implies_not_transactionStatus_eq Step.state_wellFormed c16 c17 c8 domD domIff growth state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin wellFormed_callOrigin_dom3 wellFormed_currentTransaction_unique_h(2) wellFormed_state_transaction_consistent(1) wellFormed_visibleCallsSubsetCalls2 wf_S')
+          by (smt Step.All_implies_not_txStatus_eq Step.state_wellFormed c16 c17 c8 domD domIff growth state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin wellFormed_callOrigin_dom3 wellFormed_currentTx_unique_h(2) wellFormed_state_transaction_consistent(1) wellFormed_visibleCallsSubsetCalls2 wf_S')
 
 
 
 
       qed
-      from `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed)`
-      show "firstTx = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> transactionOrigin S'a tx \<triangleq> i \<and> transactionStatus S'a tx \<triangleq> Committed)"
+      from `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> txOrigin S1 tx \<triangleq> i \<and> txStatus S1 tx \<triangleq> Committed)`
+      show "firstTx = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> txOrigin S'a tx \<triangleq> i \<and> txStatus S'a tx \<triangleq> Committed)"
         apply (auto simp add: S'a_def)
         apply (smt Step.state_wellFormed c16 c17 c4 c8 domExists_simp domIff growth state_monotonicGrowth_callOrigin state_wellFormed_ls_visibleCalls_callOrigin transactionConsistent_Committed wellFormed_callOrigin_dom3 wellFormed_visibleCallsSubsetCalls2 wf_S' wf_transactionConsistent_noTx)
-        by (metis (mono_tags, lifting) Step.state_wellFormed c5 growth state_monotonicGrowth_callOrigin state_monotonicGrowth_transactionOrigin state_monotonicGrowth_transactionStatus2 wf_callOrigin_implies_transactionStatus_defined)
+        by (metis (mono_tags, lifting) Step.state_wellFormed c5 growth state_monotonicGrowth_callOrigin state_monotonicGrowth_txOrigin state_monotonicGrowth_txStatus2 wf_callOrigin_implies_txStatus_defined)
 
       show "\<And>c. i_callOriginI S'a c \<triangleq> i \<Longrightarrow> c \<in> vis''"
         apply (simp add: S'a_def i_callOriginI_h_def c21 split: option.splits if_splits)
@@ -1039,7 +1039,7 @@ qed
 
 lemma execution_s_check_endAtomic:
   assumes "program_wellFormed progr"
-    and "s_transactionOrigin tx = None"
+    and "s_txOrigin tx = None"
     and tx_nonempty: "localCalls \<noteq> []"
 and inv_cont: "
 \<lbrakk>
@@ -1049,35 +1049,35 @@ distinct localCalls;
 \<And>c c'. c\<in>set localCalls \<Longrightarrow> (c,c') \<notin> s_happensBefore;
 \<And>c c'. c\<in>set localCalls \<Longrightarrow> (c',c) \<notin> s_happensBefore;
 invocation_happensBeforeH
-    (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i))) 
+    (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_txOrigin(tx \<mapsto> i))) 
     (updateHb s_happensBefore vis localCalls)
 = 
 (if firstTx then
-invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore
- \<union> {i' | i' c'. c' \<in> vis \<and> i_callOriginI_h s_callOrigin s_transactionOrigin c' \<triangleq> i' 
-   \<and> (\<forall>c''. i_callOriginI_h s_callOrigin s_transactionOrigin c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis ) } \<times> {i}
+invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore
+ \<union> {i' | i' c'. c' \<in> vis \<and> i_callOriginI_h s_callOrigin s_txOrigin c' \<triangleq> i' 
+   \<and> (\<forall>c''. i_callOriginI_h s_callOrigin s_txOrigin c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis ) } \<times> {i}
 else
-invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore
-- {i} \<times> {i'. (i,i') \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore })
+invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore
+- {i} \<times> {i'. (i,i') \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore })
 \<rbrakk>
  \<Longrightarrow> invariant progr
      \<lparr>calls = s_calls, 
       happensBefore = updateHb s_happensBefore vis localCalls,
       callOrigin = map_update_all s_callOrigin localCalls tx,
-      transactionOrigin = s_transactionOrigin(tx \<mapsto> i), 
+      txOrigin = s_txOrigin(tx \<mapsto> i), 
       knownIds = s_knownIds,
-      invocationOp = s_invocationOp, 
-      invocationRes = s_invocationRes\<rparr>
+      invocOp = s_invocOp, 
+      invocRes = s_invocRes\<rparr>
 \<and> execution_s_check
   progr 
   i
   s_calls 
   (updateHb s_happensBefore vis localCalls) 
   (map_update_all s_callOrigin localCalls tx) 
-  (s_transactionOrigin(tx \<mapsto> i))
+  (s_txOrigin(tx \<mapsto> i))
   s_knownIds 
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   generatedLocalPrivate
   (vis \<union> set localCalls)
@@ -1094,10 +1094,10 @@ shows"execution_s_check
   s_calls
   s_happensBefore 
   s_callOrigin
-  (s_transactionOrigin(tx \<mapsto> i)) 
+  (s_txOrigin(tx \<mapsto> i)) 
   s_knownIds
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   generatedLocalPrivate
   vis
@@ -1114,36 +1114,36 @@ proof show_proof_rule
     `localState S1 i \<triangleq> (endAtomic \<bind> cont)`
     `currentProc S1 i \<triangleq> toImpl`
     `\<And>proc. action \<noteq> AInvoc proc`
-    `currentTransaction S1 i \<triangleq> tx`
+    `currentTx S1 i \<triangleq> tx`
   have action_def: "action = AEndAtomic"
     and S'a_def: "S'a = S1
-     \<lparr>localState := localState S1(i \<mapsto> cont ()), currentTransaction := (currentTransaction S1)(i := None),
-        transactionStatus := transactionStatus S1(tx \<mapsto> Committed)\<rparr>"
+     \<lparr>localState := localState S1(i \<mapsto> cont ()), currentTx := (currentTx S1)(i := None),
+        txStatus := txStatus S1(tx \<mapsto> Committed)\<rparr>"
     and S'a_wf: "state_wellFormed S'a"
     and Inv_def: "Inv \<longleftrightarrow> 
      invariant (prog S1)
-      (invContextH (callOrigin S1) (transactionOrigin S1) (transactionStatus S1(tx \<mapsto> Committed)) (happensBefore S1)
-        (calls S1) (knownIds S1) (invocationOp S1) (invocationRes S1))"
+      (invContextH (callOrigin S1) (txOrigin S1) (txStatus S1(tx \<mapsto> Committed)) (happensBefore S1)
+        (calls S1) (knownIds S1) (invocOp S1) (invocRes S1))"
     by (auto simp add: step_s.simps)
 
   show "Inv \<and> traceCorrect_s trace'"
   proof
 
     have allCommitted1: 
-      "transactionStatus S1 tx' \<triangleq> Committed" if "tx' \<noteq> tx" and "callOrigin S1 c \<triangleq> tx'" for c tx'
+      "txStatus S1 tx' \<triangleq> Committed" if "tx' \<noteq> tx" and "callOrigin S1 c \<triangleq> tx'" for c tx'
       using that
-      by (metis (no_types, lifting) Step.All_implies_not_transactionStatus_eq Step.state_wellFormed not_uncommitted_cases option.exhaust option.sel wf_no_transactionStatus_origin_for_nothing)
+      by (metis (no_types, lifting) Step.All_implies_not_txStatus_eq Step.state_wellFormed not_uncommitted_cases option.exhaust option.sel wf_no_txStatus_origin_for_nothing)
 
-    have tx_uncommitted: "transactionStatus S1 tx \<triangleq> Uncommitted"
-      using Step.currentTransaction_eq Step.state_wellFormed not_uncommitted_cases wellFormed_currentTransaction_unique_h(2)  by  blast
+    have tx_uncommitted: "txStatus S1 tx \<triangleq> Uncommitted"
+      using Step.currentTx_eq Step.state_wellFormed not_uncommitted_cases wellFormed_currentTx_unique_h(2)  by  blast
 
-    have allCommitted2: "transactionStatus S1 t \<triangleq> Committed \<longleftrightarrow> t \<noteq> tx \<and> transactionStatus S1 t \<noteq> None" for t
-      apply (cases "transactionStatus S1 t", auto simp add: tx_uncommitted)
-      using Step.All_implies_not_transactionStatus_eq transactionStatus.exhaust  by  force
+    have allCommitted2: "txStatus S1 t \<triangleq> Committed \<longleftrightarrow> t \<noteq> tx \<and> txStatus S1 t \<noteq> None" for t
+      apply (cases "txStatus S1 t", auto simp add: tx_uncommitted)
+      using Step.All_implies_not_txStatus_eq txStatus.exhaust  by  force
 
 
 
-    have committedCallsH_simp: "committedCallsH (callOrigin S1) (transactionStatus S1(tx \<mapsto> Committed))
+    have committedCallsH_simp: "committedCallsH (callOrigin S1) (txStatus S1(tx \<mapsto> Committed))
       = dom (calls S1)"
       using  wellFormed_callOrigin_dom[OF `state_wellFormed S1`]
  wf_callOrigin_and_calls[OF `state_wellFormed S1`]
@@ -1167,12 +1167,12 @@ proof show_proof_rule
 
 
 
-      have h4: "s_transactionOrigin(tx\<mapsto>i) =
-        transactionOrigin S1 |` {t. t \<noteq> tx \<longrightarrow> transactionStatus S1 t \<triangleq> Committed}"
+      have h4: "s_txOrigin(tx\<mapsto>i) =
+        txOrigin S1 |` {t. t \<noteq> tx \<longrightarrow> txStatus S1 t \<triangleq> Committed}"
         apply (simp add: Step )
         apply (subst restrict_map_noop)
-         apply (auto simp add: `s_transactionOrigin tx = None`  allCommitted2 wf_transaction_status_iff_origin)
-        by (metis Step.state_wellFormed Step.transactionOrigin_eq fun_upd_apply option.distinct(1) option.exhaust wf_transaction_status_iff_origin)
+         apply (auto simp add: `s_txOrigin tx = None`  allCommitted2 wf_transaction_status_iff_origin)
+        by (metis Step.state_wellFormed Step.txOrigin_eq fun_upd_apply option.distinct(1) option.exhaust wf_transaction_status_iff_origin)
 
       have "localCalls \<noteq> []"
         by (simp add: tx_nonempty)
@@ -1180,7 +1180,7 @@ proof show_proof_rule
         by (simp add: Step.distinct)
       have  co_tx_none: "\<forall>c\<in>set localCalls. s_callOrigin c = None"
         using Step.inf_eq2 by blast
-      have to_tx_none: " s_transactionOrigin tx = None"
+      have to_tx_none: " s_txOrigin tx = None"
         by (simp add: assms(2))
       have co_not_tx: "\<And>c. s_callOrigin c \<noteq> Some tx"
         using Step.callOrigin_eq Step.case_option co_tx_none map_update_all_Some_same by  fastforce
@@ -1193,33 +1193,33 @@ proof show_proof_rule
 
       have  invocation_hb_simp:
         "invocation_happensBeforeH
-    (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i))) 
+    (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_txOrigin(tx \<mapsto> i))) 
     (updateHb s_happensBefore vis localCalls)
 = 
 (if firstTx then
-invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore
- \<union> {i' | i' c'. c' \<in> vis \<and> i_callOriginI_h s_callOrigin s_transactionOrigin c' \<triangleq> i' 
-   \<and> (\<forall>c''. i_callOriginI_h s_callOrigin s_transactionOrigin c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis ) } \<times> {i}
+invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore
+ \<union> {i' | i' c'. c' \<in> vis \<and> i_callOriginI_h s_callOrigin s_txOrigin c' \<triangleq> i' 
+   \<and> (\<forall>c''. i_callOriginI_h s_callOrigin s_txOrigin c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis ) } \<times> {i}
 else
-invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore
-- {i} \<times> {i'. (i,i') \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore })"
+invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore
+- {i} \<times> {i'. (i,i') \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore })"
       proof (rule if_cases)
         assume firstTx
 
 
-        show "invocation_happensBeforeH (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i)))
+        show "invocation_happensBeforeH (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_txOrigin(tx \<mapsto> i)))
            (updateHb s_happensBefore vis localCalls) =
-          invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore \<union>
+          invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore \<union>
           {i' |  i' c'.
               c' \<in> vis \<and>
-              i_callOriginI_h s_callOrigin s_transactionOrigin c' \<triangleq> i' \<and>
-              (\<forall>c''. i_callOriginI_h s_callOrigin s_transactionOrigin c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis)} \<times>
+              i_callOriginI_h s_callOrigin s_txOrigin c' \<triangleq> i' \<and>
+              (\<forall>c''. i_callOriginI_h s_callOrigin s_txOrigin c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis)} \<times>
           {i}"
           using `localCalls \<noteq> []` 
             `distinct localCalls` co_tx_none to_tx_none co_not_tx hb_wf_l hb_wf_r
         proof (fuzzy_rule(noabs) invocation_happensBeforeH_one_transaction_simp2)
 
-          show "s_transactionOrigin t \<noteq> Some i" if "s_callOrigin c \<triangleq> t" for c t
+          show "s_txOrigin t \<noteq> Some i" if "s_callOrigin c \<triangleq> t" for c t
           proof -
             from `s_callOrigin c \<triangleq> t`
             have "c \<notin> set localCalls"
@@ -1232,10 +1232,10 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
               using co_not_tx by blast
             then have "t \<noteq> tx"
               using that by blast
-            then have "s_transactionOrigin(t \<mapsto> i) \<noteq> s_transactionOrigin"
+            then have "s_txOrigin(t \<mapsto> i) \<noteq> s_txOrigin"
               using f1
-              by (metis Step.firstTx_def Step.transactionOrigin_eq \<open>firstTx\<close> allCommitted1 fun_upd_idem_iff fun_upd_other)
-            then show "s_transactionOrigin t \<noteq> Some i"
+              by (metis Step.firstTx_def Step.txOrigin_eq \<open>firstTx\<close> allCommitted1 fun_upd_idem_iff fun_upd_other)
+            then show "s_txOrigin t \<noteq> Some i"
               by (metis (no_types) fun_upd_triv)
           qed
 
@@ -1244,16 +1244,16 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
         assume "\<not> firstTx"
         from this obtain old_c old_t 
           where "s_callOrigin old_c \<triangleq> old_t"
-            and "s_transactionOrigin old_t \<triangleq> i"
-            and "transactionStatus S1 old_t \<triangleq> Committed"
-          using Step.callOrigin_eq Step.firstTx_def Step.transactionOrigin_eq fun_upd_apply option.sel allCommitted2 map_update_all_Some_other by  fastforce
+            and "s_txOrigin old_t \<triangleq> i"
+            and "txStatus S1 old_t \<triangleq> Committed"
+          using Step.callOrigin_eq Step.firstTx_def Step.txOrigin_eq fun_upd_apply option.sel allCommitted2 map_update_all_Some_other by  fastforce
 
 
-        show " invocation_happensBeforeH (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i)))
+        show " invocation_happensBeforeH (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_txOrigin(tx \<mapsto> i)))
      (updateHb s_happensBefore vis localCalls) =
-    invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore -
-    {i} \<times> {i'. (i, i') \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore}"
-          using tx_nonempty `s_transactionOrigin old_t \<triangleq> i` co_tx_none `s_callOrigin old_c \<triangleq> old_t`
+    invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore -
+    {i} \<times> {i'. (i, i') \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore}"
+          using tx_nonempty `s_txOrigin old_t \<triangleq> i` co_tx_none `s_callOrigin old_c \<triangleq> old_t`
                 hb_wf_l co_not_tx
         proof (fuzzy_rule invocation_happensBeforeH_more_transactions_simp2)
 
@@ -1263,7 +1263,7 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
           show "Field s_happensBefore \<inter> set localCalls = {}"
             by (simp add: Step.inf_eq3)
 
-          show "\<And>c. i_callOriginI_h s_callOrigin s_transactionOrigin c \<triangleq> i \<Longrightarrow> c \<in> vis"
+          show "\<And>c. i_callOriginI_h s_callOrigin s_txOrigin c \<triangleq> i \<Longrightarrow> c \<in> vis"
             by (simp add: Step.All_implies_member i_callOriginI_h_update_to2)
 
           show "\<And>c c'. \<lbrakk>c' \<in> vis; (c, c') \<in> s_happensBefore\<rbrakk> \<Longrightarrow> c \<in> vis"
@@ -1293,10 +1293,10 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
 
       have inv_cont2: "invariant progr
        \<lparr>calls = s_calls, happensBefore = updateHb s_happensBefore vis localCalls,
-          callOrigin = map_update_all s_callOrigin localCalls tx, transactionOrigin = s_transactionOrigin(tx \<mapsto> i),
-          knownIds = s_knownIds, invocationOp = s_invocationOp, invocationRes = s_invocationRes\<rparr> \<and>
+          callOrigin = map_update_all s_callOrigin localCalls tx, txOrigin = s_txOrigin(tx \<mapsto> i),
+          knownIds = s_knownIds, invocOp = s_invocOp, invocRes = s_invocRes\<rparr> \<and>
       execution_s_check progr i s_calls (updateHb s_happensBefore vis localCalls)
-       (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i)) s_knownIds s_invocationOp s_invocationRes
+       (map_update_all s_callOrigin localCalls tx) (s_txOrigin(tx \<mapsto> i)) s_knownIds s_invocOp s_invocRes
      generatedLocal generatedLocalPrivate (vis \<union> set localCalls) [] None False (cont ())"
         using  `distinct localCalls`
       proof (rule inv_cont)
@@ -1309,18 +1309,18 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
         show "\<And>c. c \<in> set localCalls \<Longrightarrow> c \<notin> vis"
           using Step.inf_eq by  blast
 
-        show "invocation_happensBeforeH (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_transactionOrigin(tx \<mapsto> i)))
+        show "invocation_happensBeforeH (i_callOriginI_h (map_update_all s_callOrigin localCalls tx) (s_txOrigin(tx \<mapsto> i)))
          (updateHb s_happensBefore vis localCalls) =
         (if firstTx
-         then invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore \<union>
+         then invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore \<union>
               {i' | i' c'.
                   c' \<in> vis \<and>
-                  i_callOriginI_h s_callOrigin s_transactionOrigin c' \<triangleq> i' \<and>
-                  (\<forall>c''. i_callOriginI_h s_callOrigin s_transactionOrigin c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis)} \<times>
+                  i_callOriginI_h s_callOrigin s_txOrigin c' \<triangleq> i' \<and>
+                  (\<forall>c''. i_callOriginI_h s_callOrigin s_txOrigin c'' \<triangleq> i' \<longrightarrow> c'' \<in> vis)} \<times>
               {i}
-         else invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore -
+         else invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore -
               {i} \<times>
-              {i'. (i, i') \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_happensBefore})"
+              {i'. (i, i') \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_txOrigin) s_happensBefore})"
           by (auto simp add: committedCallsH_simp invocation_hb_simp)
       qed
 
@@ -1338,7 +1338,7 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
       show "\<And>p t. (AInvoc p, t) \<notin> set trace'"
         using Step by auto
 
-      show "currentTransaction S'a i = None"
+      show "currentTx S'a i = None"
         by (simp add: S'a_def)
 
       show "state_wellFormed S'a"
@@ -1359,14 +1359,14 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
       show "visibleCalls S'a i \<triangleq> (vis \<union> set localCalls \<union> set [])"
         by (simp add: S'a_def Step)
 
-      show "\<And>tx'. None \<noteq> Some tx' \<Longrightarrow> transactionStatus S'a tx' \<noteq> Some Uncommitted"
+      show "\<And>tx'. None \<noteq> Some tx' \<Longrightarrow> txStatus S'a tx' \<noteq> Some Uncommitted"
         by (simp add: S'a_def Step)
 
       show "sorted_by (happensBefore S'a) []"
         by (simp add: sorted_by_empty)
 
       show "execution_s_check (prog S'a) i (calls S'a) (happensBefore S'a) (callOrigin S'a)
-       (transactionOrigin S'a) (knownIds S'a) (invocationOp S'a) (invocationRes S'a)
+       (txOrigin S'a) (knownIds S'a) (invocOp S'a) (invocRes S'a)
        {x. generatedIds S'a x \<triangleq> i} generatedLocalPrivate (vis \<union> set localCalls) [] None False (cont ())"
       proof (fuzzy_rule inv_cont2[THEN conjunct2])
       qed (simp add: S'a_def Step)+
@@ -1379,9 +1379,9 @@ invocation_happensBeforeH (i_callOriginI_h s_callOrigin s_transactionOrigin) s_h
       find_theorems name: Step
 
 
-      show "False = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> transactionOrigin S'a tx \<triangleq> i \<and> transactionStatus S'a tx \<triangleq> Committed)"
+      show "False = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> txOrigin S'a tx \<triangleq> i \<and> txStatus S'a tx \<triangleq> Committed)"
         using  \<open>c \<in> set localCalls\<close>  by (auto simp add: S'a_def intro!: exI[where x=c] exI[where x=tx]
-            Step.state_wellFormed Step.currentTransaction_eq state_wellFormed_current_transaction_origin
+            Step.state_wellFormed Step.currentTx_eq state_wellFormed_current_transaction_origin
             Step.callOrigin_eq map_update_all_Some_same, simp add: Step.callOrigin_eq map_update_all_Some_same) 
 
       show "\<And>c. i_callOriginI S'a c \<triangleq> i \<Longrightarrow> c \<in> vis \<union> set localCalls"
@@ -1428,10 +1428,10 @@ lemma execution_s_check_pause:
   s_calls
   s_happensBefore 
   s_callOrigin
-  s_transactionOrigin 
+  s_txOrigin 
   s_knownIds
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   generatedLocalPrivate
   vis
@@ -1447,10 +1447,10 @@ shows"execution_s_check
   s_calls
   s_happensBefore 
   s_callOrigin
-  s_transactionOrigin 
+  s_txOrigin 
   s_knownIds
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   generatedLocalPrivate
   vis
@@ -1496,8 +1496,8 @@ proof show_proof_rule
 
 
 
-      show " execution_s_check progr i s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds
-     s_invocationOp s_invocationRes {x. generatedIds S1 x \<triangleq> i} generatedLocalPrivate vis localCalls tx firstTx (cont ())"
+      show " execution_s_check progr i s_calls s_happensBefore s_callOrigin s_txOrigin s_knownIds
+     s_invocOp s_invocRes {x. generatedIds S1 x \<triangleq> i} generatedLocalPrivate vis localCalls tx firstTx (cont ())"
       proof (fuzzy_rule cont)
         show "generatedLocal = {x. generatedIds S1 x \<triangleq> i}"
           using Step.generatedLocal_def by blast
@@ -1551,10 +1551,10 @@ querySpec progr op \<lparr>
   (s_calls(c \<mapsto> Call op res))
   s_happensBefore 
   s_callOrigin
-  s_transactionOrigin 
+  s_txOrigin 
   s_knownIds
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   (generatedLocalPrivate - uniqueIds op - uniqueIds res)
   vis
@@ -1570,10 +1570,10 @@ shows"execution_s_check
   s_calls
   s_happensBefore 
   s_callOrigin
-  s_transactionOrigin 
+  s_txOrigin 
   s_knownIds
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   generatedLocalPrivate
   vis
@@ -1590,12 +1590,12 @@ proof show_proof_rule
     `localState S1 i \<triangleq> (call op \<bind> cont)`
     `currentProc S1 i \<triangleq> toImpl`
     `\<And>proc. action \<noteq> AInvoc proc`
-    ` currentTransaction S1 i \<triangleq> tx`
+    ` currentTx S1 i \<triangleq> tx`
 `visibleCalls S1 i \<triangleq> (vis \<union> set localCalls)`
   obtain c res
     where c0: "localState S1 i \<triangleq> (call op \<bind> cont)"
    and c1: "currentProc S1 i \<triangleq> toImpl"
-   and c2: "currentTransaction S1 i \<triangleq> tx"
+   and c2: "currentTx S1 i \<triangleq> tx"
    and c3: "visibleCalls S1 i \<triangleq> (vis \<union> set localCalls)"
    and c4: "action = ADbOp c op res"
    and c5: "Inv"
@@ -1691,7 +1691,7 @@ proof show_proof_rule
         by auto
 
       show " execution_s_check progr i (s_calls(c \<mapsto> Call op res)) s_happensBefore s_callOrigin
-       s_transactionOrigin s_knownIds s_invocationOp s_invocationRes {x. generatedIds S1 x \<triangleq> i} (generatedLocalPrivate - uniqueIds op - uniqueIds res) vis
+       s_txOrigin s_knownIds s_invocOp s_invocRes {x. generatedIds S1 x \<triangleq> i} (generatedLocalPrivate - uniqueIds op - uniqueIds res) vis
        (localCalls @ [c]) (Some tx) firstTx (cont res)"
       proof (fuzzy_rule cont)
         show "querySpec progr op
@@ -1713,12 +1713,12 @@ proof show_proof_rule
         show "generatedLocal = {x. generatedIds S1 x \<triangleq> i}" .
       qed
 
-      from `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> transactionOrigin S1 tx \<triangleq> i \<and> transactionStatus S1 tx \<triangleq> Committed)`
-      show "firstTx = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> transactionOrigin S'a tx \<triangleq> i \<and> transactionStatus S'a tx \<triangleq> Committed)"
+      from `firstTx = (\<nexists>c tx. callOrigin S1 c \<triangleq> tx \<and> txOrigin S1 tx \<triangleq> i \<and> txStatus S1 tx \<triangleq> Committed)`
+      show "firstTx = (\<nexists>c tx. callOrigin S'a c \<triangleq> tx \<and> txOrigin S'a tx \<triangleq> i \<and> txStatus S'a tx \<triangleq> Committed)"
         apply auto
          apply (auto simp add: S'a_def split: if_splits)
-        using c2 not_uncommitted_cases wellFormed_currentTransaction_unique_h(2) 
-        apply (simp add: wellFormed_currentTransaction_unique_h(2) Step.state_wellFormed)
+        using c2 not_uncommitted_cases wellFormed_currentTx_unique_h(2) 
+        apply (simp add: wellFormed_currentTx_unique_h(2) Step.state_wellFormed)
         using \<open>callOrigin S1 c = None\<close> by force
 
       show "generatedLocalPrivate - uniqueIds op - uniqueIds res \<subseteq> {x. generatedIds S1 x \<triangleq> i}"
@@ -1759,10 +1759,10 @@ and inv: "invariant progr
         calls = s_calls, 
         happensBefore = s_happensBefore , 
         callOrigin  = s_callOrigin,
-        transactionOrigin = s_transactionOrigin,
+        txOrigin = s_txOrigin,
         knownIds = s_knownIds  \<union> uniqueIds res,
-        invocationOp = s_invocationOp,
-        invocationRes = s_invocationRes(i \<mapsto> res)
+        invocOp = s_invocOp,
+        invocRes = s_invocRes(i \<mapsto> res)
       \<rparr>"
 shows"execution_s_check
   progr 
@@ -1770,10 +1770,10 @@ shows"execution_s_check
   s_calls
   s_happensBefore 
   s_callOrigin
-  s_transactionOrigin 
+  s_txOrigin 
   s_knownIds
-  s_invocationOp
-  s_invocationRes
+  s_invocOp
+  s_invocRes
   generatedLocal
   generatedLocalPriate
   vis
@@ -1791,40 +1791,40 @@ proof show_proof_rule
     `currentProc S1 i \<triangleq> toImpl`
     `\<And>proc. action \<noteq> AInvoc proc`
   have c2: "action = AReturn res"
-   and c3: "currentTransaction S1 i = None"
-   and S'a_def: "S'a = S1 \<lparr>localState := (localState S1)(i := None), currentProc := (currentProc S1)(i := None), visibleCalls := (visibleCalls S1)(i := None), invocationRes := invocationRes S1(i \<mapsto> res), knownIds := knownIds S1 \<union> uniqueIds res\<rparr>"
-   and Inv_def: "Inv \<longleftrightarrow> invariant (prog S1) (invContextH (callOrigin S1) (transactionOrigin S1) (transactionStatus S1) (happensBefore S1) (calls S1) (knownIds S1 \<union> uniqueIds res) (invocationOp S1) (invocationRes S1(i \<mapsto> res)))"
+   and c3: "currentTx S1 i = None"
+   and S'a_def: "S'a = S1 \<lparr>localState := (localState S1)(i := None), currentProc := (currentProc S1)(i := None), visibleCalls := (visibleCalls S1)(i := None), invocRes := invocRes S1(i \<mapsto> res), knownIds := knownIds S1 \<union> uniqueIds res\<rparr>"
+   and Inv_def: "Inv \<longleftrightarrow> invariant (prog S1) (invContextH (callOrigin S1) (txOrigin S1) (txStatus S1) (happensBefore S1) (calls S1) (knownIds S1 \<union> uniqueIds res) (invocOp S1) (invocRes S1(i \<mapsto> res)))"
     by (auto simp add: step_s.simps)
 
   show "Inv \<and> traceCorrect_s trace'"
   proof
 
-    from `\<forall>tx'. None \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted`
-    have txStatus1: "transactionStatus S1 tx' \<noteq> Some Uncommitted" for tx'
+    from `\<forall>tx'. None \<noteq> Some tx' \<longrightarrow> txStatus S1 tx' \<noteq> Some Uncommitted`
+    have txStatus1: "txStatus S1 tx' \<noteq> Some Uncommitted" for tx'
       by auto
 
-    have txStatus2: "transactionStatus S1 tx \<triangleq> y
-      \<longleftrightarrow> (transactionStatus S1 tx \<triangleq> Committed \<and> y = Committed)" for tx y
+    have txStatus2: "txStatus S1 tx \<triangleq> y
+      \<longleftrightarrow> (txStatus S1 tx \<triangleq> Committed \<and> y = Committed)" for tx y
       apply auto
-      using transactionStatus.exhaust txStatus1 by auto
+      using txStatus.exhaust txStatus1 by auto
 
 
 
-    from `\<forall>tx'. None \<noteq> Some tx' \<longrightarrow> transactionStatus S1 tx' \<noteq> Some Uncommitted`
-    have txStatus3: "transactionStatus S1 tx \<triangleq> Committed
-      \<longleftrightarrow>transactionStatus S1 tx \<noteq> None" for tx
-      using transactionStatus.exhaust by (auto, blast)
+    from `\<forall>tx'. None \<noteq> Some tx' \<longrightarrow> txStatus S1 tx' \<noteq> Some Uncommitted`
+    have txStatus3: "txStatus S1 tx \<triangleq> Committed
+      \<longleftrightarrow>txStatus S1 tx \<noteq> None" for tx
+      using txStatus.exhaust by (auto, blast)
 
 
-    have commmitted: "committedTransactions S1 = dom s_transactionOrigin"
-      apply (auto simp add: `transactionOrigin S1 = s_transactionOrigin`[symmetric] txStatus1)
+    have commmitted: "committedTransactions S1 = dom s_txOrigin"
+      apply (auto simp add: `txOrigin S1 = s_txOrigin`[symmetric] txStatus1)
        apply (simp add: Step.state_wellFormed txStatus3 wf_transaction_status_iff_origin)
-      by (simp add: Step.state_wellFormed state_wellFormed_transactionStatus_transactionOrigin txStatus3)
+      by (simp add: Step.state_wellFormed state_wellFormed_txStatus_txOrigin txStatus3)
 
     have committed2: "committedCalls S1 = dom (calls S1)"
       using Step.state_wellFormed committedCalls_allCommitted txStatus1 by  blast 
 
-    hence committed3: "committedCallsH s_callOrigin (transactionStatus S1) =  dom s_calls"
+    hence committed3: "committedCallsH s_callOrigin (txStatus S1) =  dom s_calls"
       by (simp add: Step)
 
 

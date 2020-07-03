@@ -10,14 +10,14 @@ begin
 text \<open>This theory proves commutativity between certain actions in executions.\<close>
 
 
-definition canSwap :: "'ls itself \<Rightarrow> ('proc::valueType, 'operation, 'any::valueType)  action \<Rightarrow> ('proc, 'operation, 'any) action \<Rightarrow> bool" where
-  "canSwap t a b \<equiv> (\<forall>(C1::('proc, 'ls, 'operation, 'any) state) C2 i1 i2. 
+definition canSwap :: "'ls itself \<Rightarrow> ('proc::valueType, 'op, 'any::valueType)  action \<Rightarrow> ('proc, 'op, 'any) action \<Rightarrow> bool" where
+  "canSwap t a b \<equiv> (\<forall>(C1::('proc, 'ls, 'op, 'any) state) C2 i1 i2. 
       i1\<noteq>i2 \<and> (C1 ~~ [(i1,a),(i2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(i2,b),(i1,a)] \<leadsto>* C2))"
 
 
 text \<open>We can swap one action over a list of actions with canSwap\<close>
 lemma swapMany:
-  assumes steps: "(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) ~~ tr @ [(i,a)] \<leadsto>* C2"
+  assumes steps: "(C1::('proc::valueType, 'ls, 'op, 'any::valueType) state) ~~ tr @ [(i,a)] \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> i"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) a"
     and wf: "state_wellFormed C1"
@@ -71,7 +71,7 @@ qed
 
 
 lemma swapMany_middle:
-  fixes C1 :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state"
+  fixes C1 :: "('proc::valueType, 'ls, 'op, 'any::valueType) state"
   assumes steps: "C1 ~~ tr_start @ tr @ [(s,a)] @ tr_end \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> s"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) a"
@@ -94,7 +94,7 @@ proof -
 qed    
 
 lemma swapMany_middle':
-  fixes C1 :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state"
+  fixes C1 :: "('proc::valueType, 'ls, 'op, 'any::valueType) state"
   assumes steps: "C1 ~~ tr_start @ tr @ [a] @ tr_end \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> (get_invoc a)"
     and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) (get_action a)"
@@ -106,10 +106,10 @@ lemma swapMany_middle':
 
 
 lemma show_canSwap:
-  assumes "\<And>(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+  assumes "\<And>(C1::('proc::valueType, 'ls, 'op, 'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
   shows "canSwap (t::'ls itself) a b"
 proof (auto simp add: canSwap_def)
-  fix C1 C3 :: "('proc, 'ls, 'operation, 'any) state"
+  fix C1 C3 :: "('proc, 'ls, 'op, 'any) state"
   fix s1 s2
   assume a0: "s1 \<noteq> s2"
     and a1: "C1 ~~ [(s1, a), (s2, b)] \<leadsto>* C3"
@@ -131,7 +131,7 @@ qed
 
 lemma show_canSwap':
   assumes "x = a" 
-    and"\<And>(C1::('proc::valueType, 'ls, 'operation, 'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
+    and"\<And>(C1::('proc::valueType, 'ls, 'op, 'any::valueType) state) C2 C3 s1 s2. \<lbrakk>s1 \<noteq> s2; C1 ~~ (s1,a) \<leadsto> C2; C2 ~~ (s2,b) \<leadsto> C3; state_wellFormed C1\<rbrakk> \<Longrightarrow> \<exists>C. (C1 ~~ (s2,b) \<leadsto> C) \<and> (C ~~ (s1,a) \<leadsto> C3)"
   shows "canSwap (t::'ls itself) x b"
   by (simp add: assms show_canSwap)
 
@@ -158,13 +158,13 @@ proof (cases a; cases b)
   assume [simp]: "a = ABeginAtomic tx txns" 
     and [simp]: "b = AEndAtomic"
   show "canSwap t a b"
-    by (prove_canSwap'' simp:   wellFormed_currentTransactionUncommitted  )
+    by (prove_canSwap'' simp:   wellFormed_currentTxUncommitted  )
 next 
   fix tx txns c op r
   assume [simp]: "a = ABeginAtomic tx txns" 
     and [simp]: "b = ADbOp c op r"
   show "canSwap t a b"
-    by (prove_canSwap'' simp: wellFormed_callOrigin_dom2  wellFormed_currentTransactionUncommitted  )
+    by (prove_canSwap'' simp: wellFormed_callOrigin_dom2  wellFormed_currentTxUncommitted  )
 next 
   fix c1 op1 r1 c2 op2 r2
   assume [simp]: "a = ADbOp c1 op1 r1" 

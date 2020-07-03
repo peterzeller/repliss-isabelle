@@ -33,7 +33,7 @@ unfolding consistentSnapshotH_def proof (intro conjI)
     apply (auto simp add: callsInTransactionH_def downwardsClosure_def causallyConsistent_def)
     by (meson happensBefore_transitive local.wf transD)
     
-  show "transactionConsistent (callOrigin S) (transactionStatus S) (callsInTransaction S txns \<down> happensBefore S)"
+  show "transactionConsistent (callOrigin S) (txStatus S) (callsInTransaction S txns \<down> happensBefore S)"
   proof (induct rule: show_transactionConsistent)
     case (only_committed c tx)
     then show ?case 
@@ -63,7 +63,7 @@ lemma wellFormed_visibleCallsSubsetCalls:
 lemma wf_current_tx_not_before_others: 
   assumes wf: "state_wellFormed S"
     and "visibleCalls S i \<triangleq> Vis"
-    and "currentTransaction S i \<triangleq> tx"
+    and "currentTx S i \<triangleq> tx"
     and "callOrigin S x \<triangleq> tx"
     and "callOrigin S y \<noteq> Some tx"
   shows "(x,y) \<notin> happensBefore S"
@@ -74,7 +74,7 @@ proof -
   then have "\<forall>c f. c \<notin> dom f \<or> f c \<triangleq> tt f c"
     by blast
   then have "(x, y) \<notin> happensBefore S \<or> y \<notin> dom (callOrigin S)"
-    by (metis (no_types) assms(3) assms(4) assms(5) local.wf option.inject transactionStatus.distinct(1) wellFormed_currentTransaction_unique_h(2) wellFormed_state_transaction_consistent(4))
+    by (metis (no_types) assms(3) assms(4) assms(5) local.wf option.inject txStatus.distinct(1) wellFormed_currentTx_unique_h(2) wellFormed_state_transaction_consistent(4))
   then show ?thesis
     by (meson domIff local.wf wellFormed_callOrigin_dom3 wellFormed_happensBefore_calls_r)
 qed
@@ -124,7 +124,7 @@ next
 
     from \<open>(tr @ [a]) ! i = (s, ACrash) \<or> (tr @ [a]) ! i = (s, AReturn res)\<close>
     have no_ls: "localState S' s = None" 
-      and op: "invocationOp S' s \<noteq> None"  
+      and op: "invocOp S' s \<noteq> None"  
        apply (metis a2 everything_starts_with_an_invocation j_def nth_append step.steps)
       by (metis a2 everything_starts_with_an_invocation j_def nth_append step.prems(1) step.steps)
 
@@ -164,14 +164,14 @@ qed
 
 lemma i_callOriginI_notI1:
   assumes "state_wellFormed S_pre" 
-    and "invocationOp S_pre i = None" 
+    and "invocOp S_pre i = None" 
   shows "i_callOriginI S_pre c \<noteq> Some i"
   by (simp add: assms(1) assms(2) i_callOriginI_h_def option.case_eq_if wf_no_invocation_no_origin)
 
 lemma i_callOriginI_notI2:
   assumes "state_wellFormed S_pre" 
     and "i_callOriginI S_pre c = Some i" 
-  shows "invocationOp S_pre i \<noteq> None"
+  shows "invocOp S_pre i \<noteq> None"
   using assms(1) assms(2) i_callOriginI_notI1 by blast
 
 text \<open>
@@ -203,43 +203,43 @@ lemma invocation_happensBeforeH_update:
 
 
 
-lemma state_wellFormed_transactionStatus_callOrigin:     
+lemma state_wellFormed_txStatus_callOrigin:     
   assumes "state_wellFormed S"
 and "callOrigin S c \<triangleq> tx"
-shows "transactionStatus S tx \<noteq> None"
+shows "txStatus S tx \<noteq> None"
   using assms proof (induct rule: wellFormed_induct)
   case initial
   then show ?case by (simp add: initialState_def)
 next
   case (step S a S')
   thus ?case 
-    by (auto simp add: step.simps inTransaction_localState split: if_splits dest:  wellFormed_currentTransaction_unique_h(2) )
+    by (auto simp add: step.simps inTransaction_localState split: if_splits dest:  wellFormed_currentTx_unique_h(2) )
 qed
 
-lemma state_wellFormed_transactionStatus_transactionOrigin:     
+lemma state_wellFormed_txStatus_txOrigin:     
   assumes "state_wellFormed S"
-and "transactionOrigin S tx \<triangleq> i"
-shows "transactionStatus S tx \<noteq> None"
+and "txOrigin S tx \<triangleq> i"
+shows "txStatus S tx \<noteq> None"
   using assms proof (induct rule: wellFormed_induct)
   case initial
   then show ?case by (simp add: initialState_def)
 next
   case (step S a S')
   thus ?case 
-    by (auto simp add: step.simps inTransaction_localState split: if_splits dest:  wellFormed_currentTransaction_unique_h(2) )
+    by (auto simp add: step.simps inTransaction_localState split: if_splits dest:  wellFormed_currentTx_unique_h(2) )
 qed
 
 lemma state_wellFormed_current_transaction_origin:     
   assumes "state_wellFormed S"
-and "currentTransaction S i \<triangleq> tx"
-shows "transactionOrigin S tx \<triangleq> i"
+and "currentTx S i \<triangleq> tx"
+shows "txOrigin S tx \<triangleq> i"
   using assms proof (induct rule: wellFormed_induct)
   case initial
   then show ?case by (simp add: initialState_def)
 next
   case (step S a S')
   thus ?case 
-    by (auto simp add: step.simps  split: if_splits dest: state_wellFormed_transactionStatus_transactionOrigin)
+    by (auto simp add: step.simps  split: if_splits dest: state_wellFormed_txStatus_txOrigin)
 
 qed
 
@@ -247,7 +247,7 @@ qed
 lemma state_wellFormed_ls_visibleCalls_callOrigin:     
   assumes "state_wellFormed S"
 and "callOrigin S c \<triangleq> tx"
-and "transactionOrigin S tx \<triangleq> i"
+and "txOrigin S tx \<triangleq> i"
 and "visibleCalls S i \<triangleq> vis"
   shows "c \<in> vis"
   using assms proof (induct  arbitrary: vis rule: wellFormed_induct)
@@ -257,7 +257,7 @@ next
   case (step S a S' vis')
   thus ?case 
     by (auto simp add: step.simps inTransaction_localState chooseSnapshot_def state_wellFormed_current_transaction_origin  split: if_splits 
-          dest: wf_no_transactionStatus_origin_for_nothing  wf_no_invocation_no_origin )
+          dest: wf_no_txStatus_origin_for_nothing  wf_no_invocation_no_origin )
 
 qed
 

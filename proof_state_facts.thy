@@ -254,30 +254,30 @@ lemma ps_wf_current_tx_not_before_others:
 (*
 lemma ps_i_callOriginI_notI1:
   assumes "proof_state_wellFormed S_pre" 
-    and "invocationOp S_pre i = None" 
+    and "invocOp S_pre i = None" 
   shows "i_callOriginI S_pre c \<noteq> Some i"
 
-  by (metis (no_types, lifting) assms(1) assms(2) i_callOriginI_h_def option.case_eq_if option.simps(3) proof_state_rel_invocationOp proof_state_rel_txOrigin proof_state_rel_wf proof_state_wellFormed_def wf_no_invocation_no_origin)
+  by (metis (no_types, lifting) assms(1) assms(2) i_callOriginI_h_def option.case_eq_if option.simps(3) proof_state_rel_invocOp proof_state_rel_txOrigin proof_state_rel_wf proof_state_wellFormed_def wf_no_invocation_no_origin)
 *)
 (*
 lemma ps_i_callOriginI_notI2:
   assumes "proof_state_wellFormed S_pre" 
     and "i_callOriginI S_pre c = Some i" 
-  shows "invocationOp S_pre i \<noteq> None"
+  shows "invocOp S_pre i \<noteq> None"
   using assms(1) assms(2) ps_i_callOriginI_notI1 by auto
 *)
 
 lemma ps_wellFormed_current_transaction_origin:     
   assumes "proof_state_wellFormed S"
     and "ps_tx S \<triangleq> tx"
-  shows "transactionOrigin S tx = None"
-  using assms(1) assms(2) proof_state_rel_transactionOriginNone proof_state_wellFormed_def by blast
+  shows "txOrigin S tx = None"
+  using assms(1) assms(2) proof_state_rel_txOriginNone proof_state_wellFormed_def by blast
 
 
 lemma ps_wellFormed_ls_visibleCalls_callOrigin:     
   assumes "proof_state_wellFormed S"
     and "callOrigin S c \<triangleq> tx"
-    and "transactionOrigin S tx \<triangleq> ps_i S"
+    and "txOrigin S tx \<triangleq> ps_i S"
   shows "c \<in> ps_vis S"
   by (metis assms(1) assms(2) assms(3) i_callOriginI_h_simp proof_state_rel_see_my_updates ps_wellFormed_to_wf)
 
@@ -337,9 +337,9 @@ lemma ps_growing_rule:
     and "\<And>CS CS'.
        \<lbrakk>proof_state_rel S CS; proof_state_rel S' CS';
         state_monotonicGrowth (ps_i S) CS
-         (CS'\<lparr>transactionStatus := (transactionStatus CS')(t := None),
-                transactionOrigin := (transactionOrigin CS')(t := None),
-                currentTransaction := (currentTransaction CS')(ps_i S := None),
+         (CS'\<lparr>txStatus := (txStatus CS')(t := None),
+                txOrigin := (txOrigin CS')(t := None),
+                currentTx := (currentTx CS')(ps_i S := None),
                 localState := (localState CS')(ps_i S := localState CS (ps_i S)),
                 visibleCalls := (visibleCalls CS')(ps_i S := visibleCalls CS (ps_i S))\<rparr>)\<rbrakk>
        \<Longrightarrow> P"
@@ -347,21 +347,21 @@ lemma ps_growing_rule:
   using assms by (auto simp add: ps_growing_def)
 
 
-lemma ps_monotonicGrowth_transactionOrigin_i:
+lemma ps_monotonicGrowth_txOrigin_i:
   assumes "ps_growing S S' tx"
     and "t \<noteq> tx"
-  shows "transactionOrigin S' t \<triangleq> ps_i S \<longleftrightarrow> transactionOrigin S t \<triangleq> ps_i S"
+  shows "txOrigin S' t \<triangleq> ps_i S \<longleftrightarrow> txOrigin S t \<triangleq> ps_i S"
   using assms(1) proof (rule ps_growing_rule)
   fix CS CS'
   assume rel1: "proof_state_rel S CS"
     and rel2: "proof_state_rel S' CS'"
-    and g: "state_monotonicGrowth (ps_i S) CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S := None),                 localState := (localState CS')(ps_i S := localState CS (ps_i S)),                 visibleCalls := (visibleCalls CS')(ps_i S := visibleCalls CS (ps_i S))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S) CS          (CS'\<lparr>txStatus := (txStatus CS')(tx := None),                 txOrigin := (txOrigin CS')(tx := None),                 currentTx := (currentTx CS')(ps_i S := None),                 localState := (localState CS')(ps_i S := localState CS (ps_i S)),                 visibleCalls := (visibleCalls CS')(ps_i S := visibleCalls CS (ps_i S))\<rparr>)"
 
-  from state_monotonicGrowth_transactionOrigin_i[OF g, where t=t, simplified]
-  have "transactionOrigin CS' t \<triangleq> ps_i S \<longleftrightarrow> transactionOrigin CS t \<triangleq> ps_i S"
+  from state_monotonicGrowth_txOrigin_i[OF g, where t=t, simplified]
+  have "txOrigin CS' t \<triangleq> ps_i S \<longleftrightarrow> txOrigin CS t \<triangleq> ps_i S"
     by (simp add: `t \<noteq> tx`)
 
-  thus "transactionOrigin S' t \<triangleq> ps_i S = transactionOrigin S t \<triangleq> ps_i S"
+  thus "txOrigin S' t \<triangleq> ps_i S = txOrigin S t \<triangleq> ps_i S"
     unfolding proof_state_rel_txOrigin[OF rel1] proof_state_rel_txOrigin[OF rel2]
     by (metis (no_types, lifting) assms(1) assms(2) fun_upd_other option.case_eq_if option.sel ps_growing_no_tx1 ps_growing_no_tx2)
 qed
@@ -376,7 +376,7 @@ lemma ps_monotonicGrowth_no_new_calls_before_existing1:
   fix CS CS'
   assume rel1: "proof_state_rel S' CS"
     and rel2: "proof_state_rel S CS'"
-    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(t := None),                 transactionOrigin := (transactionOrigin CS')(t := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>txStatus := (txStatus CS')(t := None),                 txOrigin := (txOrigin CS')(t := None),                 currentTx := (currentTx CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
   from state_monotonicGrowth_no_new_calls_before_existing1[OF g, simplified, of c2 c1]
   have "((c1, c2) \<in> happensBefore CS') \<longleftrightarrow> ((c1, c2) \<in> happensBefore CS)"
@@ -400,27 +400,27 @@ lemma ps_monotonicGrowth_no_new_calls_before_existing:
   by (meson FieldI1 domIff proof_state_wellFormed_happensBefore_subset_calls ps_growing_rule show_proof_state_wellFormed subset_h1)
 
 
-lemma ps_monotonicGrowth_transactionOrigin: 
+lemma ps_monotonicGrowth_txOrigin: 
   assumes "ps_growing S' S tx" 
-    and "transactionOrigin S' t \<triangleq> i'"
+    and "txOrigin S' t \<triangleq> i'"
     and "tx \<noteq> t"
-  shows "transactionOrigin S t \<triangleq> i'"
+  shows "txOrigin S t \<triangleq> i'"
   using assms(1) proof (rule ps_growing_rule)
   fix CS CS'
   assume rel1: "proof_state_rel S' CS"
     and rel2: "proof_state_rel S CS'"
-    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>txStatus := (txStatus CS')(tx := None),                 txOrigin := (txOrigin CS')(tx := None),                 currentTx := (currentTx CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
-  have "transactionOrigin CS t \<triangleq> i'"
+  have "txOrigin CS t \<triangleq> i'"
     using assms(1) assms(2) proof_state_rel_txOrigin ps_growing_no_tx1 rel1 by fastforce
 
 
-  from state_monotonicGrowth_transactionOrigin[OF g `transactionOrigin CS t \<triangleq> i'`]
-  have "transactionOrigin CS' t \<triangleq> i'"
+  from state_monotonicGrowth_txOrigin[OF g `txOrigin CS t \<triangleq> i'`]
+  have "txOrigin CS' t \<triangleq> i'"
     using assms(3) by auto
 
 
-  thus "transactionOrigin S t \<triangleq> i'"
+  thus "txOrigin S t \<triangleq> i'"
     using assms(1) assms(3) proof_state_rel_txOrigin ps_growing_no_tx2 rel2 by fastforce
 qed
 
@@ -433,7 +433,7 @@ lemma ps_monotonicGrowth_calls:
   fix CS CS'
   assume rel1: "proof_state_rel S' CS"
     and rel2: "proof_state_rel S CS'"
-    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>txStatus := (txStatus CS')(tx := None),                 txOrigin := (txOrigin CS')(tx := None),                 currentTx := (currentTx CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
   have "calls CS c \<triangleq> info"
     using assms(2) proof_state_rel_calls rel1 by force
@@ -452,7 +452,7 @@ shows "((c1,c2)\<in>happensBefore S \<longleftrightarrow> (c1,c2)\<in>happensBef
   fix CS CS'
   assume rel1: "proof_state_rel S' CS"
     and rel2: "proof_state_rel S CS'"
-    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>txStatus := (txStatus CS')(tx := None),                 txOrigin := (txOrigin CS')(tx := None),                 currentTx := (currentTx CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
   have "c2 \<in> dom (calls CS)"
     using assms(2) proof_state_rel_calls rel1 by fastforce
@@ -476,7 +476,7 @@ lemma ps_monotonicGrowth_callOrigin:
   fix CS CS'
   assume rel1: "proof_state_rel S' CS"
     and rel2: "proof_state_rel S CS'"
-    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>txStatus := (txStatus CS')(tx := None),                 txOrigin := (txOrigin CS')(tx := None),                 currentTx := (currentTx CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
   have "callOrigin CS c \<triangleq> t"
     using assms(1) assms(2) proof_state_rel_callOrigin ps_growing_no_localCalls1 rel1 by fastforce
@@ -500,7 +500,7 @@ lemma ps_monotonicGrowth_knownIds:
   fix CS CS'
   assume rel1: "proof_state_rel S' CS"
     and rel2: "proof_state_rel S CS'"
-    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>txStatus := (txStatus CS')(tx := None),                 txOrigin := (txOrigin CS')(tx := None),                 currentTx := (currentTx CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
   from state_monotonicGrowth_knownIds[OF g, simplified]
   have "knownIds CS \<subseteq> knownIds CS'" .
@@ -511,23 +511,23 @@ qed
 
 
 
-lemma ps_monotonicGrowth_invocationOp:
+lemma ps_monotonicGrowth_invocOp:
   assumes "ps_growing S' S tx"
-    and "invocationOp S' s \<triangleq> info"
-  shows "invocationOp S s \<triangleq> info"
+    and "invocOp S' s \<triangleq> info"
+  shows "invocOp S s \<triangleq> info"
   using assms(1) proof (rule ps_growing_rule)
   fix CS CS'
   assume rel1: "proof_state_rel S' CS"
     and rel2: "proof_state_rel S CS'"
-    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>txStatus := (txStatus CS')(tx := None),                 txOrigin := (txOrigin CS')(tx := None),                 currentTx := (currentTx CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
-  have "invocationOp CS s \<triangleq> info"
-    using assms(2) proof_state_rel_invocationOp rel1 by force
+  have "invocOp CS s \<triangleq> info"
+    using assms(2) proof_state_rel_invocOp rel1 by force
 
 
-  from state_monotonicGrowth_invocationOp[OF g `invocationOp CS s \<triangleq> info`, simplified]
+  from state_monotonicGrowth_invocOp[OF g `invocOp CS s \<triangleq> info`, simplified]
   show ?thesis
-    using proof_state_rel_invocationOp rel2 by fastforce
+    using proof_state_rel_invocOp rel2 by fastforce
 qed
 
 lemma ps_growing_same_i:
@@ -537,47 +537,47 @@ shows "ps_i S = ps_i S'"
 
 
 
-lemma ps_monotonicGrowth_invocationOp_i:
+lemma ps_monotonicGrowth_invocOp_i:
   assumes "ps_growing S' S tx"
-  shows "invocationOp S (ps_i S) = invocationOp S' (ps_i S)"
+  shows "invocOp S (ps_i S) = invocOp S' (ps_i S)"
   using assms(1) proof (rule ps_growing_rule)
   fix CS CS'
   assume rel1: "proof_state_rel S' CS"
     and rel2: "proof_state_rel S CS'"
-    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>txStatus := (txStatus CS')(tx := None),                 txOrigin := (txOrigin CS')(tx := None),                 currentTx := (currentTx CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
-  from state_monotonicGrowth_invocationOp_i[OF g]
-  have "invocationOp CS' (ps_i S') = invocationOp CS (ps_i S')" by simp
+  from state_monotonicGrowth_invocOp_i[OF g]
+  have "invocOp CS' (ps_i S') = invocOp CS (ps_i S')" by simp
   thus ?thesis
-    by (metis (no_types, lifting) assms proof_state_rel_invocationOp ps_growing_same_i rel1 rel2)
+    by (metis (no_types, lifting) assms proof_state_rel_invocOp ps_growing_same_i rel1 rel2)
 qed
 
-lemma ps_monotonicGrowth_invocationRes:
+lemma ps_monotonicGrowth_invocRes:
   assumes "ps_growing S' S tx"
-    and "invocationRes S' s \<triangleq> info"
-  shows "invocationRes S s \<triangleq> info"
+    and "invocRes S' s \<triangleq> info"
+  shows "invocRes S s \<triangleq> info"
   using assms(1) proof (rule ps_growing_rule)
   fix CS CS'
   assume rel1: "proof_state_rel S' CS"
     and rel2: "proof_state_rel S CS'"
-    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>transactionStatus := (transactionStatus CS')(tx := None),                 transactionOrigin := (transactionOrigin CS')(tx := None),                 currentTransaction := (currentTransaction CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
+    and g: "state_monotonicGrowth (ps_i S') CS          (CS'\<lparr>txStatus := (txStatus CS')(tx := None),                 txOrigin := (txOrigin CS')(tx := None),                 currentTx := (currentTx CS')(ps_i S' := None),                 localState := (localState CS')(ps_i S' := localState CS (ps_i S')),                 visibleCalls := (visibleCalls CS')(ps_i S' := visibleCalls CS (ps_i S'))\<rparr>)"
 
-  have "invocationRes CS s \<triangleq> info"
-    using assms(2) proof_state_rel_invocationRes rel1 by fastforce
+  have "invocRes CS s \<triangleq> info"
+    using assms(2) proof_state_rel_invocRes rel1 by fastforce
 
 
-  from state_monotonicGrowth_invocationRes[OF g `invocationRes CS s \<triangleq> info`, simplified]
-  have "invocationRes CS' s \<triangleq> info" .
+  from state_monotonicGrowth_invocRes[OF g `invocRes CS s \<triangleq> info`, simplified]
+  have "invocRes CS' s \<triangleq> info" .
   thus ?thesis
-    using proof_state_rel_invocationRes rel2 by force
+    using proof_state_rel_invocRes rel2 by force
 qed
 
 
 
-lemma ps_monotonicGrowth_invocationRes_i:
+lemma ps_monotonicGrowth_invocRes_i:
   assumes "ps_growing S' S t"
-  shows "invocationRes S' (ps_i S') = invocationRes S (ps_i S')"
-  by (smt assms proof_state_rel_invocationRes proof_state_rel_ls proof_state_rel_wf ps_growing_rule ps_growing_same_i wf_localState_noReturn)
+  shows "invocRes S' (ps_i S') = invocRes S (ps_i S')"
+  by (smt assms proof_state_rel_invocRes proof_state_rel_ls proof_state_rel_wf ps_growing_rule ps_growing_same_i wf_localState_noReturn)
 
 
 
@@ -586,10 +586,10 @@ lemma ps_monotonicGrowth_prog:
   shows "ps_prog S = ps_prog S'"
   using assms ps_growing_def by blast
 
-lemma ps_monotonicGrowth_invocationOp2:
+lemma ps_monotonicGrowth_invocOp2:
   assumes "ps_growing S' S t"
-  shows "(invocationOp S' \<subseteq>\<^sub>m invocationOp S) "
-  using assms map_le_def ps_monotonicGrowth_invocationOp by fastforce
+  shows "(invocOp S' \<subseteq>\<^sub>m invocOp S) "
+  using assms map_le_def ps_monotonicGrowth_invocOp by fastforce
 
   
 

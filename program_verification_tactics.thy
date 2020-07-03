@@ -65,16 +65,16 @@ and a2: "\<And>S_pre proc initState impl.
         \<lparr>localState := localState S_pre(i \<mapsto> initState), 
          currentProc := currentProc S_pre(i \<mapsto> impl), 
          visibleCalls := visibleCalls S_pre(i \<mapsto> {}),
-         invocationOp := invocationOp S_pre(i \<mapsto> (proc))\<rparr>\<rangle>;
+         invocOp := invocOp S_pre(i \<mapsto> (proc))\<rparr>\<rangle>;
         B\<langle>''progr_def'', n1 : prog S_pre = progr\<rangle>; 
         B\<langle>''proc_initState'', n1 : initState = fst (procedure progr proc)\<rangle>; 
         B\<langle>''proc_impl'', n1 : impl = snd (procedure progr proc)\<rangle>; 
         B\<langle>''ids_in_args_are_knownIds'', n1 : uniqueIds proc \<subseteq> knownIds S_pre\<rangle>; 
         B\<langle>''invariant_pre'', n1 : invariant_all' S_pre\<rangle>;
         B\<langle>''wf_pre'', n1 : state_wellFormed S_pre\<rangle>; 
-        B\<langle>''i_fresh'', n1 : invocationOp S_pre i = None\<rangle>; 
-        B\<langle>''no_uncommitted_txns'', n1 : \<forall>tx. transactionStatus S_pre tx \<noteq> Some Uncommitted\<rangle>;
-        B\<langle>''no_txns_in_i'', n1 : \<forall>tx. transactionOrigin S_pre tx \<noteq> Some i\<rangle>
+        B\<langle>''i_fresh'', n1 : invocOp S_pre i = None\<rangle>; 
+        B\<langle>''no_uncommitted_txns'', n1 : \<forall>tx. txStatus S_pre tx \<noteq> Some Uncommitted\<rangle>;
+        B\<langle>''no_txns_in_i'', n1 : \<forall>tx. txOrigin S_pre tx \<noteq> Some i\<rangle>
         \<rbrakk> \<Longrightarrow> C\<langle>Suc n1, (''show_P'', n1, [VAR S_pre, VAR proc, VAR  initState, VAR  impl])#ct, n2 :   P Si i\<rangle>"
   shows "C\<langle>n1, ct, n : P Si i\<rangle>"
   unfolding LABEL_simps 
@@ -86,11 +86,11 @@ proof -
       and "uniqueIds proc \<subseteq> knownIds S"
       and "invariant_all' S"
       and "state_wellFormed S"
-      and "invocationOp S i = None"
-      and "\<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-      and "\<forall>tx. transactionOrigin S tx \<noteq> Some i"
+      and "invocOp S i = None"
+      and "\<forall>tx. txStatus S tx \<noteq> Some Uncommitted"
+      and "\<forall>tx. txOrigin S tx \<noteq> Some i"
       and "Si = S\<lparr>localState := localState S(i \<mapsto> initState), currentProc := currentProc S(i \<mapsto> impl), visibleCalls := visibleCalls S(i \<mapsto> {}),
-             invocationOp := invocationOp S(i \<mapsto> proc)\<rparr>"
+             invocOp := invocOp S(i \<mapsto> proc)\<rparr>"
     by auto
   note facts = this 
 
@@ -119,9 +119,9 @@ method M_show_procedureCorrect =
 \<comment> \<open>ony unfold definitions, when needed for evaluation:\<close>
 lemma state_def[simp]:  "S' ::= S \<Longrightarrow> (currentProc S' i \<triangleq> x) \<longleftrightarrow> (currentProc S i \<triangleq> x)"  by (auto simp add: Def_def)
 lemma state_def_h1[simp]: "S' ::= S \<Longrightarrow>  ls_pc (the (localState S' i)) = ls_pc (the (localState S i))" by (auto simp add: Def_def)
-lemma state_def_h2[simp]: "S' ::= S \<Longrightarrow>  (currentTransaction S' i = None) \<longleftrightarrow> (currentTransaction S i = None)"  by (auto simp add: Def_def)
+lemma state_def_h2[simp]: "S' ::= S \<Longrightarrow>  (currentTx S' i = None) \<longleftrightarrow> (currentTx S i = None)"  by (auto simp add: Def_def)
 lemma state_def_currentProc[simp]: "S' ::= S \<Longrightarrow>  currentProc S' i = currentProc S i" by (auto simp add: Def_def)
-lemma state_def_currentTransaction[simp]: "S' ::= S \<Longrightarrow> currentTransaction S' i = currentTransaction S i"  by (auto simp add: Def_def)
+lemma state_def_currentTx[simp]: "S' ::= S \<Longrightarrow> currentTx S' i = currentTx S i"  by (auto simp add: Def_def)
 
 named_theorems language_construct_defs
 

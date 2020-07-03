@@ -8,7 +8,7 @@ text "In this section we show that we can remove invariant checks from a trace
 without changing the behaviour of the system."
 
 
-definition openTransactions :: "('proc, 'operation, 'any) trace \<Rightarrow> (invocId \<times> txid) set" where
+definition openTransactions :: "('proc, 'op, 'any) trace \<Rightarrow> (invocId \<times> txid) set" where
 "openTransactions tr \<equiv> {(i, tx) | i j tx txns. j<length tr \<and> tr!j = (i, ABeginAtomic tx txns) \<and> (\<forall>k. k>j \<and> k<length tr \<longrightarrow> tr!k \<noteq> (i, AEndAtomic))}"
 
 
@@ -62,7 +62,7 @@ proof -
 qed
 
 
-definition allTransactionsEnd :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
+definition allTransactionsEnd :: "('proc, 'op, 'any) trace \<Rightarrow> bool" where
   "allTransactionsEnd tr \<equiv> \<forall>i j tx txns. j<length tr \<longrightarrow> tr!j = (i, ABeginAtomic tx txns) \<longrightarrow> (\<exists>k. k>j \<and> k<length tr \<and> tr!k = (i, AEndAtomic))"
 
 lemma allTransactionsEnd_def_alt: 
@@ -115,7 +115,7 @@ qed
 
 
 lemma remove_local_step: 
-  fixes S_start S_end :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state" 
+  fixes S_start S_end :: "('proc::valueType, 'ls, 'op, 'any::valueType) state" 
   assumes step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
@@ -125,7 +125,7 @@ lemma remove_local_step:
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
   define T where 
-    "T \<equiv> \<lambda>S::('proc::valueType, 'ls, 'operation, 'any::valueType) state. S\<lparr>localState := (localState S)(i := localState S_start i)\<rparr>"
+    "T \<equiv> \<lambda>S::('proc::valueType, 'ls, 'op, 'any::valueType) state. S\<lparr>localState := (localState S)(i := localState S_start i)\<rparr>"
 
   have "T S_mid = S_start"
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
@@ -152,7 +152,7 @@ qed
 
 
 lemma remove_newId_step: 
-  fixes S_start S_end :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state" 
+  fixes S_start S_end :: "('proc::valueType, 'ls, 'op, 'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
@@ -163,7 +163,7 @@ lemma remove_newId_step:
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
   define T where 
-    "T \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. S\<lparr>generatedIds := (generatedIds S)(to_nat uid := None), localState := (localState S)(i := localState S_start i)\<rparr>"
+    "T \<equiv> \<lambda>S::('proc, 'ls, 'op, 'any) state. S\<lparr>generatedIds := (generatedIds S)(to_nat uid := None), localState := (localState S)(i := localState S_start i)\<rparr>"
 
   have "T S_mid = S_start"
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
@@ -212,7 +212,7 @@ proof -
         case (return C s ls f res)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (fail C s ls)
+        case (crash C s ls)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
         case (invCheck C res s)
@@ -231,7 +231,7 @@ qed
 
 
 lemma remove_beginAtomic_step: 
-  fixes S_start S_end :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state" 
+  fixes S_start S_end :: "('proc::valueType, 'ls, 'op, 'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
@@ -242,24 +242,24 @@ lemma remove_beginAtomic_step:
     and snapshot_def: "snapshot = vis \<union> newCalls"
     and S_end'_def: "S_end' = S_end\<lparr>
                 localState := (localState S_end)(i := localState S_start i), 
-                currentTransaction := (currentTransaction S_end)(i := None),
-                transactionStatus := (transactionStatus S_end)(t := None),
-                transactionOrigin := (transactionOrigin S_end)(t := None),
+                currentTx := (currentTx S_end)(i := None),
+                txStatus := (txStatus S_end)(t := None),
+                txOrigin := (txOrigin S_end)(t := None),
                 visibleCalls := (visibleCalls S_end)(i := visibleCalls S_start i)
       \<rparr>"
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
   define T where 
-    "T \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. S\<lparr>
+    "T \<equiv> \<lambda>S::('proc, 'ls, 'op, 'any) state. S\<lparr>
                 localState := (localState S)(i := localState S_start i), 
-                currentTransaction := (currentTransaction S)(i := None),
-                transactionStatus := (transactionStatus S)(t := None),
-                transactionOrigin := (transactionOrigin S)(t := None),
+                currentTx := (currentTx S)(i := None),
+                txStatus := (txStatus S)(t := None),
+                txOrigin := (txOrigin S)(t := None),
                 visibleCalls := (visibleCalls S)(i := visibleCalls S_start i) \<rparr>"
 
 
 
-  have noOrig: "transactionOrigin S_start t = None"
+  have noOrig: "txOrigin S_start t = None"
     using step_a local.wf wf_transaction_status_iff_origin by (auto simp add: a_def step_simps)
 
 
@@ -267,10 +267,10 @@ proof -
     using step_a by (auto simp add: a_def step_simps T_def state_ext)
 
   define P where
-    p_def: "P \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. t \<notin> committedTransactions S \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow>  currentTransaction S i' \<noteq> Some t)"
+    p_def: "P \<equiv> \<lambda>S::('proc, 'ls, 'op, 'any) state. t \<notin> committedTransactions S \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow>  currentTx S i' \<noteq> Some t)"
 
-  have "currentTransaction S_start i \<noteq> Some t" for i
-    by (metis local.wf noOrig option.simps(3) wellFormed_currentTransactionUncommitted wf_transaction_status_iff_origin)
+  have "currentTx S_start i \<noteq> Some t" for i
+    by (metis local.wf noOrig option.simps(3) wellFormed_currentTxUncommitted wf_transaction_status_iff_origin)
 
   then have "P S_mid"
     using step_a
@@ -328,12 +328,12 @@ proof -
         case (return C s ls f res)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (fail C s ls)
+        case (crash C s ls)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
         case (invCheck C res s)
-        have  "invContextH (callOrigin C) ((transactionOrigin C)(t := None)) ((transactionStatus C)(t := None)) (happensBefore C) (calls C) (knownIds C) (invocationOp C)
-               (invocationRes C) 
+        have  "invContextH (callOrigin C) ((txOrigin C)(t := None)) ((txStatus C)(t := None)) (happensBefore C) (calls C) (knownIds C) (invocOp C)
+               (invocRes C) 
           = invContext C "
           using P_S \<open>S = C\<close>
           by (auto simp add: invContextH_def restrict_map_def p_def committedCallsH_def  isCommittedH_def restrict_relation_def intro!: ext split: if_splits)
@@ -356,7 +356,7 @@ qed
 
 
 lemma remove_DBOp_step: 
-  fixes S_start S_end :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state" 
+  fixes S_start S_end :: "('proc::valueType, 'ls, 'op, 'any::valueType) state" 
   assumes steps: "S_start ~~ (a#tr) \<leadsto>* S_end"
     and step_a: "S_start ~~ a \<leadsto> S_mid"
     and steps_tr: "S_mid ~~ tr \<leadsto>* S_end"
@@ -373,7 +373,7 @@ lemma remove_DBOp_step:
   shows "S_start ~~ tr \<leadsto>* S_end'"
 proof -
 
-  obtain start_txn where "currentTransaction S_start i \<triangleq> start_txn"
+  obtain start_txn where "currentTx S_start i \<triangleq> start_txn"
     using step_a a_def by (auto simp add: step_simps)
 
   have calls_S_start_cId: "calls S_start cId = None"
@@ -396,7 +396,7 @@ proof -
 
 
   define T where 
-    "T \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. S\<lparr>
+    "T \<equiv> \<lambda>S::('proc, 'ls, 'op, 'any) state. S\<lparr>
                 localState := (localState S)(i := localState S_start i), 
                 calls := (calls S)(cId := None),
                 callOrigin := (callOrigin S)(cId := None),
@@ -417,10 +417,10 @@ proof -
 
 
   define P where
-    p_def: "P \<equiv> \<lambda>S::('proc, 'ls, 'operation, 'any) state. 
+    p_def: "P \<equiv> \<lambda>S::('proc, 'ls, 'op, 'any) state. 
                      callOrigin S cId \<triangleq> start_txn 
-                   \<and> transactionStatus S start_txn \<triangleq> Uncommitted
-                   \<and> (\<forall>i'. i\<noteq>i' \<longrightarrow> currentTransaction S i' \<noteq> Some start_txn)
+                   \<and> txStatus S start_txn \<triangleq> Uncommitted
+                   \<and> (\<forall>i'. i\<noteq>i' \<longrightarrow> currentTx S i' \<noteq> Some start_txn)
                    \<and> (\<forall>x. (cId, x) \<notin> happensBefore S)
                    \<and> (\<forall>i' vis. i\<noteq>i' \<and> visibleCalls S i' \<triangleq> vis \<longrightarrow> cId \<notin> vis)"
 
@@ -437,9 +437,9 @@ proof -
 
     from step_a
     show "P S_mid"
-      using \<open>currentTransaction S_start i \<triangleq> start_txn\<close> local.wf wellFormed_currentTransactionUncommitted 
+      using \<open>currentTx S_start i \<triangleq> start_txn\<close> local.wf wellFormed_currentTxUncommitted 
       by (auto simp add: p_def step_simps a_def,
-          (insert wellFormed_currentTransaction_unique_h hb2 wellFormed_visibleCallsSubsetCalls2, blast)+)
+          (insert wellFormed_currentTx_unique_h hb2 wellFormed_visibleCallsSubsetCalls2, blast)+)
 
 
     have cId_not_in_calls: "cId \<notin> callsInTransaction S newTxns \<down> happensBefore S" if "newTxns \<subseteq> committedTransactions S" and "P S" for S newTxns
@@ -479,16 +479,16 @@ proof -
             auto simp add: intro!: exI[where x=C'],
             auto simp add: C'_def )
 
-          show "chooseSnapshot_h snapshot vis (transactionStatus C) ((callOrigin C)(cId := None)) (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId})"
+          show "chooseSnapshot_h snapshot vis (txStatus C) ((callOrigin C)(cId := None)) (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId})"
             if c0: "i' = s"
               and c1: "a = ABeginAtomic t snapshot"
               and c2: "S = C"
-              and c3: "S' = C \<lparr>localState := localState C(s \<mapsto> ls'), currentTransaction := currentTransaction C(s \<mapsto> t), transactionStatus := transactionStatus C(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin C(t \<mapsto> s), visibleCalls := visibleCalls C(s \<mapsto> snapshot)\<rparr>"
+              and c3: "S' = C \<lparr>localState := localState C(s \<mapsto> ls'), currentTx := currentTx C(s \<mapsto> t), txStatus := txStatus C(t \<mapsto> Uncommitted), txOrigin := txOrigin C(t \<mapsto> s), visibleCalls := visibleCalls C(s \<mapsto> snapshot)\<rparr>"
               and c4: "localState C s \<triangleq> ls"
               and c5: "currentProc C s \<triangleq> f"
               and c6: "f ls = BeginAtomic ls'"
-              and c7: "currentTransaction C s = None"
-              and c8: "transactionStatus C t = None"
+              and c7: "currentTx C s = None"
+              and c8: "txStatus C t = None"
               and c9: "visibleCalls C s \<triangleq> vis"
               and c10: "chooseSnapshot snapshot vis C"
               and c11: "s \<noteq> i"
@@ -522,7 +522,7 @@ proof -
         case (return C s ls f res)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
-        case (fail C s ls)
+        case (crash C s ls)
         then show ?case by (auto simp add: step_simps T_def state_ext)
       next
         case (invCheck C res s)
@@ -532,14 +532,14 @@ proof -
         have [simp]: "cId \<notin> committedCalls C"
           using P_S committedCalls_uncommittedNotIn invCheck.hyps(1) p_def by blast
 
-        have [simp]: "isCommittedH ((callOrigin C)(cId := None)) (transactionStatus C) x
-                  \<longleftrightarrow> isCommittedH (callOrigin C) (transactionStatus C) x"  for x
+        have [simp]: "isCommittedH ((callOrigin C)(cId := None)) (txStatus C) x
+                  \<longleftrightarrow> isCommittedH (callOrigin C) (txStatus C) x"  for x
           by (auto simp add: isCommittedH_def,
            meson \<open>\<not> isCommitted C cId\<close> isCommittedH_def)
 
 
-        have  "(invContextH ((callOrigin C)(cId := None)) (transactionOrigin C) (transactionStatus C) (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId}) ((calls C)(cId := None))
-           (knownIds C) (invocationOp C) (invocationRes C)
+        have  "(invContextH ((callOrigin C)(cId := None)) (txOrigin C) (txStatus C) (happensBefore C - {cId} \<times> UNIV - UNIV \<times> {cId}) ((calls C)(cId := None))
+           (knownIds C) (invocOp C) (invocRes C)
            )
           = invContext C"
           using P_S \<open>S = C\<close>
@@ -566,9 +566,9 @@ lemma transfer_execution_local_difference:
   assumes steps: "S1 ~~ tr \<leadsto>* S1'"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and S2_def: "S2 = S1\<lparr>localState := (localState S1)(i := ls),
-      currentTransaction := (currentTransaction S1)(i := tx)\<rparr>"
+      currentTx := (currentTx S1)(i := tx)\<rparr>"
     and S2'_def: "S2' = S1'\<lparr>localState := (localState S1')(i := ls),
-      currentTransaction := (currentTransaction S1')(i := tx)\<rparr>"
+      currentTx := (currentTx S1')(i := tx)\<rparr>"
   shows "S2 ~~ tr \<leadsto>* S2'"
   using steps no_i S2'_def proof (induct arbitrary: S2' rule: steps_induct)
   case initial
@@ -577,13 +577,13 @@ lemma transfer_execution_local_difference:
 next
   case (step S' tr a S'')
 
-  define S_mid where "S_mid \<equiv> S'\<lparr>localState := (localState S')(i := ls), currentTransaction := (currentTransaction S')(i := tx)\<rparr>"
+  define S_mid where "S_mid \<equiv> S'\<lparr>localState := (localState S')(i := ls), currentTx := (currentTx S')(i := tx)\<rparr>"
 
   have "S2 ~~ tr \<leadsto>* S_mid"
   proof (rule step.IH)
     show "\<And>a. a \<in> set tr \<Longrightarrow> get_invoc a \<noteq> i"
       using step.prems(1) by auto
-    show " S_mid = S'\<lparr>localState := (localState S')(i := ls), currentTransaction := (currentTransaction S')(i := tx)\<rparr>"
+    show " S_mid = S'\<lparr>localState := (localState S')(i := ls), currentTx := (currentTx S')(i := tx)\<rparr>"
       by (simp add: S_mid_def)
   qed
 
@@ -625,7 +625,7 @@ next
     then show ?case 
       using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
-    case (fail C s ls)
+    case (crash C s ls)
     then show ?case 
       using \<open>get_invoc a \<noteq> i\<close> by (auto simp add: step step_simps S_mid_def intro!: stateEqI)
   next
@@ -643,7 +643,7 @@ lemma transfer_execution_local_difference':
   assumes steps: "S1 ~~ tr \<leadsto>* S1'"
     and no_i: "\<And>a. a\<in>set tr \<Longrightarrow> get_invoc a \<noteq> i"
     and S2_def: "\<exists>ls tx. S2 = S1\<lparr>localState := (localState S1)(i := ls),
-      currentTransaction := (currentTransaction S1)(i := tx)\<rparr>"
+      currentTx := (currentTx S1)(i := tx)\<rparr>"
   shows "\<exists>S2'. S2 ~~ tr \<leadsto>* S2'"
   using transfer_execution_local_difference[OF steps no_i]
   using S2_def by blast

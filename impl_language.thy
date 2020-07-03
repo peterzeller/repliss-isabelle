@@ -14,16 +14,16 @@ context begin
 
 
 
-datatype ('a,'operation, 'any) io =
-    WaitLocalStep bool "('a,'operation, 'any) io"
-  | WaitBeginAtomic "('a,'operation, 'any) io"
-  | WaitEndAtomic "('a,'operation, 'any) io"
-  | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'operation, 'any) io"
-  | WaitDbOperation 'operation "'any \<Rightarrow> ('a,'operation, 'any) io"
+datatype ('a,'op, 'any) io =
+    WaitLocalStep bool "('a,'op, 'any) io"
+  | WaitBeginAtomic "('a,'op, 'any) io"
+  | WaitEndAtomic "('a,'op, 'any) io"
+  | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'op, 'any) io"
+  | WaitDbOperation 'op "'any \<Rightarrow> ('a,'op, 'any) io"
   | WaitReturn "'a" 
 
 
-function (domintros) bind :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io"  where
+function (domintros) bind :: "('a, 'op, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'op,'any) io) \<Rightarrow> ('b, 'op,'any) io"  where
   "bind (WaitLocalStep ok n) f = (WaitLocalStep ok (bind n f))"
 | "bind (WaitBeginAtomic n) f = (WaitBeginAtomic (bind n f))"
 | "bind (WaitEndAtomic n) f = (WaitEndAtomic (bind n f))"
@@ -41,27 +41,27 @@ qed
 
 adhoc_overloading Monad_Syntax.bind bind
 
-definition pause :: "(unit,'operation,'any) io" where
+definition pause :: "(unit,'op,'any) io" where
 "pause \<equiv> WaitLocalStep True (WaitReturn ())"
 
-definition beginAtomic :: "(unit,'operation,'any) io" where
+definition beginAtomic :: "(unit,'op,'any) io" where
 "beginAtomic \<equiv> WaitBeginAtomic (WaitReturn ())"
 
-definition endAtomic :: "(unit,'operation,'any) io" where
+definition endAtomic :: "(unit,'op,'any) io" where
 "endAtomic \<equiv> WaitEndAtomic (WaitReturn ())"
 
 
-definition newId :: "('any \<Rightarrow> bool) \<Rightarrow> ('any,'operation,'any) io" where
+definition newId :: "('any \<Rightarrow> bool) \<Rightarrow> ('any,'op,'any) io" where
 "newId P \<equiv> WaitNewId P (\<lambda>i. WaitReturn i)"
 
-definition call :: "'operation \<Rightarrow> ('any,'operation,'any) io" where
+definition call :: "'op \<Rightarrow> ('any,'op,'any) io" where
 "call op \<equiv> WaitDbOperation op (\<lambda>i. WaitReturn i)"
 
-definition return :: "'a  \<Rightarrow> ('a,'operation, 'any) io" where
+definition return :: "'a  \<Rightarrow> ('a,'op, 'any) io" where
 "return x \<equiv> WaitReturn x"
 
 
-definition atomic ::"('a,'operation, 'any) io \<Rightarrow> ('a,'operation, 'any) io"  where
+definition atomic ::"('a,'op, 'any) io \<Rightarrow> ('a,'op, 'any) io"  where
 "atomic f \<equiv> do {
   beginAtomic;
   r \<leftarrow> f;
@@ -73,7 +73,7 @@ definition atomic ::"('a,'operation, 'any) io \<Rightarrow> ('a,'operation, 'any
 definition 
 "skip \<equiv> return undefined"
 
-fun toImpl :: "(('val,'operation, 'val) io, 'operation, 'val) procedureImpl" where
+fun toImpl :: "(('val,'op, 'val) io, 'op, 'val) procedureImpl" where
 "toImpl (WaitLocalStep ok n) = LocalStep ok n"
 | "toImpl (WaitBeginAtomic n) = BeginAtomic n"
 | "toImpl (WaitEndAtomic n) = EndAtomic n"
@@ -110,19 +110,19 @@ paragraph "Monad Laws"
 text "We prove the typical monad laws: identity of return and associativity."
 
 lemma return_left_ident[simp]: 
-  fixes x and f :: "'a \<Rightarrow> ('b,'operation, 'any) io"
+  fixes x and f :: "'a \<Rightarrow> ('b,'op, 'any) io"
   shows "return x \<bind> f = f x"
   by (auto simp add: return_def)
 
 lemma right_ident[simp]: 
-  fixes m :: "('a,'operation, 'any) io"
+  fixes m :: "('a,'op, 'any) io"
   shows "(m \<bind> return) = m"
   by (induct m, auto simp add: return_def)
 
 lemma bind_assoc[simp]: 
-  fixes x :: "('a,'operation, 'any) io"
-    and y :: "'a \<Rightarrow> ('b,'operation, 'any) io"
-    and z :: "'b \<Rightarrow> ('c,'operation, 'any) io"
+  fixes x :: "('a,'op, 'any) io"
+    and y :: "'a \<Rightarrow> ('b,'op, 'any) io"
+    and z :: "'b \<Rightarrow> ('c,'op, 'any) io"
   shows "((x \<bind> y) \<bind> z) = (x \<bind> (\<lambda>a. y a \<bind> z))"
   by (induct x, auto)
 

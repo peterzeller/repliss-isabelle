@@ -69,17 +69,17 @@ end
 datatype ('c,'b) loopResult = Continue 'c | Break 'b
 
 text_raw \<open>\DefineSnippet{io_defs_datatype}{\<close>
-datatype ('a,'operation, 'any) io =
-    WaitLocalStep "'any store \<Rightarrow> bool \<times> 'any store \<times> ('a,'operation, 'any) io"
-  | WaitBeginAtomic "('a,'operation, 'any) io"
-  | WaitEndAtomic "('a,'operation, 'any) io"
-  | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'operation, 'any) io"
-  | WaitDbOperation 'operation "'any \<Rightarrow> ('a,'operation, 'any) io"
+datatype ('a,'op, 'any) io =
+    WaitLocalStep "'any store \<Rightarrow> bool \<times> 'any store \<times> ('a,'op, 'any) io"
+  | WaitBeginAtomic "('a,'op, 'any) io"
+  | WaitEndAtomic "('a,'op, 'any) io"
+  | WaitNewId "'any \<Rightarrow> bool" "'any \<Rightarrow> ('a,'op, 'any) io"
+  | WaitDbOperation 'op "'any \<Rightarrow> ('a,'op, 'any) io"
   | WaitReturn "'a" 
-  | Loop 'any "V" "'any \<Rightarrow> ('a,'operation, 'any) io" 
+  | Loop 'any "V" "'any \<Rightarrow> ('a,'op, 'any) io" 
 text_raw \<open>}%EndSnippet\<close>
 
-\<comment> \<open>body is an @{typ \<open>'any \<Rightarrow> (('any,'any) loopResult, 'operation, 'any) io\<close>} encoded a type V.
+\<comment> \<open>body is an @{typ \<open>'any \<Rightarrow> (('any,'any) loopResult, 'op, 'any) io\<close>} encoded a type V.
                                             Had to use dynamic typing here as Isabelle has no GADTs. \<close>
 
 
@@ -88,7 +88,7 @@ text "Actually show that we can embedd io into ZFCs V type:"
 
 
 
-function (domintros) io_to_V :: "('a::embeddable,'operation::embeddable, 'any::small) io \<Rightarrow> V" where
+function (domintros) io_to_V :: "('a::embeddable,'op::embeddable, 'any::small) io \<Rightarrow> V" where
   "io_to_V (WaitLocalStep n)  = to_V (0::nat, to_V (\<lambda>s. let (a,b,c) = n s in to_V (a, b, io_to_V c)))"
 | "io_to_V (WaitBeginAtomic n)  =  to_V (1::nat, io_to_V n)"
 | "io_to_V (WaitEndAtomic n)  = to_V (2::nat, io_to_V n) "
@@ -112,7 +112,7 @@ lemma fun_cong2: "f = g \<Longrightarrow> \<forall>x. f x = g x"
 
 lemma io_to_V_inj: "inj io_to_V"
 proof
-  fix x y :: "('a::embeddable,'operation::embeddable, 'any::small) io"
+  fix x y :: "('a::embeddable,'op::embeddable, 'any::small) io"
   assume a0: "x \<in> UNIV"
     and a1: "y \<in> UNIV"
     and a2: "io_to_V x = io_to_V y"
@@ -234,10 +234,10 @@ proof (rule show_small_type_class, intro conjI exI)
   qed
 qed
 
-definition loop_body_from_V :: "V \<Rightarrow> 'any \<Rightarrow> (('any,'any) loopResult, 'operation::embeddable, 'any::small) io" where
+definition loop_body_from_V :: "V \<Rightarrow> 'any \<Rightarrow> (('any,'any) loopResult, 'op::embeddable, 'any::small) io" where
 "loop_body_from_V \<equiv> from_V"
 
-definition loop_body_to_V :: "('any \<Rightarrow> (('any,'any) loopResult, 'operation::embeddable, 'any::small) io) \<Rightarrow> V" where
+definition loop_body_to_V :: "('any \<Rightarrow> (('any,'any) loopResult, 'op::embeddable, 'any::small) io) \<Rightarrow> V" where
 "loop_body_to_V \<equiv> to_V"
 
 lemma loop_body_from_V_rev[simp]: "loop_body_from_V (loop_body_to_V x) = x"
@@ -245,7 +245,7 @@ lemma loop_body_from_V_rev[simp]: "loop_body_from_V (loop_body_to_V x) = x"
 
 
 text_raw \<open>\DefineSnippet{io_defs_bind}{\<close>
-function (*<*) (domintros) (*>*) bind (*<*) :: "('a, 'operation, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'operation,'any) io) \<Rightarrow> ('b, 'operation,'any) io" (*>*) (infixl "\<bind>io" 54)  where
+function (*<*) (domintros) (*>*) bind (*<*) :: "('a, 'op, 'any) io \<Rightarrow> ('a \<Rightarrow> ('b, 'op,'any) io) \<Rightarrow> ('b, 'op,'any) io" (*>*) (infixl "\<bind>io" 54)  where
   "WaitLocalStep n \<bind>io f = (WaitLocalStep (\<lambda>s. let (a,b,c) = n s  
                                                   in (a, b, bind c f)))"
 | "WaitBeginAtomic n \<bind>io f = (WaitBeginAtomic (n \<bind>io f))"
@@ -259,7 +259,7 @@ text_raw \<open>}%EndSnippet\<close>
 termination
   using [[show_sorts]]
 proof auto
-  show "bind_dom (i, f)" for i :: "('a, 'operation, 'any) io" and f :: "'a \<Rightarrow> ('d, 'operation, 'any) io"
+  show "bind_dom (i, f)" for i :: "('a, 'op, 'any) io" and f :: "'a \<Rightarrow> ('d, 'op, 'any) io"
     apply (induct i, auto simp add: bind.domintros)
     by (metis bind.domintros(1) range_eqI)
 qed
@@ -268,7 +268,7 @@ qed
 
 
 
-fun toImpl :: "(('val store \<times> uniqueId set \<times> (('val,'operation::{small,valueType}, 'val::{small,valueType}) io)), 'operation, 'val) procedureImpl" where
+fun toImpl :: "(('val store \<times> uniqueId set \<times> (('val,'op::{small,valueType}, 'val::{small,valueType}) io)), 'op, 'val) procedureImpl" where
   "toImpl (store, knownUids, WaitLocalStep n) = (
         let (ok, store', n') = n store 
         in LocalStep (ok \<and> (finite (dom store) \<longrightarrow> finite (dom (store')))) 
@@ -296,32 +296,32 @@ fun toImpl :: "(('val store \<times> uniqueId set \<times> (('val,'operation::{s
                        | Continue x \<Rightarrow> Loop x body n))"
 
 abbreviation  toImpl' where
- "toImpl' proc (x :: ('val,'operation,'val) io) \<equiv> ((Map.empty, uniqueIds proc, x) , toImpl)"
+ "toImpl' proc (x :: ('val,'op,'val) io) \<equiv> ((Map.empty, uniqueIds proc, x) , toImpl)"
 
 
 adhoc_overloading Monad_Syntax.bind bind
 
-definition pause :: "(unit,'operation,'any) io" where
+definition pause :: "(unit,'op,'any) io" where
 "pause \<equiv> WaitLocalStep (\<lambda>s. (True, s, WaitReturn ()))"
 
-definition beginAtomic :: "(unit,'operation,'any) io" where
+definition beginAtomic :: "(unit,'op,'any) io" where
 "beginAtomic \<equiv> WaitBeginAtomic (WaitReturn ())"
 
-definition endAtomic :: "(unit,'operation,'any) io" where
+definition endAtomic :: "(unit,'op,'any) io" where
 "endAtomic \<equiv> WaitEndAtomic (WaitReturn ())"
 
 
-definition newId :: "('any \<Rightarrow> bool) \<Rightarrow> ('any,'operation,'any) io" where
+definition newId :: "('any \<Rightarrow> bool) \<Rightarrow> ('any,'op,'any) io" where
 "newId P \<equiv> WaitNewId P (\<lambda>i. WaitReturn i)"
 
-definition call :: "'operation \<Rightarrow> ('any,'operation,'any) io" where
+definition call :: "'op \<Rightarrow> ('any,'op,'any) io" where
 "call op \<equiv> WaitDbOperation op (\<lambda>i. WaitReturn i)"
 
-definition return :: "'a  \<Rightarrow> ('a,'operation, 'any) io" where
+definition return :: "'a  \<Rightarrow> ('a,'op, 'any) io" where
 "return x \<equiv> WaitReturn x"
 
 
-definition atomic ::"('a,'operation, 'any) io \<Rightarrow> ('a,'operation, 'any) io"  where
+definition atomic ::"('a,'op, 'any) io \<Rightarrow> ('a,'op, 'any) io"  where
 "atomic f \<equiv> do {
   beginAtomic;
   r \<leftarrow> f;
@@ -359,7 +359,7 @@ lemma freshRef_insert[simp]:
   by (auto simp add: freshRefH_def intro!: arg_cong[where f=Least])
   
 
-definition makeRef :: "'a::countable \<Rightarrow> ('a ref, 'operation, 'any::natConvert) io" where
+definition makeRef :: "'a::countable \<Rightarrow> ('a ref, 'op, 'any::natConvert) io" where
 "makeRef v \<equiv> WaitLocalStep (\<lambda>s. let r = freshRef (dom s) in (True, s(r \<mapsto> intoAny v), WaitReturn (Ref r)))"
 
 definition s_read :: "('any::natConvert) store \<Rightarrow> ('a::countable) ref \<Rightarrow> 'a" where
@@ -368,17 +368,17 @@ definition s_read :: "('any::natConvert) store \<Rightarrow> ('a::countable) ref
       Some v \<Rightarrow> fromAny v 
     | None  \<Rightarrow> from_nat 0"
 
-definition read :: "'a ref \<Rightarrow> ('a::countable, 'operation, 'any::natConvert) io" where
+definition read :: "'a ref \<Rightarrow> ('a::countable, 'op, 'any::natConvert) io" where
 "read ref \<equiv> WaitLocalStep (\<lambda>s. case s (iref ref) of 
       Some v \<Rightarrow> (True, s, WaitReturn (fromAny v)) 
     | None  \<Rightarrow> (False, s, WaitReturn (from_nat 0)))"
 
-definition assign :: "('a::countable) ref \<Rightarrow> 'a \<Rightarrow> (unit, 'operation, 'any::natConvert) io" (infix ":\<leftarrow>" 60) where
+definition assign :: "('a::countable) ref \<Rightarrow> 'a \<Rightarrow> (unit, 'op, 'any::natConvert) io" (infix ":\<leftarrow>" 60) where
 "assign ref v \<equiv> WaitLocalStep (\<lambda>s. case s (iref ref) of 
     Some _ \<Rightarrow> (True, s((iref ref) \<mapsto> intoAny v), WaitReturn ()) 
   | None  \<Rightarrow> (False, s, WaitReturn ())) "
 
-definition update :: "('a::countable) ref \<Rightarrow> ('a \<Rightarrow> 'a) \<Rightarrow> (unit, 'operation, 'any::natConvert) io" where
+definition update :: "('a::countable) ref \<Rightarrow> ('a \<Rightarrow> 'a) \<Rightarrow> (unit, 'op, 'any::natConvert) io" where
 "update ref upd \<equiv> WaitLocalStep (\<lambda>s. case s (iref ref) of 
       Some v \<Rightarrow> (True, s((iref ref) \<mapsto> intoAny (upd (fromAny v))), WaitReturn ()) 
     | None  \<Rightarrow> (False, s, WaitReturn ())) "
@@ -440,12 +440,12 @@ declare Basic_BNFs.fsts.simps[simp]
 
 
 lemma return_left_ident[simp]: 
-  fixes x and f :: "'a \<Rightarrow> ('b,'operation, 'any) io"
+  fixes x and f :: "'a \<Rightarrow> ('b,'op, 'any) io"
   shows "return x \<bind> f = f x"
   by (auto simp add: return_def)
 
 lemma right_ident[simp]: 
-  fixes m :: "('a,'operation, 'any) io"
+  fixes m :: "('a,'op, 'any) io"
   shows "(m \<bind> return) = m"
 proof (induct m)
   case (WaitLocalStep x)
@@ -473,9 +473,9 @@ qed
 
 
 lemma bind_assoc[simp]: 
-  fixes x :: "('a,'operation, 'any) io"
-    and y :: "'a \<Rightarrow> ('b,'operation, 'any) io"
-    and z :: "'b \<Rightarrow> ('c,'operation, 'any) io"
+  fixes x :: "('a,'op, 'any) io"
+    and y :: "'a \<Rightarrow> ('b,'op, 'any) io"
+    and z :: "'b \<Rightarrow> ('c,'op, 'any) io"
   shows "((x \<bind> y) \<bind> z) = (x \<bind> (\<lambda>a. y a \<bind> z))"
 proof (induct x)
   case (WaitLocalStep x)
@@ -523,7 +523,7 @@ lemma atomic_simp2[simp]:
 
 subsection "Syntactic sugar for loops"
 
-definition loop :: "'a::countable \<Rightarrow> ('a \<Rightarrow> (('a,'b::countable) loopResult, 'operation::small, 'any::{small,natConvert} ) io) \<Rightarrow> ('b, 'operation, 'any) io" where
+definition loop :: "'a::countable \<Rightarrow> ('a \<Rightarrow> (('a,'b::countable) loopResult, 'op::small, 'any::{small,natConvert} ) io) \<Rightarrow> ('b, 'op, 'any) io" where
 "loop init body \<equiv> Loop 
       (intoAny init)
       (loop_body_to_V (\<lambda>acc. 
@@ -533,14 +533,14 @@ definition loop :: "'a::countable \<Rightarrow> ('a \<Rightarrow> (('a,'b::count
       (return \<circ> fromAny)"
 
 
-definition while :: "(bool, 'operation::small, 'any::small) io \<Rightarrow> (unit, 'operation, 'any) io" where
+definition while :: "(bool, 'op::small, 'any::small) io \<Rightarrow> (unit, 'op, 'any) io" where
 "while body \<equiv> Loop 
       undefined 
       (loop_body_to_V (\<lambda>_. body \<bind>io (\<lambda>x. return ((if x then Break else Continue) undefined)))) 
       (return \<circ> (\<lambda>_. ()))"
 
 
-definition "forEach"  :: "'e::countable list \<Rightarrow> ('e \<Rightarrow> ('a::countable, 'operation::small, 'any::{small,natConvert}) io) \<Rightarrow> ('a list, 'operation, 'any) io" where
+definition "forEach"  :: "'e::countable list \<Rightarrow> ('e \<Rightarrow> ('a::countable, 'op::small, 'any::{small,natConvert}) io) \<Rightarrow> ('a list, 'op, 'any) io" where
 "forEach elements body \<equiv> 
     loop (elements,[]) (\<lambda>(elems, acc).
         case elems of

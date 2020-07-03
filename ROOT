@@ -28,6 +28,7 @@ session "repliss" = "HOL" +
     example_chat
     example_loop_max
     example_loop_max2
+    doc
   document_files
     "root.tex"
     "mathpartir.sty"

@@ -11,58 +11,58 @@ text "Various Lemmas that can be used when verifying an application."
 
 
 lemma use_some_wellFormed:
-  assumes e: "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
+  assumes e: "\<exists>some_generatedIds some_currentTx some_localState some_currentProc some_visibleCalls some_txStatus.
        state_wellFormed
         \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
-           transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
-           invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+           txOrigin = s_txOrigin', knownIds = s_knownIds', invocOp = s_invocOp',
+           invocRes = s_invocRes', prog = progr, txStatus = some_txStatus,
            generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
-           visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+           visibleCalls = some_visibleCalls, currentTx = some_currentTx\<rparr>"
 and R: "\<And>S. state_wellFormed S \<Longrightarrow> P S"
-shows "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus. 
+shows "\<exists>some_generatedIds some_currentTx some_localState some_currentProc some_visibleCalls some_txStatus. 
   P \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
-           transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
-           invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+           txOrigin = s_txOrigin', knownIds = s_knownIds', invocOp = s_invocOp',
+           invocRes = s_invocRes', prog = progr, txStatus = some_txStatus,
            generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
-           visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+           visibleCalls = some_visibleCalls, currentTx = some_currentTx\<rparr>"
 proof -
-  from e obtain some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus
+  from e obtain some_generatedIds some_currentTx some_localState some_currentProc some_visibleCalls some_txStatus
     where "state_wellFormed
         \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
-           transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
-           invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+           txOrigin = s_txOrigin', knownIds = s_knownIds', invocOp = s_invocOp',
+           invocRes = s_invocRes', prog = progr, txStatus = some_txStatus,
            generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
-           visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+           visibleCalls = some_visibleCalls, currentTx = some_currentTx\<rparr>"
     by blast
   hence "P \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
-           transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
-           invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+           txOrigin = s_txOrigin', knownIds = s_knownIds', invocOp = s_invocOp',
+           invocRes = s_invocRes', prog = progr, txStatus = some_txStatus,
            generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
-           visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+           visibleCalls = some_visibleCalls, currentTx = some_currentTx\<rparr>"
     by (rule R)
   thus ?thesis
     by blast
 qed
 
 lemma get_query_spec:
-  assumes wf: "\<exists>some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus.
+  assumes wf: "\<exists>some_generatedIds some_currentTx some_localState some_currentProc some_visibleCalls some_txStatus.
      state_wellFormed
       \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
-         transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
-         invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+         txOrigin = s_txOrigin', knownIds = s_knownIds', invocOp = s_invocOp',
+         invocRes = s_invocRes', prog = progr, txStatus = some_txStatus,
          generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
-         visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+         visibleCalls = some_visibleCalls, currentTx = some_currentTx\<rparr>"
     and upd_call: "s_calls' upd_c \<triangleq> Call oper upd_r"
   shows "\<exists>ctxt. querySpec progr oper ctxt upd_r"
 proof -
   from wf
-  obtain some_generatedIds some_currentTransaction some_localState some_currentProc some_visibleCalls some_transactionStatus
+  obtain some_generatedIds some_currentTx some_localState some_currentProc some_visibleCalls some_txStatus
     where state_wf: "state_wellFormed
                   \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin',
-                     transactionOrigin = s_transactionOrigin', knownIds = s_knownIds', invocationOp = s_invocationOp',
-                     invocationRes = s_invocationRes', prog = progr, transactionStatus = some_transactionStatus,
+                     txOrigin = s_txOrigin', knownIds = s_knownIds', invocOp = s_invocOp',
+                     invocRes = s_invocRes', prog = progr, txStatus = some_txStatus,
                      generatedIds = some_generatedIds, localState = some_localState, currentProc = some_currentProc,
-                     visibleCalls = some_visibleCalls, currentTransaction = some_currentTransaction\<rparr>"
+                     visibleCalls = some_visibleCalls, currentTx = some_currentTx\<rparr>"
     by blast
 
   from wf_queryspec[OF state_wf] upd_call
@@ -171,14 +171,14 @@ proof (subst  updateHb_simp_split, rule acyclic_union_disjoint)
 qed
 
 
-declare invariantContext.defs[simp]
+declare invContext.defs[simp]
 
 
 
 
 lemma invContextH2_Op:
-"Op (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+"Op (invContextH2 state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
 = cOp state_calls"
   by (auto simp add: invContextH2_calls)
 

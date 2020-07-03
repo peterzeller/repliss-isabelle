@@ -15,7 +15,7 @@ We reduce the verification problem from the interleaving semantics to the single
 
 
 text \<open>Coupling invariant: S is state from distributed execution and S is state from single-invocId execution.\<close>
-definition state_coupling :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> invocId \<Rightarrow> bool \<Rightarrow> bool" where
+definition state_coupling :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Rightarrow> ('proc, 'ls, 'op, 'any) state \<Rightarrow> invocId \<Rightarrow> bool \<Rightarrow> bool" where
   "state_coupling S S' i sameInvoc \<equiv> 
    if sameInvoc then
       \<comment> \<open>  did a step in the same invocId  \<close>
@@ -38,13 +38,13 @@ lemma state_coupling_same_inv:
 proof -
   have [simp]: "prog S' = prog S" using assms by (auto simp add: state_coupling_def split: if_splits)  
   moreover have [simp]: "callOrigin S' = callOrigin S" using assms by (auto simp add: state_coupling_def split: if_splits)  
-  moreover have [simp]: "transactionOrigin S' = transactionOrigin S" using assms by (auto simp add: state_coupling_def split: if_splits)  
-  moreover have [simp]: "transactionStatus S' = transactionStatus S" using assms by (auto simp add: state_coupling_def split: if_splits)
+  moreover have [simp]: "txOrigin S' = txOrigin S" using assms by (auto simp add: state_coupling_def split: if_splits)  
+  moreover have [simp]: "txStatus S' = txStatus S" using assms by (auto simp add: state_coupling_def split: if_splits)
   moreover have [simp]: "happensBefore S' = happensBefore S" using assms by (auto simp add: state_coupling_def split: if_splits)
   moreover have [simp]: "calls S' = calls S" using assms by (auto simp add: state_coupling_def split: if_splits)
   moreover have [simp]: "knownIds S' = knownIds S" using assms by (auto simp add: state_coupling_def split: if_splits)
-  moreover have [simp]: "invocationOp S' = invocationOp S" using assms by (auto simp add: state_coupling_def split: if_splits)
-  moreover have [simp]: "invocationRes S' = invocationRes S" using assms by (auto simp add: state_coupling_def split: if_splits)
+  moreover have [simp]: "invocOp S' = invocOp S" using assms by (auto simp add: state_coupling_def split: if_splits)
+  moreover have [simp]: "invocRes S' = invocRes S" using assms by (auto simp add: state_coupling_def split: if_splits)
 
   ultimately 
   show "invariant_all S' \<longleftrightarrow> invariant_all S"
@@ -61,11 +61,11 @@ lemma no_current_transactions:
     and S_wf: "state_wellFormed S"
     and packed: "packed_trace tr"
     and noChrash: "\<And>i. (i, ACrash) \<notin> set tr"
-    and noUncommitted: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+    and noUncommitted: "\<And>tx. txStatus S tx \<noteq> Some Uncommitted"
     and noContextSwitch: "\<not>contextSwitchesInTransaction tr"
     and ls_None: "localState S' i = None"
     and i_is_last: "tr = [] \<or> get_invoc (last tr) = i"
-  shows "currentTransaction S' i' = None"
+  shows "currentTx S' i' = None"
 proof -
 
   have S'_wf: "state_wellFormed S'"
@@ -76,7 +76,7 @@ proof -
     using S'_wf ls_None state_wellFormed_ls_visibleCalls by blast
 
 
-  have at_most_one_tx: "(\<forall>i tx. ((i, tx) \<in> openTransactions tr) = currentTransaction S' i \<triangleq> tx) \<and> (\<forall>i j. currentTransaction S' i \<noteq> None \<and> currentTransaction S' j \<noteq> None \<longrightarrow> i = j)"
+  have at_most_one_tx: "(\<forall>i tx. ((i, tx) \<in> openTransactions tr) = currentTx S' i \<triangleq> tx) \<and> (\<forall>i j. currentTx S' i \<noteq> None \<and> currentTx S' j \<noteq> None \<longrightarrow> i = j)"
   proof (rule at_most_one_active_tx[OF \<open> S ~~ tr \<leadsto>* S'\<close>])
     show "state_wellFormed S"
       using S_wf by auto
@@ -84,22 +84,22 @@ proof -
       by (simp add: packed)
     show " \<And>s. (s, ACrash) \<notin> set tr"
       using noChrash by auto
-    show  " \<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+    show  " \<And>tx. txStatus S tx \<noteq> Some Uncommitted"
       using noUncommitted by blast
     show  "\<not> contextSwitchesInTransaction tr"
       by (simp add: noContextSwitch)
   qed
 
 
-  have noCurrentTransactionI: "currentTransaction S' i = None"
+  have noCurrentTransactionI: "currentTx S' i = None"
     by (meson S'_wf option.exhaust_sel state_wellFormed_tx_to_visibleCalls vis_None)
 
   find_theorems contextSwitchesInTransaction
 
-  show noCurrentTransaction: "currentTransaction S' i' = None" 
+  show noCurrentTransaction: "currentTx S' i' = None" 
     using at_most_one_current_tx[OF \<open>S ~~ tr \<leadsto>* S'\<close> \<open>\<not> contextSwitchesInTransaction tr\<close> \<open>packed_trace tr\<close> \<open>state_wellFormed S\<close> \<open>\<And>s. (s, ACrash) \<notin> set tr\<close> noUncommitted]
     using i_is_last noCurrentTransactionI
-    by (metis S'_wf noUncommitted option.exhaust steps steps_empty wellFormed_currentTransaction_unique_h(2)) 
+    by (metis S'_wf noUncommitted option.exhaust steps steps_empty wellFormed_currentTx_unique_h(2)) 
 
 
 qed
@@ -110,14 +110,14 @@ this trace to a single-invocId trace leading to an equivalent state.
 Moreover the new trace contains an invariant violation, if the original trace contained one.
 \<close>
 lemma convert_to_single_session_trace:
-  fixes tr :: "('proc::valueType, 'operation, 'any::valueType) trace"
+  fixes tr :: "('proc::valueType, 'op, 'any::valueType) trace"
     and i :: invocId      
-    and S S' :: "('proc, 'ls, 'operation, 'any) state"
+    and S S' :: "('proc, 'ls, 'op, 'any) state"
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
     and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
-    and noUncommitted:  "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+    and noUncommitted:  "\<And>tx. txStatus S tx \<noteq> Some Uncommitted"
     and noCtxtSwitchInTx: "\<not>contextSwitchesInTransaction tr"
     \<comment> \<open>invariant holds on all states in the execution\<close>
     and inv: "\<And>S' tr'. \<lbrakk>isPrefix tr' tr; S ~~ tr' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S' "
@@ -242,9 +242,9 @@ next
       from this 
       have  ls_same: "localState S2 i = localState S' i" 
         and proc_same: "currentProc S2 i = currentProc S' i" 
-        and tx_same: "currentTransaction S2 i = currentTransaction S' i" 
+        and tx_same: "currentTx S2 i = currentTx S' i" 
         and visible_same: "visibleCalls S2 i = visibleCalls S' i"
-        by (auto simp add:  state_monotonicGrowth_localState state_monotonicGrowth_currentProc state_monotonicGrowth_currentTransaction state_monotonicGrowth_visibleCalls)
+        by (auto simp add:  state_monotonicGrowth_localState state_monotonicGrowth_currentProc state_monotonicGrowth_currentTx state_monotonicGrowth_visibleCalls)
 
 
 
@@ -264,20 +264,20 @@ next
                     localState := localState S'(i \<mapsto> initial), 
                     currentProc := currentProc S'(i \<mapsto> impl), 
                     visibleCalls := visibleCalls S'(i \<mapsto> {}), 
-                    invocationOp := invocationOp S'(i \<mapsto> p)\<rparr>"
+                    invocOp := invocOp S'(i \<mapsto> p)\<rparr>"
             and a2: "localState S' i = None"
             and a3: "procedure (prog S') p = (initial, impl)"
             and a4: "uniqueIds p \<subseteq> knownIds S'"
-            and a5: "invocationOp S' i = None"
+            and a5: "invocOp S' i = None"
           by metis
 
         show "\<exists>tr' S2. (S ~~ (i, tr') \<leadsto>\<^sub>S* S2) \<and> (\<forall>a. (a, False) \<notin> set tr') \<and> state_coupling S'' S2 i True"
         proof (intro exI conjI)
           have "S2 ~~ (i, AInvoc p, True) \<leadsto>\<^sub>S S''"
           proof (rule step_s.intros)
-            have "\<And>p. invocationOp S2 i \<noteq> Some p"
-              using a5 ih3' by (metis option.distinct(1) state_coupling_def state_monotonicGrowth_invocationOp)
-            then show "invocationOp S2 i = None" by blast
+            have "\<And>p. invocOp S2 i \<noteq> Some p"
+              using a5 ih3' by (metis option.distinct(1) state_coupling_def state_monotonicGrowth_invocOp)
+            then show "invocOp S2 i = None" by blast
             have [simp]: "prog S2 = prog S'"
               by (metis ih3' state_coupling_def state_monotonicGrowth_prog)
             show "procedure (prog S2) p = (initial, impl)"
@@ -286,8 +286,8 @@ next
               using a4 ih3' state_coupling_def by auto
             show "invariant_all S'"
               by (simp add: inv')
-            show "invocationOp S' i = None" using a5  .
-            show "S'' = S'\<lparr>localState := localState S'(i \<mapsto> initial), currentProc := currentProc S'(i \<mapsto> impl), visibleCalls := visibleCalls S'(i \<mapsto> {}), invocationOp := invocationOp S'(i \<mapsto> p)\<rparr>"
+            show "invocOp S' i = None" using a5  .
+            show "S'' = S'\<lparr>localState := localState S'(i \<mapsto> initial), currentProc := currentProc S'(i \<mapsto> impl), visibleCalls := visibleCalls S'(i \<mapsto> {}), invocOp := invocOp S'(i \<mapsto> p)\<rparr>"
               using a1 by auto
             show "True = invariant_all S''"
               by (simp add: inv'')
@@ -296,26 +296,26 @@ next
             show "state_wellFormed S'"
               using S_wf state_wellFormed_combine steps noFails by auto
 
-            have "currentTransaction S' i = None"
+            have "currentTx S' i = None"
               by (simp add: \<open>state_wellFormed S'\<close> a5 wellFormed_invoc_notStarted(1))
 
             have "\<And>s. (s, ACrash) \<notin> set tr"
               using steps_step.prems(4) by auto
 
 
-            have "currentTransaction S' s = None" for s
+            have "currentTx S' s = None" for s
               by (metis S_wf \<open>get_invoc a = i\<close> \<open>state_wellFormed S'\<close> a5 at_most_one_current_tx last_snoc noContextSwitch noFails packed step' steps' steps_step.prems(5) unchangedInTransaction(3) wellFormed_invoc_notStarted(1))
 
             from this
-            show "\<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
-              using wellFormed_currentTransaction_back[OF steps \<open>\<And>s. (s, ACrash) \<notin> set tr\<close> \<open>\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted\<close> \<open>state_wellFormed S\<close>]
+            show "\<And>tx. txStatus S' tx \<noteq> Some Uncommitted"
+              using wellFormed_currentTx_back[OF steps \<open>\<And>s. (s, ACrash) \<notin> set tr\<close> \<open>\<And>tx. txStatus S tx \<noteq> Some Uncommitted\<close> \<open>state_wellFormed S\<close>]
               by auto
 
 
-            have "\<And>tx. transactionOrigin S' tx \<noteq> Some i"
+            have "\<And>tx. txOrigin S' tx \<noteq> Some i"
               by (simp add: \<open>state_wellFormed S'\<close> a5 wf_no_invocation_no_origin)
 
-            then show "\<And>tx. transactionOrigin S'' tx \<noteq> Some i"
+            then show "\<And>tx. txOrigin S'' tx \<noteq> Some i"
               using step' by (auto simp add: step_simps)
           qed
           then show "S ~~ (i, tr'@[(AInvoc p, True)]) \<leadsto>\<^sub>S* S''"
@@ -339,15 +339,15 @@ next
         obtain ls f ls' vis
           where a1: "S'' = S'\<lparr>
                     localState := localState S'(i \<mapsto> ls'), 
-                    currentTransaction := currentTransaction S'(i \<mapsto> tx), 
-                    transactionStatus := transactionStatus S'(tx \<mapsto> Uncommitted),
-                    transactionOrigin := transactionOrigin S'(tx \<mapsto> i), 
+                    currentTx := currentTx S'(i \<mapsto> tx), 
+                    txStatus := txStatus S'(tx \<mapsto> Uncommitted),
+                    txOrigin := txOrigin S'(tx \<mapsto> i), 
                     visibleCalls := visibleCalls S'(i \<mapsto> snapshot)\<rparr>"
             and a2: "localState S' i \<triangleq> ls"
             and a3: "currentProc S' i \<triangleq> f"
             and a4: "f ls = BeginAtomic ls'"
-            and a5: "currentTransaction S' i = None"
-            and a6: "transactionStatus S' tx = None"
+            and a5: "currentTx S' i = None"
+            and a6: "txStatus S' tx = None"
             and a7: "visibleCalls S' i \<triangleq> vis"
             and a9: "chooseSnapshot snapshot vis S'"
           by smt
@@ -368,12 +368,12 @@ next
             show "currentProc S2 i \<triangleq> f"
               by (simp add: a3 proc_same)  
             show "f ls = BeginAtomic ls'" using a4 .
-            show "currentTransaction S2 i = None"
+            show "currentTx S2 i = None"
               using a5 tx_same by auto
-            show "transactionStatus S2 tx = None"
+            show "txStatus S2 tx = None"
             proof -
-              from ih3 have "transactionStatus S2 tx \<le> transactionStatus S' tx"
-                by (auto simp add: state_coupling_def state_monotonicGrowth_transactionStatus)
+              from ih3 have "txStatus S2 tx \<le> txStatus S' tx"
+                by (auto simp add: state_coupling_def state_monotonicGrowth_txStatus)
               with a6
               show ?thesis
                 by (simp add: less_eq_option_None_is_None)
@@ -385,11 +385,11 @@ next
               using inv' by blast
             show "localState S' i \<triangleq> ls"
               using a2 by auto
-            show "currentTransaction S' i = None"
+            show "currentTx S' i = None"
               by (simp add: a5)
-            show "transactionStatus S' tx = None"
+            show "txStatus S' tx = None"
               by (simp add: a6)
-            show "transactionOrigin S' tx = None"
+            show "txOrigin S' tx = None"
               using S_wf a6 noFails_tr state_wellFormed_combine steps wf_transaction_status_iff_origin by blast
 
             show "state_wellFormed S''"
@@ -406,11 +406,11 @@ next
 
 
             show "\<And>c. callOrigin S' c \<noteq> Some tx"
-              using `transactionStatus S' tx = None`
-                and wf_no_transactionStatus_origin_for_nothing[OF \<open>state_wellFormed S'\<close>] by simp
+              using `txStatus S' tx = None`
+                and wf_no_txStatus_origin_for_nothing[OF \<open>state_wellFormed S'\<close>] by simp
 
 
-            have "\<forall>i. currentTransaction S'' i \<noteq> None \<longrightarrow> i = get_invoc (last (tr@[a]))"
+            have "\<forall>i. currentTx S'' i \<noteq> None \<longrightarrow> i = get_invoc (last (tr@[a]))"
             proof (rule at_most_one_current_tx)
               show "S ~~ tr @ [a] \<leadsto>* S''"
                 using steps' by auto
@@ -423,17 +423,17 @@ next
                 by (simp add: S_wf)
               show "\<And>s. (s, ACrash) \<notin> set (tr@[a])"
                 using noFails by blast
-              show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+              show "\<And>tx. txStatus S tx \<noteq> Some Uncommitted"
                 by (simp add: steps_step.prems(5))
             qed
-            then have noCurrentTransaction: "currentTransaction S'' i' = None" if "i'\<noteq>i" for i'
+            then have noCurrentTransaction: "currentTx S'' i' = None" if "i'\<noteq>i" for i'
               using that by auto
-            have "\<And>tx'. tx' \<noteq> tx \<Longrightarrow> transactionStatus S'' tx' \<noteq> Some Uncommitted"
-            proof (rule wellFormed_currentTransaction_back4[OF \<open>state_wellFormed S''\<close>])
+            have "\<And>tx'. tx' \<noteq> tx \<Longrightarrow> txStatus S'' tx' \<noteq> Some Uncommitted"
+            proof (rule wellFormed_currentTx_back4[OF \<open>state_wellFormed S''\<close>])
               fix tx' i'
               assume a: "tx' \<noteq> tx"
 
-              show "currentTransaction S'' i' \<noteq> Some tx'"
+              show "currentTx S'' i' \<noteq> Some tx'"
               proof (cases "i'=i")
                 case True
                 then show ?thesis 
@@ -446,11 +446,11 @@ next
             qed
 
 
-            then show "\<And>tx. transactionStatus S' tx \<noteq> Some Uncommitted"
+            then show "\<And>tx. txStatus S' tx \<noteq> Some Uncommitted"
               apply (simp add: a1)
               using a6 by force
 
-            show "S'' = S'\<lparr>transactionStatus := transactionStatus S'(tx \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'(tx \<mapsto> i), currentTransaction := currentTransaction S'(i \<mapsto> tx),
+            show "S'' = S'\<lparr>txStatus := txStatus S'(tx \<mapsto> Uncommitted), txOrigin := txOrigin S'(tx \<mapsto> i), currentTx := currentTx S'(i \<mapsto> tx),
                localState := localState S'(i \<mapsto> ls'), visibleCalls := visibleCalls S'(i \<mapsto> snapshot)\<rparr>"
               by (auto simp add: a1 state_ext)
 
@@ -472,8 +472,8 @@ next
               using visible_same by auto
 
 
-            show " \<And>t. transactionOrigin S2 t \<triangleq> i = transactionOrigin S' t \<triangleq> i"
-              using growth state_monotonicGrowth_transactionOrigin_i by blast
+            show " \<And>t. txOrigin S2 t \<triangleq> i = txOrigin S' t \<triangleq> i"
+              using growth state_monotonicGrowth_txOrigin_i by blast
 
             have wf_S': "state_wellFormed S'"
               using S_wf noFails_tr state_wellFormed_combine steps by auto
@@ -483,7 +483,7 @@ next
             proof (rule wellFormed_state_consistent_snapshot)
               show "visibleCalls S'' i \<triangleq> snapshot"
                 by (auto simp add: a1)
-              show "\<And>c tx. currentTransaction S'' i \<triangleq> tx \<Longrightarrow> callOrigin S'' c \<noteq> Some tx"
+              show "\<And>c tx. currentTx S'' i \<triangleq> tx \<Longrightarrow> callOrigin S'' c \<noteq> Some tx"
                 using \<open>\<And>c. callOrigin S' c \<noteq> Some tx\<close> by (auto simp add: a1)
             qed
 
@@ -529,25 +529,25 @@ next
       have S2_prog: "prog S2 = prog S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
       have S2_localState: "localState S2 = localState S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
       have S2_currentProc: "currentProc S2 = currentProc S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
-      have S2_currentTransaction: "currentTransaction S2 = currentTransaction S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
-      have S2_transactionStatus: "transactionStatus S2 = transactionStatus S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+      have S2_currentTx: "currentTx S2 = currentTx S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+      have S2_txStatus: "txStatus S2 = txStatus S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
       have S2_callOrigin: "callOrigin S2 = callOrigin S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
-      have S2_transactionOrigin: "transactionOrigin S2 = transactionOrigin S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+      have S2_txOrigin: "txOrigin S2 = txOrigin S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
       have S2_generatedIds: "generatedIds S2 = generatedIds S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
       have S2_knownIds: "knownIds S2 = knownIds S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
-      have S2_invocationOp: "invocationOp S2 = invocationOp S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
-      have S2_invocationRes: "invocationRes S2 = invocationRes S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+      have S2_invocOp: "invocOp S2 = invocOp S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
+      have S2_invocRes: "invocRes S2 = invocRes S'" using ih3 by (auto simp add: state_coupling_def split: if_splits)
 
       note S2_simps = 
-        S2_calls S2_happensBefore S2_prog S2_localState S2_currentProc S2_currentTransaction
-        S2_transactionStatus S2_callOrigin S2_transactionOrigin S2_generatedIds S2_knownIds S2_invocationOp S2_invocationRes
+        S2_calls S2_happensBefore S2_prog S2_localState S2_currentProc S2_currentTx
+        S2_txStatus S2_callOrigin S2_txOrigin S2_generatedIds S2_knownIds S2_invocOp S2_invocRes
 
 
       have S'_wf: "state_wellFormed S'"
         using S_wf steps noFails_tr by (rule state_wellFormed_combine)
 
 
-      have vis_defined: "visibleCalls S' i \<noteq> None" if "currentTransaction S' i \<noteq> None"
+      have vis_defined: "visibleCalls S' i \<noteq> None" if "currentTx S' i \<noteq> None"
         using S'_wf state_wellFormed_tx_to_visibleCalls that by auto
 
       have tr_noSwitch: "\<not>contextSwitchesInTransaction tr"
@@ -688,16 +688,16 @@ and S_wellformed: "state_wellFormed S"
   shows "a = AEndAtomic \<or> (\<exists>p. a = AInvoc p) \<or> (\<exists>r. a = AReturn r)"
   using step different apply (auto simp add: step.simps )
    apply (auto simp add: invContextH_def committedCallsH_update_uncommitted 
-      restrict_relation_def S_wellformed committedCalls_unchanged_callOrigin wellFormed_callOrigin_dom3 wellFormed_currentTransaction_unique_h(2)
+      restrict_relation_def S_wellformed committedCalls_unchanged_callOrigin wellFormed_callOrigin_dom3 wellFormed_currentTx_unique_h(2)
       split: if_splits)
   subgoal
     by (metis  option.distinct(1))
   subgoal
-    using noOrigin_notCommitted by (auto simp add: restrict_relation_def S_wellformed committedCalls_unchanged_callOrigin wellFormed_callOrigin_dom3 wellFormed_currentTransaction_unique_h(2))
+    using noOrigin_notCommitted by (auto simp add: restrict_relation_def S_wellformed committedCalls_unchanged_callOrigin wellFormed_callOrigin_dom3 wellFormed_currentTx_unique_h(2))
   subgoal
-    by (auto simp add: restrict_map_def S_wellformed committedCalls_unchanged_callOrigin wellFormed_callOrigin_dom3 wellFormed_committedCallsExist wellFormed_currentTransaction_unique_h(2))
+    by (auto simp add: restrict_map_def S_wellformed committedCalls_unchanged_callOrigin wellFormed_callOrigin_dom3 wellFormed_committedCallsExist wellFormed_currentTx_unique_h(2))
   subgoal
-    apply (auto simp add: restrict_map_def S_wellformed committedCalls_unchanged_callOrigin wellFormed_callOrigin_dom3 wellFormed_currentTransaction_unique_h(2))
+    apply (auto simp add: restrict_map_def S_wellformed committedCalls_unchanged_callOrigin wellFormed_callOrigin_dom3 wellFormed_currentTx_unique_h(2))
     using S_wellformed noOrigin_notCommitted wellFormed_callOrigin_dom2 by blast
   done
 
@@ -727,9 +727,9 @@ and " a = ADbOp c Op res \<Longrightarrow> invariant_all S' = invariant_all S"
 
 
 lemma convert_to_single_session_trace_invFail_step:
-  fixes tr :: "('proc::valueType, 'operation, 'any::valueType) trace"
+  fixes tr :: "('proc::valueType, 'op, 'any::valueType) trace"
     and i :: invocId      
-    and S S' :: "('proc, 'ls, 'operation, 'any) state"
+    and S S' :: "('proc, 'ls, 'op, 'any) state"
   assumes step: "S ~~ (i,a) \<leadsto> S'"
     and S_wellformed: "state_wellFormed S"
     and noFails: "a \<noteq> ACrash"
@@ -739,7 +739,7 @@ lemma convert_to_single_session_trace_invFail_step:
     and not_inv: "\<not>invariant_all S'"
     and coupling: "state_coupling S S2 i sameSession"
     and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" 
-    and noUncommitted:  "\<And>p. a = AInvoc p \<Longrightarrow>  \<forall>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+    and noUncommitted:  "\<And>p. a = AInvoc p \<Longrightarrow>  \<forall>tx. txStatus S tx \<noteq> Some Uncommitted"
   shows "(S2 ~~ (i, a, False) \<leadsto>\<^sub>S S')"
   using step proof (cases rule: step.cases)
 
@@ -774,12 +774,12 @@ next
   have "localState S2 i = None"
     using invocation coupling
     by (metis state_coupling_def state_monotonicGrowth_localState)
-  have "\<And>x. invocationOp S2 i \<noteq> Some x"
-    using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_invocationOp split: if_splits)
-  then have [simp]: "invocationOp S2 i = None" by blast     
+  have "\<And>x. invocOp S2 i \<noteq> Some x"
+    using invocation coupling by (auto simp add: state_coupling_def state_monotonicGrowth_invocOp split: if_splits)
+  then have [simp]: "invocOp S2 i = None" by blast     
 
-  have no_transactions: "transactionOrigin S tx \<noteq> Some i" for tx
-    using wf_no_invocation_no_origin[OF S_wellformed] `invocationOp S i = None` by simp
+  have no_transactions: "txOrigin S tx \<noteq> Some i" for tx
+    using wf_no_invocation_no_origin[OF S_wellformed] `invocOp S i = None` by simp
 
 
   show "S2 ~~ (i, a, False) \<leadsto>\<^sub>S S'"
@@ -802,7 +802,7 @@ next
   then show ?thesis
     using \<open>S2 = S\<close> \<open>a = AReturn res\<close> by blast
 next    
-  case (fail ls)
+  case (crash ls)
   text \<open>we assumed that there are no fails\<close>
   then show ?thesis
     using noFails by blast
@@ -813,9 +813,9 @@ lemma uncommitted_tx_is_current_somewhere:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
-    and noUncommittedTx: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
-    and tx_uncommitted: "transactionStatus S' tx \<triangleq> Uncommitted"
-  shows "\<exists>invoc. currentTransaction S' invoc \<triangleq> tx" 
+    and noUncommittedTx: "\<And>tx. txStatus S tx \<noteq> Some Uncommitted"
+    and tx_uncommitted: "txStatus S' tx \<triangleq> Uncommitted"
+  shows "\<exists>invoc. currentTx S' invoc \<triangleq> tx" 
   using steps noFails tx_uncommitted proof (induct rule: steps_induct)
   case initial
   then show ?case
@@ -833,22 +833,22 @@ lemma no_current_transaction_when_invariant_fails:
     and " invariant_all S"
     and wf: "state_wellFormed S"
     and noEndAtomic: "get_action a \<noteq> AEndAtomic"
-  shows "currentTransaction S (get_invoc a) = None"
+  shows "currentTx S (get_invoc a) = None"
 proof (rule ccontr)
-  assume " currentTransaction S (get_invoc a) \<noteq> None"
-  from this obtain tx where ctx: "currentTransaction S (get_invoc a) \<triangleq> tx"
+  assume " currentTx S (get_invoc a) \<noteq> None"
+  from this obtain tx where ctx: "currentTx S (get_invoc a) \<triangleq> tx"
     by (metis not_None_eq)
 
-  have uncommitted: "transactionStatus S tx \<triangleq> Uncommitted"
-    by (metis ctx local.wf wellFormed_currentTransactionUncommitted)
+  have uncommitted: "txStatus S tx \<triangleq> Uncommitted"
+    by (metis ctx local.wf wellFormed_currentTxUncommitted)
 
 
 
-  have committedCallsH_same: "committedCallsH (callOrigin S_fail) (transactionStatus S_fail) = committedCallsH (callOrigin S) (transactionStatus S)"
+  have committedCallsH_same: "committedCallsH (callOrigin S_fail) (txStatus S_fail) = committedCallsH (callOrigin S) (txStatus S)"
     using \<open>S ~~ a \<leadsto> S_fail\<close>
-    using \<open>currentTransaction S (get_invoc a) \<noteq> None\<close> noEndAtomic apply (auto simp add: step.simps committedCallsH_def )
+    using \<open>currentTx S (get_invoc a) \<noteq> None\<close> noEndAtomic apply (auto simp add: step.simps committedCallsH_def )
      apply (auto simp add: isCommittedH_def split: if_splits)
-    using wellFormed_currentTransactionUncommitted[OF wf] apply auto
+    using wellFormed_currentTxUncommitted[OF wf] apply auto
     by (metis local.wf option.distinct(1) wellFormed_callOrigin_dom2)
 
 
@@ -858,7 +858,7 @@ proof (rule ccontr)
 
   have "invContext S_fail = invContext S" 
     apply (auto simp add: invContextH_def committedCallsH_same)
-    using \<open>S ~~ a \<leadsto> S_fail\<close> noEndAtomic \<open>currentTransaction S (get_invoc a) \<noteq> None\<close>
+    using \<open>S ~~ a \<leadsto> S_fail\<close> noEndAtomic \<open>currentTx S (get_invoc a) \<noteq> None\<close>
     by (auto simp add: step.simps restrict_map_def restrict_relation_def committedCallsExist inTransaction_localState[OF wf])
 
   with   \<open>\<not> invariant_all S_fail\<close> \<open>invariant_all S\<close>
@@ -868,13 +868,13 @@ qed
 
 
 lemma convert_to_single_session_trace_invFail:
-  fixes tr :: "('proc::valueType, 'operation, 'any::valueType) trace"
-    and S S' :: "('proc, 'ls, 'operation, 'any) state"
+  fixes tr :: "('proc::valueType, 'op, 'any::valueType) trace"
+    and S S' :: "('proc, 'ls, 'op, 'any) state"
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and S_wellformed: "state_wellFormed S"
     and packed: "packed_trace tr"
     and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
-    and noUncommittedTx: "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+    and noUncommittedTx: "\<And>tx. txStatus S tx \<noteq> Some Uncommitted"
     and noContextSwitches: "\<not>contextSwitchesInTransaction tr"
     \<comment> \<open>invariant holds in the initial state\<close>
     and inv: "invariant_all S"
@@ -975,7 +975,7 @@ proof -
       using noFails tr_split by auto
     show "\<And>S' tr1'. \<lbrakk>isPrefix tr1' tr1; S ~~ tr1' \<leadsto>* S'\<rbrakk> \<Longrightarrow> invariant_all S'"
       using inv_before by auto
-    show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+    show "\<And>tx. txStatus S tx \<noteq> Some Uncommitted"
       by (simp add: noUncommittedTx)
     show "\<not>contextSwitchesInTransaction tr1"
       using isPrefix_appendI noContextSwitches prefixes_noContextSwitchesInTransaction tr_split by blast
@@ -1008,7 +1008,7 @@ proof -
 
     
 
-    show "\<forall>tx. transactionStatus S1 tx \<noteq> Some Uncommitted " if " aa = AInvoc p" for p
+    show "\<forall>tx. txStatus S1 tx \<noteq> Some Uncommitted " if " aa = AInvoc p" for p
     proof -
 
       have tr1a_isPrefix: "isPrefix (tr1@[a]) tr"
@@ -1024,24 +1024,24 @@ proof -
 
 
 
-      have "\<forall>i. currentTransaction S_fail i \<noteq> None \<longrightarrow> i = get_invoc (last (tr1@[a]))"
+      have "\<forall>i. currentTx S_fail i \<noteq> None \<longrightarrow> i = get_invoc (last (tr1@[a]))"
         using steps_tr1_a `\<not>contextSwitchesInTransaction (tr1@[a])` `packed_trace (tr1@[a])`
           S_wellformed
       proof (rule at_most_one_current_tx)
         show "\<And>s. (s, ACrash) \<notin> set (tr1 @[a])"
           by (metis in_set_takeD isPrefix_def noFails tr1a_isPrefix)
-        show "\<And>tx. transactionStatus S tx \<noteq> Some Uncommitted"
+        show "\<And>tx. txStatus S tx \<noteq> Some Uncommitted"
           using noUncommittedTx .
       qed
 
-      hence h0': "\<forall>i. currentTransaction S_fail i \<noteq> None \<longrightarrow> i = as"
+      hence h0': "\<forall>i. currentTx S_fail i \<noteq> None \<longrightarrow> i = as"
         by (simp add: a_def)
 
-      have "currentTransaction S1 i = None" if "i \<noteq> as" for i
+      have "currentTx S1 i = None" if "i \<noteq> as" for i
         by (metis \<open>S1 ~~ (as, aa) \<leadsto> S_fail\<close> h0' that unchangedInTransaction(3))
 
-      have h1: "\<And>tx. currentTransaction S1 as \<noteq> Some tx \<Longrightarrow> transactionStatus S1 tx \<noteq> Some Uncommitted" 
-        using \<open>\<And>i. i \<noteq> as \<Longrightarrow> currentTransaction S1 i = None\<close> \<open>state_wellFormed S1\<close> wellFormed_currentTransaction_back3 by force
+      have h1: "\<And>tx. currentTx S1 as \<noteq> Some tx \<Longrightarrow> txStatus S1 tx \<noteq> Some Uncommitted" 
+        using \<open>\<And>i. i \<noteq> as \<Longrightarrow> currentTx S1 i = None\<close> \<open>state_wellFormed S1\<close> wellFormed_currentTx_back3 by force
 
 
       show ?thesis
@@ -1354,7 +1354,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
         using inv_init .
       show "\<not> invariant_all S_fail_min"
         by (simp add: \<open>\<not> invariant_all S_fail_min\<close>)
-      show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
+      show "\<And>tx. txStatus (initialState program) tx \<noteq> Some Uncommitted"
         by (simp add: initialState_def)
       show " \<not>contextSwitchesInTransaction tr'_min"
         using \<open>\<not>contextSwitchesInTransaction trace\<close> prefixes_noContextSwitchesInTransaction tr'_min_prefix by blast
@@ -1430,7 +1430,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
         using \<open>isPrefix tr'_min trace\<close> packed prefixes_are_packed by blast
       show "\<And>s'. (s', ACrash) \<notin> set tr'_min"
         by (metis \<open>isPrefix tr'_min trace\<close> in_set_takeD isPrefix_def noFail)
-      show "\<And>tx. transactionStatus (initialState program) tx \<noteq> Some Uncommitted"
+      show "\<And>tx. txStatus (initialState program) tx \<noteq> Some Uncommitted"
         by (simp add: initialState_def)
       show " \<not>contextSwitchesInTransaction tr'_min"
         using \<open>isPrefix tr'_min trace\<close> \<open>\<not>contextSwitchesInTransaction trace\<close> prefixes_noContextSwitchesInTransaction by blast

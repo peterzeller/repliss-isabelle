@@ -1,25 +1,58 @@
 theory doc
 imports "repliss_sem"
-  "HOL-Libary.LaTeXsugar"
 begin
+
+section "Document Snippets"
 
 text_raw "\\begin{comment} -- just some new notations"
 
 notation (latex output)
-  replissSem1.step ("_  \<^latex>\<open>$\\xrightarrow{\\text{\<close> _ \<^latex>\<open>}}$\<close> _")
-
-abbreviation state_update_1 where
-"state_update_1 C ls ids \<equiv> C\<lparr>localState :=ls, generatedIds := ids\<rparr>"
-
-notation (latex output)
-  state_update_1 ("_ \<^latex>\<open>[ } \\\\ \\mbox{ localState :=\<close>_ \<^latex>\<open>} \\\\ \\mbox{  generatedIds :=\<close>_ \<^latex>\<open> ]\<close>  ")
+  repliss_sem.step ("_  \<^latex>\<open>$\\xrightarrow{\\text{\<close> (\<open>unbreakable\<close>_) \<^latex>\<open>}}$\<close> (1_)")
 
 text_raw "\\end{comment}"  
   
-text \<open>@{thm[mode=Rule] step.intros}
+
+ text \<open>
+ \DefineSnippet{local}{
+    @{thm [mode=Rule] local}
+ }%EndSnippet
+
+ \DefineSnippet{newId}{
+    @{thm [mode=Rule] newId}
+ }%EndSnippet
+
+ \DefineSnippet{beginAtomic}{
+    @{thm [mode=Rule] beginAtomic}
+ }%EndSnippet
+
+ \DefineSnippet{endAtomic}{
+    @{thm [mode=Rule] endAtomic}
+ }%EndSnippet
+
+ \DefineSnippet{dbop}{
+    @{thm [mode=Rule] dbop}
+ }%EndSnippet
+
+ \DefineSnippet{invocation}{
+    @{thm [mode=Rule] invocation}
+ }%EndSnippet
+
+ \DefineSnippet{return}{
+    @{thm [mode=Rule] return}
+ }%EndSnippet
+
+ \DefineSnippet{crash}{
+    @{thm [mode=Rule] crash}
+ }%EndSnippet
+
+ \DefineSnippet{invCheck}{
+    @{thm [mode=Rule] invCheck}
+ }%EndSnippet
 
 
-\<close>
+ \<close>
+
+
 
 
 end

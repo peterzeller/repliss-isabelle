@@ -25,7 +25,7 @@ proof (cases "\<exists>p. a = AInvoc p")
     case (InvocStep initState impl S_invoc)
 
     have h1: "localState S_invoc i = None"
-      by (simp add: InvocStep.invocationOp_eq2 InvocStep.state_wellFormed wf_localState_needs_invocationOp)
+      by (simp add: InvocStep.invocOp_eq2 InvocStep.state_wellFormed wf_localState_needs_invocOp)
 
     from h1 
     have "S_invoc ~~ (i,a) \<leadsto> S'"

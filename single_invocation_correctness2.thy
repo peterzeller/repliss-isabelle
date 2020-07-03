@@ -37,7 +37,7 @@ proof (auto simp add: programCorrect_s_def)
     proof (rule invocations_only_in_beginning[OF steps, where j=0, simplified])
       show "state_wellFormed_s (initialState program) i"
         using state_wellFormed_s_def steps_s_refl by blast
-      show "invocationOp (initialState program) i = None"
+      show "invocOp (initialState program) i = None"
         by (simp add: initialState_def)
       show "trace \<noteq> [] "
         by (simp add: trace_def)
@@ -67,33 +67,33 @@ proof (auto simp add: programCorrect_s_def)
     proof (auto simp add: initialState_def step_s.simps)
       fix initState impl S'
       assume a0: "a = (AInvoc p, False)"
-        and a1: "invariant (prog S')          (invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S')            (invocationOp S'(i \<mapsto> p)) (invocationRes S'))"
+        and a1: "invariant (prog S')          (invContextH2 (callOrigin S') (txOrigin S') (txStatus S') (happensBefore S') (calls S') (knownIds S')            (invocOp S'(i \<mapsto> p)) (invocRes S'))"
         and a2: "procedure (prog S') p = (initState, impl)"
         and a3: "uniqueIds p \<subseteq> knownIds S'"
         and a4: "state_wellFormed S'"
-        and a5: "\<forall>x. transactionStatus S' x \<noteq> Some Uncommitted"
+        and a5: "\<forall>x. txStatus S' x \<noteq> Some Uncommitted"
         and a6: "invariant_all S'"
-        and a7: "invocationOp S' i = None"
+        and a7: "invocOp S' i = None"
         and a8: "program = prog S'"
-        and a9: "S_init = S'         \<lparr>localState := localState S'(i \<mapsto> initState), currentProc := currentProc S'(i \<mapsto> impl), visibleCalls := visibleCalls S'(i \<mapsto> {}),            invocationOp := invocationOp S'(i \<mapsto> p)\<rparr>"
-        and a10: "\<forall>x. transactionOrigin S' x \<noteq> Some i"
+        and a9: "S_init = S'         \<lparr>localState := localState S'(i \<mapsto> initState), currentProc := currentProc S'(i \<mapsto> impl), visibleCalls := visibleCalls S'(i \<mapsto> {}),            invocOp := invocOp S'(i \<mapsto> p)\<rparr>"
+        and a10: "\<forall>x. txOrigin S' x \<noteq> Some i"
         and a11: "\<not> invInitial"
-        and a12: "\<not> invariant (prog S')             (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S')               (invocationOp S'(i \<mapsto> p)) (invocationRes S'))"
+        and a12: "\<not> invariant (prog S')             (invContextH (callOrigin S') (txOrigin S') (txStatus S') (happensBefore S') (calls S') (knownIds S')               (invocOp S'(i \<mapsto> p)) (invocRes S'))"
 
-      have "(invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S')            (invocationOp S'(i \<mapsto> p)) (invocationRes S'))
-          = (invContextH (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S')               (invocationOp S'(i \<mapsto> p)) (invocationRes S'))"
+      have "(invContextH2 (callOrigin S') (txOrigin S') (txStatus S') (happensBefore S') (calls S') (knownIds S')            (invocOp S'(i \<mapsto> p)) (invocRes S'))
+          = (invContextH (callOrigin S') (txOrigin S') (txStatus S') (happensBefore S') (calls S') (knownIds S')               (invocOp S'(i \<mapsto> p)) (invocRes S'))"
       proof (subst invContextH_same_allCommitted)
-        show "invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S')
-     (invocationOp S'(i \<mapsto> p)) (invocationRes S') =
-    invContextH2 (callOrigin S') (transactionOrigin S') (transactionStatus S') (happensBefore S') (calls S') (knownIds S')
-     (invocationOp S'(i \<mapsto> p)) (invocationRes S')"
+        show "invContextH2 (callOrigin S') (txOrigin S') (txStatus S') (happensBefore S') (calls S') (knownIds S')
+     (invocOp S'(i \<mapsto> p)) (invocRes S') =
+    invContextH2 (callOrigin S') (txOrigin S') (txStatus S') (happensBefore S') (calls S') (knownIds S')
+     (invocOp S'(i \<mapsto> p)) (invocRes S')"
           by auto
 
         show "\<And>c. (calls S' c = None) = (callOrigin S' c = None)"
           by (simp add: a4 wellFormed_callOrigin_dom3)
 
-        show "\<And>c tx. callOrigin S' c \<triangleq> tx \<Longrightarrow> transactionStatus S' tx \<noteq> None"
-          by (simp add: a4 wellFormed_state_callOrigin_transactionStatus)
+        show "\<And>c tx. callOrigin S' c \<triangleq> tx \<Longrightarrow> txStatus S' tx \<noteq> None"
+          by (simp add: a4 wellFormed_state_callOrigin_txStatus)
 
         show "\<And>a b. (a, b) \<in> happensBefore S' \<Longrightarrow> calls S' a \<noteq> None"
           by (simp add: a4 wellFormed_happensBefore_calls_l)
@@ -101,10 +101,10 @@ proof (auto simp add: programCorrect_s_def)
         show "\<And>a b. (a, b) \<in> happensBefore S' \<Longrightarrow> calls S' b \<noteq> None"
           by (simp add: a4 wellFormed_happensBefore_calls_r)
 
-        show "\<And>c. (transactionOrigin S' c = None) = (transactionStatus S' c = None)"
-          by (simp add: a4 wf_transactionOrigin_and_status)
+        show "\<And>c. (txOrigin S' c = None) = (txStatus S' c = None)"
+          by (simp add: a4 wf_txOrigin_and_status)
 
-        show "\<And>t. transactionStatus S' t \<noteq> Some Uncommitted"
+        show "\<And>t. txStatus S' t \<noteq> Some Uncommitted"
           using a5 by auto
       qed
 
@@ -151,7 +151,7 @@ lemma show_programCorrect_using_checkCorrect1:
 proof (rule show_correctness_via_single_session)
   show "invariant_all (initialState progr)"
     using invInitial
-    by (auto simp add: invContext_same_allCommitted state_wellFormed_init transactionStatus_initial)
+    by (auto simp add: invContext_same_allCommitted state_wellFormed_init txStatus_initial)
 
 
 
@@ -179,8 +179,8 @@ lemma no_more_invoc:
   shows "(AInvoc p, t) \<notin> set trace"
 proof -
 
-  from ls have no_invoc: "invocationOp S (fst (i, trace)) \<noteq> None"
-    by (simp add: wf wf_localState_to_invocationOp)
+  from ls have no_invoc: "invocOp S (fst (i, trace)) \<noteq> None"
+    by (simp add: wf wf_localState_to_invocOp)
 
 
   have "(AInvoc p, t) \<notin> set (snd (i, trace))"
@@ -193,7 +193,7 @@ proof -
   next
     case (steps_s_step S s tr S' a S'')
     then show ?case 
-      by (auto simp add: step_s.simps has_invocationOp_forever)
+      by (auto simp add: step_s.simps has_invocOp_forever)
   qed
   thus ?thesis
     by auto

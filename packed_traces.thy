@@ -11,7 +11,7 @@ Intuitively a transaction is packed, if there are no steps from other invocation
 The following definition defines that such a step exists at an index @{term k}.
 "
 
-definition indexInOtherTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
+definition indexInOtherTransaction :: "('proc, 'op, 'any) trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
   "indexInOtherTransaction tr tx k \<equiv> 
   \<exists>i s ntxns. 
       k<length tr 
@@ -22,7 +22,7 @@ definition indexInOtherTransaction :: "('proc, 'operation, 'any) trace \<Rightar
 
 text "With this we can define that a trace is packed, if no such step exists:"
 
-definition transactionIsPacked :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
+definition transactionIsPacked :: "('proc, 'op, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
   "transactionIsPacked tr tx \<equiv> 
   \<forall>k. \<not>indexInOtherTransaction tr tx k"  
 
@@ -31,7 +31,7 @@ definition transactionIsPacked :: "('proc, 'operation, 'any) trace \<Rightarrow>
 
 
 \<comment> \<open>this is an alternative definition, which might be easier to work with in some cases\<close>
-definition transactionIsPackedAlt :: "('proc, 'operation, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
+definition transactionIsPackedAlt :: "('proc, 'op, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
   "transactionIsPackedAlt tr tx \<equiv> 
   if \<exists>i s ntxns. i < length tr \<and> tr!i = (s, ABeginAtomic tx ntxns) then
     \<exists>i s end ntxns. 
@@ -245,11 +245,11 @@ qed
 
 
 \<comment> \<open>the set of transactions occurring in the trace\<close>    
-definition traceTransactions :: "('proc, 'operation, 'any) trace \<Rightarrow> txid set" where
+definition traceTransactions :: "('proc, 'op, 'any) trace \<Rightarrow> txid set" where
   "traceTransactions tr \<equiv> {tx | s tx txns. (s, ABeginAtomic tx txns) \<in> set tr}"
 
 text \<open>between begin and end of a transaction there are no actions from other sessions\<close>
-definition transactionsArePacked :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
+definition transactionsArePacked :: "('proc, 'op, 'any) trace \<Rightarrow> bool" where
   "transactionsArePacked tr \<equiv>
   \<forall>i k s t txns. 
       i<k 
@@ -266,14 +266,14 @@ it appears.
 
 
 \<comment> \<open>checks if sessions s is in a transaction at position i in trace tr\<close>
-definition inTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> nat \<Rightarrow> invocId \<Rightarrow> bool"  where 
+definition inTransaction :: "('proc, 'op, 'any) trace \<Rightarrow> nat \<Rightarrow> invocId \<Rightarrow> bool"  where 
   "inTransaction tr i s \<equiv>
   \<exists>j. j\<le>i \<and> i<length tr \<and> (\<exists>t txns. tr!j = (s, ABeginAtomic t txns))
      \<and> (\<forall>k. j<k \<and> k < length tr \<and> k\<le>i \<longrightarrow> tr!k \<noteq> (s, AEndAtomic))
 "
 
 \<comment> \<open>returns the set of all transactions, which are in a transaction at point i in the trace\<close>
-definition sessionsInTransaction :: "('proc, 'operation, 'any) trace \<Rightarrow> nat \<Rightarrow> invocId set"  where 
+definition sessionsInTransaction :: "('proc, 'op, 'any) trace \<Rightarrow> nat \<Rightarrow> invocId set"  where 
   "sessionsInTransaction tr i \<equiv> {s. inTransaction tr i s}"
 
 
@@ -361,7 +361,7 @@ lemma canSwap_when_allowed:
 
 
 
-definition packed_trace :: "('proc, 'operation, 'any) trace \<Rightarrow> bool" where
+definition packed_trace :: "('proc, 'op, 'any) trace \<Rightarrow> bool" where
   "packed_trace tr \<equiv>
   \<forall>i.
       0<i
@@ -405,7 +405,7 @@ qed
 
 
 
-definition packed_trace_i :: "('proc, 'operation, 'any) trace \<Rightarrow> invocId \<Rightarrow> bool" where
+definition packed_trace_i :: "('proc, 'op, 'any) trace \<Rightarrow> invocId \<Rightarrow> bool" where
   "packed_trace_i tr invoc \<equiv>
   \<forall>i.
       0<i

@@ -10,19 +10,19 @@ text \<open>This theory includes more proofs for invariants that hold for all ex
 
 lemma wf_transaction_status_iff_origin_dom:
   assumes wf: "state_wellFormed S"
-  shows "dom (transactionOrigin S) = dom (transactionStatus S)"
+  shows "dom (txOrigin S) = dom (txStatus S)"
   by (smt Collect_cong dom_def local.wf wf_transaction_status_iff_origin)
 
 lemma wf_generated_ids_invocation_exists:
   assumes wf: "state_wellFormed S"
-and "invocationOp S i = None"
+and "invocOp S i = None"
 shows "generatedIds S uid \<noteq> Some i"
   using assms proof (induct rule: wellFormed_induct)
   case initial
   then show ?case by (simp add: initialState_def)
 next
   case (step t a s)
-  then show ?case by (auto simp add: initialState_def step.simps wf_localState_to_invocationOp split: if_splits)
+  then show ?case by (auto simp add: initialState_def step.simps wf_localState_to_invocOp split: if_splits)
 qed
 
 text "Every query can be explained with the corresponding query specification.
@@ -119,7 +119,7 @@ next
     case (return i ls f res)
     then show ?thesis using step by auto
   next
-    case (fail i ls)
+    case (crash i ls)
     then show ?thesis using step by auto
   next
     case (invCheck res i)

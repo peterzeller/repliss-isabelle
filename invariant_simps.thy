@@ -16,7 +16,7 @@ definition
 lemma i_callOriginI_h_simp: "co c \<triangleq> t \<Longrightarrow> i_callOriginI_h co to c = to t"
   by (auto simp add: i_callOriginI_h_def)
 
-lemma i_callOriginI_h_simp2: "i_callOriginI_h (callOrigin S'(c \<mapsto> t)) (transactionOrigin S'(t \<mapsto> i)) c \<triangleq> i"
+lemma i_callOriginI_h_simp2: "i_callOriginI_h (callOrigin S'(c \<mapsto> t)) (txOrigin S'(t \<mapsto> i)) c \<triangleq> i"
   by (simp add: i_callOriginI_h_simp)
 
 
@@ -50,7 +50,7 @@ lemma i_callOriginI_h_update_to4:
 lemmas i_callOriginI_h_simps = i_callOriginI_h_simp_update_co i_callOriginI_h_update_to2
 
 abbreviation 
-  "i_callOriginI ctxt \<equiv> i_callOriginI_h (callOrigin ctxt) (transactionOrigin ctxt)"
+  "i_callOriginI ctxt \<equiv> i_callOriginI_h (callOrigin ctxt) (txOrigin ctxt)"
 
 text \<open>lifting the happensBefore relation on database-calls to the level of invocations.\<close>
 definition 
@@ -246,31 +246,31 @@ qed
 
 
 
-lemma i_invocationOp_simps:
-  "(invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-   state_calls state_knownIds state_invocationOp state_invocationRes ) r \<triangleq> Op) \<longleftrightarrow> (state_invocationOp r \<triangleq> Op)"
+lemma i_invocOp_simps:
+  "(invocOp (invContextH state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+   state_calls state_knownIds state_invocOp state_invocRes ) r \<triangleq> Op) \<longleftrightarrow> (state_invocOp r \<triangleq> Op)"
   by (auto simp add: invContextH_def)
 
 
 
 lemmas invariant_simps = 
-  i_invocationOp_simps
+  i_invocOp_simps
 
 
 
 
 lemma new_invocation_cannot_happen_before:
   assumes "state_wellFormed S'"
-    and "invocationOp S' i = None"
-  shows "(i,g) \<notin> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (transactionOrigin S')) (happensBefore S')"
+    and "invocOp S' i = None"
+  shows "(i,g) \<notin> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (txOrigin S')) (happensBefore S')"
 proof (auto simp add: invocation_happensBeforeH_def)
   fix c ca
-  assume a0: "\<forall>cx. i_callOriginI_h (callOrigin S') (transactionOrigin S') cx \<triangleq> i \<longrightarrow> (\<forall>cy. i_callOriginI_h (callOrigin S') (transactionOrigin S') cy \<triangleq> g \<longrightarrow> (cx, cy) \<in> happensBefore S')"
-    and a1: "i_callOriginI_h (callOrigin S') (transactionOrigin S') c \<triangleq> i"
-    and a2: "i_callOriginI_h (callOrigin S') (transactionOrigin S') ca \<triangleq> g"
+  assume a0: "\<forall>cx. i_callOriginI_h (callOrigin S') (txOrigin S') cx \<triangleq> i \<longrightarrow> (\<forall>cy. i_callOriginI_h (callOrigin S') (txOrigin S') cy \<triangleq> g \<longrightarrow> (cx, cy) \<in> happensBefore S')"
+    and a1: "i_callOriginI_h (callOrigin S') (txOrigin S') c \<triangleq> i"
+    and a2: "i_callOriginI_h (callOrigin S') (txOrigin S') ca \<triangleq> g"
 
-  from \<open>state_wellFormed S'\<close> \<open>invocationOp S' i = None\<close>
-  have "transactionOrigin S' tx \<noteq> Some i" for tx
+  from \<open>state_wellFormed S'\<close> \<open>invocOp S' i = None\<close>
+  have "txOrigin S' tx \<noteq> Some i" for tx
     by (simp add: wf_no_invocation_no_origin)
 
 
@@ -281,17 +281,17 @@ qed
 
 lemma new_invocation_cannot_happen_after:
   assumes "state_wellFormed S'"
-    and "invocationOp S' i = None"
-  shows "(g,i) \<notin> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (transactionOrigin S')) (happensBefore S')"
+    and "invocOp S' i = None"
+  shows "(g,i) \<notin> invocation_happensBeforeH (i_callOriginI_h (callOrigin S') (txOrigin S')) (happensBefore S')"
 proof (auto simp add: invocation_happensBeforeH_def)
   fix c ca
-  assume a0: "\<forall>cx. i_callOriginI_h (callOrigin S') (transactionOrigin S') cx \<triangleq> g \<longrightarrow> (\<forall>cy. i_callOriginI_h (callOrigin S') (transactionOrigin S') cy \<triangleq> i \<longrightarrow> (cx, cy) \<in> happensBefore S')"
-    and a1: "i_callOriginI_h (callOrigin S') (transactionOrigin S') c \<triangleq> g"
-    and a2: "i_callOriginI_h (callOrigin S') (transactionOrigin S') ca \<triangleq> i"
+  assume a0: "\<forall>cx. i_callOriginI_h (callOrigin S') (txOrigin S') cx \<triangleq> g \<longrightarrow> (\<forall>cy. i_callOriginI_h (callOrigin S') (txOrigin S') cy \<triangleq> i \<longrightarrow> (cx, cy) \<in> happensBefore S')"
+    and a1: "i_callOriginI_h (callOrigin S') (txOrigin S') c \<triangleq> g"
+    and a2: "i_callOriginI_h (callOrigin S') (txOrigin S') ca \<triangleq> i"
 
 
-  from \<open>state_wellFormed S'\<close> \<open>invocationOp S' i = None\<close>
-  have "transactionOrigin S' tx \<noteq> Some i" for tx
+  from \<open>state_wellFormed S'\<close> \<open>invocOp S' i = None\<close>
+  have "txOrigin S' tx \<noteq> Some i" for tx
     by (simp add: wf_no_invocation_no_origin)
 
 

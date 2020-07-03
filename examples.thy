@@ -7,7 +7,7 @@ section "Examples"
 text "Various examples to illustrate definitions."
 
 \<comment> \<open>counts how many concurrent transactions are active\<close>
-definition transactionsArePackedMeasure :: "('proc, 'operation, 'any) trace \<Rightarrow> nat" where
+definition transactionsArePackedMeasure :: "('proc, 'op, 'any) trace \<Rightarrow> nat" where
   "transactionsArePackedMeasure tr \<equiv>
 \<Sum>i\<in>{..<length tr}. card (sessionsInTransaction tr i - {get_invoc (tr!i)})  "
 

@@ -11,7 +11,7 @@ text \<open>
  with no crashes and no invariant checks.
 \<close>
 
-definition isNotTrueInvcheck :: "(invocId \<times> ('proc, 'operation, 'any) action) \<Rightarrow> bool"
+definition isNotTrueInvcheck :: "(invocId \<times> ('proc, 'op, 'any) action) \<Rightarrow> bool"
       where "isNotTrueInvcheck \<equiv> (\<lambda>a. case a of (s, AInvcheck True) \<Rightarrow> False | _\<Rightarrow> True)"
 
 lemma packed_trace_filter:
@@ -295,8 +295,8 @@ lemma move_invariant_checks_out_of_transactions:
       then have [simp]: "ib < length trace - 2"
         by simp
 
-      have currentTx: "currentTransaction S1 s \<triangleq> tx" 
-      proof (rule currentTransaction2[OF steps_S1])
+      have currentTx: "currentTx S1 s \<triangleq> tx" 
+      proof (rule currentTx2[OF steps_S1])
 
         show "take (length trace - 2) trace ! ib = (s, ABeginAtomic tx ib_txns)"
           using ib1 ib2  by auto
@@ -333,11 +333,11 @@ lemma move_invariant_checks_out_of_transactions:
       next
         case (ADbOp cId proc res)
 
-        obtain tx where currentTransaction: "currentTransaction S1 s \<triangleq> tx"
+        obtain tx where currentTx: "currentTx S1 s \<triangleq> tx"
           using \<open>S1 ~~ (s, action) \<leadsto> S2\<close> ADbOp
           by (auto simp add:  step_simps)
-        then have uncommitted: "transactionStatus S1 tx \<triangleq> Uncommitted"
-          using local.wf wellFormed_currentTransaction_unique_h(2) by blast
+        then have uncommitted: "txStatus S1 tx \<triangleq> Uncommitted"
+          using local.wf wellFormed_currentTx_unique_h(2) by blast
 
         have "calls S1 cId = None"
           using \<open>S1 ~~ (s, action) \<leadsto> S2\<close> ADbOp
@@ -348,7 +348,7 @@ lemma move_invariant_checks_out_of_transactions:
 
         have "committedCalls S2 = committedCalls S1" 
           using \<open>S1 ~~ (s, action) \<leadsto> S2\<close> ADbOp
-          by (auto simp add:  step_simps ls_none committedCallsH_def isCommittedH_def currentTransaction uncommitted \<open>callOrigin S1 cId = None\<close> split: if_splits)
+          by (auto simp add:  step_simps ls_none committedCallsH_def isCommittedH_def currentTx uncommitted \<open>callOrigin S1 cId = None\<close> split: if_splits)
 
         have "invContext S2 = invContext S1 "
           using \<open>S1 ~~ (s, action) \<leadsto> S2\<close> ADbOp \<open>callOrigin S1 cId = None\<close> noOrigin_notCommitted
@@ -631,12 +631,12 @@ lemma min_simps:
 lemma no_more_actions_on_packed_trace_if_context_switch_in_transaction:
   assumes "S ~~ tr \<leadsto>* S'"
     and "packed_trace tr"
-    and "currentTransaction S i \<triangleq> tx"
+    and "currentTx S i \<triangleq> tx"
     and "get_invoc (hd tr) \<noteq> i"
     and "tr \<noteq> []"
     and "state_wellFormed S"
     and "\<And>i. (i, ACrash) \<notin> set tr"
-  shows "currentTransaction S' i \<triangleq> tx \<and> (\<forall>a\<in>set tr. get_invoc a \<noteq> i)"
+  shows "currentTx S' i \<triangleq> tx \<and> (\<forall>a\<in>set tr. get_invoc a \<noteq> i)"
   using assms proof (induct rule: steps_induct)
   case initial
   then show ?case
@@ -656,11 +656,11 @@ next
 
 
 
-    have IH: "currentTransaction S' i \<triangleq> tx \<and> (\<forall>a\<in>set tr. get_invoc a \<noteq> i)"
+    have IH: "currentTx S' i \<triangleq> tx \<and> (\<forall>a\<in>set tr. get_invoc a \<noteq> i)"
     proof (rule step.IH)
       show "packed_trace tr"
         using packed_trace_prefix step.prems(1) by blast
-      show "currentTransaction S i \<triangleq> tx"
+      show "currentTx S i \<triangleq> tx"
         by (simp add: step.prems(2))
       show "tr \<noteq> []"
         using local.Cons by blast
@@ -1047,15 +1047,15 @@ proof -
     from steps 
     have "S1 ~~ tr \<leadsto>* (S3\<lparr>
                    localState := (localState S3)(i := localState S1 i),
-                   currentTransaction := (currentTransaction S3)(i := None),
-                   transactionStatus := (transactionStatus S3)(t := None),
-                   transactionOrigin := (transactionOrigin S3)(t := None),
+                   currentTx := (currentTx S3)(i := None),
+                   txStatus := (txStatus S3)(t := None),
+                   txOrigin := (txOrigin S3)(t := None),
                    visibleCalls := (visibleCalls S3)(i := visibleCalls S1 i)\<rparr>)"
       using wf2 no_crash
     proof (rule show_state_transfer2, fuzzy_goal_cases init step)
       case init
       thus ?case 
-        using beginAtomic wf_transactionOrigin_and_status[OF wf] 
+        using beginAtomic wf_txOrigin_and_status[OF wf] 
         by (auto simp add: state_ext intro!: ext)
     next
       case (step i' a Sa Sb tr')
@@ -1080,30 +1080,30 @@ proof -
       have "state_wellFormed Sb"
         using local.step(1) local.step(2) local.step(3) no_crash state_wellFormed_combine_step by fastforce
 
-      have "transactionStatus S2 t \<triangleq> Uncommitted"
+      have "txStatus S2 t \<triangleq> Uncommitted"
         using beginAtomic by simp
 
-      have "transactionStatus Sa t \<triangleq> Uncommitted"
-        by (smt \<open>transactionStatus S2 t \<triangleq> Uncommitted\<close> ia_def local.beginAtomic(7) local.step(3) local.wf monoGrowth option.distinct(1) state_monotonicGrowth_currentTransaction step1 unchangedInTransaction(3) wellFormed_currentTransaction_back4 wellFormed_currentTransaction_unique_h(2) wf2)
+      have "txStatus Sa t \<triangleq> Uncommitted"
+        by (smt \<open>txStatus S2 t \<triangleq> Uncommitted\<close> ia_def local.beginAtomic(7) local.step(3) local.wf monoGrowth option.distinct(1) state_monotonicGrowth_currentTx step1 unchangedInTransaction(3) wellFormed_currentTx_back4 wellFormed_currentTx_unique_h(2) wf2)
 
 
 
       have [simp]: "tx' \<noteq> t" if "a = ABeginAtomic tx' txns'" for tx' txns'
-        using \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> local.step(2) step_elim_ABeginAtomic that by fastforce
+        using \<open>txStatus Sa t \<triangleq> Uncommitted\<close> local.step(2) step_elim_ABeginAtomic that by fastforce
 
 
       have noCallsInTx_S2: "callOrigin S2 c \<noteq> Some t" for c
-        using beginAtomic wf_no_transactionStatus_origin_for_nothing[OF wf] by auto
+        using beginAtomic wf_no_txStatus_origin_for_nothing[OF wf] by auto
 
-      have "currentTransaction S2 i \<triangleq> t"
-        by (smt currentTransaction_unchangedInternalSteps3 empty_iff ia_def list.set(1) local.beginAtomic(1) local.wf state_wellFormed_def step1 steps_append steps_step traceDeterministic)
+      have "currentTx S2 i \<triangleq> t"
+        by (smt currentTx_unchangedInternalSteps3 empty_iff ia_def list.set(1) local.beginAtomic(1) local.wf state_wellFormed_def step1 steps_append steps_step traceDeterministic)
 
-      have "currentTransaction Sa i \<triangleq> t"
-        using \<open>currentTransaction S2 i \<triangleq> t\<close> monoGrowth state_monotonicGrowth_currentTransaction by fastforce
+      have "currentTx Sa i \<triangleq> t"
+        using \<open>currentTx S2 i \<triangleq> t\<close> monoGrowth state_monotonicGrowth_currentTx by fastforce
 
 
       have noCallsInTx: "callOrigin Sa c \<noteq> Some t" for c
-        using \<open>currentTransaction S2 i \<triangleq> t\<close> monoGrowth noCallsInTx_S2 state_monotonicGrowth_current_transactions_fixed by blast
+        using \<open>currentTx S2 i \<triangleq> t\<close> monoGrowth noCallsInTx_S2 state_monotonicGrowth_current_transactions_fixed by blast
 
 
       show ?case 
@@ -1116,13 +1116,13 @@ proof -
       next
         case (ABeginAtomic tx txns)
         with step show ?thesis 
-          using \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> 
+          using \<open>txStatus Sa t \<triangleq> Uncommitted\<close> 
           by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext elim!: chooseSnapshot_unchanged_precise)
       next
         case AEndAtomic
         with step show ?thesis 
           apply (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
-          using \<open>currentTransaction Sa i \<triangleq> t\<close> no_i'' wellFormed_currentTransaction_unique by blast
+          using \<open>currentTx Sa i \<triangleq> t\<close> no_i'' wellFormed_currentTx_unique by blast
       next
         case (ADbOp x51 x52 x53)
         with step show ?thesis 
@@ -1140,12 +1140,12 @@ proof -
       next
         case (AInvcheck ok)
 
-        have invContextSame: "(invContextH (callOrigin Sa) (\<lambda>a. if a = t then None else transactionOrigin Sa a)
-           (\<lambda>a. if a = t then None else transactionStatus Sa a) (happensBefore Sa) (calls Sa) (knownIds Sa) (invocationOp Sa)
-           (invocationRes Sa))
+        have invContextSame: "(invContextH (callOrigin Sa) (\<lambda>a. if a = t then None else txOrigin Sa a)
+           (\<lambda>a. if a = t then None else txStatus Sa a) (happensBefore Sa) (calls Sa) (knownIds Sa) (invocOp Sa)
+           (invocRes Sa))
           = invContext Sa"
           using  step noCallsInTx
-          by (auto simp add: \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> AInvcheck step.simps  isCommittedH_def invContextH_def restrict_map_def restrict_relation_def committedCallsH_def intro!: ext, fastforce+)
+          by (auto simp add: \<open>txStatus Sa t \<triangleq> Uncommitted\<close> AInvcheck step.simps  isCommittedH_def invContextH_def restrict_map_def restrict_relation_def committedCallsH_def intro!: ext, fastforce+)
         from `a = AInvcheck ok` step show ?thesis 
           by (auto simp add: invContextSame step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
       qed
@@ -1196,16 +1196,16 @@ proof -
       have [simp]: "callOrigin Sa c \<triangleq> t"
         using \<open>callOrigin S2 c \<triangleq> t\<close> \<open>state_monotonicGrowth i S2 Sa\<close> state_monotonicGrowth_callOrigin by blast 
 
-      have "currentTransaction S2 i \<triangleq> t"
+      have "currentTx S2 i \<triangleq> t"
         using dbop by auto
-      hence "currentTransaction Sa i \<triangleq> t"
-        using \<open>state_monotonicGrowth i S2 Sa\<close> state_monotonicGrowth_currentTransaction by force
+      hence "currentTx Sa i \<triangleq> t"
+        using \<open>state_monotonicGrowth i S2 Sa\<close> state_monotonicGrowth_currentTx by force
 
 
-      have "transactionStatus S2 t \<triangleq> Uncommitted"
-        using \<open>currentTransaction S2 i \<triangleq> t\<close> wellFormed_currentTransactionUncommitted wf2 by blast
-      have "transactionStatus Sa t \<triangleq> Uncommitted"
-        using \<open>currentTransaction Sa i \<triangleq> t\<close> local.step(3) wellFormed_currentTransactionUncommitted by blast
+      have "txStatus S2 t \<triangleq> Uncommitted"
+        using \<open>currentTx S2 i \<triangleq> t\<close> wellFormed_currentTxUncommitted wf2 by blast
+      have "txStatus Sa t \<triangleq> Uncommitted"
+        using \<open>currentTx Sa i \<triangleq> t\<close> local.step(3) wellFormed_currentTxUncommitted by blast
 
 
 
@@ -1224,9 +1224,9 @@ proof -
 
         have h1: "callsInTransactionH (\<lambda>a. if a = c then None else callOrigin Sa a) newTxns \<down> (happensBefore Sa - vis \<times> {c})
          =  callsInTransaction Sa newTxns \<down> happensBefore Sa" 
-          if " \<forall>txn\<in>newTxns. transactionStatus Sa txn \<triangleq> Committed"
+          if " \<forall>txn\<in>newTxns. txStatus Sa txn \<triangleq> Committed"
           for newTxns
-          using \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> not_uncommitted_cases that
+          using \<open>txStatus Sa t \<triangleq> Uncommitted\<close> not_uncommitted_cases that
           apply (auto simp add: callsInTransactionH_def downwardsClosure_def)
           using local.step(3) wellFormed_state_transaction_consistent(4) apply fastforce
           by (metis (no_types, lifting) \<open>callOrigin Sa c \<triangleq> t\<close> option.inject)
@@ -1252,8 +1252,8 @@ proof -
           have "getContextH (\<lambda>a. if a = c then None else calls Sa a) (happensBefore Sa - vis \<times> {c}) (Some vis')
               = getContextH (calls Sa)                               (happensBefore Sa)             (Some vis')"
             apply (auto simp add: getContextH_def restrict_map_def restrict_relation_def intro!: ext)
-            using "1"(13) \<open>currentTransaction Sa i \<triangleq> t\<close> \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> local.step(1) local.step(3) wellFormed_currentTransaction_unique wf_transactionConsistent1 apply fastforce
-            using "1"(13) \<open>currentTransaction Sa i \<triangleq> t\<close> \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> local.step(1) local.step(3) wellFormed_currentTransaction_unique wf_transactionConsistent1 by fastforce
+            using "1"(13) \<open>currentTx Sa i \<triangleq> t\<close> \<open>txStatus Sa t \<triangleq> Uncommitted\<close> local.step(1) local.step(3) wellFormed_currentTx_unique wf_transactionConsistent1 apply fastforce
+            using "1"(13) \<open>currentTx Sa i \<triangleq> t\<close> \<open>txStatus Sa t \<triangleq> Uncommitted\<close> local.step(1) local.step(3) wellFormed_currentTx_unique wf_transactionConsistent1 by fastforce
 
           with `querySpec (prog Sa) op (getContextH (calls Sa) (happensBefore Sa) (Some vis')) res`
           show ?case by auto
@@ -1270,12 +1270,12 @@ proof -
         with step show ?thesis by (auto simp add: step.simps fun_upd_twist state_updates_normalize intro!: show_state_calls_eq ext)
       next
         case (AInvcheck ok)
-        have invSame: "(invContextH (\<lambda>a. if a = c then None else callOrigin Sa a) (transactionOrigin Sa) (transactionStatus Sa)
-           (happensBefore Sa - vis \<times> {c}) (\<lambda>a. if a = c then None else calls Sa a) (knownIds Sa) (invocationOp Sa)
-           (invocationRes Sa))
+        have invSame: "(invContextH (\<lambda>a. if a = c then None else callOrigin Sa a) (txOrigin Sa) (txStatus Sa)
+           (happensBefore Sa - vis \<times> {c}) (\<lambda>a. if a = c then None else calls Sa a) (knownIds Sa) (invocOp Sa)
+           (invocRes Sa))
           = invContext Sa"
           using   step 
-          using \<open>transactionStatus Sa t \<triangleq> Uncommitted\<close> 
+          using \<open>txStatus Sa t \<triangleq> Uncommitted\<close> 
           by (auto simp add: wellFormed_callOrigin_dom2 AInvcheck step.simps  isCommittedH_def invContextH_def restrict_map_def restrict_relation_def committedCallsH_def intro!: ext)
 
         with step show ?thesis 
@@ -1296,7 +1296,7 @@ proof -
     then show ?thesis
       using no_endReturn \<open>a = get_action ia\<close> by metis
   next
-    case (fail ls)
+    case (crash ls)
     then show ?thesis
       using a_no_crash \<open>a = get_action ia\<close> by metis
   next
@@ -1312,19 +1312,19 @@ definition
   calls S1 = calls S2
 \<and> happensBefore S1 = happensBefore S2
 \<and> callOrigin S1 = callOrigin S2
-\<and> (\<forall>t i'. i' \<noteq> i \<longrightarrow>  (transactionOrigin S1 t \<triangleq> i' \<longleftrightarrow> transactionOrigin S2 t \<triangleq> i'))
-\<and> (dom (transactionOrigin S2) \<subseteq> dom (transactionOrigin S1))
+\<and> (\<forall>t i'. i' \<noteq> i \<longrightarrow>  (txOrigin S1 t \<triangleq> i' \<longleftrightarrow> txOrigin S2 t \<triangleq> i'))
+\<and> (dom (txOrigin S2) \<subseteq> dom (txOrigin S1))
 \<and> knownIds S1 = knownIds S2
-\<and> invocationOp S1 = invocationOp S2
-\<and> invocationRes S1 = invocationRes S2
+\<and> invocOp S1 = invocOp S2
+\<and> invocRes S1 = invocRes S2
 \<and> prog S1 = prog S2
-\<and> (\<forall>t. currentTransaction S2 i \<noteq> Some t \<longrightarrow>  transactionStatus S1 t = transactionStatus S2 t)
+\<and> (\<forall>t. currentTx S2 i \<noteq> Some t \<longrightarrow>  txStatus S1 t = txStatus S2 t)
 \<and> (\<forall>id i'. i' \<noteq> i \<longrightarrow> (generatedIds S1 id \<triangleq> i' \<longleftrightarrow> generatedIds S2 id \<triangleq> i'))
 \<and> (dom (generatedIds S2) \<subseteq> dom (generatedIds S1))
 \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow> localState S1 i' = localState S2 i')
 \<and> currentProc S1 = currentProc S2
 \<and> (\<forall>i'. i' \<noteq> i \<longrightarrow> visibleCalls S1 i = visibleCalls S2 i)
-\<and> (\<forall>i'. i' \<noteq> i \<longrightarrow> currentTransaction S1 i = currentTransaction S2 i)
+\<and> (\<forall>i'. i' \<noteq> i \<longrightarrow> currentTx S1 i = currentTx S2 i)
 "
 
 lemma drop_no_action:
@@ -1475,11 +1475,11 @@ lemma no_return_in_transaction:
     and "i_r < length tr"
     and "state_wellFormed S"
     and noCrash: "\<And>i. (i, ACrash) \<notin> set tr"
-  shows "tr ! i_r \<noteq> (invoc, AReturn r)" and "\<And>S'. (S ~~ take (Suc i_r) tr \<leadsto>* S') \<Longrightarrow> currentTransaction S' invoc \<triangleq> tx"
+  shows "tr ! i_r \<noteq> (invoc, AReturn r)" and "\<And>S'. (S ~~ take (Suc i_r) tr \<leadsto>* S') \<Longrightarrow> currentTx S' invoc \<triangleq> tx"
 proof -
 
   from `i_start \<le> i_r` and `i_r < length tr` and no_end_atomic
-  have " tr ! i_r \<noteq> (invoc, AReturn r) \<and> (\<forall>S'. (S ~~ take (Suc i_r) tr \<leadsto>* S') \<longrightarrow> currentTransaction S' invoc \<triangleq> tx)"
+  have " tr ! i_r \<noteq> (invoc, AReturn r) \<and> (\<forall>S'. (S ~~ take (Suc i_r) tr \<leadsto>* S') \<longrightarrow> currentTx S' invoc \<triangleq> tx)"
   proof (induct "i_r - i_start" arbitrary: i_r)
     case (0 i_r)
     hence "i_r = i_start"
@@ -1490,7 +1490,7 @@ proof -
     proof (intro allI impI conjI)
 
 
-      show "currentTransaction S' invoc \<triangleq> tx"
+      show "currentTx S' invoc \<triangleq> tx"
         if c0: "S ~~ take (Suc i_r) tr \<leadsto>* S'"
         for  S'
       proof -
@@ -1502,7 +1502,7 @@ proof -
 
         from `S_pre ~~ tr ! i_start \<leadsto> S'` 
           and `tr ! i_start = (invoc, ABeginAtomic tx txns)`
-        show "currentTransaction S' invoc \<triangleq> tx" 
+        show "currentTx S' invoc \<triangleq> tx" 
           by (auto simp add: step.simps)
       qed
 
@@ -1512,7 +1512,7 @@ proof -
   next
     case (Suc x)
 
-    have IH: "tr ! (i_r - 1) \<noteq> (invoc, AReturn r) \<and> (\<forall>S'. (S ~~ take (Suc (i_r - 1)) tr \<leadsto>* S') \<longrightarrow> currentTransaction S' invoc \<triangleq> tx)"
+    have IH: "tr ! (i_r - 1) \<noteq> (invoc, AReturn r) \<and> (\<forall>S'. (S ~~ take (Suc (i_r - 1)) tr \<leadsto>* S') \<longrightarrow> currentTx S' invoc \<triangleq> tx)"
     proof (rule Suc.hyps)
       show "x = i_r - 1 - i_start"
         using Suc.hyps(2) by auto
@@ -1523,7 +1523,7 @@ proof -
       show "\<And>j. i_start < j \<and> j \<le> i_r - 1 \<Longrightarrow> tr ! j \<noteq> (invoc, AEndAtomic)"
         using Suc.prems(3) by force
     qed
-    hence ctx: "currentTransaction S' invoc \<triangleq> tx" if "S ~~ take i_r tr \<leadsto>* S'" for S'
+    hence ctx: "currentTx S' invoc \<triangleq> tx" if "S ~~ take i_r tr \<leadsto>* S'" for S'
       using that `Suc x = i_r - i_start` by force 
 
     have noEndAtomic: "tr ! i_r \<noteq> (invoc, AEndAtomic)"
@@ -1538,11 +1538,11 @@ proof -
       fix  S' S'' 
       assume "S ~~ take i_r tr \<leadsto>* S'" and "S' ~~ tr ! i_r \<leadsto> S''"
 
-      have "currentTransaction S' invoc \<triangleq> tx"
+      have "currentTx S' invoc \<triangleq> tx"
         using \<open>S ~~ take i_r tr \<leadsto>* S'\<close> ctx by blast
 
       with `S' ~~ tr ! i_r \<leadsto> S''` noEndAtomic
-      have "currentTransaction S'' invoc \<triangleq> tx" and "tr ! i_r \<noteq> (invoc, AReturn r)"
+      have "currentTx S'' invoc \<triangleq> tx" and "tr ! i_r \<noteq> (invoc, AReturn r)"
          apply (auto simp add: step.simps)
         using Suc.prems(2) noCrash nth_mem by fastforce
     }
@@ -1550,7 +1550,7 @@ proof -
       by (metis Suc.prems(2) steps_step take_Suc_conv_app_nth traceDeterministic)
   qed
   thus "tr ! i_r \<noteq> (invoc, AReturn r)"
-    and "\<And>S'. S ~~ take (Suc i_r) tr \<leadsto>* S' \<Longrightarrow> currentTransaction S' invoc \<triangleq> tx"
+    and "\<And>S'. S ~~ take (Suc i_r) tr \<leadsto>* S' \<Longrightarrow> currentTx S' invoc \<triangleq> tx"
     by auto
 qed
 
@@ -1698,8 +1698,8 @@ lemma remove_context_switches_in_transactions:
 
 
     from this
-    have "currentTransaction S_j_pre invoc \<triangleq> tx"
-    proof (rule currentTransaction2)
+    have "currentTx S_j_pre invoc \<triangleq> tx"
+    proof (rule currentTx2)
       show "i_begin < length (take i_switch trace)"
         by (simp add: a0 a1 min_simps(2))
       show " take i_switch trace ! i_begin = (invoc, ABeginAtomic tx txns)"
@@ -1733,7 +1733,7 @@ lemma remove_context_switches_in_transactions:
   context switch on the same invocation"
 
     with `allowed_context_switch (get_action (trace ! i_switch))`
-      and `currentTransaction S_j_pre invoc \<triangleq> tx`
+      and `currentTx S_j_pre invoc \<triangleq> tx`
     have "get_invoc (trace ! i_switch) \<noteq> invoc"
       using  inTransaction_localState[OF \<open>state_wellFormed S_j_pre\<close>] 
       by (auto simp add: step.simps, blast)
@@ -1749,12 +1749,12 @@ lemma remove_context_switches_in_transactions:
       using \<open>initialState program ~~ take i_switch trace \<leadsto>* S_j_pre\<close> less.prems(1) steps_append2 by fastforce
 
     from this
-    have "currentTransaction S invoc \<triangleq> tx \<and> (\<forall>a\<in>set (drop i_switch trace). get_invoc a \<noteq> invoc)"
+    have "currentTx S invoc \<triangleq> tx \<and> (\<forall>a\<in>set (drop i_switch trace). get_invoc a \<noteq> invoc)"
     proof (rule no_more_actions_on_packed_trace_if_context_switch_in_transaction)
       show "packed_trace (drop i_switch trace)"
         by (simp add: less.prems(2) packed_trace_drop)
-      show "currentTransaction S_j_pre invoc \<triangleq> tx"
-        by (simp add: \<open>currentTransaction S_j_pre invoc \<triangleq> tx\<close>)
+      show "currentTx S_j_pre invoc \<triangleq> tx"
+        by (simp add: \<open>currentTx S_j_pre invoc \<triangleq> tx\<close>)
       show "get_invoc (hd (drop i_switch trace)) \<noteq> invoc"
         by (simp add: \<open>get_invoc (trace ! i_switch) \<noteq> invoc\<close> \<open>i_switch < length trace\<close> hd_drop_conv_nth)
       show "drop i_switch trace \<noteq> []"

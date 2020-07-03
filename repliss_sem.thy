@@ -48,90 +48,99 @@ end
 
 
 text_raw \<open>\DefineSnippet{call}{\<close>
-datatype ('operation, 'any) call = Call (call_operation: 'operation) (call_res:"'any")
+datatype ('op, 'any) call = Call (call_operation: 'op) (call_res:"'any")
 text_raw \<open>}%EndSnippet\<close>
 
 
-datatype ('ls, 'operation, 'any) localAction =
+text_raw \<open>\DefineSnippet{localAction}{\<close>
+datatype ('ls, 'op, 'any) localAction =
     LocalStep bool 'ls
   | BeginAtomic 'ls
   | EndAtomic 'ls
   | NewId "'any \<rightharpoonup> 'ls"
-  | DbOperation 'operation "'any \<Rightarrow> 'ls"
+  | DbOperation 'op "'any \<Rightarrow> 'ls"
   | Return 'any
-
-text_raw \<open>\DefineSnippet{procedureImpl}{\<close>
-type_synonym ('ls, 'operation, 'any) procedureImpl = 
-  "'ls \<Rightarrow> ('ls, 'operation, 'any) localAction"
 text_raw \<open>}%EndSnippet\<close>
 
-datatype transactionStatus = Uncommitted | Committed 
 
-instantiation transactionStatus :: linorder
+text_raw \<open>\DefineSnippet{procedureImpl}{\<close>
+type_synonym ('ls, 'op, 'any) procedureImpl = 
+  "'ls \<Rightarrow> ('ls, 'op, 'any) localAction"
+text_raw \<open>}%EndSnippet\<close>
+
+datatype txStatus = Uncommitted | Committed 
+
+instantiation txStatus :: linorder
 begin
-definition "less_eq_transactionStatus x y \<equiv> x = Uncommitted \<or> y = Committed"
-definition "less_transactionStatus x y \<equiv> x = Uncommitted \<and> y = Committed"
+definition "less_eq_txStatus x y \<equiv> x = Uncommitted \<or> y = Committed"
+definition "less_txStatus x y \<equiv> x = Uncommitted \<and> y = Committed"
 instance
-   by (standard; insert transactionStatus.exhaust;  auto simp add: less_eq_transactionStatus_def less_transactionStatus_def)
+   by (standard; insert txStatus.exhaust;  auto simp add: less_eq_txStatus_def less_txStatus_def)
 end
 
-lemmas transactionStatus_less_simps = less_eq_transactionStatus_def less_transactionStatus_def
+lemmas txStatus_less_simps = less_eq_txStatus_def less_txStatus_def
 
 lemma onlyCommittedGreater: "a \<triangleq> Committed" if "a\<ge>Some Committed" for a
-  by (smt dual_order.antisym dual_order.trans less_eq_option_None_is_None less_eq_option_Some less_eq_transactionStatus_def order_refl split_option_ex that)
+  by (smt dual_order.antisym dual_order.trans less_eq_option_None_is_None less_eq_option_Some less_eq_txStatus_def order_refl split_option_ex that)
 
 
 
 text_raw \<open>\DefineSnippet{operationContext}{\<close>
-record ('operation, 'any) operationContext = 
-  calls :: "callId \<rightharpoonup> ('operation, 'any) call"
+record ('op, 'any) operationContext = 
+  calls :: "callId \<rightharpoonup> ('op, 'any) call"
   happensBefore :: "callId rel"
 text_raw \<open>}%EndSnippet\<close>
 
 
-record ('proc, 'operation, 'any) invariantContext = "('operation, 'any) operationContext" +
+text_raw \<open>\DefineSnippet{invContext}{\<close>
+record ('proc, 'op, 'any) invContext = "('op, 'any) operationContext" +
   callOrigin :: "callId \<rightharpoonup> txid"
-  transactionOrigin :: "txid \<rightharpoonup> invocId"
+  txOrigin :: "txid \<rightharpoonup> invocId"
   knownIds :: "uniqueId set"
-  invocationOp :: "invocId \<rightharpoonup> 'proc"
-  invocationRes :: "invocId \<rightharpoonup> 'any"
+  invocOp :: "invocId \<rightharpoonup> 'proc"
+  invocRes :: "invocId \<rightharpoonup> 'any"
+text_raw \<open>}%EndSnippet\<close>
 
-record ('proc, 'ls, 'operation, 'any) prog =
-  querySpec :: "'operation \<Rightarrow> ('operation, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool"
-  procedure :: "'proc \<Rightarrow> ('ls \<times> ('ls, 'operation, 'any) procedureImpl)"
-  invariant :: "('proc, 'operation, 'any) invariantContext \<Rightarrow> bool"
+text_raw \<open>\DefineSnippet{prog}{\<close>
+record ('proc, 'ls, 'op, 'any) prog =
+  querySpec :: "'op \<Rightarrow> ('op, 'any) operationContext \<Rightarrow> 'any \<Rightarrow> bool"
+  procedure :: "'proc \<Rightarrow> ('ls \<times> ('ls, 'op, 'any) procedureImpl)"
+  invariant :: "('proc, 'op, 'any) invContext \<Rightarrow> bool"
+text_raw \<open>}%EndSnippet\<close>
 
-record ('proc, 'ls, 'operation, 'any) distributed_state = "('proc, 'operation, 'any) invariantContext" +
-  prog :: "('proc, 'ls, 'operation, 'any) prog"
-  transactionStatus :: "txid \<rightharpoonup> transactionStatus"
-  generatedIds :: "uniqueId \<rightharpoonup> invocId" \<comment> \<open>unique identifiers and which invocId generated them\<close>
 
-record ('proc, 'ls, 'operation, 'any) state = "('proc, 'ls, 'operation, 'any) distributed_state" + 
+text_raw \<open>\DefineSnippet{state}{\<close>
+record ('proc, 'ls, 'op, 'any) state = "('proc, 'op, 'any) invContext" +
+  prog :: "('proc, 'ls, 'op, 'any) prog"
+  txStatus :: "txid \<rightharpoonup> txStatus"
+  generatedIds :: "uniqueId \<rightharpoonup> invocId"
   localState :: "invocId \<rightharpoonup> 'ls"
-  currentProc :: "invocId \<rightharpoonup> ('ls, 'operation, 'any) procedureImpl"
+  currentProc :: "invocId \<rightharpoonup> ('ls, 'op, 'any) procedureImpl"
   visibleCalls :: "invocId \<rightharpoonup> callId set"
-  currentTransaction :: "invocId \<rightharpoonup> txid"
+  currentTx :: "invocId \<rightharpoonup> txid"
+text_raw \<open>}%EndSnippet\<close>
 
-lemma operationContext_ext: "((x::('operation, 'any) operationContext) = y) \<longleftrightarrow> (
+
+lemma operationContext_ext: "((x::('op, 'any) operationContext) = y) \<longleftrightarrow> (
     calls x = calls y
   \<and> happensBefore x = happensBefore y)"
   by auto
 
-lemma state_ext: "((x::('proc, 'ls, 'operation, 'any) state) = y) \<longleftrightarrow> (
+lemma state_ext: "((x::('proc, 'ls, 'op, 'any) state) = y) \<longleftrightarrow> (
     calls x = calls y
   \<and> happensBefore x = happensBefore y
   \<and> prog x = prog y
   \<and> localState x = localState y
   \<and> currentProc x = currentProc y
   \<and> visibleCalls x = visibleCalls y
-  \<and> currentTransaction x = currentTransaction y
-  \<and> transactionStatus x = transactionStatus y
+  \<and> currentTx x = currentTx y
+  \<and> txStatus x = txStatus y
   \<and> callOrigin x = callOrigin y
-  \<and> transactionOrigin x = transactionOrigin y
+  \<and> txOrigin x = txOrigin y
   \<and> generatedIds x = generatedIds y
   \<and> knownIds x = knownIds y
-  \<and> invocationOp x = invocationOp y
-  \<and> invocationRes x = invocationRes y
+  \<and> invocOp x = invocOp y
+  \<and> invocRes x = invocRes y
 )"
   by auto
 
@@ -139,7 +148,7 @@ lemma state_ext: "((x::('proc, 'ls, 'operation, 'any) state) = y) \<longleftrigh
 lemmas stateEqI = state_ext[THEN iffToImp, simplified imp_conjL, rule_format]
 
 lemma state_ext_exI:
-  fixes P :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool"
+  fixes P :: "('proc, 'ls, 'op, 'any) state \<Rightarrow> bool"
   assumes "
 \<exists>
 s_calls
@@ -148,28 +157,28 @@ s_prog
 s_localState
 s_currentProc
 s_visibleCalls
-s_currentTransaction
-s_transactionStatus
+s_currentTx
+s_txStatus
 s_callOrigin
-s_transactionOrigin
+s_txOrigin
 s_generatedIds
 s_knownIds
-s_invocationOp
-s_invocationRes. P \<lparr>
+s_invocOp
+s_invocRes. P \<lparr>
 calls = s_calls,
 happensBefore = s_happensBefore,
 callOrigin = s_callOrigin,
-transactionOrigin = s_transactionOrigin,
+txOrigin = s_txOrigin,
 knownIds = s_knownIds,
-invocationOp = s_invocationOp,
-invocationRes = s_invocationRes,
+invocOp = s_invocOp,
+invocRes = s_invocRes,
 prog = s_prog,
-transactionStatus = s_transactionStatus,
+txStatus = s_txStatus,
 generatedIds = s_generatedIds,
 localState = s_localState,
 currentProc = s_currentProc,
 visibleCalls = s_visibleCalls,
-currentTransaction = s_currentTransaction
+currentTx = s_currentTx
 \<rparr>"
   shows "\<exists>s. P s"
   using assms by blast
@@ -180,111 +189,111 @@ lemma show_state_calls_eq:
   shows "\<And>x y. x = y \<Longrightarrow> A\<lparr>calls := x\<rparr> = B\<lparr>calls := y\<rparr>"
 and "\<And>x y. x = y \<Longrightarrow> A\<lparr>happensBefore := x\<rparr> = B\<lparr>happensBefore := y\<rparr>"
 and "\<And>x y. x = y \<Longrightarrow> A\<lparr>callOrigin := x\<rparr> = B\<lparr>callOrigin := y\<rparr>"
-and "\<And>x y. x = y \<Longrightarrow> A\<lparr>transactionOrigin := x\<rparr> = B\<lparr>transactionOrigin := y\<rparr>"
+and "\<And>x y. x = y \<Longrightarrow> A\<lparr>txOrigin := x\<rparr> = B\<lparr>txOrigin := y\<rparr>"
 and "\<And>x y. x = y \<Longrightarrow> A\<lparr>knownIds := x\<rparr> = B\<lparr>knownIds := y\<rparr>"
-and "\<And>x y. x = y \<Longrightarrow> A\<lparr>invocationOp := x\<rparr> = B\<lparr>invocationOp := y\<rparr>"
-and "\<And>x y. x = y \<Longrightarrow> A\<lparr>invocationRes := x\<rparr> = B\<lparr>invocationRes := y\<rparr>"
+and "\<And>x y. x = y \<Longrightarrow> A\<lparr>invocOp := x\<rparr> = B\<lparr>invocOp := y\<rparr>"
+and "\<And>x y. x = y \<Longrightarrow> A\<lparr>invocRes := x\<rparr> = B\<lparr>invocRes := y\<rparr>"
 and "\<And>x y. x = y \<Longrightarrow> A\<lparr>prog := x\<rparr> = B\<lparr>prog := y\<rparr>"
-and "\<And>x y. x = y \<Longrightarrow> A\<lparr>transactionStatus := x\<rparr> = B\<lparr>transactionStatus := y\<rparr>"
+and "\<And>x y. x = y \<Longrightarrow> A\<lparr>txStatus := x\<rparr> = B\<lparr>txStatus := y\<rparr>"
 and "\<And>x y. x = y \<Longrightarrow> A\<lparr>generatedIds := x\<rparr> = B\<lparr>generatedIds := y\<rparr>"
 and "\<And>x y. x = y \<Longrightarrow> A\<lparr>localState := x\<rparr> = B\<lparr>localState := y\<rparr>"
 and "\<And>x y. x = y \<Longrightarrow> A\<lparr>currentProc := x\<rparr> = B\<lparr>currentProc := y\<rparr>"
 and "\<And>x y. x = y \<Longrightarrow> A\<lparr>visibleCalls := x\<rparr> = B\<lparr>visibleCalls := y\<rparr>"
-and "\<And>x y. x = y \<Longrightarrow> A\<lparr>currentTransaction := x\<rparr> = B\<lparr>currentTransaction := y\<rparr>"
+and "\<And>x y. x = y \<Longrightarrow> A\<lparr>currentTx := x\<rparr> = B\<lparr>currentTx := y\<rparr>"
   using assms  by auto
 
 lemma state_updates_normalize:
   shows "\<And>x y. S\<lparr>happensBefore := y, calls := x\<rparr> = S\<lparr>calls := x,  happensBefore := y\<rparr>"
 and "\<And>x y. S\<lparr>callOrigin := y, calls := x\<rparr> = S\<lparr>calls := x,  callOrigin := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionOrigin := y, calls := x\<rparr> = S\<lparr>calls := x,  transactionOrigin := y\<rparr>"
+and "\<And>x y. S\<lparr>txOrigin := y, calls := x\<rparr> = S\<lparr>calls := x,  txOrigin := y\<rparr>"
 and "\<And>x y. S\<lparr>knownIds := y, calls := x\<rparr> = S\<lparr>calls := x,  knownIds := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationOp := y, calls := x\<rparr> = S\<lparr>calls := x,  invocationOp := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationRes := y, calls := x\<rparr> = S\<lparr>calls := x,  invocationRes := y\<rparr>"
+and "\<And>x y. S\<lparr>invocOp := y, calls := x\<rparr> = S\<lparr>calls := x,  invocOp := y\<rparr>"
+and "\<And>x y. S\<lparr>invocRes := y, calls := x\<rparr> = S\<lparr>calls := x,  invocRes := y\<rparr>"
 and "\<And>x y. S\<lparr>prog := y, calls := x\<rparr> = S\<lparr>calls := x,  prog := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionStatus := y, calls := x\<rparr> = S\<lparr>calls := x,  transactionStatus := y\<rparr>"
+and "\<And>x y. S\<lparr>txStatus := y, calls := x\<rparr> = S\<lparr>calls := x,  txStatus := y\<rparr>"
 and "\<And>x y. S\<lparr>generatedIds := y, calls := x\<rparr> = S\<lparr>calls := x,  generatedIds := y\<rparr>"
 and "\<And>x y. S\<lparr>localState := y, calls := x\<rparr> = S\<lparr>calls := x,  localState := y\<rparr>"
 and "\<And>x y. S\<lparr>currentProc := y, calls := x\<rparr> = S\<lparr>calls := x,  currentProc := y\<rparr>"
 and "\<And>x y. S\<lparr>visibleCalls := y, calls := x\<rparr> = S\<lparr>calls := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, calls := x\<rparr> = S\<lparr>calls := x,  currentTransaction := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, calls := x\<rparr> = S\<lparr>calls := x,  currentTx := y\<rparr>"
 and "\<And>x y. S\<lparr>callOrigin := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  callOrigin := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionOrigin := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  transactionOrigin := y\<rparr>"
+and "\<And>x y. S\<lparr>txOrigin := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  txOrigin := y\<rparr>"
 and "\<And>x y. S\<lparr>knownIds := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  knownIds := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationOp := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  invocationOp := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationRes := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  invocationRes := y\<rparr>"
+and "\<And>x y. S\<lparr>invocOp := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  invocOp := y\<rparr>"
+and "\<And>x y. S\<lparr>invocRes := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  invocRes := y\<rparr>"
 and "\<And>x y. S\<lparr>prog := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  prog := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionStatus := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  transactionStatus := y\<rparr>"
+and "\<And>x y. S\<lparr>txStatus := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  txStatus := y\<rparr>"
 and "\<And>x y. S\<lparr>generatedIds := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  generatedIds := y\<rparr>"
 and "\<And>x y. S\<lparr>localState := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  localState := y\<rparr>"
 and "\<And>x y. S\<lparr>currentProc := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  currentProc := y\<rparr>"
 and "\<And>x y. S\<lparr>visibleCalls := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  currentTransaction := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionOrigin := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  transactionOrigin := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, happensBefore := x\<rparr> = S\<lparr>happensBefore := x,  currentTx := y\<rparr>"
+and "\<And>x y. S\<lparr>txOrigin := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  txOrigin := y\<rparr>"
 and "\<And>x y. S\<lparr>knownIds := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  knownIds := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationOp := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  invocationOp := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationRes := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  invocationRes := y\<rparr>"
+and "\<And>x y. S\<lparr>invocOp := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  invocOp := y\<rparr>"
+and "\<And>x y. S\<lparr>invocRes := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  invocRes := y\<rparr>"
 and "\<And>x y. S\<lparr>prog := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  prog := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionStatus := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  transactionStatus := y\<rparr>"
+and "\<And>x y. S\<lparr>txStatus := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  txStatus := y\<rparr>"
 and "\<And>x y. S\<lparr>generatedIds := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  generatedIds := y\<rparr>"
 and "\<And>x y. S\<lparr>localState := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  localState := y\<rparr>"
 and "\<And>x y. S\<lparr>currentProc := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  currentProc := y\<rparr>"
 and "\<And>x y. S\<lparr>visibleCalls := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  currentTransaction := y\<rparr>"
-and "\<And>x y. S\<lparr>knownIds := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  knownIds := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationOp := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  invocationOp := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationRes := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  invocationRes := y\<rparr>"
-and "\<And>x y. S\<lparr>prog := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  prog := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionStatus := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  transactionStatus := y\<rparr>"
-and "\<And>x y. S\<lparr>generatedIds := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  generatedIds := y\<rparr>"
-and "\<And>x y. S\<lparr>localState := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  localState := y\<rparr>"
-and "\<And>x y. S\<lparr>currentProc := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  currentProc := y\<rparr>"
-and "\<And>x y. S\<lparr>visibleCalls := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, transactionOrigin := x\<rparr> = S\<lparr>transactionOrigin := x,  currentTransaction := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationOp := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  invocationOp := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationRes := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  invocationRes := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, callOrigin := x\<rparr> = S\<lparr>callOrigin := x,  currentTx := y\<rparr>"
+and "\<And>x y. S\<lparr>knownIds := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  knownIds := y\<rparr>"
+and "\<And>x y. S\<lparr>invocOp := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  invocOp := y\<rparr>"
+and "\<And>x y. S\<lparr>invocRes := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  invocRes := y\<rparr>"
+and "\<And>x y. S\<lparr>prog := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  prog := y\<rparr>"
+and "\<And>x y. S\<lparr>txStatus := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  txStatus := y\<rparr>"
+and "\<And>x y. S\<lparr>generatedIds := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  generatedIds := y\<rparr>"
+and "\<And>x y. S\<lparr>localState := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  localState := y\<rparr>"
+and "\<And>x y. S\<lparr>currentProc := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  currentProc := y\<rparr>"
+and "\<And>x y. S\<lparr>visibleCalls := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  visibleCalls := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, txOrigin := x\<rparr> = S\<lparr>txOrigin := x,  currentTx := y\<rparr>"
+and "\<And>x y. S\<lparr>invocOp := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  invocOp := y\<rparr>"
+and "\<And>x y. S\<lparr>invocRes := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  invocRes := y\<rparr>"
 and "\<And>x y. S\<lparr>prog := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  prog := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionStatus := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  transactionStatus := y\<rparr>"
+and "\<And>x y. S\<lparr>txStatus := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  txStatus := y\<rparr>"
 and "\<And>x y. S\<lparr>generatedIds := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  generatedIds := y\<rparr>"
 and "\<And>x y. S\<lparr>localState := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  localState := y\<rparr>"
 and "\<And>x y. S\<lparr>currentProc := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  currentProc := y\<rparr>"
 and "\<And>x y. S\<lparr>visibleCalls := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  currentTransaction := y\<rparr>"
-and "\<And>x y. S\<lparr>invocationRes := y, invocationOp := x\<rparr> = S\<lparr>invocationOp := x,  invocationRes := y\<rparr>"
-and "\<And>x y. S\<lparr>prog := y, invocationOp := x\<rparr> = S\<lparr>invocationOp := x,  prog := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionStatus := y, invocationOp := x\<rparr> = S\<lparr>invocationOp := x,  transactionStatus := y\<rparr>"
-and "\<And>x y. S\<lparr>generatedIds := y, invocationOp := x\<rparr> = S\<lparr>invocationOp := x,  generatedIds := y\<rparr>"
-and "\<And>x y. S\<lparr>localState := y, invocationOp := x\<rparr> = S\<lparr>invocationOp := x,  localState := y\<rparr>"
-and "\<And>x y. S\<lparr>currentProc := y, invocationOp := x\<rparr> = S\<lparr>invocationOp := x,  currentProc := y\<rparr>"
-and "\<And>x y. S\<lparr>visibleCalls := y, invocationOp := x\<rparr> = S\<lparr>invocationOp := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, invocationOp := x\<rparr> = S\<lparr>invocationOp := x,  currentTransaction := y\<rparr>"
-and "\<And>x y. S\<lparr>prog := y, invocationRes := x\<rparr> = S\<lparr>invocationRes := x,  prog := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionStatus := y, invocationRes := x\<rparr> = S\<lparr>invocationRes := x,  transactionStatus := y\<rparr>"
-and "\<And>x y. S\<lparr>generatedIds := y, invocationRes := x\<rparr> = S\<lparr>invocationRes := x,  generatedIds := y\<rparr>"
-and "\<And>x y. S\<lparr>localState := y, invocationRes := x\<rparr> = S\<lparr>invocationRes := x,  localState := y\<rparr>"
-and "\<And>x y. S\<lparr>currentProc := y, invocationRes := x\<rparr> = S\<lparr>invocationRes := x,  currentProc := y\<rparr>"
-and "\<And>x y. S\<lparr>visibleCalls := y, invocationRes := x\<rparr> = S\<lparr>invocationRes := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, invocationRes := x\<rparr> = S\<lparr>invocationRes := x,  currentTransaction := y\<rparr>"
-and "\<And>x y. S\<lparr>transactionStatus := y, prog := x\<rparr> = S\<lparr>prog := x,  transactionStatus := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, knownIds := x\<rparr> = S\<lparr>knownIds := x,  currentTx := y\<rparr>"
+and "\<And>x y. S\<lparr>invocRes := y, invocOp := x\<rparr> = S\<lparr>invocOp := x,  invocRes := y\<rparr>"
+and "\<And>x y. S\<lparr>prog := y, invocOp := x\<rparr> = S\<lparr>invocOp := x,  prog := y\<rparr>"
+and "\<And>x y. S\<lparr>txStatus := y, invocOp := x\<rparr> = S\<lparr>invocOp := x,  txStatus := y\<rparr>"
+and "\<And>x y. S\<lparr>generatedIds := y, invocOp := x\<rparr> = S\<lparr>invocOp := x,  generatedIds := y\<rparr>"
+and "\<And>x y. S\<lparr>localState := y, invocOp := x\<rparr> = S\<lparr>invocOp := x,  localState := y\<rparr>"
+and "\<And>x y. S\<lparr>currentProc := y, invocOp := x\<rparr> = S\<lparr>invocOp := x,  currentProc := y\<rparr>"
+and "\<And>x y. S\<lparr>visibleCalls := y, invocOp := x\<rparr> = S\<lparr>invocOp := x,  visibleCalls := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, invocOp := x\<rparr> = S\<lparr>invocOp := x,  currentTx := y\<rparr>"
+and "\<And>x y. S\<lparr>prog := y, invocRes := x\<rparr> = S\<lparr>invocRes := x,  prog := y\<rparr>"
+and "\<And>x y. S\<lparr>txStatus := y, invocRes := x\<rparr> = S\<lparr>invocRes := x,  txStatus := y\<rparr>"
+and "\<And>x y. S\<lparr>generatedIds := y, invocRes := x\<rparr> = S\<lparr>invocRes := x,  generatedIds := y\<rparr>"
+and "\<And>x y. S\<lparr>localState := y, invocRes := x\<rparr> = S\<lparr>invocRes := x,  localState := y\<rparr>"
+and "\<And>x y. S\<lparr>currentProc := y, invocRes := x\<rparr> = S\<lparr>invocRes := x,  currentProc := y\<rparr>"
+and "\<And>x y. S\<lparr>visibleCalls := y, invocRes := x\<rparr> = S\<lparr>invocRes := x,  visibleCalls := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, invocRes := x\<rparr> = S\<lparr>invocRes := x,  currentTx := y\<rparr>"
+and "\<And>x y. S\<lparr>txStatus := y, prog := x\<rparr> = S\<lparr>prog := x,  txStatus := y\<rparr>"
 and "\<And>x y. S\<lparr>generatedIds := y, prog := x\<rparr> = S\<lparr>prog := x,  generatedIds := y\<rparr>"
 and "\<And>x y. S\<lparr>localState := y, prog := x\<rparr> = S\<lparr>prog := x,  localState := y\<rparr>"
 and "\<And>x y. S\<lparr>currentProc := y, prog := x\<rparr> = S\<lparr>prog := x,  currentProc := y\<rparr>"
 and "\<And>x y. S\<lparr>visibleCalls := y, prog := x\<rparr> = S\<lparr>prog := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, prog := x\<rparr> = S\<lparr>prog := x,  currentTransaction := y\<rparr>"
-and "\<And>x y. S\<lparr>generatedIds := y, transactionStatus := x\<rparr> = S\<lparr>transactionStatus := x,  generatedIds := y\<rparr>"
-and "\<And>x y. S\<lparr>localState := y, transactionStatus := x\<rparr> = S\<lparr>transactionStatus := x,  localState := y\<rparr>"
-and "\<And>x y. S\<lparr>currentProc := y, transactionStatus := x\<rparr> = S\<lparr>transactionStatus := x,  currentProc := y\<rparr>"
-and "\<And>x y. S\<lparr>visibleCalls := y, transactionStatus := x\<rparr> = S\<lparr>transactionStatus := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, transactionStatus := x\<rparr> = S\<lparr>transactionStatus := x,  currentTransaction := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, prog := x\<rparr> = S\<lparr>prog := x,  currentTx := y\<rparr>"
+and "\<And>x y. S\<lparr>generatedIds := y, txStatus := x\<rparr> = S\<lparr>txStatus := x,  generatedIds := y\<rparr>"
+and "\<And>x y. S\<lparr>localState := y, txStatus := x\<rparr> = S\<lparr>txStatus := x,  localState := y\<rparr>"
+and "\<And>x y. S\<lparr>currentProc := y, txStatus := x\<rparr> = S\<lparr>txStatus := x,  currentProc := y\<rparr>"
+and "\<And>x y. S\<lparr>visibleCalls := y, txStatus := x\<rparr> = S\<lparr>txStatus := x,  visibleCalls := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, txStatus := x\<rparr> = S\<lparr>txStatus := x,  currentTx := y\<rparr>"
 and "\<And>x y. S\<lparr>localState := y, generatedIds := x\<rparr> = S\<lparr>generatedIds := x,  localState := y\<rparr>"
 and "\<And>x y. S\<lparr>currentProc := y, generatedIds := x\<rparr> = S\<lparr>generatedIds := x,  currentProc := y\<rparr>"
 and "\<And>x y. S\<lparr>visibleCalls := y, generatedIds := x\<rparr> = S\<lparr>generatedIds := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, generatedIds := x\<rparr> = S\<lparr>generatedIds := x,  currentTransaction := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, generatedIds := x\<rparr> = S\<lparr>generatedIds := x,  currentTx := y\<rparr>"
 and "\<And>x y. S\<lparr>currentProc := y, localState := x\<rparr> = S\<lparr>localState := x,  currentProc := y\<rparr>"
 and "\<And>x y. S\<lparr>visibleCalls := y, localState := x\<rparr> = S\<lparr>localState := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, localState := x\<rparr> = S\<lparr>localState := x,  currentTransaction := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, localState := x\<rparr> = S\<lparr>localState := x,  currentTx := y\<rparr>"
 and "\<And>x y. S\<lparr>visibleCalls := y, currentProc := x\<rparr> = S\<lparr>currentProc := x,  visibleCalls := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, currentProc := x\<rparr> = S\<lparr>currentProc := x,  currentTransaction := y\<rparr>"
-and "\<And>x y. S\<lparr>currentTransaction := y, visibleCalls := x\<rparr> = S\<lparr>visibleCalls := x,  currentTransaction := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, currentProc := x\<rparr> = S\<lparr>currentProc := x,  currentTx := y\<rparr>"
+and "\<And>x y. S\<lparr>currentTx := y, visibleCalls := x\<rparr> = S\<lparr>visibleCalls := x,  currentTx := y\<rparr>"
   by auto
   
 
@@ -293,7 +302,7 @@ and "\<And>x y. S\<lparr>currentTransaction := y, visibleCalls := x\<rparr> = S\
 
 
 
-abbreviation "committedTransactions C \<equiv> {txn. transactionStatus C txn \<triangleq> Committed }"
+abbreviation "committedTransactions C \<equiv> {txn. txStatus C txn \<triangleq> Committed }"
 
 
 
@@ -318,152 +327,152 @@ abbreviation "emptyInvariantContext \<equiv> \<lparr>
         calls = Map.empty,
         happensBefore = {},
         callOrigin  = Map.empty,
-        transactionOrigin = Map.empty,
+        txOrigin = Map.empty,
         knownIds = {},
-        invocationOp = Map.empty,
-        invocationRes = Map.empty
+        invocOp = Map.empty,
+        invocRes = Map.empty
 \<rparr>"
 
 definition isCommittedH where
-  "isCommittedH state_callOrigin state_transactionStatus c \<equiv> \<exists>tx. state_callOrigin c \<triangleq> tx \<and> state_transactionStatus tx \<triangleq> Committed"
+  "isCommittedH state_callOrigin state_txStatus c \<equiv> \<exists>tx. state_callOrigin c \<triangleq> tx \<and> state_txStatus tx \<triangleq> Committed"
 
-abbreviation isCommitted :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> callId \<Rightarrow> bool" where
-  "isCommitted state \<equiv> isCommittedH (callOrigin state) (transactionStatus state)"
+abbreviation isCommitted :: "('proc, 'ls, 'op, 'any) state \<Rightarrow> callId \<Rightarrow> bool" where
+  "isCommitted state \<equiv> isCommittedH (callOrigin state) (txStatus state)"
 
-definition "committedCallsH state_callOrigin state_transactionStatus \<equiv> 
-   {c. isCommittedH state_callOrigin state_transactionStatus c}"
+definition "committedCallsH state_callOrigin state_txStatus \<equiv> 
+   {c. isCommittedH state_callOrigin state_txStatus c}"
 
-abbreviation committedCalls :: "('proc, 'ls, 'operation, 'any) state \<Rightarrow> callId set" where
-  "committedCalls state \<equiv> committedCallsH (callOrigin state) (transactionStatus state)"
+abbreviation committedCalls :: "('proc, 'ls, 'op, 'any) state \<Rightarrow> callId set" where
+  "committedCalls state \<equiv> committedCallsH (callOrigin state) (txStatus state)"
 
 definition invContextH  where
-  "invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-   state_calls state_knownIds state_invocationOp state_invocationRes = \<lparr>
-        calls = state_calls |` committedCallsH state_callOrigin state_transactionStatus , 
-        happensBefore = state_happensBefore |r committedCallsH state_callOrigin state_transactionStatus , 
-        callOrigin  = state_callOrigin |` committedCallsH state_callOrigin state_transactionStatus,
-        transactionOrigin = state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Committed},
+  "invContextH state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+   state_calls state_knownIds state_invocOp state_invocRes = \<lparr>
+        calls = state_calls |` committedCallsH state_callOrigin state_txStatus , 
+        happensBefore = state_happensBefore |r committedCallsH state_callOrigin state_txStatus , 
+        callOrigin  = state_callOrigin |` committedCallsH state_callOrigin state_txStatus,
+        txOrigin = state_txOrigin |` {t. state_txStatus t \<triangleq> Committed},
         knownIds = state_knownIds,
-        invocationOp = state_invocationOp,
-        invocationRes = state_invocationRes
+        invocOp = state_invocOp,
+        invocRes = state_invocRes
       \<rparr>"
 
 
 lemma invContextH_calls:
-"calls (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
-= state_calls |` committedCallsH state_callOrigin state_transactionStatus"
+"calls (invContextH state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
+= state_calls |` committedCallsH state_callOrigin state_txStatus"
   by (auto simp add: invContextH_def)
 
 
 lemma invContextH_happensBefore:
-"happensBefore (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes) 
-= state_happensBefore |r committedCallsH state_callOrigin state_transactionStatus "
+"happensBefore (invContextH state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes) 
+= state_happensBefore |r committedCallsH state_callOrigin state_txStatus "
   by (auto simp add: invContextH_def)
 
 
 lemma invContextH_i_callOrigin:
-"callOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
-= state_callOrigin |` committedCallsH state_callOrigin state_transactionStatus"
+"callOrigin (invContextH state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
+= state_callOrigin |` committedCallsH state_callOrigin state_txStatus"
 by (auto simp add: invContextH_def)
 
-lemma invContextH_i_transactionOrigin:
-"transactionOrigin (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
-=  state_transactionOrigin |` {t. state_transactionStatus t \<triangleq> Committed}"
+lemma invContextH_i_txOrigin:
+"txOrigin (invContextH state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
+=  state_txOrigin |` {t. state_txStatus t \<triangleq> Committed}"
   by (auto simp add: invContextH_def)
 
 lemma invContextH_i_knownIds:
-"knownIds (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+"knownIds (invContextH state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
 = state_knownIds"
   by (auto simp add: invContextH_def)
 
-lemma invContextH_i_invocationOp:
-"invocationOp (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
-= state_invocationOp"
+lemma invContextH_i_invocOp:
+"invocOp (invContextH state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
+= state_invocOp"
 by (auto simp add: invContextH_def)
 
 
-lemma invContextH_i_invocationRes:
-"invocationRes (invContextH state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
-=  state_invocationRes"
+lemma invContextH_i_invocRes:
+"invocRes (invContextH state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
+=  state_invocRes"
 by (auto simp add: invContextH_def)
 
 abbreviation invContext where
   "invContext state \<equiv>
   invContextH
   (callOrigin state)
-  (transactionOrigin state)
-  (transactionStatus state)
+  (txOrigin state)
+  (txStatus state)
   (happensBefore state)
   (calls state)
   (knownIds state)
-  (invocationOp state)
-  (invocationRes state)"
+  (invocOp state)
+  (invocRes state)"
 
 
 
 definition invContextH2  where
-  "invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-   state_calls state_knownIds state_invocationOp state_invocationRes = \<lparr>
+  "invContextH2 state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+   state_calls state_knownIds state_invocOp state_invocRes = \<lparr>
         calls = state_calls , 
         happensBefore = state_happensBefore, 
         callOrigin  = state_callOrigin,
-        transactionOrigin = state_transactionOrigin,
+        txOrigin = state_txOrigin,
         knownIds = state_knownIds,
-        invocationOp = state_invocationOp,
-        invocationRes = state_invocationRes
+        invocOp = state_invocOp,
+        invocRes = state_invocRes
       \<rparr>"
 
 
 lemma invContextH2_calls:
-"calls (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+"calls (invContextH2 state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
 = state_calls"
   by (auto simp add: invContextH2_def)
 
 
 lemma invContextH2_happensBefore:
-"happensBefore (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes) 
+"happensBefore (invContextH2 state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes) 
 = state_happensBefore"
   by (auto simp add: invContextH2_def)
 
 
 lemma invContextH2_i_callOrigin:
-"callOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+"callOrigin (invContextH2 state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
 = state_callOrigin "
 by (auto simp add: invContextH2_def)
 
-lemma invContextH2_i_transactionOrigin:
-"transactionOrigin (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
-=  state_transactionOrigin "
+lemma invContextH2_i_txOrigin:
+"txOrigin (invContextH2 state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
+=  state_txOrigin "
   by (auto simp add: invContextH2_def)
 
 lemma invContextH2_i_knownIds:
-"knownIds (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
+"knownIds (invContextH2 state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
 = state_knownIds"
   by (auto simp add: invContextH2_def)
 
-lemma invContextH2_i_invocationOp:
-"invocationOp (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
-= state_invocationOp"
+lemma invContextH2_i_invocOp:
+"invocOp (invContextH2 state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
+= state_invocOp"
 by (auto simp add: invContextH2_def)
 
 
-lemma invContextH2_i_invocationRes:
-"invocationRes (invContextH2 state_callOrigin state_transactionOrigin state_transactionStatus state_happensBefore 
-      state_calls state_knownIds state_invocationOp state_invocationRes ) 
-=  state_invocationRes"
+lemma invContextH2_i_invocRes:
+"invocRes (invContextH2 state_callOrigin state_txOrigin state_txStatus state_happensBefore 
+      state_calls state_knownIds state_invocOp state_invocRes ) 
+=  state_invocRes"
 by (auto simp add: invContextH2_def)
 
 
@@ -471,32 +480,32 @@ lemmas invContextH2_simps =
 invContextH_calls
 invContextH_happensBefore
 invContextH_i_callOrigin
-invContextH_i_transactionOrigin
+invContextH_i_txOrigin
 invContextH_i_knownIds
-invContextH_i_invocationOp
-invContextH_i_invocationRes
+invContextH_i_invocOp
+invContextH_i_invocRes
 invContextH2_calls
 invContextH2_happensBefore
 invContextH2_i_callOrigin
-invContextH2_i_transactionOrigin
+invContextH2_i_txOrigin
 invContextH2_i_knownIds
-invContextH2_i_invocationOp
-invContextH2_i_invocationRes
+invContextH2_i_invocOp
+invContextH2_i_invocRes
 
 abbreviation invContext' where
   "invContext' state \<equiv>
   invContextH2
   (callOrigin state)
-  (transactionOrigin state)
-  (transactionStatus state)
+  (txOrigin state)
+  (txStatus state)
   (happensBefore state)
   (calls state)
   (knownIds state)
-  (invocationOp state)
-  (invocationRes state)"
+  (invocOp state)
+  (invocRes state)"
 
-lemma invContext'_truncate: "invContext' state = invariantContext.truncate state"
-  by (auto simp add: invContextH2_def invariantContext.defs)
+lemma invContext'_truncate: "invContext' state = invContext.truncate state"
+  by (auto simp add: invContextH2_def invContext.defs)
 
 
 definition callsInTransactionH :: "(callId \<rightharpoonup> txid) \<Rightarrow> txid set \<Rightarrow> callId set" where
@@ -511,40 +520,40 @@ abbreviation
 
 
 lemma invContextSnapshot_eq:
-  assumes "c_calls = committedCallsH (callOrigin state) (transactionStatus state)"
-    and "c_txns = {t. transactionStatus state t \<triangleq> Committed}"
+  assumes "c_calls = committedCallsH (callOrigin state) (txStatus state)"
+    and "c_txns = {t. txStatus state t \<triangleq> Committed}"
   shows
     "invContext state =  \<lparr>
         calls = calls state |` c_calls , 
         happensBefore = happensBefore state |r c_calls , 
         callOrigin  = callOrigin state |` c_calls,
-        transactionOrigin = transactionOrigin state |` c_txns,
+        txOrigin = txOrigin state |` c_txns,
         knownIds = knownIds state,
-        invocationOp = invocationOp state,
-        invocationRes = invocationRes state\<rparr>"
+        invocOp = invocOp state,
+        invocRes = invocRes state\<rparr>"
   by (auto simp add: assms  invContextH_def)
 
 
 
-lemma invariantContext_eqI: "\<lbrakk>
+lemma invContext_eqI: "\<lbrakk>
 calls x = calls y;
 happensBefore x = happensBefore y;
 callOrigin x = callOrigin y;
-transactionOrigin x = transactionOrigin y;
+txOrigin x = txOrigin y;
 knownIds x = knownIds y;
-invocationOp x = invocationOp y;
-invocationRes x = invocationRes y
-\<rbrakk> \<Longrightarrow> x = (y::('proc, 'operation, 'any) invariantContext)"
+invocOp x = invocOp y;
+invocRes x = invocRes y
+\<rbrakk> \<Longrightarrow> x = (y::('proc, 'op, 'any) invContext)"
   by auto
 
 
 
-datatype ('proc, 'operation, 'any) action =
+datatype ('proc, 'op, 'any) action =
     ALocal bool
   | ANewId 'any
   | ABeginAtomic txid "callId set"
   | AEndAtomic
-  | ADbOp callId 'operation 'any
+  | ADbOp callId 'op 'any
   | AInvoc 'proc
   | AReturn 'any
   | ACrash  
@@ -569,17 +578,17 @@ schematic_goal [simp]: "isACrash (AInvcheck c) = ?x" by (auto simp add: isACrash
 
 
 definition chooseSnapshot_h where
-"chooseSnapshot_h snapshot vis txStatus cOrigin hb \<equiv>
+"chooseSnapshot_h snapshot vis txSt cOrigin hb \<equiv>
   \<exists>newTxns newCalls.
   \<comment> \<open>  choose a set of committed transactions to add to the snapshot  \<close>
-   (\<forall>txn\<in>newTxns. txStatus txn \<triangleq> Committed)
+   (\<forall>txn\<in>newTxns. txSt txn \<triangleq> Committed)
    \<comment> \<open>  determine new visible calls: downwards-closure wrt. causality   \<close>
    \<and> newCalls = callsInTransactionH cOrigin newTxns \<down> hb
    \<comment> \<open>  transaction snapshot  \<close>
    \<and> snapshot = vis \<union> newCalls"
 
-abbreviation chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> bool" where 
-"chooseSnapshot snapshot vis S \<equiv> chooseSnapshot_h snapshot vis (transactionStatus S) (callOrigin S) (happensBefore S)"
+abbreviation chooseSnapshot :: "callId set \<Rightarrow> callId set \<Rightarrow> ('proc::valueType, 'ls, 'op, 'any::valueType) state \<Rightarrow> bool" where 
+"chooseSnapshot snapshot vis S \<equiv> chooseSnapshot_h snapshot vis (txStatus S) (callOrigin S) (happensBefore S)"
 
 lemma chooseSnapshot_def: \<comment> \<open>old definition\<close>
 "chooseSnapshot snapshot vis S = (
@@ -592,9 +601,40 @@ lemma chooseSnapshot_def: \<comment> \<open>old definition\<close>
    \<and> snapshot = vis \<union> newCalls)"
   by (auto simp add: chooseSnapshot_h_def)
 
+schematic_goal chooseSnapshot_def2:
+"chooseSnapshot snapshot vis S = ?x"
+  by (subst chooseSnapshot_h_def, rule refl)
+
+schematic_goal callsInTransaction_def:
+"callsInTransaction S newTxns = ?x"
+  by (subst callsInTransactionH_def, rule refl)
 
 
-inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'operation, 'any) action) \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
+ text \<open>
+ \DefineSnippet{chooseSnapshot_def}{
+    @{thm [display] chooseSnapshot_def}
+ }%EndSnippet
+
+ \DefineSnippet{chooseSnapshot_def2}{
+    @{thm [display] chooseSnapshot_def2}
+ }%EndSnippet
+
+ \DefineSnippet{downwardsClosure_in}{
+    @{thm [display] downwardsClosure_in}
+ }%EndSnippet
+
+ \DefineSnippet{callsInTransaction_def}{
+    @{thm [display] callsInTransaction_def}
+ }%EndSnippet
+
+ \<close>
+
+
+
+
+
+
+inductive step :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'op, 'any) action) \<Rightarrow> ('proc, 'ls, 'op, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>" 60) where
   local: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
@@ -614,28 +654,28 @@ inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
    f ls = BeginAtomic ls';
-   currentTransaction S i = None;   
-   transactionStatus S t = None;
+   currentTx S i = None;   
+   txStatus S t = None;
    visibleCalls S i \<triangleq> vis;
    chooseSnapshot snapshot vis S
    \<rbrakk> \<Longrightarrow> S ~~ (i, ABeginAtomic t snapshot) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls'), 
-                currentTransaction := (currentTransaction S)(i \<mapsto> t),
-                transactionStatus := (transactionStatus S)(t \<mapsto> Uncommitted),
-                transactionOrigin := (transactionOrigin S)(t \<mapsto> i),
+                currentTx := (currentTx S)(i \<mapsto> t),
+                txStatus := (txStatus S)(t \<mapsto> Uncommitted),
+                txOrigin := (txOrigin S)(t \<mapsto> i),
                 visibleCalls := (visibleCalls S)(i \<mapsto> snapshot)\<rparr>)" 
 | endAtomic: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
    f ls = EndAtomic ls';
-   currentTransaction S i \<triangleq> t
+   currentTx S i \<triangleq> t
    \<rbrakk> \<Longrightarrow> S ~~ (i, AEndAtomic) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> ls'), 
-                currentTransaction := (currentTransaction S)(i := None),
-                transactionStatus := (transactionStatus S)(t \<mapsto> Committed) \<rparr>)"
+                currentTx := (currentTx S)(i := None),
+                txStatus := (txStatus S)(t \<mapsto> Committed) \<rparr>)"
 | dbop: 
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
    f ls = DbOperation Op ls';
-   currentTransaction S i \<triangleq> t;
+   currentTx S i \<triangleq> t;
    calls S c = None;
    querySpec (prog S) Op (getContext S i)  res;
    visibleCalls S i \<triangleq> vis
@@ -649,30 +689,33 @@ inductive step :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<
   "\<lbrakk>localState S i = None;
    procedure (prog S) proc = (initialState, impl);
    uniqueIds proc \<subseteq> knownIds S;
-   invocationOp S i = None
+   invocOp S i = None
    \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvoc proc) \<leadsto> (S\<lparr>localState := (localState S)(i \<mapsto> initialState),
                  currentProc := (currentProc S)(i \<mapsto> impl),
                  visibleCalls := (visibleCalls S)(i \<mapsto> {}),
-                 invocationOp := (invocationOp S)(i \<mapsto> proc) \<rparr>)"                  
+                 invocOp := (invocOp S)(i \<mapsto> proc) \<rparr>)"                  
 | return:
   "\<lbrakk>localState S i \<triangleq> ls; 
    currentProc S i \<triangleq> f; 
    f ls = Return res;
-   currentTransaction S i = None
+   currentTx S i = None
    \<rbrakk> \<Longrightarrow>  S ~~ (i, AReturn res) \<leadsto> (S\<lparr>localState := (localState S)(i := None),
                  currentProc := (currentProc S)(i := None),
                  visibleCalls := (visibleCalls S)(i := None),
-                 invocationRes := (invocationRes S)(i \<mapsto> res),
+                 invocRes := (invocRes S)(i \<mapsto> res),
                  knownIds := knownIds S \<union> uniqueIds res\<rparr>)"                
-| fail:
+| crash:
   "localState S i \<triangleq> ls
    \<Longrightarrow> S ~~ (i, ACrash) \<leadsto> (S\<lparr>localState := (localState S)(i := None),
-                 currentTransaction := (currentTransaction S)(i := None),
+                 currentTx := (currentTx S)(i := None),
                  currentProc := (currentProc S)(i := None),
                  visibleCalls := (visibleCalls S)(i := None) \<rparr>)"                  
 | invCheck: \<comment> \<open>checks a snapshot\<close>
   "\<lbrakk>invariant (prog S) (invContext S) = res
    \<rbrakk> \<Longrightarrow>  S ~~ (i, AInvcheck res) \<leadsto> S"   
+
+
+
 
 inductive_simps step_simp_ALocal: "A ~~ (s, ALocal ok) \<leadsto> B "
 inductive_simps step_simp_ANewId: "A ~~ (s, ANewId n) \<leadsto> B "
@@ -727,7 +770,7 @@ lemmas step_elims =
 
 
 
-inductive steps :: "('proc::valueType, 'ls, 'operation, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'operation, 'any) action) list \<Rightarrow> ('proc, 'ls, 'operation, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
+inductive steps :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Rightarrow> (invocId \<times> ('proc, 'op, 'any) action) list \<Rightarrow> ('proc, 'ls, 'op, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>*" 60) where         
   steps_refl:
   "S ~~ [] \<leadsto>* S"
 | steps_step:
@@ -767,29 +810,29 @@ next
     by (metis snoc_eq_iff_butlast stepDeterministic steps.cases) 
 qed
 
-definition initialState :: "('proc, 'ls, 'operation, 'any) prog \<Rightarrow> ('proc, 'ls, 'operation, 'any) state" where
+definition initialState :: "('proc, 'ls, 'op, 'any) prog \<Rightarrow> ('proc, 'ls, 'op, 'any) state" where
   "initialState program \<equiv> \<lparr>
   calls = Map.empty,
   happensBefore = {},
   callOrigin = Map.empty,
-  transactionOrigin = Map.empty,
+  txOrigin = Map.empty,
   knownIds = {},
-  invocationOp = Map.empty,
-  invocationRes = Map.empty,
+  invocOp = Map.empty,
+  invocRes = Map.empty,
   prog = program,
-  transactionStatus = Map.empty,
+  txStatus = Map.empty,
   generatedIds = Map.empty,
   localState = Map.empty,
   currentProc = Map.empty,
   visibleCalls = Map.empty,
-  currentTransaction = Map.empty
+  currentTx = Map.empty
 \<rparr>"
 
-type_synonym ('proc, 'operation, 'any) trace = "(invocId\<times>('proc, 'operation, 'any) action) list"
+type_synonym ('proc, 'op, 'any) trace = "(invocId\<times>('proc, 'op, 'any) action) list"
 
-abbreviation get_invoc :: "invocId\<times>('proc, 'operation, 'any) action \<Rightarrow> invocId" where 
+abbreviation get_invoc :: "invocId\<times>('proc, 'op, 'any) action \<Rightarrow> invocId" where 
 "get_invoc \<equiv> fst"
-abbreviation get_action :: "invocId\<times>('proc, 'operation, 'any) action \<Rightarrow> ('proc, 'operation, 'any) action" where 
+abbreviation get_action :: "invocId\<times>('proc, 'op, 'any) action \<Rightarrow> ('proc, 'op, 'any) action" where 
 "get_action \<equiv> snd"
 
 definition traces where
@@ -801,7 +844,7 @@ definition
 definition traceCorrect where
   "traceCorrect trace \<equiv> (\<forall>a\<in>set trace. actionCorrect (get_action a))"
 
-definition programCorrect :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) prog \<Rightarrow> bool" where
+definition programCorrect :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) prog \<Rightarrow> bool" where
   "programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"
 
 definition "isABeginAtomic action = (case action of ABeginAtomic x newTxns \<Rightarrow> True | _ \<Rightarrow> False)"
@@ -832,7 +875,7 @@ lemma show_programCorrect:
 2. part until and including (s, EndAtomic); same invocId
 3. rest
 *)
-fun splitTrace :: "invocId \<Rightarrow> ('proc, 'operation, 'any) trace \<Rightarrow> (('proc, 'operation, 'any) trace \<times> ('proc, 'operation, 'any) trace \<times> ('proc, 'operation, 'any) trace)" where
+fun splitTrace :: "invocId \<Rightarrow> ('proc, 'op, 'any) trace \<Rightarrow> (('proc, 'op, 'any) trace \<times> ('proc, 'op, 'any) trace \<times> ('proc, 'op, 'any) trace)" where
   "splitTrace s [] = ([],[],[])"
 | "splitTrace s ((sa, a)#tr) = (
     if s = sa then
@@ -871,7 +914,7 @@ lemma splitTrace_len2:
 declare splitTrace.simps[simp del]
 
   
-function (sequential) compactTrace :: "invocId \<Rightarrow> ('proc, 'operation, 'any) trace \<Rightarrow> ('proc, 'operation, 'any) trace" where
+function (sequential) compactTrace :: "invocId \<Rightarrow> ('proc, 'op, 'any) trace \<Rightarrow> ('proc, 'op, 'any) trace" where
   compactTrace_empty:
   "compactTrace s [] = []"
 | compactTrace_step:

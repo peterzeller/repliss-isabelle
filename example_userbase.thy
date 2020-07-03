@@ -198,15 +198,15 @@ definition inv3  where
   \<and> (delete, write) \<in> hb
   )"
 
-definition inv :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
+definition inv :: "(proc, operation, val) invContext \<Rightarrow> bool" where
   "inv ctxt \<equiv> 
-    inv1 (invocationOp ctxt) (invocationRes ctxt) (invocation_happensBefore ctxt) 
-  \<and> inv2 (invocationOp ctxt) (i_callOriginI ctxt) (calls ctxt)
+    inv1 (invocOp ctxt) (invocRes ctxt) (invocation_happensBefore ctxt) 
+  \<and> inv2 (invocOp ctxt) (i_callOriginI ctxt) (calls ctxt)
   \<and> inv3 (calls ctxt) (happensBefore ctxt)"
 
 lemma show_inv[intro, case_names inv1 inv2 inv3]:
-  assumes "inv1 (invocationOp ctxt) (invocationRes ctxt) (invocation_happensBefore ctxt)" 
-    and "inv2 (invocationOp ctxt) (i_callOriginI ctxt) (calls ctxt)" 
+  assumes "inv1 (invocOp ctxt) (invocRes ctxt) (invocation_happensBefore ctxt)" 
+    and "inv2 (invocOp ctxt) (i_callOriginI ctxt) (calls ctxt)" 
     and "inv3 (calls ctxt) (happensBefore ctxt)"
   shows "inv ctxt"
   using assms  by (auto simp add: inv_def)
@@ -308,7 +308,7 @@ lemma invariant_progr[simp]: "invariant progr = example_userbase.inv"
 lemma if_distrib_eq: "(if c then x else y) = z \<longleftrightarrow> (if c then x = z else y = z)"
   by (rule if_distrib)
 
-declare invariantContext.defs[simp]
+declare invContext.defs[simp]
 
 lemmas crdt_spec_defs = 
   toplevel_spec_def crdtSpec'_def struct_field'_def map_sdw_spec'_def map_spec'_def userStruct'_def register_spec'_def
@@ -320,7 +320,7 @@ proof M_show_programCorrect
 
   case invariant_initial_state
   show "invariant_all' (initialState progr)"
-    by (simp add: example_userbase.inv_def initialState_def inv1_def inv2_def inv3_def invContextH2_happensBefore invContextH2_i_invocationOp progr_def)
+    by (simp add: example_userbase.inv_def initialState_def inv1_def inv2_def inv3_def invContextH2_happensBefore invContextH2_i_invocOp progr_def)
 
   case (procedure_correct S i)
 
@@ -329,9 +329,9 @@ proof M_show_programCorrect
   show "procedureCorrect S i"
   proof (rule Initial_Label, rule show_initial_state_prop[OF procedure_correct], rule DC_final2, casify)
     case (show_P S_pre proc initState impl)
-    have "invocationOp S i \<triangleq> proc"
+    have "invocOp S i \<triangleq> proc"
       using show_P by auto
-    have "invocationRes S i = None"
+    have "invocRes S i = None"
       using show_P apply auto
       using state_wellFormed_invocation_before_result by blast
 
@@ -368,8 +368,8 @@ proof M_show_programCorrect
 
           note registerUser_impl_def[simp]
 
-          show "invocationOp S i \<triangleq> RegisterUser name mail"
-            using RegisterUser \<open>invocationOp S i \<triangleq> proc\<close> by blast
+          show "invocOp S i \<triangleq> RegisterUser name mail"
+            using RegisterUser \<open>invocOp S i \<triangleq> proc\<close> by blast
 
 
           show "program_wellFormed (prog S)"
@@ -384,12 +384,12 @@ proof M_show_programCorrect
 
 
 
-          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RegisterUser name mail), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (RegisterUser name mail), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (registerUser_impl (String name) (String mail)) (finalCheck (invariant progr) i)"
-            if c0: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
-              and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RegisterUser name mail), invocationRes = s_invocationRes(i := None)\<rparr>"
-            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, txOrigin = s_txOrigin, knownIds = s_knownIds, invocOp = s_invocOp(i \<mapsto> RegisterUser name mail), invocRes = s_invocRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (RegisterUser name mail), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (registerUser_impl (String name) (String mail)) (finalCheck (invariant progr) i)"
+            if c0: "\<And>tx. s_txOrigin tx \<noteq> Some i"
+              and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, txOrigin = s_txOrigin, knownIds = s_knownIds, invocOp = s_invocOp(i \<mapsto> RegisterUser name mail), invocRes = s_invocRes(i := None)\<rparr>"
+            for  s_calls s_happensBefore s_callOrigin s_txOrigin s_knownIds s_invocOp s_invocRes
           proof (repliss_vcg_l, fuzzy_goal_cases "AtCommit" "AtReturn" )
-            case (AtCommit v vn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa PS')
+            case (AtCommit v vn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res ca resa PS')
 
 
             have s_calls_mono: "s_calls' c \<triangleq> x" if "s_calls c \<triangleq> x" for c x
@@ -446,8 +446,8 @@ proof M_show_programCorrect
 
               case inv1
 
-              from `inv1 (s_invocationOp'(i \<mapsto> RegisterUser name mail)) (s_invocationRes'(i := None))
-                  (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
+              from `inv1 (s_invocOp'(i \<mapsto> RegisterUser name mail)) (s_invocRes'(i := None))
+                  (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_txOrigin') s_happensBefore')`
               show ?case
                 by (auto simp add: inv1_def)
 
@@ -455,7 +455,7 @@ proof M_show_programCorrect
 
             next
               case inv2
-              from `inv2 (s_invocationOp'(i \<mapsto> RegisterUser name mail)) (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
+              from `inv2 (s_invocOp'(i \<mapsto> RegisterUser name mail)) (i_callOriginI_h s_callOrigin' s_txOrigin') s_calls'`
               show ?case
                 apply (auto simp add: inv2_def)
                    apply (auto simp add: map_update_all_get i_callOriginI_h_simp)
@@ -463,7 +463,7 @@ proof M_show_programCorrect
             next 
               case inv3
 
-              from `uid_is_private' i s_calls' s_invocationOp' s_invocationRes' s_knownIds' vn`
+              from `uid_is_private' i s_calls' s_invocOp' s_invocRes' s_knownIds' vn`
               have "new_unique_not_in_calls s_calls' vn"
                 by (auto simp add: uid_is_private'_def)
 
@@ -486,7 +486,7 @@ proof M_show_programCorrect
 
 
           next
-            case (AtReturn v vn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res ca resa)
+            case (AtReturn v vn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res ca resa)
             then show ?case
               apply (auto simp add: inv_def)
               apply (auto simp add: inv1_def )
@@ -522,8 +522,8 @@ proof M_show_programCorrect
 
           note updateMail_impl_def[simp]
 
-          show "invocationOp S i \<triangleq> UpdateMail user mail"
-            using UpdateMail \<open>invocationOp S i \<triangleq> proc\<close> by blast
+          show "invocOp S i \<triangleq> UpdateMail user mail"
+            using UpdateMail \<open>invocOp S i \<triangleq> proc\<close> by blast
 
           show "program_wellFormed (prog S)"
             by (simp add: procedure_correct.in_initial_state)
@@ -536,26 +536,26 @@ proof M_show_programCorrect
           show "crdt_spec_rel (querySpec progr) crdtSpec'"
             by simp 
 
-          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> UpdateMail user mail), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (UpdateMail user mail), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (updateMail_impl (UserId user) (String mail)) (finalCheck (invariant progr) i)"
-            if c0: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
-              and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> UpdateMail user mail), invocationRes = s_invocationRes(i := None)\<rparr>"
-            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, txOrigin = s_txOrigin, knownIds = s_knownIds, invocOp = s_invocOp(i \<mapsto> UpdateMail user mail), invocRes = s_invocRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (UpdateMail user mail), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (updateMail_impl (UserId user) (String mail)) (finalCheck (invariant progr) i)"
+            if c0: "\<And>tx. s_txOrigin tx \<noteq> Some i"
+              and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, txOrigin = s_txOrigin, knownIds = s_knownIds, invocOp = s_invocOp(i \<mapsto> UpdateMail user mail), invocRes = s_invocRes(i := None)\<rparr>"
+            for  s_calls s_happensBefore s_callOrigin s_txOrigin s_knownIds s_invocOp s_invocRes
           proof (repliss_vcg_l, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
-            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c ca resa PS')
+            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c ca resa PS')
             
             from Exists_AtCommit
             show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3)
               case inv1
               
-              from `inv1 (s_invocationOp'(i \<mapsto> UpdateMail user mail)) (s_invocationRes'(i := None))
-               (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
+              from `inv1 (s_invocOp'(i \<mapsto> UpdateMail user mail)) (s_invocRes'(i := None))
+               (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_txOrigin') s_happensBefore')`
               show ?case
                 by (auto simp add: inv1_def)
 
             next
               case inv2
-              from `inv2 (s_invocationOp'(i \<mapsto> UpdateMail user mail)) (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
+              from `inv2 (s_invocOp'(i \<mapsto> UpdateMail user mail)) (i_callOriginI_h s_callOrigin' s_txOrigin') s_calls'`
               show ?case
                 using `c \<noteq> ca` by (auto simp add: inv2_def i_callOriginI_h_update_to3, meson)
 
@@ -624,11 +624,11 @@ proof M_show_programCorrect
               qed
 
             next
-              case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c ca resa)
+              case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c ca resa)
               then show ?case
                 by (auto simp add: inv_def inv1_def, presburger) 
             next
-              case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res PS')
+              case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res PS')
 
               
 
@@ -643,7 +643,7 @@ proof M_show_programCorrect
 
 
             next
-              case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+              case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res)
               then show ?case 
                 by (auto simp add: inv_def inv1_def, presburger) 
             qed
@@ -679,8 +679,8 @@ proof M_show_programCorrect
 
           note removeUser_impl_def[simp]
 
-          show "invocationOp S i \<triangleq> RemoveUser user"
-            using RemoveUser \<open>invocationOp S i \<triangleq> proc\<close> by blast
+          show "invocOp S i \<triangleq> RemoveUser user"
+            using RemoveUser \<open>invocOp S i \<triangleq> proc\<close> by blast
 
           show "program_wellFormed (prog S)"
             by simp
@@ -694,12 +694,12 @@ proof M_show_programCorrect
           show "crdt_spec_rel (querySpec progr) crdtSpec'"
             by simp 
 
-          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RemoveUser user), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (RemoveUser user), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (removeUser_impl (UserId user)) (finalCheck (invariant progr) i)"
-            if c0: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
-              and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> RemoveUser user), invocationRes = s_invocationRes(i := None)\<rparr>"
-            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, txOrigin = s_txOrigin, knownIds = s_knownIds, invocOp = s_invocOp(i \<mapsto> RemoveUser user), invocRes = s_invocRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (RemoveUser user), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (removeUser_impl (UserId user)) (finalCheck (invariant progr) i)"
+            if c0: "\<And>tx. s_txOrigin tx \<noteq> Some i"
+              and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, txOrigin = s_txOrigin, knownIds = s_knownIds, invocOp = s_invocOp(i \<mapsto> RemoveUser user), invocRes = s_invocRes(i := None)\<rparr>"
+            for  s_calls s_happensBefore s_callOrigin s_txOrigin s_knownIds s_invocOp s_invocRes
           proof (repliss_vcg_l, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" )
-            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res PS')
+            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res PS')
 
             from \<open>toplevel_spec crdtSpec' \<lparr>calls = s_calls', happensBefore = s_happensBefore'\<rparr> vis' (DeleteKey (UserId user)) res\<close>
             have [simp]: "res= Undef"
@@ -709,15 +709,15 @@ proof M_show_programCorrect
             show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3)
               case inv1
-              from `inv1 (s_invocationOp'(i \<mapsto> RemoveUser user)) (s_invocationRes'(i := None))
-                   (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')`
+              from `inv1 (s_invocOp'(i \<mapsto> RemoveUser user)) (s_invocRes'(i := None))
+                   (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_txOrigin') s_happensBefore')`
               show ?case
                 by (auto simp add: inv1_def)
 
               
             next
               case inv2
-              from `inv2 (s_invocationOp'(i \<mapsto> RemoveUser user)) (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_calls'`
+              from `inv2 (s_invocOp'(i \<mapsto> RemoveUser user)) (i_callOriginI_h s_callOrigin' s_txOrigin') s_calls'`
               show ?case 
                 apply (auto simp add: inv2_def i_callOriginI_h_update_to3   `\<And>c. s_callOrigin' c \<noteq> Some tx`)
                 using inv2(2) by force+
@@ -730,7 +730,7 @@ proof M_show_programCorrect
             qed
 
           next
-             case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+             case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res)
             then show ?case
               apply (auto simp add: inv_def inv1_def)
               by presburger+
@@ -764,8 +764,8 @@ proof M_show_programCorrect
 
           note getUser_impl_def[simp]
 
-          show "invocationOp S i \<triangleq> GetUser user"
-            using GetUser \<open>invocationOp S i \<triangleq> proc\<close> by blast
+          show "invocOp S i \<triangleq> GetUser user"
+            using GetUser \<open>invocOp S i \<triangleq> proc\<close> by blast
 
           show "program_wellFormed (prog S)"
             by simp
@@ -777,12 +777,12 @@ proof M_show_programCorrect
           show "crdt_spec_rel (querySpec progr) crdtSpec'"
             by simp 
 
-          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> GetUser user), invocationRes = s_invocationRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (GetUser user), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (getUser_impl (UserId user)) (finalCheck (invariant progr) i)"
-            if c0: "\<And>tx. s_transactionOrigin tx \<noteq> Some i"
-              and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, transactionOrigin = s_transactionOrigin, knownIds = s_knownIds, invocationOp = s_invocationOp(i \<mapsto> GetUser user), invocationRes = s_invocationRes(i := None)\<rparr>"
-            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+          show "execution_s_check (invariant progr) crdtSpec' \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, txOrigin = s_txOrigin, knownIds = s_knownIds, invocOp = s_invocOp(i \<mapsto> GetUser user), invocRes = s_invocRes(i := None), ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = uniqueIds (GetUser user), ps_vis = {}, ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = Map.empty, ps_prog = progr\<rparr> (getUser_impl (UserId user)) (finalCheck (invariant progr) i)"
+            if c0: "\<And>tx. s_txOrigin tx \<noteq> Some i"
+              and c1: "invariant progr \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin, txOrigin = s_txOrigin, knownIds = s_knownIds, invocOp = s_invocOp(i \<mapsto> GetUser user), invocRes = s_invocRes(i := None)\<rparr>"
+            for  s_calls s_happensBefore s_callOrigin s_txOrigin s_knownIds s_invocOp s_invocRes
           proof (repliss_vcg_l, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" "NotExists_AtCommit" "NotExists_AtReturn"  )
-            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c ca resa cb res PS')
+            case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c ca resa cb res PS')
             then show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases inv1 inv2 inv3)
               case (inv1)
@@ -803,7 +803,7 @@ proof M_show_programCorrect
             qed  
               
           next
-            case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c ca resa cb res)
+            case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c ca resa cb res)
             then show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases inv1 )
               case (inv1)
@@ -823,34 +823,34 @@ proof M_show_programCorrect
 
 
               text "No calls means we do not have any invocation happened before"
-              have no_hb: "(r, i) \<notin> invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore'" for r
+              have no_hb: "(r, i) \<notin> invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_txOrigin') s_happensBefore'" for r
                 using inv1(5) by (auto simp add: invocation_happensBeforeH_def i_callOriginI_h_def split: option.splits)
 
-              have [simp]: "s_transactionOrigin'(tx := None) = s_transactionOrigin'"
-                  by (simp add: fun_upd_idem_iff inv1.s_transactionOrigin'___eq)
+              have [simp]: "s_txOrigin'(tx := None) = s_txOrigin'"
+                  by (simp add: fun_upd_idem_iff inv1.s_txOrigin'___eq)
               
               show ?case
               proof (auto simp add: inv1_def no_hb)
 
-                show "\<exists>c''. i_callOriginI_h s_callOrigin' s_transactionOrigin' c'' \<triangleq> r \<and> c'' \<notin> vis'"
+                show "\<exists>c''. i_callOriginI_h s_callOrigin' s_txOrigin' c'' \<triangleq> r \<and> c'' \<notin> vis'"
                   if c0: "r \<noteq> i"
-                    and c1: "s_invocationOp' r \<triangleq> RemoveUser user"
-                    and c3: "i_callOriginI_h s_callOrigin' s_transactionOrigin' c' \<triangleq> r"
+                    and c1: "s_invocOp' r \<triangleq> RemoveUser user"
+                    and c3: "i_callOriginI_h s_callOrigin' s_txOrigin' c' \<triangleq> r"
                     and c4: "c' \<in> vis'"
                   for  r c'
                   using use_inv3'[OF `inv3 s_calls' s_happensBefore'`]
-                  by (smt c1 c3 fun_upd_triv inv1.inv2 inv1.s_invocationOp'___eq inv2_def upd_c1 upd_c2 upd_c3)
+                  by (smt c1 c3 fun_upd_triv inv1.inv2 inv1.s_invocOp'___eq inv2_def upd_c1 upd_c2 upd_c3)
 
                 show "g_res = NotFound"
                   if c0: "r \<noteq> i"
                     and c1: "g \<noteq> i"
-                    and c2: "s_invocationOp' r \<triangleq> RemoveUser u"
-                    and c3: "s_invocationOp' g \<triangleq> GetUser u"
-                    and r_g_hb: "(r, g) \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore'"
-                    and c5: "s_invocationRes' g \<triangleq> g_res"
+                    and c2: "s_invocOp' r \<triangleq> RemoveUser u"
+                    and c3: "s_invocOp' g \<triangleq> GetUser u"
+                    and r_g_hb: "(r, g) \<in> invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_txOrigin') s_happensBefore'"
+                    and c5: "s_invocRes' g \<triangleq> g_res"
                   for  r g u g_res
-                  using \<open>inv1 (s_invocationOp'(i \<mapsto> GetUser user)) (s_invocationRes'(i := None))
-                         (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_transactionOrigin') s_happensBefore')\<close>
+                  using \<open>inv1 (s_invocOp'(i \<mapsto> GetUser user)) (s_invocRes'(i := None))
+                         (invocation_happensBeforeH (i_callOriginI_h s_callOrigin' s_txOrigin') s_happensBefore')\<close>
                   using that  by (auto simp add: inv1_def split: if_splits)
 
 
@@ -859,12 +859,12 @@ proof M_show_programCorrect
               qed
             qed
           next
-            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res)
             then show ?case 
               by (auto simp add: inv_def inv1_def inv2_def inv3_def i_callOriginI_h_update_to3 map_update_all_get updateHb_cases in_sequence_cons split: if_splits, meson)
 
           next
-            case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_transactionOrigin' s_knownIds' vis' s_invocationOp' s_invocationRes' c res)
+            case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res)
             then show ?case 
               by  (auto simp add: inv_def inv1_def, presburger)
           qed

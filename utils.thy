@@ -3,6 +3,7 @@ section "Various Utilities"
 theory utils
   imports Main
     "HOL-Library.Monad_Syntax"
+    "HOL-Library.LaTeXsugar"
 begin
 
 subsection "Syntactic Sugar"

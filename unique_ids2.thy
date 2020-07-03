@@ -15,7 +15,7 @@ begin
 
 
 definition 
-  "new_unique_not_in_invocationOp iop uidv \<equiv>
+  "new_unique_not_in_invocOp iop uidv \<equiv>
 \<forall>i op. iop i \<triangleq> op \<longrightarrow> uidv \<notin> uniqueIds op "
 
 
@@ -28,7 +28,7 @@ definition
 \<forall>i op r. iop i \<triangleq> Call op r \<longrightarrow> uidv \<notin> uniqueIds r "
 
 definition
-"new_unique_not_in_invocationRes ires uidv \<equiv> 
+"new_unique_not_in_invocRes ires uidv \<equiv> 
 \<forall>i r. ires i \<triangleq> r \<longrightarrow> uidv \<notin> uniqueIds r "
 
 definition
@@ -67,31 +67,31 @@ qed
 
 definition uid_is_private where
 "uid_is_private i S uidv  \<equiv> 
-      new_unique_not_in_invocationOp (invocationOp S) uidv
+      new_unique_not_in_invocOp (invocOp S) uidv
     \<and> new_unique_not_in_calls (calls S) uidv
     \<and> new_unique_not_in_calls_result (calls S) uidv
-    \<and> new_unique_not_in_invocationRes (invocationRes S) uidv
+    \<and> new_unique_not_in_invocRes (invocRes S) uidv
     \<and> uidv \<notin> (knownIds S)
     \<and> generatedIds S uidv \<triangleq> i
     \<and> new_unique_not_in_other_invocations i S uidv"
 
 
 definition uid_is_private' where
-"uid_is_private' i s_calls s_invocationOp s_invocationRes s_knownIds uidv  \<equiv> 
-      new_unique_not_in_invocationOp s_invocationOp uidv
+"uid_is_private' i s_calls s_invocOp s_invocRes s_knownIds uidv  \<equiv> 
+      new_unique_not_in_invocOp s_invocOp uidv
     \<and> new_unique_not_in_calls s_calls uidv
     \<and> new_unique_not_in_calls_result s_calls uidv
-    \<and> new_unique_not_in_invocationRes s_invocationRes uidv
+    \<and> new_unique_not_in_invocRes s_invocRes uidv
     \<and> uidv \<notin> s_knownIds
     "
 
 abbreviation
 "uid_is_private_S i S uidv \<equiv>
-  uid_is_private' i (calls S) (invocationOp S) (invocationRes S) (knownIds S) uidv"
+  uid_is_private' i (calls S) (invocOp S) (invocRes S) (knownIds S) uidv"
 
 lemma uid_is_private'_implies:
 "uid_is_private i S uidv
- \<Longrightarrow> uid_is_private' i (calls S) (invocationOp S) (invocationRes S) (knownIds S) uidv"
+ \<Longrightarrow> uid_is_private' i (calls S) (invocOp S) (invocRes S) (knownIds S) uidv"
   by (auto simp add: uid_is_private_def uid_is_private'_def)
 
 
@@ -109,7 +109,7 @@ proof -
     by (simp add: p1)
 
 
-  have i1: "new_unique_not_in_invocationOp (invocationOp S) uidv "
+  have i1: "new_unique_not_in_invocOp (invocOp S) uidv "
     by (meson priv_S uid_is_private_def)
 
 
@@ -117,7 +117,7 @@ proof -
     by (meson priv_S uid_is_private_def)
   have i3: "new_unique_not_in_calls_result (calls S) uidv"
     by (meson priv_S uid_is_private_def)
-  have i4: "new_unique_not_in_invocationRes (invocationRes S) uidv"
+  have i4: "new_unique_not_in_invocRes (invocRes S) uidv"
     by (meson priv_S uid_is_private_def)
   have i5: "uidv \<notin> knownIds S"
     by (meson priv_S uid_is_private_def)
@@ -246,13 +246,13 @@ proof -
     show ?case 
       unfolding uid_is_private_def
     proof (intro conjI)
-      show "new_unique_not_in_invocationOp (invocationOp S') uidv"
+      show "new_unique_not_in_invocOp (invocOp S') uidv"
         using dbop.hyps(1) i1 by (auto simp add: dbop)
       show "new_unique_not_in_calls (calls S') uidv"
         using dbop.hyps(1) i2 by (auto simp add: dbop new_unique_not_in_calls_def uids2)
       show "new_unique_not_in_calls_result (calls S') uidv"
         using dbop.hyps(1) i3 by (auto simp add: dbop new_unique_not_in_calls_result_def uids3)
-      show "new_unique_not_in_invocationRes (invocationRes S') uidv"
+      show "new_unique_not_in_invocRes (invocRes S') uidv"
        using dbop.hyps(1) i4 by (auto simp add: dbop)
       show "uidv \<notin> knownIds S'"
         using dbop.hyps(1) i5  by (auto simp add: dbop)
@@ -264,17 +264,17 @@ proof -
 
   next
     case (invocation S i proc initialState impl)
-    then show ?case using invs by (auto simp add: uid_is_private_def new_unique_not_in_invocationOp_def)
+    then show ?case using invs by (auto simp add: uid_is_private_def new_unique_not_in_invocOp_def)
 
   next
     case (return S i ls f res)
     then show ?case using invs apply (auto simp add: uid_is_private_def)
-       apply (auto simp add: new_unique_not_in_invocationRes_def)
+       apply (auto simp add: new_unique_not_in_invocRes_def)
       apply (metis action_outputs.simps(7) i6 invocation_cannot_guess_ids_step local.step new_unique_not_in_other_invocations_def other )
       by (metis action_outputs.simps(7) i6 invocation_cannot_guess_ids_step local.step new_unique_not_in_other_invocations_def other)
 
   next
-    case (fail S i ls)
+    case (crash S i ls)
     then show ?case 
       using invs
       by (auto simp add: uid_is_private_def new_unique_not_in_other_invocations_def)
@@ -507,10 +507,10 @@ lemma uid_is_private_step_same:
 proof -
 
   from `uid_is_private i S uidv`
-  have pre1: "new_unique_not_in_invocationOp (invocationOp S) uidv"
+  have pre1: "new_unique_not_in_invocOp (invocOp S) uidv"
     and pre2: "new_unique_not_in_calls (calls S) uidv"
     and pre3: "new_unique_not_in_calls_result (calls S) uidv"
-    and pre4: "new_unique_not_in_invocationRes (invocationRes S) uidv" 
+    and pre4: "new_unique_not_in_invocRes (invocRes S) uidv" 
     and pre5: "uidv \<notin> knownIds S"
     and pre6: "generatedIds S uidv \<triangleq> i"
     and pre7: "new_unique_not_in_other_invocations i S uidv"
@@ -576,13 +576,13 @@ proof -
     show ?thesis 
       unfolding uid_is_private_def
     proof (intro conjI)
-      show "new_unique_not_in_invocationOp (invocationOp S') uidv"
+      show "new_unique_not_in_invocOp (invocOp S') uidv"
         using pre by (auto  simp add: dbop)
       show "new_unique_not_in_calls (calls S') uidv"
         using pre by (auto  simp add: dbop \<open>uidv \<notin> uniqueIds Op\<close> new_unique_not_in_calls_def)
       show "new_unique_not_in_calls_result (calls S') uidv"
         using pre \<open>uidv \<notin> uniqueIds res\<close> by (auto  simp add: dbop new_unique_not_in_calls_result_def)
-      show "new_unique_not_in_invocationRes (invocationRes S') uidv"
+      show "new_unique_not_in_invocRes (invocRes S') uidv"
         using pre by (auto  simp add: dbop)
       show "uidv \<notin> knownIds S'"
         using pre by (auto  simp add: dbop)
@@ -596,13 +596,13 @@ proof -
     show ?thesis 
       unfolding uid_is_private_def
     proof (intro conjI)
-      show "new_unique_not_in_invocationOp (invocationOp S') uidv"
+      show "new_unique_not_in_invocOp (invocOp S') uidv"
         using pre by (auto  simp add: invocation S_wf wf_generated_ids_invocation_exists)
       show "new_unique_not_in_calls (calls S') uidv"
         using pre by (auto  simp add: invocation)
       show "new_unique_not_in_calls_result (calls S') uidv"
         using pre by (auto  simp add: invocation)
-      show "new_unique_not_in_invocationRes (invocationRes S') uidv"
+      show "new_unique_not_in_invocRes (invocRes S') uidv"
         using pre by (auto  simp add: invocation)
       show "uidv \<notin> knownIds S'"
         using pre by (auto  simp add: invocation)
@@ -622,14 +622,14 @@ proof -
     show ?thesis 
       unfolding uid_is_private_def
     proof (intro conjI)
-      show "new_unique_not_in_invocationOp (invocationOp S') uidv"
+      show "new_unique_not_in_invocOp (invocOp S') uidv"
         using pre by (auto  simp add: invocation return)
       show "new_unique_not_in_calls (calls S') uidv"
         using pre by (auto  simp add: invocation return)
       show "new_unique_not_in_calls_result (calls S') uidv"
         using pre by (auto  simp add: invocation return)
-      show "new_unique_not_in_invocationRes (invocationRes S') uidv"
-        using pre by (auto  simp add: invocation return \<open>uidv \<notin> uniqueIds res\<close> new_unique_not_in_invocationRes_def)
+      show "new_unique_not_in_invocRes (invocRes S') uidv"
+        using pre by (auto  simp add: invocation return \<open>uidv \<notin> uniqueIds res\<close> new_unique_not_in_invocRes_def)
       show "uidv \<notin> knownIds S'"
         using pre \<open>uidv \<notin> uniqueIds res\<close> by (auto  simp add: invocation return)
       show "generatedIds S' uidv \<triangleq> i"
@@ -639,7 +639,7 @@ proof -
 
     qed
   next
-    case (fail ls)
+    case (crash ls)
     then show ?thesis using x by (auto simp add: uid_is_private_def local pre)
   next
     case (invCheck res)
@@ -658,10 +658,10 @@ proof -
 
 
   from `uid_is_private i S uidv`
-  have pre1: "new_unique_not_in_invocationOp (invocationOp S) uidv"
+  have pre1: "new_unique_not_in_invocOp (invocOp S) uidv"
     and pre2: "new_unique_not_in_calls (calls S) uidv"
     and pre3: "new_unique_not_in_calls_result (calls S) uidv"
-    and pre4: "new_unique_not_in_invocationRes (invocationRes S) uidv" 
+    and pre4: "new_unique_not_in_invocRes (invocRes S) uidv" 
     and pre5: "uidv \<notin> knownIds S"
     and pre6: "generatedIds S uidv \<triangleq> i"
     and pre7: "new_unique_not_in_other_invocations i S uidv"
@@ -687,10 +687,10 @@ proof -
     assume AInvoc: "a = AInvoc p"
 
     with step 
-    have "invocationOp S i = None"
+    have "invocOp S i = None"
       by (auto simp add: step_s.simps)
 
-    from wf_generated_ids_invocation_exists[OF S_wf `invocationOp S i = None`]
+    from wf_generated_ids_invocation_exists[OF S_wf `invocOp S i = None`]
     have not_generated: "generatedIds S uid \<noteq> Some i" for uid .
 
     with `generatedIds S uidv \<triangleq> i`
@@ -712,26 +712,26 @@ proof -
         and c2: "localState S i \<triangleq> ls"
         and c3: "currentProc S i \<triangleq> f"
         and c4: "f ls = BeginAtomic ls'"
-        and c5: "currentTransaction S i = None"
-        and c6: "transactionStatus S t = None"
+        and c5: "currentTx S i = None"
+        and c6: "txStatus S t = None"
         and c7: "prog S'a = prog S"
         and c8: "state_monotonicGrowth i S S'a"
-        and c9: "\<And>t. transactionOrigin S t \<triangleq> i = transactionOrigin S'a t \<triangleq> i"
+        and c9: "\<And>t. txOrigin S t \<triangleq> i = txOrigin S'a t \<triangleq> i"
         and c10: "invariant_all S'a"
-        and c11: "\<And>tx. transactionStatus S'a tx \<noteq> Some Uncommitted"
+        and c11: "\<And>tx. txStatus S'a tx \<noteq> Some Uncommitted"
         and c12: "state_wellFormed S'a"
         and c13: "state_wellFormed S'"
         and c14: "localState S'a i \<triangleq> ls"
         and c15: "currentProc S'a i \<triangleq> f"
-        and c16: "currentTransaction S'a i = None"
+        and c16: "currentTx S'a i = None"
         and c17: "visibleCalls S i \<triangleq> vis"
         and c18: "visibleCalls S'a i \<triangleq> vis"
         and c19: "chooseSnapshot vis' vis S'a"
         and c20: "consistentSnapshot S'a vis'"
-        and c21: "transactionStatus S'a t = None"
+        and c21: "txStatus S'a t = None"
         and c22: "\<And>c. callOrigin S'a c \<noteq> Some t"
-        and c23: "transactionOrigin S'a t = None"
-        and c24: "S' = S'a \<lparr>transactionStatus := transactionStatus S'a(t \<mapsto> Uncommitted), transactionOrigin := transactionOrigin S'a(t \<mapsto> i), currentTransaction := currentTransaction S'a(i \<mapsto> t), localState := localState S'a(i \<mapsto> ls'), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
+        and c23: "txOrigin S'a t = None"
+        and c24: "S' = S'a \<lparr>txStatus := txStatus S'a(t \<mapsto> Uncommitted), txOrigin := txOrigin S'a(t \<mapsto> i), currentTx := currentTx S'a(i \<mapsto> t), localState := localState S'a(i \<mapsto> ls'), visibleCalls := visibleCalls S'a(i \<mapsto> vis')\<rparr>"
       by (auto simp add: step_s.simps `a = ABeginAtomic t vis'`)  
     note c = this
 
@@ -739,10 +739,10 @@ proof -
     have "uid_is_private i S'a uidv" .
 
     from `uid_is_private i S'a uidv`
-    have pre'1: "new_unique_not_in_invocationOp (invocationOp S'a) uidv"
+    have pre'1: "new_unique_not_in_invocOp (invocOp S'a) uidv"
       and pre'2: "new_unique_not_in_calls (calls S'a) uidv"
       and pre'3: "new_unique_not_in_calls_result (calls S'a) uidv"
-      and pre'4: "new_unique_not_in_invocationRes (invocationRes S'a) uidv" 
+      and pre'4: "new_unique_not_in_invocRes (invocRes S'a) uidv" 
       and pre'5: "uidv \<notin> knownIds S'a"
       and pre'6: "generatedIds S'a uidv \<triangleq> i"
       and pre'7: "new_unique_not_in_other_invocations i S'a uidv"
@@ -753,13 +753,13 @@ proof -
     have ?thesis 
       unfolding uid_is_private_def
     proof (intro conjI)
-      show "new_unique_not_in_invocationOp (invocationOp S') uidv"
+      show "new_unique_not_in_invocOp (invocOp S') uidv"
         using pre' by (auto  simp add: c)
       show "new_unique_not_in_calls (calls S') uidv"
         using pre' by (auto  simp add: c)
       show "new_unique_not_in_calls_result (calls S') uidv"
         using pre' by (auto  simp add: c)
-      show "new_unique_not_in_invocationRes (invocationRes S') uidv"
+      show "new_unique_not_in_invocRes (invocRes S') uidv"
         using pre' by (auto  simp add: c)
       show "uidv \<notin> knownIds S'"
         using pre' by (auto  simp add: c)
@@ -805,7 +805,7 @@ qed
 
 lemma trace_inputs_if_no_op:
   assumes "initialState progr ~~ tr \<leadsto>* S"
-and "invocationOp S i = None"
+and "invocOp S i = None"
 shows "trace_inputs tr i = {}"
 using assms proof (induct rule: steps_induct)
   case initial
@@ -821,7 +821,7 @@ lemma invocation_cannot_guess_ids_initialStates:
   assumes "invocations_cannot_guess_ids progr"
     and "invocations_cannot_guess_ids progr"
     and "S \<in> initialStates' progr i"
-  shows "invocation_cannot_guess_ids (uniqueIds (the (invocationOp S i))) i S"
+  shows "invocation_cannot_guess_ids (uniqueIds (the (invocOp S i))) i S"
 proof -
 
   from `invocations_cannot_guess_ids progr`
@@ -830,15 +830,15 @@ proof -
 
   from `S \<in> initialStates' progr i`
   obtain Sa proc initState impl
-    where a0: "S = Sa         \<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl),            visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocationOp := invocationOp Sa(i \<mapsto> proc)\<rparr>"
+    where a0: "S = Sa         \<lparr>localState := localState Sa(i \<mapsto> initState), currentProc := currentProc Sa(i \<mapsto> impl),            visibleCalls := visibleCalls Sa(i \<mapsto> {}), invocOp := invocOp Sa(i \<mapsto> proc)\<rparr>"
       and a1: "progr = prog Sa"
       and a2: "procedure (prog Sa) proc = (initState, impl)"
       and a3: "uniqueIds proc \<subseteq> knownIds Sa"
       and a4: "invariant_all' Sa"
       and a5: "state_wellFormed Sa"
-      and a6: "invocationOp Sa i = None"
-      and a7: "\<forall>tx. transactionStatus Sa tx \<noteq> Some Uncommitted"
-      and a8: "\<forall>tx. transactionOrigin Sa tx \<noteq> Some i"
+      and a6: "invocOp Sa i = None"
+      and a7: "\<forall>tx. txStatus Sa tx \<noteq> Some Uncommitted"
+      and a8: "\<forall>tx. txOrigin Sa tx \<noteq> Some i"
     by (auto simp add:initialStates'_def)
   note a = this
 
@@ -852,7 +852,7 @@ proof -
     using a1 a6 invocation_cannot_guess_ids_steps trace_inputs_if_no_op by fastforce
 
   have [simp]: "localState Sa i = None"
-    using a5 a6 wf_localState_to_invocationOp by blast
+    using a5 a6 wf_localState_to_invocOp by blast
 
   have "Sa ~~(i, AInvoc proc) \<leadsto> S" 
     using a by (auto simp add: step.simps)
@@ -861,7 +861,7 @@ proof -
   with `invocation_cannot_guess_ids {} i Sa`
   show ?thesis
   proof (fuzzy_rule show_invocation_cannot_guess_ids_step)
-    show "{} \<union> action_inputs (AInvoc proc) = uniqueIds (the (invocationOp S i))"
+    show "{} \<union> action_inputs (AInvoc proc) = uniqueIds (the (invocOp S i))"
       by (auto simp add: a0)
   qed
 qed

@@ -113,9 +113,9 @@ text_raw \<open>}%EndSnippet\<close>
 
 
 
-definition inv :: "(proc, operation, val) invariantContext \<Rightarrow> bool" where
+definition inv :: "(proc, operation, val) invContext \<Rightarrow> bool" where
   "inv ctxt \<equiv> 
-    inv1 (invocationOp ctxt) (invocationRes ctxt) "
+    inv1 (invocOp ctxt) (invocRes ctxt) "
 
 definition "crdtSpec c op r = False"
 
@@ -166,7 +166,7 @@ proof M_show_programCorrect
 
   case invariant_initial_state
   show "invariant_all' (initialState progr)"
-    by (simp add: inv_def initialState_def invContextH2_calls inv1_def  invContextH2_happensBefore invContextH2_i_invocationOp progr_def)
+    by (simp add: inv_def initialState_def invContextH2_calls inv1_def  invContextH2_happensBefore invContextH2_i_invocOp progr_def)
 
 
   case (procedure_correct S i)
@@ -176,9 +176,9 @@ proof M_show_programCorrect
   show "procedureCorrect S i"
   proof (rule Initial_Label, rule show_initial_state_prop[OF procedure_correct], rule DC_final2, casify)
     case (show_P S_pre proc initState impl1)
-    have "invocationOp S i \<triangleq> proc"
+    have "invocOp S i \<triangleq> proc"
       using show_P by auto
-    have "invocationRes S i = None"
+    have "invocRes S i = None"
       using show_P apply auto
       using state_wellFormed_invocation_before_result by blast
 
@@ -214,8 +214,8 @@ proof M_show_programCorrect
 
           
 
-          show "invocationOp S i \<triangleq> PMax list"
-            using PMax \<open>invocationOp S i \<triangleq> proc\<close> by blast
+          show "invocOp S i \<triangleq> PMax list"
+            using PMax \<open>invocOp S i \<triangleq> proc\<close> by blast
 
           note max_impl_def[simp]
 
@@ -232,10 +232,10 @@ proof M_show_programCorrect
                   calls = s_calls, 
                   happensBefore = s_happensBefore, 
                   callOrigin = s_callOrigin, 
-                  transactionOrigin = s_transactionOrigin, 
+                  txOrigin = s_txOrigin, 
                   knownIds = s_knownIds, 
-                  invocationOp = (s_invocationOp(i \<mapsto> PMax list)), 
-                  invocationRes = (s_invocationRes(i := None)), 
+                  invocOp = (s_invocOp(i \<mapsto> PMax list)), 
+                  invocRes = (s_invocRes(i := None)), 
                   ps_i = i, 
                   ps_generatedLocal = {}, 
                   ps_generatedLocalPrivate = {}, 
@@ -249,12 +249,12 @@ proof M_show_programCorrect
                   \<rparr> 
                   (max_impl list) 
                   (finalCheck (invariant progr) i)" \<comment> \<open>TODO finalCheck could be fixed for the initial P (as variant)\<close>
-            if c0: "(\<And>tx. s_transactionOrigin tx \<noteq> Some i)"
+            if c0: "(\<And>tx. s_txOrigin tx \<noteq> Some i)"
               and inv: "invariant progr
                          \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin,
-                            transactionOrigin = s_transactionOrigin, knownIds = s_knownIds,
-                            invocationOp = s_invocationOp(i \<mapsto> PMax list), invocationRes = s_invocationRes(i := None)\<rparr>"
-            for  s_calls s_happensBefore s_callOrigin s_transactionOrigin s_knownIds s_invocationOp s_invocationRes
+                            txOrigin = s_txOrigin, knownIds = s_knownIds,
+                            invocOp = s_invocOp(i \<mapsto> PMax list), invocRes = s_invocRes(i := None)\<rparr>"
+            for  s_calls s_happensBefore s_callOrigin s_txOrigin s_knownIds s_invocOp s_invocRes
               (*
             Would also work with this one-liner:
             by (repliss_vcg_l asmUnfold: loop_inv_def, use inv in \<open> auto simp add:  inv_def inv1_def loop_inv_def Def_def only_store_changed_def s_read_def split: if_splits\<close>)
@@ -277,8 +277,8 @@ proof M_show_programCorrect
               from loop_body.only_store_changed
               show "only_store_changed
                  \<lparr>calls = s_calls, happensBefore = s_happensBefore, callOrigin = s_callOrigin,
-                    transactionOrigin = s_transactionOrigin, knownIds = s_knownIds,
-                    invocationOp = s_invocationOp(i \<mapsto> PMax (Done @ t # todo)), invocationRes = s_invocationRes(i := None),
+                    txOrigin = s_txOrigin, knownIds = s_knownIds,
+                    invocOp = s_invocOp(i \<mapsto> PMax (Done @ t # todo)), invocRes = s_invocRes(i := None),
                     ps_i = i, ps_generatedLocal = {}, ps_generatedLocalPrivate = {}, ps_localKnown = {}, ps_vis = {},
                     ps_localCalls = [], ps_tx = None, ps_firstTx = True, ps_store = [0 \<mapsto> intoAny 0], ps_prog = progr\<rparr>
                  (PSl\<lparr>ps_store := ps_store PSl(0 \<mapsto> intoAny (max t (s_read (ps_store PSl) (Ref 0))))\<rparr>)"
@@ -288,18 +288,18 @@ proof M_show_programCorrect
             case (final results PSl re y)
 
             from final.only_store_changed
-            have "invocationOp PSl i \<triangleq> PMax list"
+            have "invocOp PSl i \<triangleq> PMax list"
               by (auto simp add: only_store_changed_def)
 
 
             show "example_loop_max2.inv
             \<lparr>calls = calls PSl, happensBefore = happensBefore PSl,
-               callOrigin = callOrigin PSl, transactionOrigin = transactionOrigin PSl,
-               knownIds = knownIds PSl, invocationOp = invocationOp PSl,
-               invocationRes = invocationRes PSl(i \<mapsto>
+               callOrigin = callOrigin PSl, txOrigin = txOrigin PSl,
+               knownIds = knownIds PSl, invocOp = invocOp PSl,
+               invocRes = invocRes PSl(i \<mapsto>
                  val.Nat (s_read (ps_store PSl) (Ref 0)))\<rparr>"
               unfolding inv_def inv1_def
-            proof (auto simp add:  `invocationOp PSl i \<triangleq> PMax list`)
+            proof (auto simp add:  `invocOp PSl i \<triangleq> PMax list`)
 
               show "s_read (ps_store PSl) (Ref 0) = Max (set list)"
                 if c0: "list \<noteq> []"
@@ -309,21 +309,21 @@ proof M_show_programCorrect
                 by (auto simp add: Def_def)
 
               from inv
-              have "inv1 (s_invocationOp(i \<mapsto> PMax list)) (s_invocationRes(i := None))"
+              have "inv1 (s_invocOp(i \<mapsto> PMax list)) (s_invocRes(i := None))"
                 by (auto simp add: inv_def)
 
               with final.only_store_changed
-              have "inv1 (invocationOp PSl) (invocationRes PSl)"
+              have "inv1 (invocOp PSl) (invocRes PSl)"
                 using only_store_changed_def by force
 
 
               show "r = val.Nat (Max (set list))"
                 if c0: "ia \<noteq> i"
-                  and c1: "invocationOp PSl ia \<triangleq> PMax list"
+                  and c1: "invocOp PSl ia \<triangleq> PMax list"
                   and c2: "list \<noteq> []"
-                  and c3: "invocationRes PSl ia \<triangleq> r"
+                  and c3: "invocRes PSl ia \<triangleq> r"
                 for  ia list r
-                by (meson \<open>inv1 (invocationOp PSl) (invocationRes PSl)\<close> c1 c2 c3 inv1_def)
+                by (meson \<open>inv1 (invocOp PSl) (invocRes PSl)\<close> c1 c2 c3 inv1_def)
             qed
           qed
         qed (auto)

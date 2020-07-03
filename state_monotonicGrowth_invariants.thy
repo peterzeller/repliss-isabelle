@@ -38,12 +38,12 @@ lemma state_monotonicGrowth_currentProc:
 qed
 
 
-lemma state_monotonicGrowth_currentTransaction:
+lemma state_monotonicGrowth_currentTx:
   assumes "state_monotonicGrowth i S S'"
-  shows "currentTransaction S i = currentTransaction S' i"
+  shows "currentTx S i = currentTx S' i"
   using assms proof (auto simp add: state_monotonicGrowth_def)
 
-  show "currentTransaction S i = currentTransaction S' i"
+  show "currentTx S i = currentTx S' i"
     if c0: "state_wellFormed S"
       and steps: "S ~~ tr \<leadsto>* S'"
       and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
@@ -68,12 +68,12 @@ lemma state_monotonicGrowth_visibleCalls:
 qed
 
 
-lemma state_monotonicGrowth_transactionOrigin_i:
+lemma state_monotonicGrowth_txOrigin_i:
   assumes "state_monotonicGrowth i S S'"
-  shows "transactionOrigin S' t \<triangleq> i \<longleftrightarrow> transactionOrigin S t \<triangleq> i"
+  shows "txOrigin S' t \<triangleq> i \<longleftrightarrow> txOrigin S t \<triangleq> i"
   using assms proof (simp add: state_monotonicGrowth_def, elim conjE exE)
 
-  show "transactionOrigin S' t \<triangleq> i \<longleftrightarrow> transactionOrigin S t \<triangleq> i"
+  show "txOrigin S' t \<triangleq> i \<longleftrightarrow> txOrigin S t \<triangleq> i"
     if wf: "state_wellFormed S"
       and steps: "S ~~ tr \<leadsto>* S'"
       and no_i: "\<forall>x\<in>set tr. case x of (i', a) \<Rightarrow> i' \<noteq> i"
@@ -81,7 +81,7 @@ lemma state_monotonicGrowth_transactionOrigin_i:
     for  tr
     using steps wf no_i by (induct rule: steps.induct, 
         auto simp add: step.simps split: if_splits,
-        metis less_eq_option_None_is_None option.distinct(1) transactionStatus_mono wf_transaction_status_iff_origin)
+        metis less_eq_option_None_is_None option.distinct(1) txStatus_mono wf_transaction_status_iff_origin)
 
 
 qed
@@ -136,14 +136,14 @@ lemma state_monotonicGrowth_no_new_calls_in_committed_transactions:
   assumes "state_monotonicGrowth i S' S"
     and "callOrigin S c \<triangleq> tx"
     and "calls S' c = None"
-  shows "transactionStatus S' tx \<noteq> Some Committed"
+  shows "txStatus S' tx \<noteq> Some Committed"
   using assms by (auto simp add: state_monotonicGrowth_def no_new_calls_in_committed_transactions)
 
-lemma state_monotonicGrowth_transactionOrigin: 
+lemma state_monotonicGrowth_txOrigin: 
   assumes "state_monotonicGrowth i S' S" 
-    and "transactionOrigin S' t \<triangleq> i'"
-  shows "transactionOrigin S t \<triangleq> i'"
-  using assms by (auto simp add: state_monotonicGrowth_def transactionOrigin_mono)
+    and "txOrigin S' t \<triangleq> i'"
+  shows "txOrigin S t \<triangleq> i'"
+  using assms by (auto simp add: state_monotonicGrowth_def txOrigin_mono)
 
 
 lemma state_monotonicGrowth_calls:
@@ -184,14 +184,14 @@ lemma state_monotonicGrowth_knownIds:
   using assms by (auto simp add: state_monotonicGrowth_def knownIds_mono2)
 
 
-lemma state_monotonicGrowth_invocationOp:
+lemma state_monotonicGrowth_invocOp:
   assumes "state_monotonicGrowth i S' S"
-  shows "invocationOp S' s \<triangleq> info \<Longrightarrow> invocationOp S s \<triangleq> info"
-  using assms by (auto simp add: state_monotonicGrowth_def steps_do_not_change_invocationOp)
+  shows "invocOp S' s \<triangleq> info \<Longrightarrow> invocOp S s \<triangleq> info"
+  using assms by (auto simp add: state_monotonicGrowth_def steps_do_not_change_invocOp)
 
-lemma state_monotonicGrowth_invocationOp_i:
+lemma state_monotonicGrowth_invocOp_i:
   assumes "state_monotonicGrowth i S' S"
-  shows "invocationOp S i = invocationOp S' i"
+  shows "invocOp S i = invocOp S' i"
   using assms proof (auto simp add: state_monotonicGrowth_def)
   fix tr
   assume a0: "state_wellFormed S'"
@@ -200,18 +200,18 @@ lemma state_monotonicGrowth_invocationOp_i:
     and a3: "\<forall>i. (i, ACrash) \<notin> set tr"
 
   from steps no_i
-  show "invocationOp S i = invocationOp S' i"
+  show "invocOp S i = invocOp S' i"
     by (induct rule: steps.induct, auto simp add: step.simps)
 qed
 
-lemma state_monotonicGrowth_invocationRes:
+lemma state_monotonicGrowth_invocRes:
   assumes "state_monotonicGrowth i S' S"
-  shows "invocationRes S' s \<triangleq> info \<Longrightarrow> invocationRes S s \<triangleq> info"
-  using assms by (auto simp add: state_monotonicGrowth_def invocationRes_mono)
+  shows "invocRes S' s \<triangleq> info \<Longrightarrow> invocRes S s \<triangleq> info"
+  using assms by (auto simp add: state_monotonicGrowth_def invocRes_mono)
 
-lemma state_monotonicGrowth_invocationRes_i:
+lemma state_monotonicGrowth_invocRes_i:
   assumes "state_monotonicGrowth i S' S"
-  shows "invocationRes S' i = invocationRes S i"
+  shows "invocRes S' i = invocRes S i"
   using assms proof (auto simp add: state_monotonicGrowth_def)
   fix tr
   assume a0: "state_wellFormed S'"
@@ -220,21 +220,21 @@ lemma state_monotonicGrowth_invocationRes_i:
     and a3: "\<forall>i. (i, ACrash) \<notin> set tr"
 
   from steps no_i
-  show "invocationRes S' i = invocationRes S i"
+  show "invocRes S' i = invocRes S i"
     by (induct rule: steps.induct, auto simp add: step.simps)
 qed
 
 
 
-lemma state_monotonicGrowth_transactionStatus:
+lemma state_monotonicGrowth_txStatus:
   assumes "state_monotonicGrowth i S' S"
-  shows "transactionStatus S' tx \<le> transactionStatus S tx"
-  using assms by (auto simp add: state_monotonicGrowth_def transactionStatus_mono)
+  shows "txStatus S' tx \<le> txStatus S tx"
+  using assms by (auto simp add: state_monotonicGrowth_def txStatus_mono)
 
-lemma state_monotonicGrowth_transactionStatus2:
+lemma state_monotonicGrowth_txStatus2:
   assumes "state_monotonicGrowth i S' S"
-  shows "transactionStatus S' tx \<triangleq> Committed \<Longrightarrow>  transactionStatus S tx \<triangleq> Committed"
-  using assms by (auto simp add: state_monotonicGrowth_def transactionStatus_mono1)
+  shows "txStatus S' tx \<triangleq> Committed \<Longrightarrow>  txStatus S tx \<triangleq> Committed"
+  using assms by (auto simp add: state_monotonicGrowth_def txStatus_mono1)
 
 
 lemma state_monotonicGrowth_prog:
@@ -242,14 +242,14 @@ lemma state_monotonicGrowth_prog:
   shows "prog S = prog S'"
   using assms by (auto simp add: state_monotonicGrowth_def steps_do_not_change_prog)
 
-lemma state_monotonicGrowth_invocationOp2:
+lemma state_monotonicGrowth_invocOp2:
   assumes "state_monotonicGrowth i S' S"
-  shows "(invocationOp S' \<subseteq>\<^sub>m invocationOp S) "
-  using assms by (auto simp add: map_le_def state_monotonicGrowth_def invocationOp_mono)
+  shows "(invocOp S' \<subseteq>\<^sub>m invocOp S) "
+  using assms by (auto simp add: map_le_def state_monotonicGrowth_def invocOp_mono)
 
 lemma state_monotonicGrowth_committed_transactions_fixed:
   assumes "state_monotonicGrowth i S' S"
-and "transactionStatus S' tx \<triangleq> Committed"
+and "txStatus S' tx \<triangleq> Committed"
 and "callOrigin S x \<triangleq> tx"
 shows "callOrigin S' x \<triangleq> tx"
 proof -
@@ -262,20 +262,20 @@ qed
 
 lemma state_monotonicGrowth_committed_transactions_fixed1:
   assumes "state_monotonicGrowth i S' S"
-  shows "state_monotonicGrowth_txStable (callOrigin S) (callOrigin S') (transactionStatus S')"
+  shows "state_monotonicGrowth_txStable (callOrigin S) (callOrigin S') (txStatus S')"
   using assms  apply (auto simp add: state_monotonicGrowth_def state_monotonicGrowth_txStable_def)
   using assms state_monotonicGrowth_committed_transactions_fixed by blast
 
 
 lemma state_monotonicGrowth_committed_transactions_fixed2:
   assumes "state_monotonicGrowth i S' S"
-and "transactionStatus S' tx \<triangleq> Committed"
+and "txStatus S' tx \<triangleq> Committed"
 shows "{c. callOrigin S' c \<triangleq> tx} = {c. callOrigin S c \<triangleq> tx}"
   using assms state_monotonicGrowth_callOrigin state_monotonicGrowth_committed_transactions_fixed by blast
 
 lemma state_monotonicGrowth_current_transactions_fixed:
   assumes "state_monotonicGrowth i S S'"
-    and "currentTransaction S i \<triangleq> tx"
+    and "currentTx S i \<triangleq> tx"
   shows "callOrigin S c \<triangleq> tx \<longleftrightarrow> callOrigin S' c \<triangleq> tx"
 proof
   show "callOrigin S c \<triangleq> tx \<Longrightarrow> callOrigin S' c \<triangleq> tx"
@@ -313,7 +313,7 @@ proof
           then show ?thesis  using \<open>callOrigin Sa c \<noteq> Some tx\<close> proof (auto, fuzzy_goal_cases)
             case 1
             show "?case"
-              by (metis \<open>callOrigin S c \<noteq> Some tx\<close> a0 assms(1) assms(2) not_Some_eq state_monotonicGrowth_callOrigin state_monotonicGrowth_currentTransaction state_monotonicGrowth_visibleCalls state_monotonicGrowth_wf2 state_wellFormed_tx_to_visibleCalls that wellFormed_callOrigin_dom3 wellFormed_state_calls_from_current_transaction_in_vis wellFormed_visibleCallsSubsetCalls2)
+              by (metis \<open>callOrigin S c \<noteq> Some tx\<close> a0 assms(1) assms(2) not_Some_eq state_monotonicGrowth_callOrigin state_monotonicGrowth_currentTx state_monotonicGrowth_visibleCalls state_monotonicGrowth_wf2 state_wellFormed_tx_to_visibleCalls that wellFormed_callOrigin_dom3 wellFormed_state_calls_from_current_transaction_in_vis wellFormed_visibleCallsSubsetCalls2)
           qed
         qed (insert \<open>callOrigin Sa c \<noteq> Some tx\<close>, auto)
         thus ?thesis
@@ -341,11 +341,11 @@ state_monotonicGrowth_callOrigin
 state_monotonicGrowth_callOrigin2
 state_monotonicGrowth_generatedIds
 state_monotonicGrowth_knownIds
-state_monotonicGrowth_invocationOp
-state_monotonicGrowth_invocationRes
-state_monotonicGrowth_transactionStatus
+state_monotonicGrowth_invocOp
+state_monotonicGrowth_invocRes
+state_monotonicGrowth_txStatus
 state_monotonicGrowth_prog
-state_monotonicGrowth_invocationOp2
+state_monotonicGrowth_invocOp2
 state_monotonicGrowth_committed_transactions_fixed
 state_monotonicGrowth_committed_transactions_fixed1
 state_monotonicGrowth_committed_transactions_fixed2
@@ -353,11 +353,11 @@ state_monotonicGrowth_wf1
 state_monotonicGrowth_wf2
 state_monotonicGrowth_no_new_calls_before_existing
 state_monotonicGrowth_no_new_calls_in_committed_transactions
-state_monotonicGrowth_transactionOrigin
+state_monotonicGrowth_txOrigin
 state_monotonicGrowth_localState
 state_monotonicGrowth_currentProc
-state_monotonicGrowth_currentTransaction
+state_monotonicGrowth_currentTx
 state_monotonicGrowth_visibleCalls
-state_monotonicGrowth_transactionOrigin_i
+state_monotonicGrowth_txOrigin_i
 
 end

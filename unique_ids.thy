@@ -44,10 +44,10 @@ fun action_outputs where
 | "action_outputs ACrash   = {}"
 | "action_outputs (AInvcheck b) = {}"
 
-definition trace_inputs :: "('proc::valueType, 'operation, 'any::valueType) trace \<Rightarrow> invocId \<Rightarrow> uniqueId set" where
+definition trace_inputs :: "('proc::valueType, 'op, 'any::valueType) trace \<Rightarrow> invocId \<Rightarrow> uniqueId set" where
 "trace_inputs trace i \<equiv> \<Union>((action_inputs \<circ> snd) ` (Set.filter (\<lambda>a. fst a = i) (set trace)))"
 
-definition trace_outputs :: "('proc, 'operation::valueType, 'any::valueType) trace \<Rightarrow>  invocId \<Rightarrow> uniqueId set" where
+definition trace_outputs :: "('proc, 'op::valueType, 'any::valueType) trace \<Rightarrow>  invocId \<Rightarrow> uniqueId set" where
 "trace_outputs trace i \<equiv> \<Union>((action_outputs \<circ> snd) ` (Set.filter (\<lambda>a. fst a = i) (set trace)))"
 
 
@@ -212,7 +212,7 @@ qed
 (* TODO show that syntactic property for toImpl with loops implies semantic property *)
    
 
-definition query_cannot_guess_ids :: "uniqueId set \<Rightarrow> (('operation::valueType, 'any::valueType) operationContext \<Rightarrow> 'any \<Rightarrow> bool) \<Rightarrow> bool"  where
+definition query_cannot_guess_ids :: "uniqueId set \<Rightarrow> (('op::valueType, 'any::valueType) operationContext \<Rightarrow> 'any \<Rightarrow> bool) \<Rightarrow> bool"  where
   "query_cannot_guess_ids oprUids spec \<equiv> 
   \<forall>ctxt res. 
    spec ctxt res \<longrightarrow> uniqueIds res \<subseteq> oprUids \<union> \<Union>{uniqueIds (call_operation c) | cId c. calls ctxt cId \<triangleq> c}"
@@ -230,7 +230,7 @@ lemma query_cannot_guess_ids_def2:
  \<longrightarrow> (\<exists>cId opr res. calls ctxt cId \<triangleq> Call opr res \<and> x \<in> uniqueIds opr))"
   by (auto simp add: query_cannot_guess_ids_def subset_iff exists_call_expand, blast+)
 
-definition queries_cannot_guess_ids :: "('operation \<Rightarrow> ('operation::valueType, 'any::valueType) operationContext \<Rightarrow> 'any \<Rightarrow> bool) \<Rightarrow> bool"  where
+definition queries_cannot_guess_ids :: "('op \<Rightarrow> ('op::valueType, 'any::valueType) operationContext \<Rightarrow> 'any \<Rightarrow> bool) \<Rightarrow> bool"  where
   "queries_cannot_guess_ids spec \<equiv> 
   \<forall>opr. query_cannot_guess_ids (uniqueIds opr) (spec opr)"
 
@@ -245,7 +245,7 @@ lemma queries_cannot_guess_ids_def2:
   by (auto simp add: queries_cannot_guess_ids_def query_cannot_guess_ids_def2)
 
 
-definition program_wellFormed :: " ('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) prog \<Rightarrow> bool" where
+definition program_wellFormed :: " ('proc::valueType, 'ls, 'op::valueType, 'any::valueType) prog \<Rightarrow> bool" where
   "program_wellFormed progr \<equiv> 
    invocations_cannot_guess_ids progr
  \<and> queries_cannot_guess_ids (querySpec progr)
@@ -257,7 +257,7 @@ lemma exists_elim_h: "\<lbrakk>P x; Q x\<rbrakk> \<Longrightarrow> \<exists>x. P
 
 
 lemma wf_knownIds_subset_generatedIds_h:
-  fixes S :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) state"
+  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
   shows "\<And>i. \<exists>uids\<subseteq>dom (generatedIds S). invocation_cannot_guess_ids uids i S"
@@ -469,7 +469,7 @@ qed
 lemmas wf_knownIds_subset_generatedIds = wf_knownIds_subset_generatedIds_h(2)
 
 lemma wf_knownIds_subset_generatedIds2:
-  fixes S :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) state"
+  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and "x \<in> knownIds S"
@@ -481,7 +481,7 @@ lemma wf_knownIds_subset_generatedIds2:
 
 
 lemma wf_onlyGeneratedIdsInKnownIds:
-  fixes S :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) state"
+  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and not_generated: "generatedIds S uid = None"
@@ -492,7 +492,7 @@ lemma wf_onlyGeneratedIdsInKnownIds:
 
 
 lemma wf_onlyGeneratedIdsInCalls:
-  fixes S :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) state"
+  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and not_generated: "generatedIds S uid = None"
@@ -501,7 +501,7 @@ lemma wf_onlyGeneratedIdsInCalls:
 
 
 lemma wf_onlyGeneratedIdsInCallResults:
-  fixes S :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) state"
+  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and not_generated: "generatedIds S uid = None"
@@ -509,11 +509,11 @@ lemma wf_onlyGeneratedIdsInCallResults:
   by (meson domIff in_mono local.wf not_generated prog_wf wf_knownIds_subset_generatedIds_h(4))
 
 lemma wf_onlyGeneratedIdsInInvocationOps:
-  fixes S :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) state"
+  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and not_generated: "generatedIds S uid = None"
-  shows "invocationOp S c \<triangleq> opr \<Longrightarrow> uid \<notin> uniqueIds opr"
+  shows "invocOp S c \<triangleq> opr \<Longrightarrow> uid \<notin> uniqueIds opr"
   using wf prog_wf not_generated proof (induct rule: wellFormed_induct)
   case initial
   then show ?case 
@@ -526,11 +526,11 @@ next
 qed
 
 lemma wf_onlyGeneratedIdsInInvocationRes:
-  fixes S :: "('proc::valueType, 'ls, 'operation::valueType, 'any::valueType) state"
+  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and not_generated: "generatedIds S uid = None"
-  shows "invocationRes S c \<triangleq> res \<Longrightarrow> uid \<notin> uniqueIds res"
+  shows "invocRes S c \<triangleq> res \<Longrightarrow> uid \<notin> uniqueIds res"
 
   using wf prog_wf not_generated proof (induct rule: wellFormed_induct)
   case initial
@@ -564,9 +564,9 @@ specific local state and procedure implementation:"
 
 
 
-definition procedure_cannot_guess_ids :: "('proc::valueType) itself \<Rightarrow> uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'operation::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool" where
+definition procedure_cannot_guess_ids :: "('proc::valueType) itself \<Rightarrow> uniqueId set \<Rightarrow> 'ls \<Rightarrow> ('ls, 'op::valueType, 'any::valueType) procedureImpl \<Rightarrow> bool" where
 "procedure_cannot_guess_ids _ uids ls impl \<equiv>
-\<forall>(S::('proc, 'ls, 'operation, 'any) state) (i::invocId). 
+\<forall>(S::('proc, 'ls, 'op, 'any) state) (i::invocId). 
       localState S i \<triangleq> ls 
   \<longrightarrow> currentProc S i \<triangleq> impl 
   \<longrightarrow> invocation_cannot_guess_ids uids i S"
@@ -574,7 +574,7 @@ definition procedure_cannot_guess_ids :: "('proc::valueType) itself \<Rightarrow
 lemmas use_procedure_cannot_guess_ids = procedure_cannot_guess_ids_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format]
 
 
-definition procedures_cannot_guess_ids :: "('proc::valueType \<Rightarrow> ('ls \<times> ('ls, 'operation::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
+definition procedures_cannot_guess_ids :: "('proc::valueType \<Rightarrow> ('ls \<times> ('ls, 'op::valueType, 'any::valueType) procedureImpl)) \<Rightarrow> bool" where
   "procedures_cannot_guess_ids proc = 
 (\<forall>p ls impl uids. proc p = (ls, impl) \<longrightarrow>  procedure_cannot_guess_ids (TYPE('proc)) (uids\<union>uniqueIds p) ls impl)"
 
@@ -599,7 +599,7 @@ proof (rule, rule show_invocation_cannot_guess_ids)
 
   have s: "invocation_cannot_guess_ids (trace_inputs tr i) i S"
     if "initialState progr ~~ tr \<leadsto>* S"
-      and "invocationOp S i \<noteq> None"
+      and "invocOp S i \<noteq> None"
     for S
     using that  proof (induct rule: steps_induct)
     case initial
@@ -613,7 +613,7 @@ proof (rule, rule show_invocation_cannot_guess_ids)
 
 
     show ?case 
-    proof (cases "invocationOp S' i = None")
+    proof (cases "invocOp S' i = None")
       case True
 
       have [simp]: "localState S' i = None"
@@ -623,12 +623,12 @@ proof (rule, rule show_invocation_cannot_guess_ids)
       from step.step
       obtain proc initialState impl
         where c0: "a = (i, AInvoc proc)"
-          and S''_def: "S'' = S' \<lparr>localState := localState S'(i \<mapsto> initialState), currentProc := currentProc S'(i \<mapsto> impl), visibleCalls := visibleCalls S'(i \<mapsto> {}), invocationOp := invocationOp S'(i \<mapsto> proc)\<rparr>"
+          and S''_def: "S'' = S' \<lparr>localState := localState S'(i \<mapsto> initialState), currentProc := currentProc S'(i \<mapsto> impl), visibleCalls := visibleCalls S'(i \<mapsto> {}), invocOp := invocOp S'(i \<mapsto> proc)\<rparr>"
           and c2: "procedure progr proc = (initialState, impl)"
           and c3: "uniqueIds proc \<subseteq> knownIds S'"
-          and c4: "invocationOp S' i = None"
+          and c4: "invocOp S' i = None"
         apply atomize_elim
-        using `invocationOp S' i = None` `invocationOp S'' i \<noteq> None`
+        using `invocOp S' i = None` `invocOp S'' i \<noteq> None`
         by (auto simp add: step.simps split: if_splits)
 
 
@@ -645,7 +645,7 @@ proof (rule, rule show_invocation_cannot_guess_ids)
       qed
 
       have "(i,a) \<notin> set tr" if " \<And>t. a \<noteq> AInvcheck t" for a
-        using step.steps `invocationOp S' i = None` that
+        using step.steps `invocOp S' i = None` that
         by (rule no_steps_in_i')
 
       hence "trace_inputs (tr @ [a]) i = uniqueIds proc"
@@ -693,7 +693,7 @@ proof (rule, rule show_invocation_cannot_guess_ids)
     using steps_appendBack by blast
 
   show "x \<in> trace_inputs tr i"
-  proof (cases "invocationOp S1 i")
+  proof (cases "invocOp S1 i")
     case None
 
     have [simp]: "localState S1 i = None"
