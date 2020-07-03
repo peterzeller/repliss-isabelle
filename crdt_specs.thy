@@ -832,6 +832,20 @@ proof (auto simp add: set_aw_spec_def set_spec_def flag_ew_spec_def )
   qed
 qed
 
+lemma set_aw_spec_contains:
+  assumes  "operationContext_wf ctxt"
+  shows "set_aw_spec (Contains x) ctxt res \<longleftrightarrow>
+    res = from_bool (\<exists>a. Op ctxt a \<triangleq> Add x
+                           \<and> (\<nexists>r. Op ctxt r \<triangleq> Remove x
+                                \<and> (a,r)\<in>happensBefore ctxt))"
+  using assms set_aw_spec_Contains set_aw_spec_Contains2 by fastforce
+
+
+text \<open>
+\DefineSnippet{set_aw_spec_contains}{
+  @{thm [display] (concl) set_aw_spec_contains}
+}%EndSnippet\<close>
+
 
 lemma exists_skolem:
 "(\<exists>f. \<forall>x. P x (f x)) \<longleftrightarrow> (\<forall>x. \<exists>y. P x y)"
