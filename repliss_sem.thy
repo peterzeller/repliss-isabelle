@@ -783,9 +783,9 @@ inductive steps :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Righta
 
 
 notation (latex output)
-  step ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}}\<close> (_)" [5,5,5]65)
+  step ("(_)  \<^latex>\<open>$\\xrightarrow{\\text{\<close> (\<open>unbreakable\<close>_) \<^latex>\<open>}}$\<close> (1_)" [5,5,5]65)
 notation (latex output)
-  steps  ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}^*}\<close> (_)" [5,5,5]65)
+  steps  ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}^*}\<close> (1_)" [5,5,5]65)
 
 
 
@@ -838,7 +838,7 @@ abbreviation get_action :: "invocId\<times>('proc, 'op, 'any) action \<Rightarro
 "get_action \<equiv> snd"
 
 definition traces where
-  "traces program \<equiv> {tr | tr S' . initialState program ~~ tr \<leadsto>* S'}"
+  "traces program \<equiv> {tr. \<exists>S'. initialState program ~~ tr \<leadsto>* S'}"
 
 definition
   "actionCorrect a \<equiv> a \<noteq> AInvcheck False \<and> a \<noteq> ALocal False"

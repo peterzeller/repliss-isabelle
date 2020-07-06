@@ -172,9 +172,9 @@ inductive steps_s :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Righ
 
 
 notation (latex output)
-  step_s ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}_{S}}\<close> (_)" [5,5,5]65)
+  step_s ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}_{S}}\<close> (1 _)" [5,5,5]65)
 notation (latex output)
-  steps_s ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (_) \<^latex>\<open>}_{S}^*}\<close> (_)" [5,5,5]65)
+  steps_s ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}_{S}^*}\<close> (1 _)" [5,5,5]65)
 
 
 definition traceCorrect_s where
