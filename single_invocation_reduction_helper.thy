@@ -54,6 +54,20 @@ next
 qed
 
 
+text \<open>\DefineSnippet{contextSwitchInTransaction_def}{
+  @{thm [display] contextSwitchInTransaction_def}
+}%EndSnippet\<close>
+
+
+text \<open>\DefineSnippet{contextSwitchesInTransaction_def}{
+  @{thm [display] contextSwitchesInTransaction_def}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{contextSwitchesInTransaction_alt_def}{
+  @{thm [display] contextSwitchesInTransaction_alt_def}
+}%EndSnippet\<close>
+
+
 
 lemma use_noContextSwitchesInTransaction:
   assumes a0: "\<not>contextSwitchesInTransaction tr"
@@ -154,247 +168,7 @@ lemma packed_trace_drop:
 
 
 
-lemma noContextSwitchesInTransaction_when_packed_and_all_end:
-  assumes steps: "S ~~ tr \<leadsto>* S'"
-    and "allTransactionsEnd tr"
-    and "packed_trace tr"
-    and noFail: "\<And>i. (i, ACrash) \<notin> set tr"
-    and wf: "state_wellFormed S"
-  shows "\<not>contextSwitchesInTransaction tr"
-proof (auto simp add: contextSwitchesInTransaction_alt_def)
-  fix i k j invoc tx txns
-  assume a0: "k \<le> length tr"
-    and a1: "tr ! i = (invoc, ABeginAtomic tx txns)"
-    and a3: "\<forall>j. i < j \<and> j < k \<longrightarrow> tr ! j \<noteq> (invoc, AEndAtomic)"
-    and a4: "i < j"
-    and a5: "j < k"
-    and a6: "allowed_context_switch (get_action (tr ! j))"
 
-
-  obtain j_min 
-    where a4_min: "i < j_min"
-      and a5_min: "j_min < k"
-      and a6_min: "allowed_context_switch (get_action(tr!j_min))"
-      and j_min_min: "\<forall>j. i<j \<and> j<k \<and> allowed_context_switch (get_action (tr ! j)) \<longrightarrow> j_min \<le> j"
-  proof (atomize_elim,
-    rule exI[where x="Least (\<lambda>j. i<j \<and> j<k \<and> allowed_context_switch (get_action (tr ! j)))"],
-    rule LeastI2_wellorder_ex, auto)
-    show "\<exists>x>i. x < k \<and> allowed_context_switch (get_action (tr ! x))"
-      using a4 a5 a6 by auto
-  qed
-
-  have tr_split: "tr = take j_min tr @ [tr!j_min] @ drop (Suc j_min) tr"
-    using a0 a5_min id_take_nth_drop less_le_trans by (auto, blast)
-  with steps have tr_split_steps: "S ~~ take j_min tr @ [tr!j_min] @ drop (Suc j_min) tr \<leadsto>* S'" by simp
-  from this
-  obtain S_j_min_pre S_j_min 
-    where S_j_min_pre_steps: "S ~~ take j_min tr \<leadsto>* S_j_min_pre"
-      and j_min_step: "S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min"
-      and S_j_min_steps: "S_j_min ~~ drop (Suc j_min) tr \<leadsto>* S'"
-    by (auto simp add: steps_append steps_appendFront  )
-
-
-  have S_j_min_pre_wf: "state_wellFormed S_j_min_pre"
-    by (meson S_j_min_pre_steps local.wf noFail rev_subsetD set_take_subset state_wellFormed_combine)
-
-  then have "state_wellFormed S_j_min"
-    using S_j_min_pre_steps j_min_step local.wf state_wellFormed_combine steps_step
-    by (metis (no_types, lifting) append_assoc append_same_eq append_take_drop_id in_set_takeD noFail tr_split) 
-
-
-
-  \<comment> \<open>we are still in a transaction:\<close>
-  have currentTx: "currentTx S_j_min_pre invoc \<triangleq> tx"
-    using \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close>
-      
-  proof (rule currentTx[THEN iffD1])
-    show "i < length (take j_min tr)"
-      using a0 a4_min a5_min by auto
-
-    show "take j_min tr ! i = (invoc, ABeginAtomic tx txns)"
-      using \<open>i < length (take j_min tr)\<close> a1 by auto
-
-    show " \<forall>j. i < j \<and> j < length (take j_min tr) \<longrightarrow>
-        take j_min tr ! j \<noteq> (invoc, AEndAtomic) \<and> take j_min tr ! j \<noteq> (invoc, ACrash)"
-      using a3 a5_min noFail nth_mem by fastforce
-  qed
-
-  then have ls: "localState S_j_min_pre invoc \<noteq> None"
-    using \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> inTransaction_localState local.wf state_wellFormed_combine
-    using S_j_min_pre_wf by blast
-
-
-  with \<open>S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min\<close> 
-    and \<open>allowed_context_switch (get_action(tr!j_min))\<close>
-  have "get_invoc (tr!j_min) \<noteq> invoc"
-    by (auto simp add: step.simps currentTx allowed_context_switch_simps)
-
-
-
-  \<comment> \<open>there must be an endAtomic for the beginAtomic\<close>
-  from \<open>allTransactionsEnd tr\<close> 
-  obtain i_end 
-    where "tr!i_end = (invoc, AEndAtomic)" and "i_end \<ge> k" and "i_end < length tr"
-  proof (auto simp add: allTransactionsEnd_def, atomize_elim)
-    assume a0: "\<forall>i j. j < length tr \<longrightarrow> (\<exists>tx txns. tr ! j = (i, ABeginAtomic tx txns)) \<longrightarrow> 
-           (\<exists>k>j. k < length tr \<and> tr ! k = (i, AEndAtomic))"
-
-    have "\<exists>k>i. k < length tr \<and> tr ! k = (invoc, AEndAtomic)"
-    proof (rule a0[rule_format, where j=i and i=invoc])
-      show "i < length tr"
-        using a4_min not_le tr_split by fastforce
-      show "\<exists>tx txns. tr ! i = (invoc, ABeginAtomic tx txns)"
-        using a1 by auto
-    qed
-
-    thus "\<exists>i_end. tr ! i_end = (invoc, AEndAtomic) \<and> k \<le> i_end \<and> i_end < length tr"
-      using a3 less_imp_le not_le by (auto, blast)
-  qed
-
-
-  \<comment> \<open>this means, we must go back to invoc. Take the first index where we go back to invoc\<close>
-  from this
-  obtain back_min 
-    where "back_min > j_min"
-      and "back_min \<le> length tr"
-      and "get_invoc (tr!back_min) = invoc"
-      and back_min_min: "\<forall>i. i > j_min \<and> i < length tr \<and> get_invoc (tr!i) = invoc \<longrightarrow> i\<ge> back_min"
-  proof (atomize_elim, intro exI[where x="Least (\<lambda>i. i > j_min \<and> i < length tr \<and> get_invoc (tr!i) = invoc)"] conjI)
-    assume a0: "tr ! i_end = (invoc, AEndAtomic)"
-      and a1: "k \<le> i_end"
-      and a2: "i_end < length tr"
-      and a3: "tr ! i_end = (invoc, AEndAtomic)"
-      and a4: "k \<le> i_end"
-      and a5: "i_end < length tr"
-
-
-
-    have "i_end>j_min"
-      using a1 a5_min order.strict_trans2 by blast 
-
-    moreover have "get_invoc (tr ! i_end) = invoc"
-      by (simp add: a0)
-
-    ultimately
-    have eX: "\<exists>x>j_min. x < length tr \<and> get_invoc (tr ! x) = invoc"
-      using a2 by auto
-
-    show "j_min < (LEAST i. j_min < i \<and> i < length tr \<and> get_invoc (tr ! i) = invoc)"
-      using eX by (rule LeastI2_wellorder_ex, auto)
-
-    show "(LEAST i. j_min < i \<and> i < length tr \<and> get_invoc (tr ! i) = invoc) \<le> length tr"
-      using eX by (rule LeastI2_wellorder_ex, auto)
-
-    show "get_invoc (tr ! (LEAST i. j_min < i \<and> i < length tr \<and> get_invoc (tr ! i) = invoc)) = invoc"
-      using eX by (rule LeastI2_wellorder_ex, auto)
-
-
-
-    show "\<forall>i. j_min < i \<and> i < length tr \<and> get_invoc (tr ! i) = invoc \<longrightarrow> (LEAST i. j_min < i \<and> i < length tr \<and> get_invoc (tr ! i) = invoc) \<le> i"
-    proof auto
-
-      show "(LEAST ia. j_min < ia \<and> ia < length tr \<and> get_invoc (tr ! ia) = get_invoc (tr ! i)) \<le> i"
-        if c0: "j_min < i"
-          and c1: "i < length tr"
-          and c2: "invoc = get_invoc (tr ! i)"
-        for  i
-        by (simp add: Least_le c0 c1)
-    qed
-  qed
-
-  have "back_min < length tr"
-    by (metis \<open>back_min \<le> length tr\<close> \<open>i_end < length tr\<close> \<open>k \<le> i_end\<close> \<open>tr ! i_end = (invoc, AEndAtomic)\<close> a5_min back_min_min fst_conv leD le_imp_less_or_eq less_le_trans)
-
-
-  \<comment> \<open>this must be a valid context switch, since it is the first to change back\<close>
-  from \<open>packed_trace tr\<close>
-  have "allowed_context_switch (get_action (tr ! back_min))"
-  proof (rule use_packed_trace)
-    show "0 < back_min"
-      using \<open>j_min < back_min\<close> gr_implies_not0 by blast
-
-    show "back_min < length tr"
-      by (simp add: \<open>back_min < length tr\<close>)
-    have "get_invoc (tr ! (back_min - 1)) \<noteq> invoc"
-      using back_min_min[rule_format, where i="back_min-1"]
-       \<open>back_min < length tr\<close> \<open>get_invoc (tr ! j_min) \<noteq> invoc\<close> \<open>j_min < back_min\<close> not_less_less_Suc_eq by fastforce
-
-    then show "get_invoc (tr ! (back_min - 1)) \<noteq> get_invoc (tr ! back_min)"
-      by (auto simp add: \<open>get_invoc (tr!back_min) = invoc\<close>)
-  qed
-
-  \<comment> \<open>but since we are already in a transaction, that cannot work\<close>
-
-  have "drop (Suc j_min) tr = take (back_min - Suc j_min) (drop (Suc j_min) tr) @ drop back_min tr"
-    by (auto simp add: Suc_leI \<open>back_min \<le> length tr\<close> \<open>j_min < back_min\<close> min.absorb2 min_diff nth_append add.commute intro: nth_equalityI)
-  then have "drop (Suc j_min) tr = take (back_min - Suc j_min) (drop (Suc j_min) tr) @ tr!back_min # drop (Suc back_min) tr"
-    using Cons_nth_drop_Suc \<open>back_min < length tr\<close> by fastforce
-
-  with \<open>S_j_min ~~ drop (Suc j_min) tr \<leadsto>* S'\<close>
-  have "S_j_min ~~ take (back_min - Suc j_min) (drop (Suc j_min) tr) @ tr!back_min # drop (Suc back_min) tr \<leadsto>* S'"
-    by force
-  from this
-  obtain S_back_min_pre S_back_min
-    where S_back_min_pre_steps: "S_j_min ~~ take (back_min - Suc j_min) (drop (Suc j_min) tr) \<leadsto>* S_back_min_pre"
-      and back_min_step: "S_back_min_pre ~~ tr!back_min \<leadsto> S_back_min"
-      and S_back_min_steps: "S_back_min ~~ drop (Suc back_min) tr \<leadsto>* S'"
-    by  (auto simp add: steps_append steps_appendFront )
-
-
-  from S_back_min_pre_steps \<open>state_wellFormed S_j_min\<close>
-  have "state_wellFormed S_back_min_pre"
-    by (meson state_wellFormed_combine in_set_dropD in_set_takeD noFail)
-
-  from \<open>currentTx S_j_min_pre invoc \<triangleq> tx\<close>
-  have "currentTx S_j_min invoc \<triangleq> tx"
-    using \<open>S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min\<close> 
-    using \<open>get_invoc (tr ! j_min) \<noteq> invoc\<close> by (auto simp add: step.simps )
-
-
-  from  \<open>S_j_min ~~ take (back_min - Suc j_min) (drop (Suc j_min) tr) \<leadsto>* S_back_min_pre\<close>
-  have "currentTx S_back_min_pre invoc \<triangleq> tx"
-    
-  proof (rule currentTx_unchangedInternalSteps4(1))
-    show "currentTx S_j_min invoc \<triangleq> tx"
-      by (simp add: \<open>currentTx S_j_min invoc \<triangleq> tx\<close>) 
-    show "state_wellFormed S_j_min"
-    proof (rule state_wellFormed_combine[OF wf])
-      show " S ~~ take j_min tr @ [tr ! j_min] \<leadsto>* S_j_min"
-        using \<open>S ~~ take j_min tr \<leadsto>* S_j_min_pre\<close> \<open>S_j_min_pre ~~ tr ! j_min \<leadsto> S_j_min\<close>
-        using steps_step by blast 
-      show "\<And>i. (i, ACrash) \<notin> set (take j_min tr @ [tr ! j_min])"
-        using noFail \<open>back_min < length tr\<close> \<open>j_min < back_min\<close> 
-        by (auto, metis a6_min allowed_context_switch_simps(8) snd_conv, meson in_set_takeD)
-    qed
-
-    show "\<And>a. a \<in> set (take (back_min - Suc j_min) (drop (Suc j_min) tr)) \<Longrightarrow> a \<noteq> (invoc, AEndAtomic)"
-      by (auto simp add: in_set_conv_nth,
-       metis add.commute add_Suc back_min_min fst_conv less_add_Suc1 less_diff_conv linorder_not_le)
-
-    show "\<And>a. a \<in> set (take (back_min - Suc j_min) (drop (Suc j_min) tr)) \<Longrightarrow> a \<noteq> (invoc, ACrash)"
-      by (meson in_set_dropD in_set_takeD noFail)
-  qed
-
-
-
-
-
-  then have "localState S_back_min_pre invoc \<noteq> None"
-    using \<open>state_wellFormed S_back_min_pre\<close>
-    using inTransaction_localState by blast
-
-
-
-  \<comment> \<open>a contradiction\<close>
-  with \<open>S_back_min_pre ~~ tr!back_min \<leadsto> S_back_min\<close>
-    and \<open>allowed_context_switch (get_action (tr ! back_min))\<close>
-    and \<open>get_invoc (tr ! back_min) = invoc\<close>
-    and \<open>currentTx S_back_min_pre invoc \<triangleq> tx\<close>
-    and \<open>localState S_back_min_pre invoc \<noteq> None\<close>
-  show "False"
-    by (auto simp add:step.simps allowed_context_switch_simps)
-
-qed
 
 
 
@@ -612,6 +386,7 @@ next
 qed
 
 
+text_raw \<open>\DefineSnippet{at_most_one_current_tx}{\<close>
 lemma at_most_one_current_tx:
   assumes steps: "S ~~ tr \<leadsto>* S'"
     and noCtxtSwitchInTx: "\<not>contextSwitchesInTransaction tr"
@@ -619,7 +394,8 @@ lemma at_most_one_current_tx:
     and wf: "state_wellFormed S"
     and noFails: "\<And>s. (s, ACrash) \<notin> set tr"
     and noUncommitted:  "\<And>tx. txStatus S tx \<noteq> Some Uncommitted"
-  shows "\<forall>i. currentTx S' i \<noteq> None \<longrightarrow> i = get_invoc (last tr)"
+shows "\<forall>i. currentTx S' i \<noteq> None \<longrightarrow> i = get_invoc (last tr)"
+text_raw \<open>}%EndSnippet\<close>
   using steps noCtxtSwitchInTx packed  noFails
 proof (induct rule: steps_induct)
   case initial
@@ -657,8 +433,8 @@ next
     case Nil
     then have "currentTx S' i = None" for i
       using noUncommitted \<open>S ~~ tr \<leadsto>* S'\<close>
-      apply (auto simp add: steps_empty)
-      by (metis local.wf option.exhaust wellFormed_currentTx_unique_h(2))
+      by (auto simp add: steps_empty)
+       (metis local.wf option.exhaust wellFormed_currentTx_unique_h(2))
 
     with \<open>S' ~~ a \<leadsto> S''\<close>
     show ?thesis 
@@ -698,8 +474,7 @@ next
 
         show "ib < Suc (length tr)"
           by (simp add: ib_len less_Suc_eq)
-          apply_end (auto simp add: ib_len)
-      qed
+      qed (auto simp add: ib_len)
       then show False
         using that by simp
     qed

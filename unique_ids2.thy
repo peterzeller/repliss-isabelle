@@ -716,7 +716,6 @@ proof -
         and c6: "txStatus S t = None"
         and c7: "prog S'a = prog S"
         and c8: "state_monotonicGrowth i S S'a"
-        and c9: "\<And>t. txOrigin S t \<triangleq> i = txOrigin S'a t \<triangleq> i"
         and c10: "invariant_all S'a"
         and c11: "\<And>tx. txStatus S'a tx \<noteq> Some Uncommitted"
         and c12: "state_wellFormed S'a"

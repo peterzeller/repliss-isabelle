@@ -80,7 +80,6 @@ inductive step_s :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Right
    \<comment> \<open> we assume a nondeterministic state change to C' here \<close>
    prog S' = prog S;
    state_monotonicGrowth i S S';
-   \<And>t. txOrigin S t \<triangleq> i \<longleftrightarrow> txOrigin S' t \<triangleq> i; \<comment> \<open>No new transactions are added to current invocId.\<close>
    \<comment> \<open> new transaction has no calls yet \<close>
    \<comment> \<open> invariant maintained \<close>
    invariant_all S';
@@ -188,8 +187,8 @@ shows "traceCorrect_s (a#trace)"
 
 
 definition programCorrect_s where
-"programCorrect_s program \<equiv> (\<forall>trace s S. 
-   (initialState program ~~ (s, trace) \<leadsto>\<^sub>S* S)
+"programCorrect_s program \<equiv> (\<forall>trace i S. 
+   (initialState program ~~ (i, trace) \<leadsto>\<^sub>S* S)
     \<longrightarrow> traceCorrect_s trace)"
   
 lemma steps_s_append: 

@@ -49,6 +49,7 @@ text \<open>
 \<close>
 
 
+
 text \<open>
 \DefineSnippet{s_local}{
   @{thm [display] repliss_sem_single_invocation.local}
@@ -59,7 +60,7 @@ text \<open>
 }%EndSnippet
 
 \DefineSnippet{s_beginAtomic}{
-  @{thm [display] repliss_sem_single_invocation.beginAtomic}
+  @{thm [display] repliss_sem_single_invocation.beginAtomic[unfolded atomize_all]}
 }%EndSnippet
 
 \DefineSnippet{s_endAtomic}{
@@ -71,7 +72,7 @@ text \<open>
 }%EndSnippet
 
 \DefineSnippet{s_invocation}{
-  @{thm [display] repliss_sem_single_invocation.invocation}
+  @{thm [display] repliss_sem_single_invocation.invocation[unfolded atomize_all]}
 }%EndSnippet
 
 \DefineSnippet{s_return}{
@@ -80,16 +81,19 @@ text \<open>
 
 \<close>
 
-
 text \<open>
 \DefineSnippet{traces}{
   @{thm [display] traces_def}
 }%EndSnippet
 
+\DefineSnippet{actionCorrect_def}{
+  @{thm [display] actionCorrect_def}
+}%EndSnippet
 
 \DefineSnippet{traceCorrect}{
   @{thm [display] traceCorrect_def}
 }%EndSnippet
+
 
 \DefineSnippet{programCorrect}{
   @{thm [display] programCorrect_def}
@@ -106,5 +110,48 @@ schematic_goal getContext_def: "visibleCalls S i \<triangleq> vis \<Longrightarr
 text \<open>\DefineSnippet{getContext_def}{
   @{thm [display] getContext_def}
 }%EndSnippet\<close>
+
+
+schematic_goal invariant_all_def: "invariant_all S = ?x"
+  unfolding invContextH_def
+  by simp
+
+text \<open>\DefineSnippet{invariant_all_def}{
+  @{thm [display] invariant_all_def}
+}%EndSnippet\<close>
+
+lemma committedCalls_def: "committedCalls S = {c. \<exists>tx. callOrigin S c \<triangleq> tx \<and> txStatus S tx \<triangleq> Committed}"
+  unfolding committedCallsH_def isCommittedH_def
+  by simp
+
+
+text \<open>\DefineSnippet{committedCalls_def}{
+  @{thm [display] committedCalls_def}
+}%EndSnippet\<close>
+
+
+text \<open>\DefineSnippet{traceCorrect_s_def}{
+  @{thm [display] traceCorrect_s_def}
+}%EndSnippet\<close>
+
+
+text \<open>\DefineSnippet{programCorrect_s_def}{
+  @{thm [display] programCorrect_s_def}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{steps_s_refl}{
+  @{thm [display] steps_s_refl}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{steps_s_step}{
+  @{thm [display] steps_s_step}
+}%EndSnippet\<close>
+
+
+text \<open>\DefineSnippet{state_monotonicGrowth_def}{
+  @{thm [display] state_monotonicGrowth_def}
+}%EndSnippet\<close>
+
+
 
 end

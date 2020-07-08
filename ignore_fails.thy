@@ -10,9 +10,11 @@ correctness.
 The main idea is that we we cannot distinguish a crash from arbitrary long waiting."
 
 
+text_raw \<open>\DefineSnippet{can_ignore_fails}{\<close>
 lemma can_ignore_fails:
   shows "(\<forall>tr\<in>traces program. traceCorrect tr) 
   \<longleftrightarrow> (\<forall>tr\<in>traces program. (\<nexists>s. (s, ACrash) \<in> set tr) \<longrightarrow>  traceCorrect tr)"
+text_raw \<open>}%EndSnippet\<close>
 proof (rule iffI2; clarsimp)
   fix tr
   assume is_trace: "tr \<in> traces program"

@@ -109,6 +109,7 @@ If we have an execution on a a single invocId starting with state satisfying the
 this trace to a single-invocId trace leading to an equivalent state.
 Moreover the new trace contains an invariant violation, if the original trace contained one.
 \<close>
+text_raw \<open>\DefineSnippet{convert_to_single_session_trace}{\<close>
 lemma convert_to_single_session_trace:
   fixes tr :: "('proc::valueType, 'op, 'any::valueType) trace"
     and i :: invocId      
@@ -125,6 +126,7 @@ lemma convert_to_single_session_trace:
   shows "\<exists>tr' S2. (S ~~ (i, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<forall>a. (a, False)\<notin>set tr')
         \<and> (state_coupling S' S2 i (tr = [] \<or> get_invoc (last tr) = i))"
+text_raw \<open>}%EndSnippet\<close>
   using steps S_wellformed packed inv noFails noUncommitted noCtxtSwitchInTx noAssertionFail
 proof (induct rule: steps.induct)
   case (steps_refl S)
@@ -472,9 +474,6 @@ next
               using visible_same by auto
 
 
-            show " \<And>t. txOrigin S2 t \<triangleq> i = txOrigin S' t \<triangleq> i"
-              using growth state_monotonicGrowth_txOrigin_i by blast
-
             have wf_S': "state_wellFormed S'"
               using S_wf noFails_tr state_wellFormed_combine steps by auto
 
@@ -726,6 +725,7 @@ and " a = ADbOp c Op res \<Longrightarrow> invariant_all S' = invariant_all S"
   using inv_unchanged[OF step S_wellformed ] by auto
 
 
+text_raw \<open>\DefineSnippet{convert_to_single_session_trace_invFail_step}{\<close>
 lemma convert_to_single_session_trace_invFail_step:
   fixes tr :: "('proc::valueType, 'op, 'any::valueType) trace"
     and i :: invocId      
@@ -740,7 +740,9 @@ lemma convert_to_single_session_trace_invFail_step:
     and coupling: "state_coupling S S2 i sameSession"
     and ctxtSwitchCases: "\<not>sameSession \<Longrightarrow> allowed_context_switch a" 
     and noUncommitted:  "\<And>p. a = AInvoc p \<Longrightarrow>  \<forall>tx. txStatus S tx \<noteq> Some Uncommitted"
-  shows "(S2 ~~ (i, a, False) \<leadsto>\<^sub>S S')"
+shows "(S2 ~~ (i, a, False) \<leadsto>\<^sub>S S')"
+text_raw \<open>}%EndSnippet\<close>
+
   using step proof (cases rule: step.cases)
 
   case (endAtomic ls f ls' t)
@@ -867,6 +869,7 @@ proof (rule ccontr)
 qed
 
 
+text_raw \<open>\DefineSnippet{convert_to_single_session_trace_invFail}{\<close>
 lemma convert_to_single_session_trace_invFail:
   fixes tr :: "('proc::valueType, 'op, 'any::valueType) trace"
     and S S' :: "('proc, 'ls, 'op, 'any) state"
@@ -883,6 +886,7 @@ lemma convert_to_single_session_trace_invFail:
     and noAssertionErrors: "\<And>a. a\<in>set tr \<Longrightarrow> get_action a \<noteq> ALocal False"
   shows "\<exists>tr' S2 s. (S ~~ (s, tr') \<leadsto>\<^sub>S* S2) 
         \<and> (\<exists>a. (a, False)\<in>set tr')"
+  text_raw \<open>}%EndSnippet\<close>
 proof -
 
   have not_inv_ex: "\<exists>tr_pre S_fail. isPrefix tr_pre tr \<and> (S ~~ tr_pre \<leadsto>* S_fail) \<and> \<not> invariant_all S_fail"
@@ -1254,10 +1258,12 @@ text \<open>
 When a program is correct in the single invocId semantics, 
 it is also correct when executed in the concurrent interleaving semantics.
 \<close>
+text_raw \<open>\DefineSnippet{show_correctness_via_single_session}{\<close>
 theorem show_correctness_via_single_session:
   assumes works_in_single_session: "programCorrect_s program"
     and inv_init: "invariant_all (initialState program)"
-  shows "programCorrect program"
+shows "programCorrect program"
+  text_raw \<open>}%EndSnippet\<close>
 proof (rule show_programCorrect_noTransactionInterleaving'')
   text \<open>Assume we have a trace and a final state S\<close>
   fix trace S

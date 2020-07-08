@@ -100,6 +100,7 @@ proof -
 qed
 
 
+text_raw \<open>\DefineSnippet{show_programCorrect_noTransactionInterleaving_no_passing_invchecks}{\<close>
 theorem show_programCorrect_noTransactionInterleaving_no_passing_invchecks:
   assumes packedTracesCorrect: 
     "\<And>trace s. \<lbrakk>
@@ -108,7 +109,8 @@ theorem show_programCorrect_noTransactionInterleaving_no_passing_invchecks:
         \<And>s. (s, ACrash) \<notin> set trace; 
         \<And>s. (s, AInvcheck True) \<notin> set trace
       \<rbrakk> \<Longrightarrow> traceCorrect trace"
-  shows "programCorrect program"
+shows "programCorrect program"
+text_raw \<open>}%EndSnippet\<close>
 proof (rule show_programCorrect_noTransactionInterleaving)
   fix trace
   fix S
@@ -174,6 +176,7 @@ proof (rule show_programCorrect_noTransactionInterleaving)
   qed
 qed
 
+text_raw \<open>\DefineSnippet{move_invariant_checks_out_of_transactions}{\<close>
 lemma move_invariant_checks_out_of_transactions:
   assumes "initialState program ~~ trace \<leadsto>* S"
     and "packed_trace trace"
@@ -190,6 +193,7 @@ lemma move_invariant_checks_out_of_transactions:
         \<and> (last trace' = (s', AInvcheck False))
         \<and> length trace' > 0
         \<and> (no_invariant_checks_in_transaction trace')"
+text_raw \<open>}%EndSnippet\<close>
   using assms proof (induct "length trace" arbitrary: trace s S rule: less_induct)
   case (less trace s S)
   show ?case 
@@ -499,10 +503,18 @@ text \<open>
  To show that a program is correct, we only have to consider packed transactions 
  with no invariant checks 
 \<close>
+text_raw \<open>\DefineSnippet{show_programCorrect_noTransactionInterleaving1}{\<close>
 theorem show_programCorrect_noTransactionInterleaving':
   assumes packedTracesCorrect: 
-    "\<And>trace s. \<lbrakk>initialState program ~~ trace \<leadsto>* s; packed_trace trace; \<And>s. (s, ACrash) \<notin> set trace; \<And>s. (s, AInvcheck True) \<notin> set trace; no_invariant_checks_in_transaction trace\<rbrakk> \<Longrightarrow> traceCorrect trace"
-  shows "programCorrect program"
+    "\<And>trace s. \<lbrakk>
+        initialState program ~~ trace \<leadsto>* s; 
+        packed_trace trace; 
+        \<And>s. (s, ACrash) \<notin> set trace; 
+        \<And>s. (s, AInvcheck True) \<notin> set trace; 
+        no_invariant_checks_in_transaction trace\<rbrakk> 
+    \<Longrightarrow> traceCorrect trace"
+shows "programCorrect program"
+text_raw \<open>}%EndSnippet\<close>
 proof (rule show_programCorrect_noTransactionInterleaving_no_passing_invchecks)
   fix trace
   fix S
@@ -1567,6 +1579,7 @@ text \<open>
  To show that a program is correct, we only have to consider packed traces
 with no context switches in transactions.
 \<close>
+text_raw \<open>\DefineSnippet{remove_context_switches_in_transactions}{\<close>
 lemma remove_context_switches_in_transactions:
   assumes a1: "initialState program ~~ trace \<leadsto>* S"
     and a2: "packed_trace trace"
@@ -1582,6 +1595,7 @@ lemma remove_context_switches_in_transactions:
     and "no_invariant_checks_in_transaction trace'"
     and "\<not>traceCorrect trace'"
     and "\<not>contextSwitchesInTransaction trace'"
+  text_raw \<open>}%EndSnippet\<close>
   using a1 a2 a3 a4 a5 a6 proof (atomize_elim, induct "length trace" arbitrary: S trace rule: less_induct)
   case (less trace S)
 
@@ -1781,7 +1795,7 @@ lemma remove_context_switches_in_transactions:
 
 
       show ?thesis
-      proof (rule less.hyps)
+      proof (rule less.hyps[where trace="take i_switch trace"])
         show "length (take i_switch trace) < length trace"
           using \<open>i_switch < length trace\<close> by auto
         show "initialState program ~~ take i_switch trace \<leadsto>* S_j_pre"
@@ -1836,7 +1850,7 @@ lemma remove_context_switches_in_transactions:
         show "initialState program ~~ trace \<leadsto>* S"
           by (simp add: less.prems(1))
         show " get_action (trace ! (i_switch - 1)) \<notin> {AEndAtomic} \<union> range AReturn \<union> range AInvoc" (is ?goal)
-proof auto
+        proof auto
             text "It cannot be any of these cases, because we are in an unfinished transaction ..."
 
 
@@ -2000,6 +2014,7 @@ proof auto
   qed
 qed
 
+text_raw \<open>\DefineSnippet{show_programCorrect_noTransactionInterleaving2}{\<close>
 theorem show_programCorrect_noTransactionInterleaving'':
   assumes packedTracesCorrect: 
     "\<And>trace s. \<lbrakk>
@@ -2009,7 +2024,8 @@ theorem show_programCorrect_noTransactionInterleaving'':
       \<And>s. (s, ACrash) \<notin> set trace; 
       no_invariant_checks_in_transaction trace
     \<rbrakk> \<Longrightarrow> traceCorrect trace"
-  shows "programCorrect program"
+shows "programCorrect program"
+text_raw \<open>}%EndSnippet\<close>
 proof (rule show_programCorrect_noTransactionInterleaving', rule ccontr, fuzzy_goal_cases g)
   case (g trace s)
   obtain trace s
@@ -2020,7 +2036,7 @@ proof (rule show_programCorrect_noTransactionInterleaving', rule ccontr, fuzzy_g
       "no_invariant_checks_in_transaction trace"
       "\<not>traceCorrect trace"
     using remove_context_switches_in_transactions[OF g]
-    by metis
+    by metis                              
 
 
   then show ?case

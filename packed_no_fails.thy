@@ -7,6 +7,7 @@ begin
 text \<open>
  To show that a program is correct, we only have to consider packed transactions without crashes.
 \<close>
+text_raw \<open>\DefineSnippet{show_programCorrect_noTransactionInterleaving}{\<close>
 theorem show_programCorrect_noTransactionInterleaving:
   assumes packedTracesCorrect: 
     "\<And>trace s. \<lbrakk>
@@ -14,7 +15,9 @@ theorem show_programCorrect_noTransactionInterleaving:
       packed_trace trace; 
       \<And>s. (s, ACrash) \<notin> set trace
     \<rbrakk> \<Longrightarrow> traceCorrect trace"
-  shows "programCorrect program"
+shows "programCorrect program"
+text_raw \<open>}%EndSnippet\<close>
+
 
   unfolding programCorrect_def proof -
   text "We only have to consider traces without ACrash actions"

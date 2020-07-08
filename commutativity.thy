@@ -14,15 +14,23 @@ definition canSwap :: "'ls itself \<Rightarrow> ('proc::valueType, 'op, 'any::va
   "canSwap t a b \<equiv> (\<forall>(C1::('proc, 'ls, 'op, 'any) state) C2 i1 i2. 
       i1\<noteq>i2 \<and> (C1 ~~ [(i1,a),(i2,b)] \<leadsto>* C2) \<and> state_wellFormed C1 \<longrightarrow> (C1 ~~ [(i2,b),(i1,a)] \<leadsto>* C2))"
 
+text \<open>\DefineSnippet{canSwap_def}{
+  @{thm [display] canSwap_def[unfolded imp_conjL[symmetric]]}
+}%EndSnippet\<close>
+
 
 text \<open>We can swap one action over a list of actions with canSwap\<close>
+text_raw \<open>\DefineSnippet{swapMany}{\<close>
 lemma swapMany:
-  assumes steps: "(C1::('proc::valueType, 'ls, 'op, 'any::valueType) state) ~~ tr @ [(i,a)] \<leadsto>* C2"
+  fixes C1 :: "('proc::valueType, 'ls, 'op, 'any::valueType) state"
+    and t :: "'ls itself"
+  assumes steps: "C1 ~~ tr @ [(i,a)] \<leadsto>* C2"
     and tr_different_session: "\<And>x. x\<in>set tr \<Longrightarrow> get_invoc x \<noteq> i"
-    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap (t::'ls itself) (get_action x) a"
+    and tr_canSwap: "\<And>x. x\<in>set tr \<Longrightarrow> canSwap t (get_action x) a"
     and wf: "state_wellFormed C1"
     and noFail: "\<And>i. (i, ACrash) \<notin> set tr"
-  shows "C1 ~~ [(i,a)] @ tr \<leadsto>* C2"
+shows "C1 ~~ [(i,a)] @ tr \<leadsto>* C2"
+text_raw \<open>}%EndSnippet\<close>
   using steps tr_different_session tr_canSwap noFail
 proof (induct tr arbitrary: C2 rule: rev_induct)
   case Nil
@@ -145,6 +153,7 @@ lemma not_is_AInvcheck: "\<not>is_AInvcheck a \<Longrightarrow> a \<noteq> AInvc
 
 
 text "The following are all the relevant cases where canSwap is true:"
+text_raw \<open>\DefineSnippet{canSwap_cases}{\<close>
 lemma canSwap_cases:
   assumes no_begin_atomic: "\<And>txId txns. b \<noteq> ABeginAtomic txId txns"
     and no_invoc: "\<And>p. b \<noteq> AInvoc p"
@@ -152,7 +161,8 @@ lemma canSwap_cases:
     and no_invcheck_b: "\<not>is_AInvcheck b"  
     and no_fail_a: "a \<noteq> ACrash"
     and no_fail_b: "b \<noteq> ACrash"    
-  shows "canSwap t a b"
+shows "canSwap t a b"
+text_raw \<open>}%EndSnippet\<close>
 proof (cases a; cases b)
   fix tx txns
   assume [simp]: "a = ABeginAtomic tx txns" 

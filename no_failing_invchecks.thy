@@ -62,12 +62,6 @@ proof -
 qed
 
 
-definition allTransactionsEnd :: "('proc, 'op, 'any) trace \<Rightarrow> bool" where
-  "allTransactionsEnd tr \<equiv> \<forall>i j tx txns. j<length tr \<longrightarrow> tr!j = (i, ABeginAtomic tx txns) \<longrightarrow> (\<exists>k. k>j \<and> k<length tr \<and> tr!k = (i, AEndAtomic))"
-
-lemma allTransactionsEnd_def_alt: 
-"allTransactionsEnd tr \<longleftrightarrow> (openTransactions tr = {})"
-  by (auto simp add: allTransactionsEnd_def openTransactions_def, blast)
 
 
 

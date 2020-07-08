@@ -370,6 +370,15 @@ definition packed_trace :: "('proc, 'op, 'any) trace \<Rightarrow> bool" where
     \<longrightarrow> (allowed_context_switch (get_action (tr!i)))" 
 
 
+text \<open>\DefineSnippet{packed_trace_def}{
+  @{thm [display] packed_trace_def[unfolded imp_conjL[symmetric]]}
+}%EndSnippet\<close>
+
+
+text \<open>\DefineSnippet{allowed_context_switch_def}{
+  @{thm [display] allowed_context_switch_def}
+}%EndSnippet\<close>
+
 lemmas use_packed_trace = iffD1[OF packed_trace_def[THEN meta_eq_to_obj_eq], rule_format]
 
 
@@ -406,14 +415,15 @@ qed
 
 
 definition packed_trace_i :: "('proc, 'op, 'any) trace \<Rightarrow> invocId \<Rightarrow> bool" where
-  "packed_trace_i tr invoc \<equiv>
-  \<forall>i.
-      0<i
-    \<longrightarrow> i<length tr
-    \<longrightarrow> get_invoc (tr!i) = invoc
-    \<longrightarrow> get_invoc (tr!(i-1)) \<noteq> invoc
-    \<longrightarrow> (allowed_context_switch (get_action (tr!i)))" 
+  "packed_trace_i tr i \<equiv>
+  \<forall>k.
+      0<k
+    \<longrightarrow> k<length tr
+    \<longrightarrow> get_invoc (tr!k) = i
+    \<longrightarrow> get_invoc (tr!(k-1)) \<noteq> i
+    \<longrightarrow> (allowed_context_switch (get_action (tr!k)))" 
 
+text_raw \<open>\DefineSnippet{pack_trace_for_one_session}{\<close>
 lemma pack_trace_for_one_session:
   assumes steps: "initialState program ~~ tr1 \<leadsto>* C"
     and noFail: "\<And>s. (s, ACrash) \<notin> set tr1" (is "\<And>s. _ \<notin> set ?tr")
@@ -422,6 +432,7 @@ lemma pack_trace_for_one_session:
         \<and> (initialState program ~~ tr' \<leadsto>* C)
         \<and> (\<forall>s. packed_trace_i tr1 s \<longrightarrow> packed_trace_i tr' s)
         \<and> (set tr' = set tr1)"
+text_raw \<open>}%EndSnippet\<close>
   text \<open>By induction over the minimal index that is not packed.\<close>
 proof -
 
@@ -641,8 +652,17 @@ qed
 
 
 lemma packed_trace_iff_all_sessions_packed:
-  "packed_trace tr \<longleftrightarrow> (\<forall>s. packed_trace_i tr s)"
+  "packed_trace tr \<longleftrightarrow> (\<forall>i. packed_trace_i tr i)"
   by (auto simp add: packed_trace_def packed_trace_i_def)
+
+text \<open>\DefineSnippet{packed_trace_i_def}{
+  @{thm [display] packed_trace_i_def[unfolded imp_conjL[symmetric]]}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{packed_trace_iff_all_sessions_packed}{
+  @{thm [display] packed_trace_iff_all_sessions_packed}
+}%EndSnippet\<close>
+
 
 text \<open>Now we can just repeat fixing invocId by invocId, until all sessions are packed.\<close>
 lemma pack_trace:
@@ -726,6 +746,7 @@ qed
 
 
 
+text_raw \<open>\DefineSnippet{pack_incorrect_trace}{\<close>
 lemma pack_incorrect_trace:
   assumes steps: "initialState program ~~ tr \<leadsto>* C"
     and noFail: "\<And>s. (s, ACrash) \<notin> set tr"
@@ -734,6 +755,7 @@ lemma pack_incorrect_trace:
         \<and> (initialState program ~~ tr' \<leadsto>* C')
         \<and> (\<forall>s. (s, ACrash) \<notin> set tr')
         \<and> \<not>traceCorrect tr'"
+text_raw \<open>}%EndSnippet\<close>
 proof -
   text \<open>As the trace is not correct, there must be a failing invariant:\<close> 
 

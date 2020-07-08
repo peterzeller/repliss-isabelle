@@ -1079,7 +1079,7 @@ proof (rule ccontr)
             have "invocation_cannot_guess_ids (ps_localKnown PS) (ps_i PS)  Sn"
             proof (rule show_invocation_cannot_guess_ids_steps_other)
               show "\<forall>(i', a)\<in>set tr. i' \<noteq> ps_i PS"
-                using A(26) \<open>\<forall>(i'', a)\<in>set tr. i'' \<noteq> i'\<close> i_def by blast
+                using A(25) \<open>\<forall>(i'', a)\<in>set tr. i'' \<noteq> i'\<close> i_def by blast
             qed
 
             have ls_split: "ls = (fst ls, fst (snd ls), snd (snd ls))"
@@ -1131,11 +1131,21 @@ proof (rule ccontr)
 
           have invContext_simp: "invContext.truncate (PS'\<lparr>txOrigin := ((txOrigin Sn)(t \<mapsto> ps_i PS))(t := None)\<rparr>)
           = invContext Sn"
-            apply (auto simp add: invContextH_def PS'_def A invContext.defs committedCalls_allCommitted restrict_relation_def)
-               apply (meson A(10) option.exhaust wellFormed_happensBefore_calls_l)
-              apply (meson A(10) option.exhaust wellFormed_happensBefore_calls_r)
-             apply (metis A(10) restrict_map_noop2 wellFormed_callOrigin_dom)
-            by (smt A Collect_cong domD dom_def mem_Collect_eq option.distinct(1) restrict_map_noop2 txStatus.exhaust wf_transaction_status_iff_origin)
+          proof (auto simp add: invContextH_def PS'_def A invContext.defs committedCalls_allCommitted restrict_relation_def)
+            show "\<And>a b. (a, b) \<in> happensBefore Sn \<Longrightarrow> \<exists>y. calls Sn a \<triangleq> y"
+              by (meson A(10) option.exhaust wellFormed_happensBefore_calls_l)
+
+            show "\<And>a b. (a, b) \<in> happensBefore Sn \<Longrightarrow> \<exists>y. calls Sn b \<triangleq> y"
+              by (meson A(10) option.exhaust wellFormed_happensBefore_calls_r)
+
+            show "callOrigin Sn = callOrigin Sn |` dom (calls Sn)"
+              by (metis A(10) restrict_map_noop2 wellFormed_callOrigin_dom)
+
+            show "txOrigin Sn = txOrigin Sn |` committedTransactions Sn"
+              using A.All_not_txStatus_eq  not_uncommitted_cases  
+              by (auto simp add: restrict_map_def wf_txOrigin_and_status[OF A.state_wellFormed] intro!: HOL.ext)
+               force
+          qed
 
           show "invariant (prog S)
          (invContext.truncate
@@ -1196,12 +1206,15 @@ proof (rule ccontr)
               \<open>currentTx S (ps_i PS) = ps_tx PS\<close>
             by simp
 
+          have "\<forall>t. txOrigin S t \<triangleq> i' = txOrigin Sn t \<triangleq> i'"
+            using A.state_monotonicGrowth state_monotonicGrowth_txOrigin_i by blast
+
           from proof_state_rel_facts[OF `proof_state_rel PS S`]
           have " txOrigin S = (case ps_tx PS of None \<Rightarrow> txOrigin PS | Some tx \<Rightarrow> txOrigin PS(tx \<mapsto> ps_i PS))" by simp
 
           from this
           show "\<forall>t'. t' \<noteq> t \<longrightarrow> txOrigin PS t' \<triangleq> ps_i PS = txOrigin Sn t' \<triangleq> ps_i PS"
-            using ` \<forall>t. txOrigin S t \<triangleq> i' = txOrigin Sn t \<triangleq> i'`
+            using `\<forall>t. txOrigin S t \<triangleq> i' = txOrigin Sn t \<triangleq> i'`
             by (simp add: \<open>ps_tx PS = None\<close>)
 
           from `chooseSnapshot vis' vis Sn`
@@ -1214,7 +1227,7 @@ proof (rule ccontr)
             by (auto simp add: consistentSnapshotH_def transactionConsistent_committed_def transactionConsistent_def)
 
           show "\<forall>c. callOrigin Sn c \<noteq> Some t"
-            by (simp add: A(24))
+            using \<open>\<forall>c. callOrigin Sn c \<noteq> Some t\<close> .
 
 
         qed

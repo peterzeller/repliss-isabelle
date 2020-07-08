@@ -268,6 +268,7 @@ qed
 
 
 
+text_raw \<open>\DefineSnippet{toImpl}{\<close>
 fun toImpl :: "(('val store \<times> uniqueId set \<times> (('val,'op::{small,valueType}, 'val::{small,valueType}) io)), 'op, 'val) procedureImpl" where
   "toImpl (store, knownUids, WaitLocalStep n) = (
         let (ok, store', n') = n store 
@@ -293,7 +294,13 @@ fun toImpl :: "(('val store \<times> uniqueId set \<times> (('val,'op::{small,va
         LocalStep True 
             (store, knownUids, (loop_body_from_V body i) \<bind>io (\<lambda>r. 
                case r of Break x \<Rightarrow> n x 
-                       | Continue x \<Rightarrow> Loop x body n))"
+| Continue x \<Rightarrow> Loop x body n))"
+text_raw \<open>}%EndSnippet\<close>
+
+
+text \<open>\DefineSnippet{toImpl_simps}{
+  @{thm [display] toImpl.simps}
+}%EndSnippet\<close>
 
 abbreviation  toImpl' where
  "toImpl' proc (x :: ('val,'op,'val) io) \<equiv> ((Map.empty, uniqueIds proc, x) , toImpl)"

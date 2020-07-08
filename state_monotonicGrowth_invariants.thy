@@ -333,7 +333,6 @@ lemma show_state_monotonicGrowth:
   using assms  unfolding state_monotonicGrowth_def by auto
 
 
-
 lemmas state_monotonicGrowth_lemmas = 
 state_monotonicGrowth_calls
 state_monotonicGrowth_happensBefore
