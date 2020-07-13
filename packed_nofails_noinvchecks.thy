@@ -1672,7 +1672,7 @@ lemma remove_context_switches_in_transactions:
 
     from i_switch_min
     have no_earlier_context_switches:
-       "\<And>j. \<lbrakk>i_begin < j; j < i_switch\<rbrakk> \<Longrightarrow> \<not> allowed_context_switch (get_action (trace ! j))"
+      "\<And>j. \<lbrakk>i_begin < j; j < i_switch\<rbrakk> \<Longrightarrow> \<not> allowed_context_switch (get_action (trace ! j))"
       using i_switch_min      by (smt contextSwitchInTransaction_def dual_order.strict_trans i_switch leD)
 
 
@@ -1784,232 +1784,182 @@ lemma remove_context_switches_in_transactions:
       using that apply (auto simp add: all_set_conv_all_nth)
       by (metis diff_less_mono less_or_eq_imp_le ordered_cancel_comm_monoid_diff_class.add_diff_inverse)
 
+    text "Remove the previous action:"
+
+    define trace' where "trace' = take (i_switch - 1) trace @ drop i_switch trace"
+
+
+
+    have "length trace = Suc (length trace')"
+      using \<open>0 < i_switch\<close> \<open>i_switch < length trace\<close> trace'_def by auto
+
+
+    obtain S' where 
+      " initialState program ~~ trace' \<leadsto>* S'"
+      unfolding trace'_def
+    proof (atomize_elim, fuzzy_rule steps_dropLast_tx)
+      show "initialState program ~~ trace \<leadsto>* S"
+        by (simp add: less.prems(1))
+      show " get_action (trace ! (i_switch - 1)) \<notin> {AEndAtomic} \<union> range AReturn \<union> range AInvoc" (is ?goal)
+      proof auto
+        text "It cannot be any of these cases, because we are in an unfinished transaction ..."
+
+
+        have "i_switch - Suc 0 < i_switch"
+          using \<open>0 < i_switch\<close> diff_Suc_less by blast
+
+        have "i_begin \<le> i_switch - Suc 0"
+          using a0 by linarith
+
+
+        have "trace ! (i_switch - Suc 0) \<noteq> (invoc, AEndAtomic)"
+          by (metis \<open>i_begin \<le> i_switch - Suc 0\<close> \<open>i_switch - Suc 0 < i_switch\<close> a2 a3 action.distinct(31) le_neq_implies_less old.prod.inject)
+
+
+        have "get_invoc (trace ! (i_switch - Suc 0)) = invoc"
+          using a0 same_invoc by auto
+
+
+        show "get_action (trace ! (i_switch - Suc 0)) = AEndAtomic \<Longrightarrow> False"
+          by (metis \<open>get_invoc (trace ! (i_switch - Suc 0)) = invoc\<close> \<open>trace ! (i_switch - Suc 0) \<noteq> (invoc, AEndAtomic)\<close> surjective_pairing)
+
+        show "\<And>x. get_action (trace ! (i_switch - Suc 0)) = AReturn x \<Longrightarrow> False"
+          using no_return_in_transaction(1)[OF `initialState program ~~ trace \<leadsto>* S` `trace ! i_begin = (invoc, ABeginAtomic tx txns)`, where i_r="i_switch - Suc 0"]
+          by (metis (no_types, lifting) \<open>get_invoc (trace ! (i_switch - Suc 0)) = invoc\<close> \<open>i_begin \<le> i_switch - Suc 0\<close> \<open>i_switch - Suc 0 < i_switch\<close> a1 a3 dual_order.strict_trans le_less_trans less.prems(3) prod.collapse state_wellFormed_init)
+
+        show "\<And>x. get_action (trace ! (i_switch - Suc 0)) = AInvoc x \<Longrightarrow> False"
+          using \<open>i_begin \<le> i_switch - Suc 0\<close> a2 allowed_context_switch_simps(6) le_eq_less_or_eq no_earlier_context_switches by fastforce
+      qed
+
+
+      have [simp]: "(Suc (i_switch - Suc 0)) = i_switch"
+        by (simp add: \<open>0 < i_switch\<close>)
+
+      show "(~~ initialState program \<leadsto>*) (take (i_switch - 1) trace @ drop (Suc (i_switch - 1)) trace) =
+              (~~ initialState program \<leadsto>*) (take (i_switch - 1) trace @ drop i_switch trace)"
+        by simp
+
+      show "i_switch - 1 < length trace"
+        by (simp add: a1 less_imp_diff_less)
+
+      show "state_wellFormed (initialState program)"
+        by (simp add: state_wellFormed_init)
+
+      show "\<And>i. (i, ACrash) \<notin> set trace"
+        by (simp add: less.prems(3))
+
+      text "As we are in the middle of a transaction, we cannot execute BeginAtomic or Invoc (packed)"
+      from `packed_trace trace`
+      show "\<And>j. \<lbrakk>i_switch - 1 < j; j < length trace\<rbrakk> \<Longrightarrow> get_invoc (trace ! j) \<noteq> get_invoc (trace ! (i_switch - 1))"
+        by (metis One_nat_def Suc_lessI \<open>0 < i_switch\<close> \<open>Suc (i_switch - Suc 0) = i_switch\<close> \<open>\<And>j'. \<lbrakk>i_switch < j'; j' < length trace\<rbrakk> \<Longrightarrow> get_invoc (trace ! j') \<noteq> invoc\<close> \<open>get_invoc (trace ! i_switch) \<noteq> invoc\<close> a0 diff_less less_Suc_eq_le same_invoc zero_less_one)
+
+    qed
+
 
     show ?thesis
-    proof (cases "get_action (trace ! (i_switch - 1)) = ALocal False")
-      case True
-      text "If the action before j was a context, then only consider the trace up to this and use IH."
-
-      have "isPrefix (take i_switch trace) trace"
-        by (metis append_take_drop_id isPrefix_appendI)
-
-
-      show ?thesis
-      proof (rule less.hyps[where trace="take i_switch trace"])
-        show "length (take i_switch trace) < length trace"
-          using \<open>i_switch < length trace\<close> by auto
-        show "initialState program ~~ take i_switch trace \<leadsto>* S_j_pre"
-          using \<open>initialState program ~~ take i_switch trace \<leadsto>* S_j_pre\<close> by blast
-        show "packed_trace (take i_switch trace)"
-          using less.prems(2) packed_trace_take by blast
-        show "\<And>s. (s, ACrash) \<notin> set (take i_switch trace)"
-          by (meson in_set_takeD less.prems(3))
-        show "no_invariant_checks_in_transaction (take i_switch trace)"
-          using `no_invariant_checks_in_transaction trace`
-          using \<open>isPrefix (take i_switch trace) trace\<close> no_invariant_checks_in_transaction_prefix by blast
-        show "\<not> traceCorrect (take i_switch trace)"
-        proof (auto simp add: traceCorrect_def, intro bexI)
-          show "(trace ! (i_switch - 1)) \<in> set (take i_switch trace) "
-            by (metis \<open>0 < i_switch\<close> a1 diff_less length_take min_simps(2) nth_mem nth_take zero_less_one)
-          show "\<not> actionCorrect (get_action (trace ! (i_switch - 1)))"
-            using True actionCorrect_def by blast
-        qed
-        show "initialState program ~~ take i_switch trace \<leadsto>* S_j_pre"
-          using \<open>initialState program ~~ take i_switch trace \<leadsto>* S_j_pre\<close> by auto
-        show "packed_trace (take i_switch trace)"
-          using \<open>packed_trace (take i_switch trace)\<close> by blast
-        show "\<And>s. (s, ACrash) \<notin> set (take i_switch trace)"
-          using \<open>\<And>s. (s, ACrash) \<notin> set (take i_switch trace)\<close> by blast
-        show "no_invariant_checks_in_transaction (take i_switch trace)"
-          using \<open>no_invariant_checks_in_transaction (take i_switch trace)\<close> by blast
-        show "\<not> traceCorrect (take i_switch trace)"
-          by (simp add: \<open>\<not> traceCorrect (take i_switch trace)\<close>)
-        show "\<And>s. (s, AInvcheck True) \<notin> set (take i_switch trace)"
-          by (meson in_set_takeD less.prems(4))
-        thus "\<And>s. (s, AInvcheck True) \<notin> set (take i_switch trace)" .
-      qed
-
-    next
-      case False
-
-      text "Otherwise, remove the action"
-
-      define trace' where "trace' = take (i_switch - 1) trace @ drop i_switch trace"
+    proof (rule less.hyps)
+      show "length trace' < length trace"
+        by (simp add: \<open>length trace = Suc (length trace')\<close>)
+      show "initialState program ~~ trace' \<leadsto>* S'"
+        by (simp add: \<open>initialState program ~~ trace' \<leadsto>* S'\<close>)
+      have [simp]: "min (length trace) i_switch = i_switch"
+        by (simp add: \<open>i_switch < length trace\<close> min_simps(2))
+      have [simp]: " i_switch + (length trace - Suc i_switch) = length trace - 1"
+        by (simp add: Suc_leI \<open>i_switch < length trace\<close>)
+      have [simp]: "min (length trace) (i_switch - Suc 0) = i_switch - Suc 0"
+        using \<open>i_switch < length trace\<close> by auto
+      have [simp]: "i_switch + (length trace - i_switch) = length trace"
+        by (simp add: \<open>i_switch < length trace\<close> less_imp_le)
+      have [simp]: "Suc (i_switch - Suc 0) = i_switch"
+        using Suc_pred \<open>0 < i_switch\<close> by blast
 
 
+      have h: "i = i_switch" if "i - Suc 0 < i_switch" and "\<not> i < i_switch" for i
+        using that(1) that(2) by linarith
 
-      have "length trace = Suc (length trace')"
-        using \<open>0 < i_switch\<close> \<open>i_switch < length trace\<close> trace'_def by auto
-
-
-      obtain S' where 
-        " initialState program ~~ trace' \<leadsto>* S'"
-        unfolding trace'_def
-
-      proof (atomize_elim, fuzzy_rule steps_dropLast_tx)
-        show "initialState program ~~ trace \<leadsto>* S"
-          by (simp add: less.prems(1))
-        show " get_action (trace ! (i_switch - 1)) \<notin> {AEndAtomic} \<union> range AReturn \<union> range AInvoc" (is ?goal)
-        proof auto
-            text "It cannot be any of these cases, because we are in an unfinished transaction ..."
+      show "packed_trace trace'"
+        using `packed_trace trace`
+        by (auto simp add: packed_trace_def trace'_def  nth_append split: if_splits)
+          (metis \<open>Suc (i_switch - Suc 0) = i_switch\<close> a4 h less_SucI linorder_neqE_nat not_less_eq)
+      show "\<And>s. (s, ACrash) \<notin> set trace'"
+        by (metis Un_iff append_take_drop_id less.prems(3) set_append trace'_def)
 
 
-            have "i_switch - Suc 0 < i_switch"
-              using \<open>0 < i_switch\<close> diff_Suc_less by blast
+      thm no_context_switch_transaction2
 
-            have "i_begin \<le> i_switch - Suc 0"
-              using a0 by linarith
-
-
-            have "trace ! (i_switch - Suc 0) \<noteq> (invoc, AEndAtomic)"
-              by (metis \<open>i_begin \<le> i_switch - Suc 0\<close> \<open>i_switch - Suc 0 < i_switch\<close> a2 a3 action.distinct(31) le_neq_implies_less old.prod.inject)
-
-
-            have "get_invoc (trace ! (i_switch - Suc 0)) = invoc"
-              using a0 same_invoc by auto
-
-
-            show "get_action (trace ! (i_switch - Suc 0)) = AEndAtomic \<Longrightarrow> False"
-              by (metis \<open>get_invoc (trace ! (i_switch - Suc 0)) = invoc\<close> \<open>trace ! (i_switch - Suc 0) \<noteq> (invoc, AEndAtomic)\<close> surjective_pairing)
-
-            show "\<And>x. get_action (trace ! (i_switch - Suc 0)) = AReturn x \<Longrightarrow> False"
-              using no_return_in_transaction(1)[OF `initialState program ~~ trace \<leadsto>* S` `trace ! i_begin = (invoc, ABeginAtomic tx txns)`, where i_r="i_switch - Suc 0"]
-              by (metis (no_types, lifting) \<open>get_invoc (trace ! (i_switch - Suc 0)) = invoc\<close> \<open>i_begin \<le> i_switch - Suc 0\<close> \<open>i_switch - Suc 0 < i_switch\<close> a1 a3 dual_order.strict_trans le_less_trans less.prems(3) prod.collapse state_wellFormed_init)
-
-            show "\<And>x. get_action (trace ! (i_switch - Suc 0)) = AInvoc x \<Longrightarrow> False"
-              using \<open>i_begin \<le> i_switch - Suc 0\<close> a2 allowed_context_switch_simps(6) le_eq_less_or_eq no_earlier_context_switches by fastforce
-          qed
-
-
-        have [simp]: "(Suc (i_switch - Suc 0)) = i_switch"
-          by (simp add: \<open>0 < i_switch\<close>)
-
-        show "(~~ initialState program \<leadsto>*) (take (i_switch - 1) trace @ drop (Suc (i_switch - 1)) trace) =
-              (~~ initialState program \<leadsto>*) (take (i_switch - 1) trace @ drop i_switch trace)"
-          by simp
-
-        show "i_switch - 1 < length trace"
-          by (simp add: a1 less_imp_diff_less)
-
-        show "state_wellFormed (initialState program)"
-          by (simp add: state_wellFormed_init)
-
-        show "\<And>i. (i, ACrash) \<notin> set trace"
-          by (simp add: less.prems(3))
-
-        text "As we are in the middle of a transaction, we cannot execute BeginAtomic or Invoc (packed)"
-        from `packed_trace trace`
-        show "\<And>j. \<lbrakk>i_switch - 1 < j; j < length trace\<rbrakk> \<Longrightarrow> get_invoc (trace ! j) \<noteq> get_invoc (trace ! (i_switch - 1))"
-          by (metis One_nat_def Suc_lessI \<open>0 < i_switch\<close> \<open>Suc (i_switch - Suc 0) = i_switch\<close> \<open>\<And>j'. \<lbrakk>i_switch < j'; j' < length trace\<rbrakk> \<Longrightarrow> get_invoc (trace ! j') \<noteq> invoc\<close> \<open>get_invoc (trace ! i_switch) \<noteq> invoc\<close> a0 diff_less less_Suc_eq_le same_invoc zero_less_one)
-
-      qed
-
-
-      show ?thesis
-      proof (rule less.hyps)
-        show "length trace' < length trace"
-          by (simp add: \<open>length trace = Suc (length trace')\<close>)
-        show "initialState program ~~ trace' \<leadsto>* S'"
-          by (simp add: \<open>initialState program ~~ trace' \<leadsto>* S'\<close>)
-        have [simp]: "min (length trace) i_switch = i_switch"
-          by (simp add: \<open>i_switch < length trace\<close> min_simps(2))
-        have [simp]: " i_switch + (length trace - Suc i_switch) = length trace - 1"
-          by (simp add: Suc_leI \<open>i_switch < length trace\<close>)
-        have [simp]: "min (length trace) (i_switch - Suc 0) = i_switch - Suc 0"
-          using \<open>i_switch < length trace\<close> by auto
-        have [simp]: "i_switch + (length trace - i_switch) = length trace"
-          by (simp add: \<open>i_switch < length trace\<close> less_imp_le)
-        have [simp]: "Suc (i_switch - Suc 0) = i_switch"
-          using Suc_pred \<open>0 < i_switch\<close> by blast
-
-
-        have h: "i = i_switch" if "i - Suc 0 < i_switch" and "\<not> i < i_switch" for i
-          using that(1) that(2) by linarith
-
-        show "packed_trace trace'"
-          using `packed_trace trace`
-          apply (auto simp add: packed_trace_def trace'_def  nth_append split: if_splits)
-          by (metis \<open>Suc (i_switch - Suc 0) = i_switch\<close> a4 h less_SucI linorder_neqE_nat not_less_eq)
-        show "\<And>s. (s, ACrash) \<notin> set trace'"
-          by (metis Un_iff append_take_drop_id less.prems(3) set_append trace'_def)
-
-
-        thm no_context_switch_transaction2
-
-        from `initialState program ~~ trace \<leadsto>* S`
-        have is_invoc: "get_invoc (trace ! (i_switch - 1)) = invoc"
-          using `trace ! i_begin = (invoc, ABeginAtomic tx txns)`
-        proof (rule no_context_switch_transaction2)
-          show "\<And>j. \<lbrakk>i_begin < j; j \<le> i_switch - 1\<rbrakk> \<Longrightarrow> trace ! j \<noteq> (invoc, AEndAtomic)"
-            by (simp add: a3)
-          show "packed_trace trace"
-            by (simp add: less.prems(2))
-          show "\<not> allowed_context_switch (get_action (trace ! j))" if "i_begin < j" "j \<le> i_switch - 1" for j
-          proof 
-            assume "allowed_context_switch (get_action (trace ! j))"
-            have "i_switch \<le> j"
-            proof (rule i_switch_min[where i_begin'=i_begin and i_switch'=j])
-              show "contextSwitchInTransaction trace i_begin j"
-              proof (auto simp add: contextSwitchInTransaction_def)
-                show "i_begin < j"
-                  by (simp add: that(1))
-                show "j < length trace"
-                  using a1 that(2) by auto
-                show "\<exists>invoc.
+      from `initialState program ~~ trace \<leadsto>* S`
+      have is_invoc: "get_invoc (trace ! (i_switch - 1)) = invoc"
+        using `trace ! i_begin = (invoc, ABeginAtomic tx txns)`
+      proof (rule no_context_switch_transaction2)
+        show "\<And>j. \<lbrakk>i_begin < j; j \<le> i_switch - 1\<rbrakk> \<Longrightarrow> trace ! j \<noteq> (invoc, AEndAtomic)"
+          by (simp add: a3)
+        show "packed_trace trace"
+          by (simp add: less.prems(2))
+        show "\<not> allowed_context_switch (get_action (trace ! j))" if "i_begin < j" "j \<le> i_switch - 1" for j
+        proof 
+          assume "allowed_context_switch (get_action (trace ! j))"
+          have "i_switch \<le> j"
+          proof (rule i_switch_min[where i_begin'=i_begin and i_switch'=j])
+            show "contextSwitchInTransaction trace i_begin j"
+            proof (auto simp add: contextSwitchInTransaction_def)
+              show "i_begin < j"
+                by (simp add: that(1))
+              show "j < length trace"
+                using a1 that(2) by auto
+              show "\<exists>invoc.
                    (\<exists>tx txns. trace ! i_begin = (invoc, ABeginAtomic tx txns)) \<and>
                    (\<forall>ja. i_begin < ja \<and> ja < j \<longrightarrow> trace ! ja \<noteq> (invoc, AEndAtomic)) \<and> allowed_context_switch (get_action (trace ! j))"
-                proof (intro exI conjI allI impI)
-                  show "trace ! i_begin = (invoc, ABeginAtomic tx txns)"
-                    by (simp add: a2)
-                  show "allowed_context_switch (get_action (trace ! j))"
-                    by (simp add: \<open>allowed_context_switch (get_action (trace ! j))\<close>)
-                  show "\<And>ja. i_begin < ja \<and> ja < j \<Longrightarrow> trace ! ja \<noteq> (invoc, AEndAtomic)"
-                    using a3 that(2) by auto
-                qed
+              proof (intro exI conjI allI impI)
+                show "trace ! i_begin = (invoc, ABeginAtomic tx txns)"
+                  by (simp add: a2)
+                show "allowed_context_switch (get_action (trace ! j))"
+                  by (simp add: \<open>allowed_context_switch (get_action (trace ! j))\<close>)
+                show "\<And>ja. i_begin < ja \<and> ja < j \<Longrightarrow> trace ! ja \<noteq> (invoc, AEndAtomic)"
+                  using a3 that(2) by auto
               qed
             qed
-            thus False
-              using \<open>Suc (i_switch - Suc 0) = i_switch\<close> that(2) by auto
           qed
-
-          show "i_begin \<le> i_switch - 1"
-            using a0 by auto
-          show "i_switch - 1 < length trace"
-            using a1 less_imp_diff_less by blast
+          thus False
+            using \<open>Suc (i_switch - Suc 0) = i_switch\<close> that(2) by auto
         qed
 
-        from `no_invariant_checks_in_transaction trace`
-        have "no_invariant_checks_in_transaction (take (i_switch - 1) trace @ drop (Suc (i_switch - 1)) trace)"
-        proof (rule maintain_no_invariant_checks_in_transaction2)
-          show "i_switch - 1 < length trace"
-            by (simp add: \<open>i_switch < length trace\<close> less_imp_diff_less)
-          show "
+        show "i_begin \<le> i_switch - 1"
+          using a0 by auto
+        show "i_switch - 1 < length trace"
+          using a1 less_imp_diff_less by blast
+      qed
+
+      from `no_invariant_checks_in_transaction trace`
+      have "no_invariant_checks_in_transaction (take (i_switch - 1) trace @ drop (Suc (i_switch - 1)) trace)"
+      proof (rule maintain_no_invariant_checks_in_transaction2)
+        show "i_switch - 1 < length trace"
+          by (simp add: \<open>i_switch < length trace\<close> less_imp_diff_less)
+        show "
            \<lbrakk>i < i_switch - 1; trace ! i = (invoc, ABeginAtomic tx txns); \<And>ja. \<lbrakk>i < ja; ja < i_switch - 1\<rbrakk> \<Longrightarrow> trace ! ja \<noteq> (invoc, AEndAtomic)\<rbrakk>
              \<Longrightarrow> trace ! (i_switch - 1) \<noteq> (invoc, AEndAtomic)" for i invoc tx txns
-              by (metis One_nat_def \<open>Suc (i_switch - Suc 0) = i_switch\<close> is_invoc a0 a2 a3 action.distinct(31) fst_conv le_eq_less_or_eq less_Suc_eq_le snd_conv)
-        qed
-
-        show " no_invariant_checks_in_transaction trace'"
-          using maintain_no_invariant_checks_in_transaction[OF `no_invariant_checks_in_transaction trace`, where pos="i_switch - 1", simplified]
-          using One_nat_def \<open>Suc (i_switch - Suc 0) = i_switch\<close> \<open>no_invariant_checks_in_transaction (take (i_switch - 1) trace @ drop (Suc (i_switch - 1)) trace)\<close> trace'_def by presburger
-        show "\<not> traceCorrect trace'"
-          using `\<not>traceCorrect trace` trace'_def
-          apply (auto simp add: traceCorrect_def)
-          by (metis (no_types, lifting) Suc_diff_Suc UnI2 \<open>i_switch + (length trace - Suc i_switch) = length trace - 1\<close> \<open>i_switch + (length trace - i_switch) = length trace\<close> \<open>length trace = Suc (length trace')\<close> \<open>length trace' < length trace\<close> a1 add_less_cancel_left diff_Suc_1 diff_is_0_eq last_action_incorrect last_conv_nth last_drop leD length_drop list.size(3) nth_mem)
-        show "initialState program ~~ trace' \<leadsto>* S'"
-          by (simp add: \<open>initialState program ~~ trace' \<leadsto>* S'\<close>)
-        show "packed_trace trace'"
-          by (simp add: \<open>packed_trace trace'\<close>)
-        show "\<And>s. (s, ACrash) \<notin> set trace'"
-          by (simp add: \<open>\<And>s. (s, ACrash) \<notin> set trace'\<close>)
-        show "no_invariant_checks_in_transaction trace'"
-          by (simp add: \<open>no_invariant_checks_in_transaction trace'\<close>)
-        show " \<not> traceCorrect trace'"
-          by (simp add: \<open>\<not> traceCorrect trace'\<close>)
-        show "\<And>s. (s, AInvcheck True) \<notin> set trace'"
-          by (metis Un_iff append_take_drop_id less.prems(4) set_append trace'_def)
-        thus "\<And>s. (s, AInvcheck True) \<notin> set trace'" .
+          by (metis One_nat_def \<open>Suc (i_switch - Suc 0) = i_switch\<close> is_invoc a0 a2 a3 action.distinct(31) fst_conv le_eq_less_or_eq less_Suc_eq_le snd_conv)
       qed
+
+      show " no_invariant_checks_in_transaction trace'"
+        using maintain_no_invariant_checks_in_transaction[OF `no_invariant_checks_in_transaction trace`, where pos="i_switch - 1", simplified]
+        using One_nat_def \<open>Suc (i_switch - Suc 0) = i_switch\<close> \<open>no_invariant_checks_in_transaction (take (i_switch - 1) trace @ drop (Suc (i_switch - 1)) trace)\<close> trace'_def by presburger
+      show "\<not> traceCorrect trace'"
+        using `\<not>traceCorrect trace` trace'_def
+        by (auto simp add: traceCorrect_def)
+          (metis (no_types, lifting) Suc_diff_Suc UnI2 \<open>i_switch + (length trace - Suc i_switch) = length trace - 1\<close> \<open>i_switch + (length trace - i_switch) = length trace\<close> \<open>length trace = Suc (length trace')\<close> \<open>length trace' < length trace\<close> a1 add_less_cancel_left diff_Suc_1 diff_is_0_eq last_action_incorrect last_conv_nth last_drop leD length_drop list.size(3) nth_mem)
+      show "initialState program ~~ trace' \<leadsto>* S'"
+        by (simp add: \<open>initialState program ~~ trace' \<leadsto>* S'\<close>)
+      show "packed_trace trace'"
+        by (simp add: \<open>packed_trace trace'\<close>)
+      show "\<And>s. (s, ACrash) \<notin> set trace'"
+        by (simp add: \<open>\<And>s. (s, ACrash) \<notin> set trace'\<close>)
+      show "no_invariant_checks_in_transaction trace'"
+        by (simp add: \<open>no_invariant_checks_in_transaction trace'\<close>)
+      show " \<not> traceCorrect trace'"
+        by (simp add: \<open>\<not> traceCorrect trace'\<close>)
+      show "\<And>s. (s, AInvcheck True) \<notin> set trace'"
+        by (metis Un_iff append_take_drop_id less.prems(4) set_append trace'_def)
+      thus "\<And>s. (s, AInvcheck True) \<notin> set trace'" .
     qed
   qed
 qed

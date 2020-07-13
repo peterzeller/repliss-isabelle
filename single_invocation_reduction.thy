@@ -25,6 +25,11 @@ definition state_coupling :: "('proc::valueType, 'ls, 'op, 'any::valueType) stat
         state_monotonicGrowth i S' S
       "
 
+text \<open>\DefineSnippet{state_coupling_def}{
+  @{thm [display] state_coupling_def}
+}%EndSnippet\<close>
+
+
 lemma state_coupling_refl: 
   assumes "state_wellFormed S"
   shows "state_coupling S S i s"
