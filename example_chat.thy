@@ -320,22 +320,10 @@ definition inv1 where
   \<and> res g \<triangleq> Found (String author) content
   \<longrightarrow> (\<exists>s content2. op s \<triangleq> SendMessage author content2)
 "
-    
 
 
-(*
-// additional invariants:
-// for every author-assignment there is a corresponding invocation of sendMessage
-invariant forall c: callId, m: MessageId, u: UserId ::
-    c.op == message_author_assign(m, u)
-    ==> (exists i: invocationId, s: String ::
-            i.info == sendMessage(u, s))
-*)
+subsection \<open>Additional invariants:\<close>
 
-definition inv2 where
-"inv2 op cop \<equiv> \<forall>c m u.
-  cop c \<triangleq> Message (NestedOp m (Author (Assign (String u))))
-  \<longrightarrow> (\<exists>i s. op i \<triangleq> SendMessage u s) "
 
 
 (*
@@ -347,8 +335,8 @@ invariant forall c1: callId, m: MessageId, s: String ::
             && c2 happened before c1)
 *)
 
-definition inv3 where
-"inv3 cop hb \<equiv> \<forall>c1 m s.
+definition inv2 where
+"inv2 cop hb \<equiv> \<forall>c1 m s.
     cop c1 \<triangleq> Message (NestedOp m (Content (Assign s)))
     \<longrightarrow> (\<exists>c2 u. 
            cop c2 \<triangleq> Message (NestedOp m (Author (Assign u)))
@@ -365,20 +353,36 @@ invariant !(exists write: callId, delete: callId, m: MessageId ::
 *)
 
 
-definition inv4 where
-"inv4 cop hb \<equiv>
+definition inv3 where
+"inv3 cop hb \<equiv>
   \<nexists>write delete m no.
    cop write \<triangleq> Message (NestedOp m no)
    \<and> is_update no
    \<and> cop delete \<triangleq> Message (DeleteKey m)
    \<and> (delete,write)\<in>hb"
 
+
+
+(*
+// for every author-assignment there is a corresponding invocation of sendMessage
+invariant forall c: callId, m: MessageId, u: UserId ::
+    c.op == message_author_assign(m, u)
+    ==> (exists i: invocationId, s: String ::
+            i.info == sendMessage(u, s))
+*)
+
+definition inv4 where
+"inv4 op cop \<equiv> \<forall>c m u.
+  cop c \<triangleq> Message (NestedOp m (Author (Assign (String u))))
+  \<longrightarrow> (\<exists>i s. op i \<triangleq> SendMessage u s) "
+
+
 definition inv :: "(proc, operation, val) invContext \<Rightarrow> bool" where
   "inv ctxt \<equiv> 
     inv1 (invocOp ctxt) (invocRes ctxt) 
-  \<and> inv2 (invocOp ctxt) (Op ctxt)
+  \<and> inv2 (Op ctxt) (happensBefore ctxt)
   \<and> inv3 (Op ctxt) (happensBefore ctxt)
-  \<and> inv4 (Op ctxt) (happensBefore ctxt)"
+  \<and> inv4 (invocOp ctxt) (Op ctxt)"
 
 
 
@@ -539,6 +543,8 @@ lemmas crdt_spec_defs =
 theorem chat_app_correct: "programCorrect progr"
 proof M_show_programCorrect
 
+  subsection \<open>Initial State\<close>
+
   case invariant_initial_state
   show "invariant_all' (initialState progr)"
     by (simp add: inv_def initialState_def invContextH2_calls inv1_def inv2_def inv3_def inv4_def invContextH2_happensBefore invContextH2_i_invocOp progr_def)
@@ -565,15 +571,28 @@ proof M_show_programCorrect
 
     show "procedureCorrect S i"
     proof (cases proc)
+      subsection \<open>SendMessage\<close>
+
       case (SendMessage author content)
 
       show "procedureCorrect S i"
       proof M_show_procedureCorrect
         case after_invocation
-         show ?case
-           using show_P.invariant_pre SendMessage show_P.i_fresh
-          by (auto simp add:  inv_def inv1_def inv2_def inv3_def inv4_def invContextH2_simps, 
-                metis option.distinct(1) show_P.i_fresh)+
+        show ?case
+          using show_P.invariant_pre
+        proof (auto simp add: inv_def invContextH2_simps)
+
+          show "inv1 (invocOp S_pre(i \<mapsto> proc)) (invocRes S_pre)" if "inv1 (invocOp S_pre) (invocRes S_pre)"
+            using show_P.i_fresh SendMessage that
+            by (auto simp add: inv1_def)
+             (metis option.discI show_P.i_fresh)
+
+          show "inv4 (invocOp S_pre(i \<mapsto> proc)) (Op S_pre)" if "inv4 (invocOp S_pre) (Op S_pre)"
+            using show_P.i_fresh SendMessage that
+            by (auto simp add: inv4_def)
+             (metis option.discI show_P.i_fresh)
+        qed
+
 
       next
         case execution
@@ -611,55 +630,54 @@ proof M_show_programCorrect
           proof (repliss_vcg_l, fuzzy_goal_cases "AtCommit" "AtReturn" )
             case (AtCommit v vn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res ca resa cb resb PS')
 
-            have [simp]: "res = Undef"
+            have "res = Undef"
               using AtCommit.toplevel_spec
               by (auto simp add: crdt_spec_defs)
-            have [simp]:"resa = Undef"
+            have "resa = Undef"
               using AtCommit.toplevel_spec2
               by (auto simp add: crdt_spec_defs)
 
-            have [simp]:"resb = Undef"
+            have "resb = Undef"
               using AtCommit.toplevel_spec3
               by (auto simp add: crdt_spec_defs)
 
-            have [simp]:  "in_sequence [c, ca, cb] c ca"
+            have "in_sequence [c, ca, cb] c ca"
               by (simp add: in_sequence_cons)
 
             have "new_unique_not_in_calls s_calls' vn"
-              by (meson AtCommit.uid_is_private'2 uid_is_private'_def)
+              by (meson AtCommit.uid_is_private'2 uid_is_private'_def)  
 
 
             hence no_v: "vn \<notin> uniqueIds opr" if "cOp s_calls' c \<triangleq> opr" for c opr
               using that 
               by (auto simp add: new_unique_not_in_calls_def cOp_Some_iff)
 
-
-            have [simp]: "cOp s_calls' delete \<noteq> Some (Message (DeleteKey v))" for delete
-              apply auto
-              apply (drule no_v)
-             using `uniqueIds_val_r v = {vn}` by auto
-
+            have no_delete_v: "cOp s_calls' delete \<noteq> Some (Message (DeleteKey v))" for delete
+              using `uniqueIds_val_r v = {vn}` by (auto dest!: no_v)
 
 
             from AtCommit
             show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases  inv2 inv3 inv4)
-              case (inv2)
-              then show ?case
-                by (auto simp add: inv2_def exists_cases1 )
 
 
             next
-              case (inv3 )
+              case (inv2 )
               
-              from inv3 show ?case 
-                by (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong, meson)
+              from inv2 show ?case 
+                by (auto simp add: inv2_def updateHb_cases in_sequence_cons cong: conj_cong, meson)
             next
-              case (inv4)
+              case (inv3)
 
 
               then show ?case 
-                by (auto simp add: inv4_def is_update_operation_def in_sequence_cons updateHb_cases)
+                by (auto simp add: inv3_def  in_sequence_cons updateHb_cases no_delete_v)
+
+
+              case (inv4)
+              then show ?case
+                by (auto simp add: inv4_def)
+
 
             qed
               
@@ -668,9 +686,8 @@ proof M_show_programCorrect
             case (AtReturn v tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res ca resa cb resb)
             from AtReturn.inv2
             show ?case
-              apply (auto simp add: inv_def)
-              apply (auto simp add: inv1_def)
-              by (smt map_upd_Some_unfold proc.inject(1))
+              by (auto simp add: inv_def inv1_def  split: if_splits)
+               blast
           qed
         qed
       qed
@@ -729,9 +746,9 @@ proof M_show_programCorrect
                 knownIds = s_knownIds', invocOp = s_invocOp'(i \<mapsto> EditMessage m newContent),
                 invocRes = s_invocRes'(i := None)\<rparr>`
             have  i1: "inv1 (s_invocOp'(i \<mapsto> EditMessage m newContent)) (s_invocRes'(i := None))"
-              and i2: "inv2 (s_invocOp'(i \<mapsto> EditMessage m newContent)) (cOp s_calls')"
-              and i3: "inv3 (cOp s_calls') s_happensBefore'"
-              and i4: "inv4 (cOp s_calls') s_happensBefore'"
+              and i2: "inv4 (s_invocOp'(i \<mapsto> EditMessage m newContent)) (cOp s_calls')"
+              and i3: "inv2 (cOp s_calls') s_happensBefore'"
+              and i4: "inv3 (cOp s_calls') s_happensBefore'"
               by (auto simp add: inv_def)
 
             from \<open>toplevel_spec crdtSpec' \<lparr>calls = s_calls', happensBefore = s_happensBefore'\<rparr> vis' (Message (KeyExists (MessageId m))) (Bool True)\<close>
@@ -780,7 +797,7 @@ proof M_show_programCorrect
                  s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef \<and>
                  ((upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c)"
                 using i3 Content \<open>a = Assign x\<close> \<open>upd_r = Undef\<close> upd_call
-                apply (auto simp add: inv3_def cOp_Some_iff)
+                apply (auto simp add: inv2_def cOp_Some_iff)
                 using Exists_AtCommit.proof_state_wellFormed query_result_undef by fastforce
             qed
 
@@ -798,22 +815,22 @@ proof M_show_programCorrect
 
             from Exists_AtCommit
             show ?case
-            proof (auto simp add: inv_def, fuzzy_goal_cases "inv2" "inv3" "inv4" )
-              case (inv2)
-              then show ?case 
-                by (auto simp add: inv2_def)
-            next
-              case (inv3)
-              show ?case 
-                apply (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong)
-                 apply (rule exI[where x=upda_c])
-                 apply (auto simp add: \<open>upda_c \<noteq> c\<close> \<open>upda_c \<noteq> ca\<close> upda_call)
-                using causallyConsistent_def inv3.causallyConsistent upd_vis upda_before_upd apply force
-                by (metis inv3.inv3 inv3.not_member2 inv3_def)
-            next
+            proof (auto simp add: inv_def, fuzzy_goal_cases  "inv2" "inv3" "inv4")
               case (inv4)
               then show ?case 
-                apply (auto simp add: inv4_def updateHb_cases in_sequence_cons)
+                by (auto simp add: inv4_def)
+            next
+              case (inv2)
+              show ?case 
+                apply (auto simp add: inv2_def updateHb_cases in_sequence_cons cong: conj_cong)
+                 apply (rule exI[where x=upda_c])
+                 apply (auto simp add: \<open>upda_c \<noteq> c\<close> \<open>upda_c \<noteq> ca\<close> upda_call)
+                using causallyConsistent_def inv2.causallyConsistent upd_vis upda_before_upd apply force
+                by (metis inv2.inv2 inv2.not_member2 inv2_def)
+            next
+              case (inv3)
+              then show ?case 
+                apply (auto simp add: inv3_def updateHb_cases in_sequence_cons)
                 by (meson cOp_Some_iff ipd_not_deleted upd_call upd_is_update)
             qed
               
@@ -829,15 +846,15 @@ proof M_show_programCorrect
   
             then show ?case 
             proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
-              case (inv2 )
-              then show ?case by (auto simp add: inv2_def)
+              case (inv4 )
+              then show ?case by (auto simp add: inv4_def)
+            next
+              case (inv2)
+              then show ?case by (auto simp add: inv2_def updateHb_single cong: conj_cong, fastforce)
             next
               case (inv3)
-              then show ?case by (auto simp add: inv3_def updateHb_single cong: conj_cong, fastforce)
-            next
-              case (inv4)
               then show ?case 
-                by (auto simp add: inv4_def updateHb_single)
+                by (auto simp add: inv3_def updateHb_single)
             qed
           next
             case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res)
@@ -900,9 +917,9 @@ proof M_show_programCorrect
                \<lparr>calls = s_calls', happensBefore = s_happensBefore', callOrigin = s_callOrigin', txOrigin = s_txOrigin',
                   knownIds = s_knownIds', invocOp = s_invocOp'(i \<mapsto> DeleteMessage m), invocRes = s_invocRes'(i := None)\<rparr>`
             have  i1: "inv1 (s_invocOp'(i \<mapsto> DeleteMessage m)) (s_invocRes'(i := None))"
-              and i2: "inv2 (s_invocOp'(i \<mapsto> DeleteMessage m)) (cOp s_calls')"
-              and i3: "inv3 (cOp s_calls') s_happensBefore'"
-              and i4: "inv4 (cOp s_calls') s_happensBefore'"
+              and i2: "inv4 (s_invocOp'(i \<mapsto> DeleteMessage m)) (cOp s_calls')"
+              and i3: "inv2 (cOp s_calls') s_happensBefore'"
+              and i4: "inv3 (cOp s_calls') s_happensBefore'"
               by (auto simp add: inv_def)
 
             show ?case
@@ -912,23 +929,22 @@ proof M_show_programCorrect
               show ?case
                 by (simp add: Exists_AtCommit.PS'_eq)
             next
-              case inv2
+              case inv4
               from i2
               show ?case
-                by (auto simp add: inv2_def Exists_AtCommit.PS'_eq)
+                by (auto simp add: inv4_def Exists_AtCommit.PS'_eq)
             next
-              case inv3
+              case inv2
               from i3
               show ?case 
-                apply (auto simp add: inv3_def updateHb_cases Exists_AtCommit.PS'_eq cong: conj_cong)
+                apply (auto simp add: inv2_def updateHb_cases Exists_AtCommit.PS'_eq cong: conj_cong)
                 using Exists_AtCommit.not_member2 by blast
 
             next
-              case inv4
+              case inv3
               then show ?case
-                using Exists_AtCommit.not_member2
-                apply (auto simp add: inv4_def updateHb_cases in_sequence_cons Exists_AtCommit.PS'_eq)
-                by (meson i4 inv4_def)
+                using Exists_AtCommit.not_member2 i4
+                by (auto simp add: inv3_def updateHb_cases in_sequence_cons Exists_AtCommit.PS'_eq)
             qed
               
           next
@@ -940,18 +956,18 @@ proof M_show_programCorrect
             case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res PS')
             then show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
-              case (inv2)
+              case (inv4)
               then show ?case
-                by (auto simp add: inv2_def)
+                by (auto simp add: inv4_def)
+            next
+              case (inv2)
+              then show ?case 
+                by (auto simp add: inv2_def updateHb_cases in_sequence_cons, fastforce)
+
             next
               case (inv3)
               then show ?case 
-                by (auto simp add: inv3_def updateHb_cases in_sequence_cons, fastforce)
-
-            next
-              case (inv4)
-              then show ?case 
-                by (auto simp add: inv4_def updateHb_cases in_sequence_cons)
+                by (auto simp add: inv3_def updateHb_cases in_sequence_cons)
             qed
           next
             case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res)
@@ -970,15 +986,15 @@ proof M_show_programCorrect
         case after_invocation
         show ?case
           using show_P.invariant_pre GetMessage show_P.i_fresh
-        proof (auto simp add:  inv_def invContextH2_simps, fuzzy_goal_cases inv1 inv2)
+        proof (auto simp add:  inv_def invContextH2_simps, fuzzy_goal_cases inv1 inv4)
           case inv1
           then show ?case
             apply (auto simp add: inv1_def state_wellFormed_invocation_before_result)
             by (metis option.simps(3) show_P.i_fresh)
         next
-          case inv2
+          case inv4
           then show ?case
-            apply (auto simp add: inv2_def)
+            apply (auto simp add: inv4_def)
             by (metis option.distinct(1) show_P.i_fresh)
         qed
 
@@ -1015,18 +1031,18 @@ proof M_show_programCorrect
           proof (repliss_vcg_l, fuzzy_goal_cases "Exists_AtCommit" "Exists_AtReturn" uids1 uids2 "NotExists_AtCommit" "NotExists_AtReturn")
             case (Exists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c ca resa cb res PS')
             then show ?case 
-            proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
+            proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4 )
+              case (inv4)
+              then show ?case 
+                by (auto simp add: inv4_def)
+            next
               case (inv2)
               then show ?case 
-                by (auto simp add: inv2_def)
+                by (auto simp add: inv2_def  updateHb_cons cong: conj_cong, meson)
             next
               case (inv3)
               then show ?case 
-                by (auto simp add: inv3_def  updateHb_cons cong: conj_cong, meson)
-            next
-              case (inv4)
-              then show ?case 
-                by (auto simp add: inv4_def updateHb_cons is_update_messageDataOp_def)
+                by (auto simp add: inv3_def updateHb_cons is_update_messageDataOp_def)
             qed  
           next
             case (Exists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c ca resa cb res)
@@ -1036,9 +1052,9 @@ proof M_show_programCorrect
                 txOrigin = s_txOrigin', knownIds = s_knownIds',
                 invocOp = s_invocOp'(i \<mapsto> GetMessage m), invocRes = s_invocRes'(i := None)\<rparr>\<close>
             have i1: "inv1 (s_invocOp'(i \<mapsto> GetMessage m)) (s_invocRes'(i := None))"
-              and i2: "inv2 (s_invocOp'(i \<mapsto> GetMessage m)) (cOp s_calls')"
-              and i3: "inv3 (cOp s_calls') s_happensBefore'"
-              and i4: "inv4 (cOp s_calls') s_happensBefore'"
+              and i2: "inv4 (s_invocOp'(i \<mapsto> GetMessage m)) (cOp s_calls')"
+              and i3: "inv2 (cOp s_calls') s_happensBefore'"
+              and i4: "inv3 (cOp s_calls') s_happensBefore'"
               by (auto simp add: inv_def)
 
             have "c \<notin> vis'"
@@ -1126,7 +1142,7 @@ proof M_show_programCorrect
                  s_calls' upda_c \<triangleq> Call (Message (NestedOp (MessageId m) (Author (Assign upda_val)))) Undef \<and>
                  ((upda_c, upd_c) \<in> s_happensBefore' \<or> upda_c = upd_c)"
                       using i3 Content \<open>a = Assign x\<close> \<open>upd_r = Undef\<close> upd_call 
-                      apply (auto simp add: inv3_def)
+                      apply (auto simp add: inv2_def)
                       using cOp_Some_iff inv1.proof_state_wellFormed query_result_undef by fastforce
                   qed
 
@@ -1191,8 +1207,9 @@ proof M_show_programCorrect
                     apply (auto simp add: author_vis_def C_out_calls_def ops'_def extract_op_def restrict_calls_def split: if_splits)
                     by (metis (no_types, lifting) cOp_Some c_in_dom domIff option.exhaust_sel)
 
-                  thm `inv2 (s_invocOp'(i \<mapsto> GetMessage m)) (cOp s_calls')`[unfolded inv2_def, rule_format, OF updb_c_call']
-                  from `inv2 (s_invocOp'(i \<mapsto> GetMessage m)) (cOp s_calls')`[unfolded inv2_def, rule_format, OF updb_c_call']
+
+
+                  from `inv4 (s_invocOp'(i \<mapsto> GetMessage m)) (cOp s_calls')`[unfolded inv4_def, rule_format, OF updb_c_call']
                   obtain ia s where "(s_invocOp'(i \<mapsto> GetMessage m)) ia \<triangleq> SendMessage author s"
                     by blast
 
@@ -1214,17 +1231,17 @@ proof M_show_programCorrect
             case (NotExists_AtCommit tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res)
             then show ?case
             proof (auto simp add: inv_def, fuzzy_goal_cases inv2 inv3 inv4)
+              case (inv4)
+              then show ?case 
+                by (auto simp add: inv4_def)
+            next
               case (inv2)
               then show ?case 
-                by (auto simp add: inv2_def)
+                by (auto simp add: inv2_def updateHb_cases in_sequence_cons cong: conj_cong, fastforce)
             next
               case (inv3)
               then show ?case 
-                by (auto simp add: inv3_def updateHb_cases in_sequence_cons cong: conj_cong, fastforce)
-            next
-              case (inv4)
-              then show ?case 
-                by (auto simp add: inv4_def updateHb_cases in_sequence_cons)
+                by (auto simp add: inv3_def updateHb_cases in_sequence_cons)
             qed
           next
             case (NotExists_AtReturn tx s_calls' s_happensBefore' s_callOrigin' s_txOrigin' s_knownIds' vis' s_invocOp' s_invocRes' c res)
