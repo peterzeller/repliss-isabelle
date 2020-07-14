@@ -205,8 +205,7 @@ definition editMessage_impl :: "val \<Rightarrow> val \<Rightarrow> (val,operati
       call (Message (NestedOp m (Content (Assign newContent))))
     else
       skip
-  });
-  return Undef
+  })
 }"
 text_raw \<open>}%EndSnippet\<close>
 
@@ -221,8 +220,7 @@ definition deleteMessage_impl :: "val \<Rightarrow> (val,operation,val) io" wher
       call (Message (DeleteKey m))
     } else
       skip
-  });
-  return Undef
+  })
 }"
 text_raw \<open>}%EndSnippet\<close>
   

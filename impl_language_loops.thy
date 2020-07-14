@@ -338,7 +338,7 @@ definition atomic ::"('a,'op, 'any) io \<Rightarrow> ('a,'op, 'any) io"  where
 
 
 definition 
-"skip \<equiv> return undefined"
+"skip \<equiv> return default"
 
 
 
