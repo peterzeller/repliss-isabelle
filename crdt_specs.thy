@@ -224,7 +224,7 @@ subsection "Register"
 text_raw \<open>\DefineSnippet{registerOp}{\<close>
 datatype 'a registerOp =
     Assign 'a
-| Read
+  | Read
 text_raw \<open>}%EndSnippet\<close>
 
 

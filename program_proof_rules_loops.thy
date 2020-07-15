@@ -4843,7 +4843,8 @@ toplevel_spec crdtSpec \<lparr>
       calls = calls PS, 
       happensBefore=updateHb (happensBefore PS) (ps_vis PS) (ps_localCalls PS)\<rparr>
       (ps_vis PS \<union> set (ps_localCalls PS))
-       OP res
+       OP res;
+Op PS c = None
 \<rbrakk> \<Longrightarrow>
     P
       (PS\<lparr>calls := (calls PS)(c \<mapsto> Call OP res), 
@@ -4898,6 +4899,11 @@ proof (rule execution_s_check_proof_rule)
            ps_localCalls := ps_localCalls PS @ [c]\<rparr> =
           PS'"
           by (auto simp add: proof_state_ext PS'_def)
+
+        from c1
+        show "Op PS c = None"
+          by (auto simp add: cOp_def)
+
       qed
     qed
   qed
