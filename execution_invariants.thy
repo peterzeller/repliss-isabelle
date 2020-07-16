@@ -360,8 +360,8 @@ qed
 text_raw \<open>\DefineSnippet{wf_no_txStatus_origin_for_nothing}{\<close>
 lemma wf_no_txStatus_origin_for_nothing:
   assumes wf: "state_wellFormed S"
-    and txStatusNone: "txStatus S txId = None"
-shows "callOrigin S c \<noteq> Some txId"
+    and txStatusNone: "txStatus S tx = None"
+  shows "callOrigin S c \<noteq> Some tx"
 text_raw \<open>}%EndSnippet\<close>
   using assms proof (induct rule: wellFormed_induct)
   case initial
@@ -373,8 +373,8 @@ qed
 
 lemma wf_callOrigin_implies_txStatus_defined:
   assumes wf: "state_wellFormed S"
-    and co:  "callOrigin S c = Some txId"
-  shows "txStatus S txId \<noteq> None" 
+    and co:  "callOrigin S c = Some tx"
+  shows "txStatus S tx \<noteq> None" 
   using assms proof (induct rule: wellFormed_induct)
   case initial
   then show ?case by (auto simp add: initialState_def)

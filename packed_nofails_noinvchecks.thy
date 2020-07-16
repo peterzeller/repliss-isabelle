@@ -1,8 +1,8 @@
 section "Packed Traces without Failures and Invariant Checks"
 theory packed_nofails_noinvchecks
   imports no_failing_invchecks packed_no_fails consistency single_invocation_reduction_helper
-"fuzzyrule.fuzzyrule"
-state_monotonicGrowth_invariants
+    "fuzzyrule.fuzzyrule"
+    state_monotonicGrowth_invariants
 begin
 
 
@@ -1609,6 +1609,9 @@ lemma remove_context_switches_in_transactions:
     hence trivial2: "(P \<Longrightarrow> ?case) \<Longrightarrow> \<not>P" for P
       by blast
 
+    have "trace \<noteq> []"
+        using less.prems(6) traceCorrect_empty by blast
+
     have all_actions_correct_but_last: "actionCorrect (get_action a)" if "trace ! i = a" and "i < length trace - 1" for i a
     proof (rule trivial1)
       assume "\<not> actionCorrect (get_action a)"
@@ -1619,6 +1622,7 @@ lemma remove_context_switches_in_transactions:
 
       obtain S' where steps': "initialState program ~~ take (Suc i) trace \<leadsto>* S'"
         by (metis append_take_drop_id less.prems(1) steps_append)
+
 
 
       show ?case 
@@ -1633,7 +1637,7 @@ lemma remove_context_switches_in_transactions:
         show "no_invariant_checks_in_transaction (take (Suc i) trace)"
           by (metis append_take_drop_id isPrefix_appendI less.prems(5) no_invariant_checks_in_transaction_prefix)
         show "\<not> traceCorrect (take (Suc i) trace)"
-          by (metis (no_types, lifting) \<open>\<not> actionCorrect (get_action a)\<close> len length_take lessI min_less_iff_conj min_simps(2) nat_neq_iff nth_append_length nth_mem take_Suc_conv_app_nth that(1) traceCorrect_def)
+          by (metis (no_types, lifting) \<open>\<not> actionCorrect (get_action a)\<close> len length_take lessI min_less_iff_conj min_simps(2) nat_neq_iff nth_append_length nth_mem take_Suc_conv_app_nth that(1) traceCorrect_def')
         show "initialState program ~~ take (Suc i) trace \<leadsto>* S'"
           using steps' by blast
         show "packed_trace (take (Suc i) trace)"
@@ -1650,7 +1654,7 @@ lemma remove_context_switches_in_transactions:
     qed
 
     hence last_action_incorrect: "\<not>actionCorrect (get_action (last trace))"
-      by (metis (no_types, lifting) append_butlast_last_id in_set_conv_nth last_conv_nth length_append_singleton length_butlast length_pos_if_in_set less.prems(6) less_antisym less_numeral_extra(3) list.size(3) traceCorrect_def)
+      by (metis (no_types, lifting) append_butlast_last_id in_set_conv_nth last_conv_nth length_append_singleton length_butlast length_pos_if_in_set less.prems(6) less_antisym less_numeral_extra(3) list.size(3) traceCorrect_def')
 
 
     have "contextSwitchesInTransaction trace"

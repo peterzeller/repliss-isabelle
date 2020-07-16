@@ -16,7 +16,7 @@ We use a fine grained interleaving semantics.
 
 
 datatype invocId = InvocId int
-datatype txid = TxId int
+datatype txId = txId int
 datatype callId = CallId int
 
 text "A value type is a type that contains unique identifiers.
@@ -94,8 +94,8 @@ text_raw \<open>}%EndSnippet\<close>
 
 text_raw \<open>\DefineSnippet{invContext}{\<close>
 record ('proc, 'op, 'any) invContext = "('op, 'any) operationContext" +
-  callOrigin :: "callId \<rightharpoonup> txid"
-  txOrigin :: "txid \<rightharpoonup> invocId"
+  callOrigin :: "callId \<rightharpoonup> txId"
+  txOrigin :: "txId \<rightharpoonup> invocId"
   knownIds :: "uniqueId set"
   invocOp :: "invocId \<rightharpoonup> 'proc"
   invocRes :: "invocId \<rightharpoonup> 'any"
@@ -112,12 +112,12 @@ text_raw \<open>}%EndSnippet\<close>
 text_raw \<open>\DefineSnippet{state}{\<close>
 record ('proc, 'ls, 'op, 'any) state = "('proc, 'op, 'any) invContext" +
   prog :: "('proc, 'ls, 'op, 'any) prog"
-  txStatus :: "txid \<rightharpoonup> txStatus"
+  txStatus :: "txId \<rightharpoonup> txStatus"
   generatedIds :: "uniqueId \<rightharpoonup> invocId"
   localState :: "invocId \<rightharpoonup> 'ls"
   currentProc :: "invocId \<rightharpoonup> ('ls, 'op, 'any) procedureImpl"
   visibleCalls :: "invocId \<rightharpoonup> callId set"
-  currentTx :: "invocId \<rightharpoonup> txid"
+  currentTx :: "invocId \<rightharpoonup> txId"
 text_raw \<open>}%EndSnippet\<close>
 
 
@@ -508,7 +508,7 @@ lemma invContext'_truncate: "invContext' state = invContext.truncate state"
   by (auto simp add: invContextH2_def invContext.defs)
 
 
-definition callsInTransactionH :: "(callId \<rightharpoonup> txid) \<Rightarrow> txid set \<Rightarrow> callId set" where
+definition callsInTransactionH :: "(callId \<rightharpoonup> txId) \<Rightarrow> txId set \<Rightarrow> callId set" where
   "callsInTransactionH origins txns  \<equiv> {c. \<exists>txn\<in>txns. origins c \<triangleq> txn }"
 
 lemma callsInTransactionH_contains:
@@ -551,7 +551,7 @@ invocRes x = invocRes y
 datatype ('proc, 'op, 'any) action =
     ALocal bool
   | ANewId 'any
-  | ABeginAtomic txid "callId set"
+  | ABeginAtomic txId "callId set"
   | AEndAtomic
   | ADbOp callId 'op 'any
   | AInvoc 'proc
@@ -783,9 +783,9 @@ inductive steps :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Righta
 
 
 notation (latex output)
-  step ("(_)  \<^latex>\<open>$\\xrightarrow{\\text{\<close> (\<open>unbreakable\<close>_) \<^latex>\<open>}}$\<close> (1_)" [5,5,5]65)
+  step ("(_)  \<^latex>\<open>$\\step{\\text{\<close> (\<open>unbreakable\<close>_) \<^latex>\<open>}}$\<close> (1_)" [5,5,5]65)
 notation (latex output)
-  steps  ("(_)\<^latex>\<open>\\ensuremath{\\xrightarrow{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}^*}\<close> (1_)" [5,5,5]65)
+  steps  ("(_)\<^latex>\<open>\\steps{\\text{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}}\<close> (1_)" [5,5,5]65)
 
 
 
@@ -844,7 +844,12 @@ definition
   "actionCorrect a \<equiv> a \<noteq> AInvcheck False \<and> a \<noteq> ALocal False"
 
 definition traceCorrect where
-  "traceCorrect trace \<equiv> (\<forall>a\<in>set trace. actionCorrect (get_action a))"
+  "traceCorrect trace \<equiv> (\<forall>(i,a)\<in>set trace. actionCorrect a)"
+
+lemma traceCorrect_def': 
+  "traceCorrect trace = (\<forall>e\<in>set trace. actionCorrect (get_action e))"
+  by (auto simp add: traceCorrect_def)
+
 
 definition programCorrect :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) prog \<Rightarrow> bool" where
   "programCorrect program \<equiv> (\<forall>trace\<in>traces program. traceCorrect trace)"

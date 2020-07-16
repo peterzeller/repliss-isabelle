@@ -1293,7 +1293,7 @@ proof (rule show_programCorrect_noTransactionInterleaving'')
     text \<open>If the trace is incorrect, there must be a failing invariant check or assertion check in the trace:\<close>
     from this 
     have "\<exists>i<length trace. get_action (trace!i) \<in> {AInvcheck False, ALocal False}"
-      by (metis (no_types, lifting) actionCorrect_def in_set_conv_nth insert_iff traceCorrect_def)
+      by (metis (no_types, lifting) actionCorrect_def in_set_conv_nth insert_iff traceCorrect_def')
 
     text \<open>So there is an index, where an assertion fails or the invariant is violated. \<close>
     hence ex_fail:

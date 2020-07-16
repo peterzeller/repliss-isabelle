@@ -112,6 +112,16 @@ text \<open>\DefineSnippet{getContext_def}{
 }%EndSnippet\<close>
 
 
+text \<open>\DefineSnippet{getContext_def_prem}{
+  @{thm [display] (prem 1) getContext_def}
+}%EndSnippet\<close>
+
+
+text \<open>\DefineSnippet{getContext_def_concl}{
+  @{thm  [display] (concl) getContext_def}
+}%EndSnippet\<close>
+
+
 schematic_goal invariant_all_def: "invariant_all S = ?x"
   unfolding invContextH_def
   by simp

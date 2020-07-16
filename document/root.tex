@@ -51,6 +51,14 @@
  \ifcsname snippet--#1\endcsname{\csname snippet--#1\endcsname}%
  \else+++++++ERROR: Snippet ``#1 not defined+++++++ \fi}
 
+
+\newcommand{\step}[1]{\ensuremath{\xrightarrow{#1}}}
+\newcommand{\steps}[1]{\ensuremath{\xrightarrow{#1}\negthickspace\raisebox{0.4ex}{\scriptsize *}\,}}
+
+\newcommand{\sstep}[1]{\ensuremath{\xrightarrow{#1}_S}}
+\newcommand{\ssteps}[1]{\ensuremath{\xrightarrow{#1}_S\negthickspace\raisebox{0.4ex}{\scriptsize *}\,}}
+
+
 \begin{document}
 
 \title{Verifying properties of weakly consistent programs with Repliss}

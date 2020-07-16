@@ -8,7 +8,7 @@ text "In this section we show that we can remove invariant checks from a trace
 without changing the behaviour of the system."
 
 
-definition openTransactions :: "('proc, 'op, 'any) trace \<Rightarrow> (invocId \<times> txid) set" where
+definition openTransactions :: "('proc, 'op, 'any) trace \<Rightarrow> (invocId \<times> txId) set" where
 "openTransactions tr \<equiv> {(i, tx) | i j tx txns. j<length tr \<and> tr!j = (i, ABeginAtomic tx txns) \<and> (\<forall>k. k>j \<and> k<length tr \<longrightarrow> tr!k \<noteq> (i, AEndAtomic))}"
 
 

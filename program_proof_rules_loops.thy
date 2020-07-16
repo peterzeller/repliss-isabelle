@@ -41,7 +41,7 @@ record ('proc, 'any, 'op) proof_state = "('proc, 'op, 'any) invContext" +
   ps_localKnown :: "uniqueId set"
   ps_vis :: "callId set"
   ps_localCalls :: "callId list"
-  ps_tx :: "txid option"
+  ps_tx :: "txId option"
   ps_firstTx :: bool
   ps_store :: "'any store"
   ps_prog :: "('proc, ('any store \<times> uniqueId set \<times> ('any, 'op, 'any) io), 'op, 'any) prog"

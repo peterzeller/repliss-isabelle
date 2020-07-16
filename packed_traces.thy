@@ -11,7 +11,7 @@ Intuitively a transaction is packed, if there are no steps from other invocation
 The following definition defines that such a step exists at an index @{term k}.
 "
 
-definition indexInOtherTransaction :: "('proc, 'op, 'any) trace \<Rightarrow> txid \<Rightarrow> nat \<Rightarrow> bool" where
+definition indexInOtherTransaction :: "('proc, 'op, 'any) trace \<Rightarrow> txId \<Rightarrow> nat \<Rightarrow> bool" where
   "indexInOtherTransaction tr tx k \<equiv> 
   \<exists>i s ntxns. 
       k<length tr 
@@ -22,7 +22,7 @@ definition indexInOtherTransaction :: "('proc, 'op, 'any) trace \<Rightarrow> tx
 
 text "With this we can define that a trace is packed, if no such step exists:"
 
-definition transactionIsPacked :: "('proc, 'op, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
+definition transactionIsPacked :: "('proc, 'op, 'any) trace \<Rightarrow> txId \<Rightarrow> bool" where
   "transactionIsPacked tr tx \<equiv> 
   \<forall>k. \<not>indexInOtherTransaction tr tx k"  
 
@@ -31,7 +31,7 @@ definition transactionIsPacked :: "('proc, 'op, 'any) trace \<Rightarrow> txid \
 
 
 \<comment> \<open>this is an alternative definition, which might be easier to work with in some cases\<close>
-definition transactionIsPackedAlt :: "('proc, 'op, 'any) trace \<Rightarrow> txid \<Rightarrow> bool" where
+definition transactionIsPackedAlt :: "('proc, 'op, 'any) trace \<Rightarrow> txId \<Rightarrow> bool" where
   "transactionIsPackedAlt tr tx \<equiv> 
   if \<exists>i s ntxns. i < length tr \<and> tr!i = (s, ABeginAtomic tx ntxns) then
     \<exists>i s end ntxns. 
@@ -245,7 +245,7 @@ qed
 
 
 \<comment> \<open>the set of transactions occurring in the trace\<close>    
-definition traceTransactions :: "('proc, 'op, 'any) trace \<Rightarrow> txid set" where
+definition traceTransactions :: "('proc, 'op, 'any) trace \<Rightarrow> txId set" where
   "traceTransactions tr \<equiv> {tx | s tx txns. (s, ABeginAtomic tx txns) \<in> set tr}"
 
 text \<open>between begin and end of a transaction there are no actions from other sessions\<close>
@@ -844,7 +844,7 @@ proof -
     hence "(i, AInvcheck False) \<notin> set tr" for i
       by (meson in_set_conv_nth)
     hence assertionError: "\<exists>i. (i, ALocal False) \<in> set tr"
-      by (metis actionCorrect_def eq_snd_iff notCorrect traceCorrect_def) 
+      using notCorrect by (auto simp add: traceCorrect_def actionCorrect_def)
 
 
 

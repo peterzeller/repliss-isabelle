@@ -68,7 +68,7 @@ lemma wf_current_tx_not_before_others:
     and "callOrigin S y \<noteq> Some tx"
   shows "(x,y) \<notin> happensBefore S"
 proof -
-  obtain tt :: "(callId \<Rightarrow> txid option) \<Rightarrow> callId \<Rightarrow> txid" where
+  obtain tt :: "(callId \<Rightarrow> txId option) \<Rightarrow> callId \<Rightarrow> txId" where
     "\<forall>x0 x1. (\<exists>v2. x0 x1 \<triangleq> v2) = x0 x1 \<triangleq> tt x0 x1"
     by moura
   then have "\<forall>c f. c \<notin> dom f \<or> f c \<triangleq> tt f c"
