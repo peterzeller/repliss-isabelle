@@ -7,6 +7,10 @@ begin
 section "Document Snippets"
 
 
+notation (tab output)
+  "HOL.eq"  ("(_) = (1_)" [50,49] 50) and
+  "Pure.eq"  ("(_) \<equiv> (1_)" [1,1] 2)
+
 
 text \<open>
 \DefineSnippet{local}{
@@ -148,6 +152,7 @@ text \<open>\DefineSnippet{traceCorrect_s_def}{
 text \<open>\DefineSnippet{programCorrect_s_def}{
   @{thm [display] programCorrect_s_def}
 }%EndSnippet\<close>
+
 
 text \<open>\DefineSnippet{steps_s_refl}{
   @{thm [display] steps_s_refl}

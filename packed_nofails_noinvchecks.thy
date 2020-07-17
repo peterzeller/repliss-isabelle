@@ -1949,7 +1949,7 @@ lemma remove_context_switches_in_transactions:
         using One_nat_def \<open>Suc (i_switch - Suc 0) = i_switch\<close> \<open>no_invariant_checks_in_transaction (take (i_switch - 1) trace @ drop (Suc (i_switch - 1)) trace)\<close> trace'_def by presburger
       show "\<not> traceCorrect trace'"
         using `\<not>traceCorrect trace` trace'_def
-        by (auto simp add: traceCorrect_def)
+        by (auto simp add: traceCorrect_def')
           (metis (no_types, lifting) Suc_diff_Suc UnI2 \<open>i_switch + (length trace - Suc i_switch) = length trace - 1\<close> \<open>i_switch + (length trace - i_switch) = length trace\<close> \<open>length trace = Suc (length trace')\<close> \<open>length trace' < length trace\<close> a1 add_less_cancel_left diff_Suc_1 diff_is_0_eq last_action_incorrect last_conv_nth last_drop leD length_drop list.size(3) nth_mem)
       show "initialState program ~~ trace' \<leadsto>* S'"
         by (simp add: \<open>initialState program ~~ trace' \<leadsto>* S'\<close>)

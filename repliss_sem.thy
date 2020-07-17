@@ -548,16 +548,19 @@ invocRes x = invocRes y
 
 
 
+text_raw \<open>\DefineSnippet{repliss_sem_action}{\<close>
 datatype ('proc, 'op, 'any) action =
     ALocal bool
   | ANewId 'any
-  | ABeginAtomic txId "callId set"
+  | ABeginAtomic txId "(callId set)"
   | AEndAtomic
   | ADbOp callId 'op 'any
   | AInvoc 'proc
   | AReturn 'any
   | ACrash  
   | AInvcheck bool
+text_raw \<open>}%EndSnippet\<close>
+
 
 
 definition "is_AInvcheck a \<equiv> \<exists>r. a = AInvcheck r"
@@ -783,9 +786,9 @@ inductive steps :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Righta
 
 
 notation (latex output)
-  step ("(_)  \<^latex>\<open>$\\step{\\text{\<close> (\<open>unbreakable\<close>_) \<^latex>\<open>}}$\<close> (1_)" [5,5,5]65)
+  step ("(_) \<^latex>\<open>$\\step{\\text{\<close> (\<open>unbreakable\<close>_) \<^latex>\<open>}}$\<close> (1_)" [5,5,5]65)
 notation (latex output)
-  steps  ("(_)\<^latex>\<open>\\steps{\\text{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}}\<close> (1_)" [5,5,5]65)
+  steps  ("(_) \<^latex>\<open>\\steps{\\text{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}}\<close> (1_)" [5,5,5]65)
 
 
 

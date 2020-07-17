@@ -11,7 +11,11 @@ definition
 "state_monotonicGrowth_txStable callOrigin_S callOrigin_S' txStatus_S' \<equiv> (\<forall>c tx. callOrigin_S c \<triangleq> tx \<and> txStatus_S' tx \<triangleq> Committed \<longrightarrow> callOrigin_S' c \<triangleq> tx)"
 
 definition state_monotonicGrowth :: "invocId \<Rightarrow> ('proc::valueType, 'ls, 'op, 'any::valueType) state \<Rightarrow> ('proc, 'ls, 'op, 'any) state \<Rightarrow> bool" where
-"state_monotonicGrowth i S S' \<equiv> state_wellFormed S \<and> (\<exists>tr. (S ~~ tr \<leadsto>* S') \<and> (\<forall>(i',a)\<in>set tr. i' \<noteq> i) \<and> (\<forall>i. (i, ACrash) \<notin> set tr))"
+"state_monotonicGrowth i S S' \<equiv> 
+  state_wellFormed S 
+  \<and> (\<exists>tr. (S ~~ tr \<leadsto>* S') 
+  \<and> (\<forall>(i',a)\<in>set tr. i' \<noteq> i) 
+  \<and> (\<forall>i'. (i', ACrash) \<notin> set tr))"
 
 
 
@@ -162,18 +166,18 @@ inductive step_s :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Right
 
 inductive steps_s :: "('proc::valueType, 'ls, 'op, 'any::valueType) state \<Rightarrow> invocId \<times> (('proc, 'op, 'any) action \<times> bool) list \<Rightarrow> ('proc, 'ls, 'op, 'any) state \<Rightarrow> bool" (infixr "~~ _ \<leadsto>\<^sub>S*" 60) where         
   steps_s_refl:
-  "S ~~ (s, []) \<leadsto>\<^sub>S* S"
+  "S ~~ (i, []) \<leadsto>\<^sub>S* S"
 | steps_s_step:
-  "\<lbrakk>S ~~ (s, tr) \<leadsto>\<^sub>S* S'; S' ~~ (s,a) \<leadsto>\<^sub>S S''\<rbrakk> \<Longrightarrow> S ~~ (s, tr@[a]) \<leadsto>\<^sub>S* S''"
+  "\<lbrakk>S ~~ (i, tr) \<leadsto>\<^sub>S* S'; S' ~~ (i,a) \<leadsto>\<^sub>S S''\<rbrakk> \<Longrightarrow> S ~~ (i, tr@[a]) \<leadsto>\<^sub>S* S''"
   
 
 \<comment> \<open>Add some nicer syntax for Latex output:\<close>
 
 
 notation (latex output)
-  step_s ("(_)\<^latex>\<open>\\sstep{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}\<close> (1 _)" [5,5,5]65)
+  step_s ("(_) \<^latex>\<open>\\sstep{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}\<close> (1 _)" [5,5,5]65)
 notation (latex output)
-  steps_s ("(_)\<^latex>\<open>\\ssteps{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}\<close> (1 _)" [5,5,5]65)
+  steps_s ("(_) \<^latex>\<open>\\ssteps{\<close> (\<open>unbreakable\<close> _) \<^latex>\<open>}\<close> (1 _)" [5,5,5]65)
 
 
 definition traceCorrect_s where
