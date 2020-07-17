@@ -143,9 +143,9 @@ lemma show_canSwap':
   shows "canSwap (t::'ls itself) x b"
   by (simp add: assms show_canSwap)
 
-method prove_canSwap'' uses simp  = (
+method prove_canSwap'' uses simp elim  = (
     rule show_canSwap', 
-    auto del: ext  simp add: simp step_simps fun_upd_twist intro!: show_state_calls_eq ext split: if_splits elim!: chooseSnapshot_unchanged_precise)
+    auto del: ext  simp add: simp step_simps fun_upd_twist intro!: show_state_calls_eq ext split: if_splits elim!: elim)
 
 
 lemma not_is_AInvcheck: "\<not>is_AInvcheck a \<Longrightarrow> a \<noteq> AInvcheck i"
@@ -168,13 +168,13 @@ proof (cases a; cases b)
   assume [simp]: "a = ABeginAtomic tx txns" 
     and [simp]: "b = AEndAtomic"
   show "canSwap t a b"
-    by (prove_canSwap'' simp:   wellFormed_currentTxUncommitted  )
+    by (prove_canSwap'' simp:   wellFormed_currentTxUncommitted elim: chooseSnapshot_unchanged_precise )
 next 
   fix tx txns c op r
   assume [simp]: "a = ABeginAtomic tx txns" 
     and [simp]: "b = ADbOp c op r"
   show "canSwap t a b"
-    by (prove_canSwap'' simp: wellFormed_callOrigin_dom2  wellFormed_currentTxUncommitted  )
+    by (prove_canSwap'' simp: wellFormed_callOrigin_dom2  wellFormed_currentTxUncommitted  elim: chooseSnapshot_unchanged_precise )
 next 
   fix c1 op1 r1 c2 op2 r2
   assume [simp]: "a = ADbOp c1 op1 r1" 

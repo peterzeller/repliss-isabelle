@@ -194,10 +194,12 @@ lemma range_empty: "range Map.empty = {None}"
 
 
 
+text_raw \<open>\DefineSnippet{wellFormed_currentTx_unique_h}{\<close>
 lemma wellFormed_currentTx_unique_h:
   assumes a1: "state_wellFormed S"
   shows "\<forall>sa sb t. currentTx S sa \<triangleq> t \<longrightarrow> currentTx S sb \<triangleq> t \<longrightarrow>  sa = sb"
     and "\<forall>sa t. currentTx S sa \<triangleq> t \<longrightarrow> txStatus S t \<triangleq> Uncommitted"
+text_raw \<open>}%EndSnippet\<close>
   using a1 by (induct  rule: wellFormed_induct, auto simp add: initialState_def elim!: step.cases split: if_splits)
 
 
@@ -829,10 +831,13 @@ lemma chooseSnapshot_subsetOfCalls:
 
 
 
+text_raw \<open>\DefineSnippet{wellFormed_visibleCallsSubsetCalls_h}{\<close>
 lemma wellFormed_visibleCallsSubsetCalls_h:
   assumes a1: "state_wellFormed S"
   shows "happensBefore S \<subseteq> dom (calls S) \<times> dom (calls S)"
     and "\<And>vis s. visibleCalls S s \<triangleq> vis \<Longrightarrow>  vis \<subseteq> dom (calls S)"
+text_raw \<open>}%EndSnippet\<close>
+
   using a1 proof (induct rule: wellFormed_induct)
   case initial
   show " happensBefore (initialState (prog S))
@@ -870,12 +875,14 @@ next
 qed
 
 
-lemma wellFormed_visibleCallsSubsetCalls2: "\<lbrakk>
-      state_wellFormed S;
-      visibleCalls S sb \<triangleq> visa;
-      calls S c = None
-    \<rbrakk> \<Longrightarrow> c\<notin>visa"
-  by (meson domIff set_mp wellFormed_visibleCallsSubsetCalls_h(2))
+text_raw \<open>\DefineSnippet{wellFormed_visibleCallsSubsetCalls2}{\<close>
+lemma wellFormed_visibleCallsSubsetCalls2:
+  assumes \<open>state_wellFormed S\<close>     
+    and \<open>visibleCalls S sb \<triangleq> visa\<close>      
+    and \<open>calls S c = None\<close>      
+  shows \<open>c\<notin>visa\<close>
+text_raw \<open>}%EndSnippet\<close>
+  using assms by (meson domIff set_mp wellFormed_visibleCallsSubsetCalls_h(2))
 
 
 lemma wellFormed_committedCallsExist:
@@ -1074,6 +1081,7 @@ lemma chooseSnapshot_unchanged:
 shows "chooseSnapshot snapshot vis S2"
   using a0 a2 a4 a5 by (auto simp add: chooseSnapshot_def)
 
+text_raw \<open>\DefineSnippet{chooseSnapshot_unchanged_precise}{\<close>
 lemma chooseSnapshot_unchanged_precise:
   assumes
   a0: "chooseSnapshot_h snapshot vis txStatus1 cOrigin1 hb1"
@@ -1081,6 +1089,7 @@ lemma chooseSnapshot_unchanged_precise:
   and a3: "\<And>tx. txStatus1 tx \<triangleq> Committed \<Longrightarrow> (\<forall>c. cOrigin1 c \<triangleq> tx \<longleftrightarrow> cOrigin2 c \<triangleq> tx)"
   and a4: "\<And>tx c. \<lbrakk>txStatus1 tx \<triangleq> Committed; cOrigin1 c \<triangleq> tx\<rbrakk> \<Longrightarrow> (\<forall>c'. (c',c)\<in>hb1 \<longleftrightarrow> (c',c)\<in>hb2)"
 shows "chooseSnapshot_h snapshot vis txStatus2 cOrigin2 hb2"
+text_raw \<open>}%EndSnippet\<close>
 proof -
   from a0 obtain newTxns newCalls
     where "\<forall>txn\<in>newTxns. txStatus1 txn \<triangleq> Committed"
