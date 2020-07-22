@@ -6,13 +6,14 @@ begin
 
 text "We show that programs using the loop language are well formed with respect to unique identifiers."
 
+text_raw \<open>\DefineSnippet{invocations_cannot_guess_ids_io}{\<close>
 lemma invocations_cannot_guess_ids_io:
   assumes proc_initial: "\<And>proc store localKnown cmd impl. 
     procedure progr proc = ((store, localKnown, cmd), impl) \<Longrightarrow> 
       impl = toImpl
       \<and> localKnown = uniqueIds proc"
-
 shows "invocations_cannot_guess_ids progr"
+text_raw \<open>}%EndSnippet\<close>
   unfolding invocations_cannot_guess_ids_def
 proof
   fix i

@@ -86,6 +86,77 @@ definition
 
 lemmas use_invocation_cannot_guess_ids = invocation_cannot_guess_ids_def[THEN meta_eq_to_obj_eq, THEN iffD1, rule_format]
 
+
+text \<open>Alternative definition for readability: \<close>
+lemma invocations_cannot_guess_ids_def2:
+  "invocations_cannot_guess_ids progr \<longleftrightarrow>
+   (\<forall>tr i a S' uid. 
+    (initialState progr ~~ tr@[(i,a)] \<leadsto>* S')
+    \<and> uid \<in> action_outputs a
+    \<longrightarrow> (\<exists>a'. (i,a')\<in>set tr \<and> uid \<in> action_inputs a'))"
+  
+proof (rule iffI, goal_cases A B)
+  case A
+  then show ?case 
+    apply (auto simp add: invocations_cannot_guess_ids_def invocation_cannot_guess_ids_def trace_outputs_def trace_inputs_def)
+    subgoal for tr i a S'
+      apply (drule spec[where x=i])
+      apply (drule spec[where x=tr])
+      apply (drule spec[where x=i])
+      apply (drule spec[where x=a])
+      apply auto
+      using subsetD by fastforce
+    done
+next
+  case B
+  show ?case
+    unfolding invocations_cannot_guess_ids_def invocation_cannot_guess_ids_def trace_outputs_def trace_inputs_def
+  proof (intro allI impI subsetI)
+    fix i tr a S' x
+    assume steps: "initialState progr ~~ tr @ [a] \<leadsto>* S'"
+      and x_out: "x \<in> \<Union> ((action_outputs \<circ> get_action) ` Set.filter (\<lambda>a. get_invoc a = i) (set (tr @ [a])))"
+
+    from x_out
+    obtain k ao where "(tr@[a]) ! k = (i, ao)"
+      and "k \<le> length tr"
+      and "x \<in> action_outputs ao"
+      by (auto simp add:  in_set_conv_nth   split: if_splits)
+        (force,  (use nth_append_first in fastforce)+)
+
+    obtain rest_tr where "tr@[a] = take (Suc k) (tr@[a]) @ rest_tr"
+      by (metis append_take_drop_id)
+
+    hence "tr@[a] = take k tr @ [(i, ao)] @ rest_tr"
+      by (smt \<open>(tr @ [a]) ! k = (i, ao)\<close> \<open>k \<le> length tr\<close> append.assoc butlast_snoc le_imp_less_Suc length_append_singleton take_Suc_conv_app_nth take_butlast)
+
+
+    with steps
+    obtain S''
+      where steps': "initialState progr ~~ take k tr @ [(i, ao)] \<leadsto>* S''"
+      using steps_append by fastforce
+
+
+
+
+    from B[unfolded imp_conjL, rule_format, OF steps' \<open>x \<in> action_outputs ao\<close>]
+    obtain ai 
+      where "(i, ai) \<in> set (take k tr)"
+        and "x \<in> action_inputs ai"
+      by blast
+
+    from this
+    show "x \<in> \<Union> ((action_inputs \<circ> get_action) ` Set.filter (\<lambda>a. get_invoc a = i) (set tr)) \<union> {}"
+      using in_set_takeD  by auto force
+  qed
+qed
+
+  
+
+
+
+
+
+
 lemma show_invocation_cannot_guess_ids:
   assumes a: "\<And>x tr a S'. S ~~ tr@[(i, a)] \<leadsto>* S'
       \<Longrightarrow> x \<in> action_outputs a

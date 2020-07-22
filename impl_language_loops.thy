@@ -542,8 +542,8 @@ definition loop :: "'a::countable \<Rightarrow> ('a \<Rightarrow> (('a,'b::count
 
 definition while :: "(bool, 'op::small, 'any::small) io \<Rightarrow> (unit, 'op, 'any) io" where
 "while body \<equiv> Loop 
-      undefined 
-      (loop_body_to_V (\<lambda>_. body \<bind>io (\<lambda>x. return ((if x then Break else Continue) undefined)))) 
+      ??? 
+      (loop_body_to_V (\<lambda>_. body \<bind>io (\<lambda>x. return ((if x then Break else Continue) ???)))) 
       (return \<circ> (\<lambda>_. ()))"
 
 
@@ -559,7 +559,6 @@ definition "forEach"  :: "'e::countable list \<Rightarrow> ('e \<Rightarrow> ('a
 
  text \<open>
  \DefineSnippet{io_language_constructs}{
-    @{thm [display] pause_def}
     @{thm [display] beginAtomic_def}
     @{thm [display] endAtomic_def}
     @{thm [display] newId_def}

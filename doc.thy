@@ -2,6 +2,7 @@ theory doc
   imports "repliss_sem"
     "repliss_sem_single_invocation"
     "HOL-Library.OptionalSugar"
+    unique_ids
 begin
 
 section "Document Snippets"
@@ -165,6 +166,54 @@ text \<open>\DefineSnippet{steps_s_step}{
 
 text \<open>\DefineSnippet{state_monotonicGrowth_def}{
   @{thm [display] state_monotonicGrowth_def}
+}%EndSnippet\<close>
+
+
+
+text \<open>\DefineSnippet{program_wellFormed_def}{
+  @{thm [display] program_wellFormed_def}
+}%EndSnippet\<close>
+
+
+
+text \<open>\DefineSnippet{invocations_cannot_guess_ids_def}{
+  @{thm [display] invocations_cannot_guess_ids_def}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{invocations_cannot_guess_ids_def2}{
+  @{thm [display] invocations_cannot_guess_ids_def2}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{invocation_cannot_guess_ids_def}{
+  @{thm [display] invocation_cannot_guess_ids_def}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{trace_outputs_def}{
+  @{thm [display] trace_outputs_def}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{action_outputs_simps}{
+  @{thm [display] action_outputs.simps}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{trace_inputs_def}{
+  @{thm [display] trace_inputs_def}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{action_inputs_simps}{
+  @{thm [display] action_inputs.simps}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{queries_cannot_guess_ids_def}{
+  @{thm [display] queries_cannot_guess_ids_def}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{query_cannot_guess_ids_def}{
+  @{thm [display] query_cannot_guess_ids_def}
+}%EndSnippet\<close>
+
+text \<open>\DefineSnippet{queries_cannot_guess_ids_def2}{
+  @{thm [display] queries_cannot_guess_ids_def2}
 }%EndSnippet\<close>
 
 
