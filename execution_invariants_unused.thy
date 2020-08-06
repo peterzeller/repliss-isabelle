@@ -263,6 +263,65 @@ qed
 
 
 
+text_raw \<open>\DefineSnippet{state_wellFormed_same_invocation_sequential}{\<close>
+lemma state_wellFormed_same_invocation_sequential:     
+  assumes "state_wellFormed S"
+    and "callOrigin S c1 \<triangleq> tx1" 
+    and "txOrigin S tx1 \<triangleq> i"
+    and "callOrigin S c2 \<triangleq> tx2"
+    and "txOrigin S tx2 \<triangleq> i"
+    and "c1 \<noteq> c2"
+shows "(c1,c2)\<in>happensBefore S \<or> (c2,c1)\<in>happensBefore S"
+text_raw \<open>}%EndSnippet\<close>
+ using assms proof (induct  arbitrary:  rule: wellFormed_induct)
+  case initial
+  then show ?case by (simp add: initialState_def)
+next
+  case (step t a s)
+  then show ?case 
+    using state_wellFormed_txStatus_callOrigin[OF \<open>state_wellFormed t\<close>]
+          wf_no_txStatus_origin_for_nothing[OF \<open>state_wellFormed t\<close>]
+          state_wellFormed_current_transaction_origin[OF \<open>state_wellFormed t\<close>]
+          state_wellFormed_ls_visibleCalls_callOrigin[OF \<open>state_wellFormed t\<close>]
+    by  (auto simp add: step.simps split: if_splits)
+qed
+
+text_raw \<open>\DefineSnippet{state_wellFormed_vis_subset_calls}{\<close>
+lemma state_wellFormed_vis_subset_calls:     
+  assumes "state_wellFormed S"
+    and "visibleCalls S i \<triangleq> vis"
+    and "c \<in> vis"
+shows "c \<in> dom (calls S)"
+text_raw \<open>}%EndSnippet\<close>
+  by (meson assms subset_h1 wellFormed_visibleCallsSubsetCalls_h(2))
+
+text_raw \<open>\DefineSnippet{state_wellFormed_hb_antisym}{\<close>
+lemma state_wellFormed_hb_antisym:     
+  assumes "state_wellFormed S"
+  assumes "(x,y) \<in> happensBefore S"
+  shows "(y,x) \<notin> happensBefore S"
+  text_raw \<open>}%EndSnippet\<close>
+  by (meson assms happensBefore_irrefl happensBefore_transitive irrefl_def transE)
+
+text_raw \<open>\DefineSnippet{state_wellFormed_hb_antisym2}{\<close>
+lemma state_wellFormed_hb_antisym2:     
+  assumes "state_wellFormed S"
+  shows "antisym (happensBefore S)"
+  text_raw \<open>}%EndSnippet\<close>
+using antisym_def assms state_wellFormed_hb_antisym by auto
+
+
+text_raw \<open>\DefineSnippet{state_wellFormed_transactionOrigin_callOrigin}{\<close>
+lemma state_wellFormed_transactionOrigin_callOrigin:     
+  assumes "state_wellFormed S"
+    and "txOrigin S tx = None"
+  shows "callOrigin S c \<noteq> Some tx"
+text_raw \<open>}%EndSnippet\<close>
+  using assms state_wellFormed_txStatus_callOrigin wf_txOrigin_and_status by blast
+
+
+
+
 
 
 end

@@ -1975,18 +1975,22 @@ lemma not_uncommitted_cases:
 
 
 
+text_raw \<open>\DefineSnippet{happensBefore_in_calls_left}{\<close>
 lemma happensBefore_in_calls_left:
 assumes wf: "state_wellFormed S"
     and "(x,y)\<in>happensBefore S"
 shows "x\<in>dom (calls S)"
+text_raw \<open>}%EndSnippet\<close>
 using assms  by (induct rule: wellFormed_induct, 
   auto simp add: initialState_def step_simps_all,
   meson domD domIff wellFormed_visibleCallsSubsetCalls2)
 
+text_raw \<open>\DefineSnippet{happensBefore_in_calls_right}{\<close>
 lemma happensBefore_in_calls_right:
 assumes wf: "state_wellFormed S"
     and "(x,y)\<in>happensBefore S"
 shows "y\<in>dom (calls S)"
+text_raw \<open>}%EndSnippet\<close>
 using assms  by (induct rule: wellFormed_induct,
  auto simp add: initialState_def step_simps_all)
 
