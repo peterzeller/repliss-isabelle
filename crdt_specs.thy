@@ -8,7 +8,10 @@ begin
 
 text "In this section we define the semantics of several conflict-free replicated data types (CRDTs)."
 
+text_raw \<open>\DefineSnippet{crdtSpec}{\<close>
 type_synonym ('op, 'res) crdtSpec = "'op \<Rightarrow> ('op, 'res) operationContext \<Rightarrow> 'res \<Rightarrow> bool"
+text_raw \<open>}%EndSnippet\<close>
+
 
 text "An operation context is well-formed if the happens-before relation is transitive and inversely well-founded."
 
