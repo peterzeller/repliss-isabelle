@@ -545,11 +545,14 @@ qed
 
 
 
+text_raw \<open>\DefineSnippet{wf_transactionConsistent_noTx}{\<close>
 lemma wf_transactionConsistent_noTx:
   assumes wf: "state_wellFormed S"
-and "visibleCalls S i \<triangleq> vis"
-and "currentTx S i = None"
-shows "transactionConsistent (callOrigin S) (txStatus S) vis"
+    and "visibleCalls S i \<triangleq> vis"
+    and "currentTx S i = None"
+  shows "transactionConsistent (callOrigin S) (txStatus S) vis"
+text_raw \<open>}%EndSnippet\<close>
+
 proof (rule show_transactionConsistent)
   show "txStatus S tx \<triangleq> Committed" if "c \<in> vis" and "callOrigin S c \<triangleq> tx" for c tx
     using assms(2) assms(3) local.wf that(1) that(2) wellFormed_state_transaction_consistent(1) by fastforce

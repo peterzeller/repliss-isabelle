@@ -60,16 +60,9 @@ next
     by auto
 qed
 
-
-
-
-
-
-
 text_raw \<open>\DefineSnippet{completeness}{\<close>
 theorem completeness:
   assumes correct: "programCorrect program"
-    and inv_init: "invariant_all (initialState program)"
 shows "programCorrect_s program"
   text_raw \<open>}%EndSnippet\<close>
 proof (rule ccontr)

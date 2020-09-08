@@ -321,6 +321,32 @@ text_raw \<open>}%EndSnippet\<close>
 
 
 
+text_raw \<open>\DefineSnippet{wf_transaction_consistent_l}{\<close>
+lemma wf_transaction_consistent_l:     
+  assumes "state_wellFormed S"
+    and "callOrigin S y1 = callOrigin S y2"
+    and "callOrigin S x \<noteq> callOrigin S y1"
+    and "(y1, x)\<in>happensBefore S"
+  shows "(y2, x)\<in>happensBefore S"
+text_raw \<open>}%EndSnippet\<close>
+  by (metis assms wellFormed_state_transaction_consistent(3))
+
+text_raw \<open>\DefineSnippet{wf_transaction_consistent_r}{\<close>
+lemma wf_transaction_consistent_r:     
+  assumes "state_wellFormed S"
+    and "callOrigin S y1 = callOrigin S y2"
+    and "callOrigin S x \<noteq> callOrigin S y1"
+    and "(x, y1)\<in>happensBefore S"
+  shows "(x, y2)\<in>happensBefore S"
+text_raw \<open>}%EndSnippet\<close>
+ by (metis assms wellFormed_state_transaction_consistent(3))
+
+
+lemma growth_callOrigin:
+  assumes "state_monotonicGrowth i S S'"
+    and "callOrigin S c \<triangleq> tx"
+  shows "callOrigin S' c \<triangleq> tx"
+  using assms(1) assms(2) state_monotonicGrowth_callOrigin by blast
 
 
 

@@ -4573,7 +4573,6 @@ proof (rule execution_s_check_proof_rule)
   proof (auto simp add:  step_io_def beginAtomic_def, fuzzy_goal_cases Step)
     case (Step t vis' calls' happensBefore' callOrigin' txOrigin' knownIds' invocOp' invocRes')
 
-    find_theorems name: "Step."
 
     from Step.ps_growing
     obtain CS CS'

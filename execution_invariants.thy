@@ -182,9 +182,11 @@ lemma wellFormed_callOrigin_dom2:
   using wellFormed_callOrigin_dom by force
 
 
+text_raw \<open>\DefineSnippet{wellFormed_callOrigin_dom3}{\<close>
 lemma wellFormed_callOrigin_dom3:
   assumes a1: "state_wellFormed S"
   shows "(calls S c = None) \<longleftrightarrow> (callOrigin S c = None)"
+text_raw \<open>}%EndSnippet\<close>
   using assms wellFormed_callOrigin_dom by force
 
 lemma range_empty: "range Map.empty = {None}"
@@ -1950,10 +1952,12 @@ lemma state_wellFormed_tx_to_visibleCalls:
   shows "visibleCalls S s \<noteq> None"
   using assms state_wellFormed_ls_to_visibleCalls[OF wf] state_wellFormed_ls_visibleCalls[OF wf] by auto
 
+text_raw \<open>\DefineSnippet{state_wellFormed_invocation_before_result}{\<close>
 lemma state_wellFormed_invocation_before_result:
   assumes "state_wellFormed C"
     and "invocOp C s = None"
   shows "invocRes C s = None"    
+text_raw \<open>}%EndSnippet\<close>
   using assms by (induct arbitrary:  rule: wellFormed_induct,
       auto simp add: initialState_def step_simps_all wellFormed_invoc_notStarted(2) split: if_splits)
 

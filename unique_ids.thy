@@ -540,7 +540,6 @@ qed
 lemmas wf_knownIds_subset_generatedIds = wf_knownIds_subset_generatedIds_h(2)
 
 lemma wf_knownIds_subset_generatedIds2:
-  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and "x \<in> knownIds S"
@@ -552,7 +551,6 @@ lemma wf_knownIds_subset_generatedIds2:
 
 
 lemma wf_onlyGeneratedIdsInKnownIds:
-  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and not_generated: "generatedIds S uid = None"
@@ -563,7 +561,6 @@ lemma wf_onlyGeneratedIdsInKnownIds:
 
 
 lemma wf_onlyGeneratedIdsInCalls:
-  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and not_generated: "generatedIds S uid = None"
@@ -580,7 +577,6 @@ lemma wf_onlyGeneratedIdsInCallResults:
   by (meson domIff in_mono local.wf not_generated prog_wf wf_knownIds_subset_generatedIds_h(4))
 
 lemma wf_onlyGeneratedIdsInInvocationOps:
-  fixes S :: "('proc::valueType, 'ls, 'op::valueType, 'any::valueType) state"
   assumes wf: "state_wellFormed S"
     and prog_wf: "program_wellFormed (prog S)"
     and not_generated: "generatedIds S uid = None"
@@ -627,6 +623,10 @@ lemma use_invocation_cannot_guess_ids_return:
 and "S ~~ (i, AReturn res) \<leadsto> S'"
 shows "uniqueIds res \<subseteq> uids"
   using action_outputs.simps(7) assms(1) assms(2) invocation_cannot_guess_ids_step by blast
+
+
+
+
 
 
 (*

@@ -85,6 +85,32 @@ definition uid_is_private' where
     \<and> uidv \<notin> s_knownIds
     "
 
+text \<open>
+\DefineSnippet{uid_is_private2}{
+  @{thm [display] uid_is_private'_def}
+}%EndSnippet
+
+\DefineSnippet{new_unique_not_in_invocOp}{
+  @{thm [display] new_unique_not_in_invocOp_def}
+}%EndSnippet
+
+\DefineSnippet{new_unique_not_in_calls}{
+  @{thm [display] new_unique_not_in_calls_def}
+}%EndSnippet
+
+\DefineSnippet{new_unique_not_in_calls_result}{
+  @{thm [display] new_unique_not_in_calls_result_def}
+}%EndSnippet
+
+\DefineSnippet{new_unique_not_in_invocRes}{
+  @{thm [display] new_unique_not_in_invocRes_def}
+}%EndSnippet                           
+
+\<close>
+
+
+
+
 abbreviation
 "uid_is_private_S i S uidv \<equiv>
   uid_is_private' i (calls S) (invocOp S) (invocRes S) (knownIds S) uidv"

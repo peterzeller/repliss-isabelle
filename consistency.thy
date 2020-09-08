@@ -732,10 +732,12 @@ lemma wf_vis_downwards_closed:
   by (meson assms causallyConsistent_def local.wf wellFormed_state_causality(1))
 
 
+text_raw \<open>\DefineSnippet{wf_causallyConsistent1}{\<close>
 lemma wf_causallyConsistent1:
   assumes wf: "state_wellFormed S"
-and "visibleCalls S i \<triangleq> vis"
-shows "causallyConsistent (happensBefore S) vis"
+    and "visibleCalls S i \<triangleq> vis"
+  shows "causallyConsistent (happensBefore S) vis"
+text_raw \<open>}%EndSnippet\<close>
   using assms(2) local.wf wellFormed_state_causality(1) by blast
 
 
