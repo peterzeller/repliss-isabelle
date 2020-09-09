@@ -1115,7 +1115,7 @@ proof -
 
 
       have noCallsInTx: "callOrigin Sa c \<noteq> Some t" for c
-        using \<open>currentTx S2 i \<triangleq> t\<close> monoGrowth noCallsInTx_S2 state_monotonicGrowth_current_transactions_fixed by blast
+        using \<open>currentTx Sa i \<triangleq> t\<close> monoGrowth noCallsInTx_S2 state_monotonicGrowth_current_transactions_fixed by blast
 
 
       show ?case 

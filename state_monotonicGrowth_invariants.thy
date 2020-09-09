@@ -151,9 +151,11 @@ lemma state_monotonicGrowth_txOrigin:
   using assms by (auto simp add: state_monotonicGrowth_def txOrigin_mono)
 
 
+text_raw \<open>\DefineSnippet{state_monotonicGrowth_calls}{\<close>
 lemma state_monotonicGrowth_calls:
   assumes "state_monotonicGrowth i S S'"
-  shows "calls S c \<triangleq> info \<Longrightarrow> calls S' c \<triangleq> info"
+shows "calls S c \<triangleq> info \<Longrightarrow> calls S' c \<triangleq> info"
+  text_raw \<open>}%EndSnippet\<close>
   using assms by (auto simp add: state_monotonicGrowth_def calls_mono)
 
 text_raw \<open>\DefineSnippet{state_monotonicGrowth_calls2}{\<close>
@@ -412,6 +414,6 @@ lemmas state_monotonicGrowth_lemmas =
   state_monotonicGrowth_txOrigin_i
 
 
-find_theorems state_monotonicGrowth invocOp
+find_theorems state_monotonicGrowth calls
 
 end
