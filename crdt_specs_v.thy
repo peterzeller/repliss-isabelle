@@ -59,6 +59,14 @@ lemma extract_op_eq:
   shows "extract_op c_calls c = oper \<longleftrightarrow> (\<exists>res. c_calls c \<triangleq> Call oper res)"
   using assms by (auto simp add: extract_op_def' split: option.splits call.splits)
 
+lemma extract_op_eq':
+  assumes "c\<in>dom c_calls"
+  shows "extract_op c_calls c = oper \<longleftrightarrow> (cOp c_calls c \<triangleq> oper)"
+  unfolding extract_op_eq[OF assms]
+  by (auto simp add: cOp_def)
+   (metis call.collapse)
+
+
 
 
 
